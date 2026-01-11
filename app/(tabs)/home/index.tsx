@@ -40,7 +40,7 @@ const SWIPE_STOP = 76;
 const SWIPE_OPEN_THRESHOLD = 22;
 // Trigger should require a deliberate, stronger swipe.
 const SWIPE_TRIGGER = 132;
-const SWIPE_ELASTIC = 0.28;
+const SWIPE_ELASTIC = 0.55;
 
 type SwipeTaskRowProps = {
   task: Task;
@@ -187,12 +187,16 @@ const SwipeTaskRow = React.memo(function SwipeTaskRow({
         const nextAbs = abs <= SWIPE_STOP ? abs : resisted;
         // Slight smoothing for a softer feel.
         const target = nextAbs * sign;
-        translateX.value = translateX.value + (target - translateX.value) * 0.35;
+        translateX.value = translateX.value + (target - translateX.value) * 0.55;
       })
       .onEnd((event) => {
-        const raw = startOffsetX.value + event.translationX;
+        let raw = startOffsetX.value + event.translationX;
+        if (startOffsetX.value > 0) raw = Math.max(0, raw);
+        if (startOffsetX.value < 0) raw = Math.min(0, raw);
+
         const sign: -1 | 0 | 1 = raw > 0 ? 1 : raw < 0 ? -1 : 0;
         const abs = Math.abs(translateX.value);
+        const absFinger = Math.abs(raw);
         const v = Math.max(-1200, Math.min(1200, event.velocityX));
 
         const springCfg = {
@@ -205,7 +209,10 @@ const SwipeTaskRow = React.memo(function SwipeTaskRow({
           velocity: v,
         };
 
-        if (abs >= SWIPE_TRIGGER) {
+        // Also allow triggering based on finger travel to make "through the stop" easier,
+        // even with resistance/smoothing.
+        const triggerFinger = SWIPE_STOP + (SWIPE_TRIGGER - SWIPE_STOP) / SWIPE_ELASTIC;
+        if (abs >= SWIPE_TRIGGER || absFinger >= triggerFinger) {
           // Trigger action, animate row off before committing.
           direction.value = 0;
           if (sign !== 0) dismiss(sign as -1 | 1);
@@ -214,7 +221,7 @@ const SwipeTaskRow = React.memo(function SwipeTaskRow({
 
         // Snap logic tuned to make returning to "closed" easy from the stop state.
         const CLOSE_SNAP = SWIPE_STOP * 0.72;
-        if (abs < Math.min(SWIPE_OPEN_THRESHOLD, CLOSE_SNAP)) {
+        if (abs < CLOSE_SNAP) {
           translateX.value = withSpring(0, springCfg);
           direction.value = 0;
           return;
