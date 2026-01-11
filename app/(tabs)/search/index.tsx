@@ -4,7 +4,7 @@ import { ScrollView, StyleSheet, Text } from 'react-native';
 export default function SearchIndex() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.text}>Suche kommt spaeter. Nutze + rechts zum Hinzufuegen.</Text>
+      <Text style={styles.text}>Hier stehen die Details für die Erinnerung. input für Ort, Zeit, Notizen, etc.</Text>
     </ScrollView>
   );
 }

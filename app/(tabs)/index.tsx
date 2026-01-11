@@ -1,60 +1,42 @@
-import { MaterialIcons } from '@expo/vector-icons';
-import * as Notifications from 'expo-notifications';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Gesture, GestureDetector, Swipeable } from 'react-native-gesture-handler';
-import Animated, { FadeInDown, runOnJS, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
+import React from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
-import { Fonts } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+type SectionId = 'today' | 'upcoming' | 'completed';
 
-type BucketId = 'today' | 'upcoming' | 'completed';
-
-type Reminder = {
+type Task = {
   id: string;
   title: string;
-  notes?: string;
-  dueAt?: number;
-  location?: string;
-  project?: string;
-  tags?: string[];
-  icon: keyof typeof MaterialIcons.glyphMap;
-  tint: string;
-  bucket: BucketId;
+  subtitle?: string;
+  dueAt: number;
+  section: SectionId;
   orderRank: number;
 };
+
+const BASE_TASKS = [
+  { title: 'Design sync', subtitle: 'Gradient, motion, microcopy prüfen' },
+  { title: 'Kunden-Call', subtitle: 'Scope für Q2 finalisieren' },
+  { title: 'Moodboard export', subtitle: 'Konzeptvarianten markieren' },
+  { title: 'Spaziergang', subtitle: 'Headspace für neue Idee' },
+  { title: 'Briefing sortiert', subtitle: 'Stakeholder-Feedback eingearbeitet' },
+] as const;
 
 type LayoutRect = { x: number; y: number; width: number; height: number };
 
 type LayoutCache = {
-  buckets: Record<BucketId, LayoutRect>;
-  items: Record<BucketId, { id: string; rect: LayoutRect }[]>;
+  sections: Record<SectionId, LayoutRect>;
+  items: Record<SectionId, { id: string; rect: LayoutRect }[]>;
 };
 
-const BUCKET_ORDER: BucketId[] = ['today', 'upcoming', 'completed'];
+const SECTION_ORDER: SectionId[] = ['today', 'upcoming', 'completed'];
 
-const BUCKET_LABELS: Record<BucketId, { title: string; hint: string }> = {
-  today: { title: 'Heute', hint: 'Fokus und faellig' },
-  upcoming: { title: 'Demnaechst', hint: 'Naechste Tage' },
-  completed: { title: 'Erledigt', hint: 'Abgeschlossen' },
+const SECTION_TITLES: Record<SectionId, string> = {
+  today: 'Today',
+  upcoming: 'Upcoming',
+  completed: 'Completed',
 };
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-if (Platform.OS !== 'web') {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-    }),
-  });
-}
 
 const measureView = (view: View | null) =>
   new Promise<LayoutRect | null>((resolve) => {
@@ -67,520 +49,223 @@ const measureView = (view: View | null) =>
     });
   });
 
-const isSameDay = (left: Date, right: Date) =>
-  left.getFullYear() === right.getFullYear() &&
-  left.getMonth() === right.getMonth() &&
-  left.getDate() === right.getDate();
-
-const formatTime = (timestamp?: number) => {
-  if (!timestamp) return '';
-  const date = new Date(timestamp);
-  const hours = `${date.getHours()}`.padStart(2, '0');
-  const minutes = `${date.getMinutes()}`.padStart(2, '0');
-  return `${hours}:${minutes}`;
-};
-
-const formatDate = (timestamp?: number) => {
-  if (!timestamp) return '';
-  const date = new Date(timestamp);
+const getDueAtForSection = (section: SectionId) => {
   const now = new Date();
-  if (isSameDay(date, now)) {
-    return 'Heute';
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (section === 'today') {
+    const preferred = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      Math.min(23, Math.max(8, now.getHours() + 1)),
+      0
+    );
+    return preferred.getTime();
   }
-  return `${MONTHS[date.getMonth()]} ${date.getDate()}`;
+  if (section === 'upcoming') {
+    const tomorrow = new Date(startOfToday);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(11, 0, 0, 0);
+    return tomorrow.getTime();
+  }
+  // completed
+  const completedAt = new Date(now);
+  completedAt.setMinutes(completedAt.getMinutes() - 5);
+  return completedAt.getTime();
 };
 
-const resolveBucketFromDue = (timestamp?: number): BucketId => {
-  if (!timestamp) return 'today';
-  const dueDate = new Date(timestamp);
-  const now = new Date();
-  if (isSameDay(dueDate, now) || dueDate < now) {
-    return 'today';
-  }
-  return 'upcoming';
-};
-
-const reseedRanks = (items: Reminder[]) =>
-  items.map((item, index) => ({
-    ...item,
+const reseedRanks = (tasks: Task[]) =>
+  tasks.map((task, index) => ({
+    ...task,
     orderRank: (index + 1) * 1000,
   }));
 
-const moveReminder = (
-  reminders: Reminder[],
-  id: string,
-  targetBucket: BucketId,
-  targetIndex: number
-) => {
-  const dragging = reminders.find((item) => item.id === id);
-  if (!dragging) return reminders;
+const adjustDueAtOnSectionChange = (task: Task, nextSection: SectionId): Task => {
+  // Only auto-adjust between Today <-> Upcoming as requested.
+  if (
+    (task.section === 'today' && nextSection === 'upcoming') ||
+    (task.section === 'upcoming' && nextSection === 'today')
+  ) {
+    return {
+      ...task,
+      section: nextSection,
+      dueAt: getDueAtForSection(nextSection),
+    };
+  }
 
-  const byBucket: Record<BucketId, Reminder[]> = {
+  return {
+    ...task,
+    section: nextSection,
+  };
+};
+
+const moveTask = (tasks: Task[], id: string, targetSection: SectionId, targetIndex: number) => {
+  const dragging = tasks.find((task) => task.id === id);
+  if (!dragging) return tasks;
+
+  const bySection: Record<SectionId, Task[]> = {
     today: [],
     upcoming: [],
     completed: [],
   };
 
-  for (const item of reminders) {
-    if (item.id === id) continue;
-    byBucket[item.bucket].push(item);
+  for (const task of tasks) {
+    if (task.id === id) continue;
+    bySection[task.section].push(task);
   }
 
-  for (const bucketId of BUCKET_ORDER) {
-    byBucket[bucketId] = [...byBucket[bucketId]].sort((a, b) => a.orderRank - b.orderRank);
+  for (const sectionId of SECTION_ORDER) {
+    bySection[sectionId] = [...bySection[sectionId]].sort((a, b) => a.orderRank - b.orderRank);
   }
 
-  const insertInto = [...byBucket[targetBucket]];
-  const nextIndex = Math.max(0, Math.min(insertInto.length, targetIndex));
-  insertInto.splice(nextIndex, 0, { ...dragging, bucket: targetBucket });
-  byBucket[targetBucket] = insertInto;
+  const insertInto = [...bySection[targetSection]];
+  const clampedIndex = Math.max(0, Math.min(insertInto.length, targetIndex));
+  insertInto.splice(clampedIndex, 0, adjustDueAtOnSectionChange(dragging, targetSection));
+  bySection[targetSection] = insertInto;
 
   return [
-    ...reseedRanks(byBucket.today),
-    ...reseedRanks(byBucket.upcoming),
-    ...reseedRanks(byBucket.completed),
+    ...reseedRanks(bySection.today),
+    ...reseedRanks(bySection.upcoming),
+    ...reseedRanks(bySection.completed),
   ];
 };
 
-const createSeedReminders = () => {
-  const now = new Date();
-  const todayMorning = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-    9,
-    30
-  ).getTime();
-  const todayAfternoon = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-    15,
-    0
-  ).getTime();
-  const tomorrow = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate() + 1,
-    11,
-    0
-  ).getTime();
-  const inThreeDays = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate() + 3,
-    14,
-    15
-  ).getTime();
-  const yesterday = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate() - 1,
-    18,
-    0
-  ).getTime();
-
-  return [
-    {
-      id: 'r-1',
-      title: 'Design sync',
-      notes: 'Gradient, motion, microcopy pruefen',
-      dueAt: todayMorning,
-      location: 'Studio 3B',
-      project: 'Reminds',
-      tags: ['Design', 'UI'],
-      icon: 'palette',
-      tint: '#F6B96B',
-      bucket: 'today',
-      orderRank: 1000,
-    },
-    {
-      id: 'r-2',
-      title: 'Kunden-Call',
-      notes: 'Scope fuer Q2 finalisieren',
-      dueAt: todayAfternoon,
-      location: 'Video',
-      project: 'Nordwind',
-      tags: ['Call', 'Roadmap'],
-      icon: 'call',
-      tint: '#6AC8C0',
-      bucket: 'today',
-      orderRank: 2000,
-    },
-    {
-      id: 'r-3',
-      title: 'Moodboard export',
-      notes: 'Konzeptvarianten markieren',
-      dueAt: tomorrow,
-      location: 'Desk',
-      project: 'Atelier',
-      tags: ['Konzept', 'Review'],
-      icon: 'auto-fix-high',
-      tint: '#7BB3E8',
-      bucket: 'upcoming',
-      orderRank: 1000,
-    },
-    {
-      id: 'r-4',
-      title: 'Spaziergang',
-      notes: 'Headspace fuer neue Idee',
-      dueAt: inThreeDays,
-      location: 'Park',
-      project: 'Personal',
-      tags: ['Wellbeing'],
-      icon: 'nature-people',
-      tint: '#9AD08B',
-      bucket: 'upcoming',
-      orderRank: 2000,
-    },
-    {
-      id: 'r-5',
-      title: 'Briefing sortiert',
-      notes: 'Stakeholder-Feedback eingearbeitet',
-      dueAt: yesterday,
-      location: 'Board',
-      project: 'Reminds',
-      tags: ['Done'],
-      icon: 'check-circle',
-      tint: '#93A0AA',
-      bucket: 'completed',
-      orderRank: 1000,
-    },
-  ] satisfies Reminder[];
-};
-
-const MetaChip = ({
-  icon,
-  label,
-  palette,
-}: {
-  icon: keyof typeof MaterialIcons.glyphMap;
-  label: string;
-  palette: ReturnType<typeof createPalette>;
-}) => (
-  <View style={[styles.metaChip, { backgroundColor: palette.chipBackground }]}> 
-    <MaterialIcons name={icon} size={14} color={palette.chipText} />
-    <Text style={[styles.metaChipText, { color: palette.chipText }]}>{label}</Text>
-  </View>
-);
-
-const TagChip = ({ label, palette }: { label: string; palette: ReturnType<typeof createPalette> }) => (
-  <View style={[styles.tagChip, { borderColor: palette.tagBorder }]}> 
-    <Text style={[styles.tagChipText, { color: palette.tagText }]}>{label}</Text>
-  </View>
-);
-
-const createPalette = (scheme: 'light' | 'dark') => {
-  if (scheme === 'dark') {
+const createSeedTasks = (): Task[] => {
+  return Array.from({ length: 80 }).map((_, index) => {
+    const template = BASE_TASKS[index % BASE_TASKS.length];
+    const section: SectionId = index < 28 ? 'today' : index < 56 ? 'upcoming' : 'completed';
+    const sectionIndex = section === 'today' ? index : section === 'upcoming' ? index - 28 : index - 56;
     return {
-      background: '#0C0F14',
-      surface: '#141922',
-      surfaceElevated: '#1A202B',
-      textPrimary: '#F4F6F8',
-      textSecondary: '#C2CBD4',
-      textMuted: '#8C97A2',
-      accent: '#F2B469',
-      accentCool: '#5AB5B0',
-      accentWarm: '#E4765F',
-      outline: '#263041',
-      chipBackground: '#1C2431',
-      chipText: '#C7D0DA',
-      tagBorder: '#2F394A',
-      tagText: '#D0D6DD',
-      bucketGlow: 'rgba(242, 180, 105, 0.16)',
-      shadow: '#000000',
-      success: '#70C1A9',
-      danger: '#E36B5B',
+      id: `t-${index + 1}`,
+      title: `${template.title} #${index + 1}`,
+      subtitle: template.subtitle,
+      section,
+      dueAt: getDueAtForSection(section),
+      orderRank: (sectionIndex + 1) * 1000,
     };
-  }
-  return {
-    background: '#F6F1EA',
-    surface: '#FFFFFF',
-    surfaceElevated: '#FFF7EE',
-    textPrimary: '#1F252A',
-    textSecondary: '#4C5963',
-    textMuted: '#6D7881',
-    accent: '#2E6D8D',
-    accentCool: '#3EA39F',
-    accentWarm: '#D9824E',
-    outline: '#E6DED2',
-    chipBackground: '#F1E7DA',
-    chipText: '#3E4A52',
-    tagBorder: '#D9CCBE',
-    tagText: '#4D5963',
-    bucketGlow: 'rgba(46, 109, 141, 0.12)',
-    shadow: '#c0b5a7',
-    success: '#2F8C79',
-    danger: '#C54B3C',
-  };
+  });
 };
-
-const ReminderCard = React.memo(
-  React.forwardRef<View, {
-    reminder: Reminder;
-    palette: ReturnType<typeof createPalette>;
-    colorScheme: 'light' | 'dark';
-    isHidden: boolean;
-    onToggleComplete: (id: string) => void;
-    onDelete: (id: string) => void;
-    dragGesture: ReturnType<typeof Gesture.Pan>;
-  }>((props, ref) => {
-    const { reminder, palette, colorScheme, isHidden, onToggleComplete, onDelete, dragGesture } = props;
-    const swipeRef = useRef<Swipeable | null>(null);
-    const isCompleted = reminder.bucket === 'completed';
-    const cardTint = withAlpha(palette.surface, colorScheme === 'dark' ? 0.22 : 0.42);
-
-    const handleSwipe = (direction: 'left' | 'right') => {
-      if (direction === 'left') {
-        onToggleComplete(reminder.id);
-      }
-      if (direction === 'right') {
-        onDelete(reminder.id);
-      }
-      swipeRef.current?.close();
-    };
-
-    const cardBody = (
-      <>
-        <View style={styles.cardHeader}>
-          <View style={[styles.iconPill, { backgroundColor: reminder.tint }]}> 
-            <MaterialIcons name={reminder.icon} size={18} color={palette.textPrimary} />
-          </View>
-          <View style={styles.cardTitleBlock}>
-            <Text
-              style={[
-                styles.cardTitle,
-                { color: palette.textPrimary },
-                isCompleted ? styles.cardTitleCompleted : null,
-              ]}>
-              {reminder.title}
-            </Text>
-            {reminder.notes ? (
-              <Text style={[styles.cardNotes, { color: palette.textSecondary }]}> 
-                {reminder.notes}
-              </Text>
-            ) : null}
-          </View>
-          <View style={styles.cardRight}>
-            <Text style={[styles.cardTime, { color: palette.textPrimary }]}> 
-              {formatTime(reminder.dueAt)}
-            </Text>
-            <Text style={[styles.cardDate, { color: palette.textMuted }]}> 
-              {formatDate(reminder.dueAt)}
-            </Text>
-            <GestureDetector gesture={dragGesture}>
-              <View style={[styles.dragHandle, { borderColor: palette.outline }]}> 
-                <MaterialIcons name="drag-indicator" size={18} color={palette.textMuted} />
-              </View>
-            </GestureDetector>
-          </View>
-        </View>
-        <View style={styles.metaRow}>
-          <MetaChip icon="event" label={formatDate(reminder.dueAt)} palette={palette} />
-          <MetaChip icon="schedule" label={formatTime(reminder.dueAt)} palette={palette} />
-          {reminder.location ? <MetaChip icon="place" label={reminder.location} palette={palette} /> : null}
-          {reminder.project ? <MetaChip icon="work" label={reminder.project} palette={palette} /> : null}
-        </View>
-        {reminder.tags?.length ? (
-          <View style={styles.tagRow}>
-            {reminder.tags.map((tag) => (
-              <TagChip key={`${reminder.id}-${tag}`} label={tag} palette={palette} />
-            ))}
-          </View>
-        ) : null}
-      </>
-    );
-
-    return (
-      <Animated.View entering={FadeInDown.duration(300).springify()}>
-        <Swipeable
-          ref={swipeRef}
-          leftThreshold={60}
-          rightThreshold={40}
-          onSwipeableOpen={handleSwipe}
-          renderLeftActions={() => (
-            <View style={[styles.swipeAction, { backgroundColor: palette.success }]}>
-              <MaterialIcons
-                name={isCompleted ? 'undo' : 'check'}
-                size={20}
-                color={palette.textPrimary}
-              />
-              <Text style={[styles.swipeText, { color: palette.textPrimary }]}
-                >{isCompleted ? 'Reaktivieren' : 'Erledigen'}</Text>
-            </View>
-          )}
-          renderRightActions={() => (
-            <View style={[styles.swipeAction, { backgroundColor: palette.danger }]}>
-              <MaterialIcons name="delete" size={20} color={palette.textPrimary} />
-              <Text style={[styles.swipeText, { color: palette.textPrimary }]}>Loeschen</Text>
-            </View>
-          )}>
-          {isHidden ? (
-            <View
-              ref={ref}
-              style={[
-                styles.card,
-                {
-                  backgroundColor: palette.surface,
-                  borderColor: palette.outline,
-                },
-                styles.cardHidden,
-              ]}>
-              {cardBody}
-            </View>
-          ) : (
-            <GlassSurface
-              ref={ref}
-              style={[styles.card, { borderColor: palette.outline }]}
-              glassEffectStyle="regular"
-              tintColor={cardTint}
-              fallbackBackgroundColor={palette.surface}>
-              <View style={isCompleted ? { opacity: 0.65 } : undefined}>{cardBody}</View>
-            </GlassSurface>
-          )}
-        </Swipeable>
-      </Animated.View>
-    );
-  })
-);
-
-ReminderCard.displayName = 'ReminderCard';
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
-  const colorScheme = useColorScheme() ?? 'light';
-  const router = useRouter();
-  const { action } = useLocalSearchParams<{ action?: string }>();
-  const palette = useMemo(() => createPalette(colorScheme), [colorScheme]);
-  const seedReminders = useMemo(() => createSeedReminders(), []);
-  const [reminders, setReminders] = useState<Reminder[]>(seedReminders);
-  const [hasNotificationPermission, setHasNotificationPermission] = useState(false);
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dragLayout, setDragLayout] = useState<LayoutRect | null>(null);
-  const [dragHover, setDragHover] = useState<{ bucketId: BucketId | null; index: number | null } | null>(
+
+  const [tasks, setTasks] = React.useState<Task[]>(() => createSeedTasks());
+  const [draggingId, setDraggingId] = React.useState<string | null>(null);
+  const [dragLayout, setDragLayout] = React.useState<LayoutRect | null>(null);
+  const [dragHover, setDragHover] = React.useState<{ sectionId: SectionId | null; index: number | null } | null>(
     null
   );
 
-  const dragLayoutRef = useRef<LayoutRect | null>(null);
-  const layoutCacheRef = useRef<LayoutCache | null>(null);
-  const bucketRefs = useRef<Record<BucketId, View | null>>({
+  const dragLayoutRef = React.useRef<LayoutRect | null>(null);
+  const layoutCacheRef = React.useRef<LayoutCache | null>(null);
+
+  const sectionRefs = React.useRef<Record<SectionId, View | null>>({
     today: null,
     upcoming: null,
     completed: null,
   });
-  const itemRefs = useRef<Record<string, View | null>>({});
+
+  const itemRefs = React.useRef<Record<string, View | null>>({});
 
   const dragTranslateX = useSharedValue(0);
   const dragTranslateY = useSharedValue(0);
 
-  const remindersById = useMemo(() => new Map(reminders.map((item) => [item.id, item])), [reminders]);
+  const tasksById = React.useMemo(() => new Map(tasks.map((task) => [task.id, task])), [tasks]);
 
-  const remindersByBucket = useMemo(() => {
-    const buckets: Record<BucketId, Reminder[]> = {
-      today: [],
-      upcoming: [],
-      completed: [],
-    };
-    for (const reminder of reminders) {
-      buckets[reminder.bucket].push(reminder);
+  const tasksBySection = React.useMemo(() => {
+    const grouped: Record<SectionId, Task[]> = { today: [], upcoming: [], completed: [] };
+    for (const task of tasks) grouped[task.section].push(task);
+    for (const sectionId of SECTION_ORDER) {
+      grouped[sectionId] = [...grouped[sectionId]].sort((a, b) => a.orderRank - b.orderRank);
     }
-    for (const bucket of BUCKET_ORDER) {
-      buckets[bucket] = [...buckets[bucket]].sort((a, b) => a.orderRank - b.orderRank);
-    }
-    return buckets;
-  }, [reminders]);
+    return grouped;
+  }, [tasks]);
 
-  const dueCount = useMemo(() => {
-    const now = Date.now();
-    return reminders.filter(
-      (reminder) => reminder.bucket !== 'completed' && reminder.dueAt && reminder.dueAt <= now
-    ).length;
-  }, [reminders]);
-
-  const startDrag = useCallback(
+  const startDrag = React.useCallback(
     async (id: string) => {
       const dragNode = itemRefs.current[id];
       const dragRect = await measureView(dragNode);
       if (!dragRect) return;
 
-      const bucketLayouts: Record<BucketId, LayoutRect> = {
+      const sectionLayouts: Record<SectionId, LayoutRect> = {
         today: { x: 0, y: 0, width: 0, height: 0 },
         upcoming: { x: 0, y: 0, width: 0, height: 0 },
         completed: { x: 0, y: 0, width: 0, height: 0 },
       };
 
-      for (const bucketId of BUCKET_ORDER) {
-        const bucketRect = await measureView(bucketRefs.current[bucketId]);
-        if (bucketRect) {
-          bucketLayouts[bucketId] = bucketRect;
-        }
+      for (const sectionId of SECTION_ORDER) {
+        const sectionRect = await measureView(sectionRefs.current[sectionId]);
+        if (sectionRect) sectionLayouts[sectionId] = sectionRect;
       }
 
-      const itemLayouts: Record<BucketId, { id: string; rect: LayoutRect }[]> = {
+      const itemLayouts: Record<SectionId, { id: string; rect: LayoutRect }[]> = {
         today: [],
         upcoming: [],
         completed: [],
       };
 
       await Promise.all(
-        Object.entries(itemRefs.current).map(async ([itemId, node]) => {
+        Object.entries(itemRefs.current).map(async ([taskId, node]) => {
           const itemRect = await measureView(node);
-          const reminder = remindersById.get(itemId);
-          if (!itemRect || !reminder) return;
-          itemLayouts[reminder.bucket].push({ id: itemId, rect: itemRect });
+          const task = tasksById.get(taskId);
+          if (!itemRect || !task) return;
+          itemLayouts[task.section].push({ id: taskId, rect: itemRect });
         })
       );
 
-      for (const bucketId of BUCKET_ORDER) {
-        itemLayouts[bucketId] = [...itemLayouts[bucketId]].sort((a, b) => a.rect.y - b.rect.y);
+      for (const sectionId of SECTION_ORDER) {
+        itemLayouts[sectionId] = [...itemLayouts[sectionId]].sort((a, b) => a.rect.y - b.rect.y);
       }
 
-      layoutCacheRef.current = { buckets: bucketLayouts, items: itemLayouts };
+      layoutCacheRef.current = { sections: sectionLayouts, items: itemLayouts };
       dragLayoutRef.current = dragRect;
       setDragLayout(dragRect);
+      const initialSection = tasksById.get(id)?.section ?? null;
       setDraggingId(id);
-      setDragHover({ bucketId: remindersById.get(id)?.bucket ?? null, index: null });
+      setDragHover({ sectionId: initialSection, index: null });
     },
-    [remindersById]
+    [tasksById]
   );
 
-  const updateHoverFromGesture = useCallback((translationX: number, translationY: number) => {
-    const layout = dragLayoutRef.current;
-    const cache = layoutCacheRef.current;
-    if (!layout || !cache || !draggingId) return;
+  const updateHoverFromGesture = React.useCallback(
+    (translationX: number, translationY: number) => {
+      const layout = dragLayoutRef.current;
+      const cache = layoutCacheRef.current;
+      if (!layout || !cache || !draggingId) return;
 
-    const centerX = layout.x + layout.width / 2 + translationX;
-    const centerY = layout.y + layout.height / 2 + translationY;
+      const centerX = layout.x + layout.width / 2 + translationX;
+      const centerY = layout.y + layout.height / 2 + translationY;
 
-    let targetBucket: BucketId | null = null;
-    for (const bucketId of BUCKET_ORDER) {
-      const bucketRect = cache.buckets[bucketId];
-      if (
-        centerX >= bucketRect.x &&
-        centerX <= bucketRect.x + bucketRect.width &&
-        centerY >= bucketRect.y &&
-        centerY <= bucketRect.y + bucketRect.height
-      ) {
-        targetBucket = bucketId;
-        break;
+      let targetSection: SectionId | null = null;
+      for (const sectionId of SECTION_ORDER) {
+        const rect = cache.sections[sectionId];
+        if (
+          centerX >= rect.x &&
+          centerX <= rect.x + rect.width &&
+          centerY >= rect.y &&
+          centerY <= rect.y + rect.height
+        ) {
+          targetSection = sectionId;
+          break;
+        }
       }
-    }
 
-    if (!targetBucket) {
-      setDragHover({ bucketId: null, index: null });
-      return;
-    }
+      if (!targetSection) {
+        setDragHover({ sectionId: null, index: null });
+        return;
+      }
 
-    const items = cache.items[targetBucket].filter((item) => item.id !== draggingId);
-    const targetIndex =
-      items.findIndex((item) => centerY < item.rect.y + item.rect.height / 2) ?? -1;
-    const resolvedIndex = targetIndex === -1 ? items.length : targetIndex;
+      const items = cache.items[targetSection].filter((item) => item.id !== draggingId);
+      const foundIndex = items.findIndex((item) => centerY < item.rect.y + item.rect.height / 2);
+      const resolvedIndex = foundIndex === -1 ? items.length : foundIndex;
 
-    setDragHover({ bucketId: targetBucket, index: resolvedIndex });
-  }, [draggingId]);
+      setDragHover({ sectionId: targetSection, index: resolvedIndex });
+    },
+    [draggingId]
+  );
 
-  const finishDrag = useCallback(() => {
-    if (!draggingId || !dragHover?.bucketId || dragHover.index == null) {
+  const finishDrag = React.useCallback(() => {
+    if (!draggingId || !dragHover?.sectionId || dragHover.index == null) {
       setDraggingId(null);
       setDragLayout(null);
       setDragHover(null);
@@ -589,7 +274,7 @@ export default function HomeScreen() {
       return;
     }
 
-    setReminders((prev) => moveReminder(prev, draggingId, dragHover.bucketId!, dragHover.index!));
+    setTasks((prev) => moveTask(prev, draggingId, dragHover.sectionId!, dragHover.index!));
 
     setDraggingId(null);
     setDragLayout(null);
@@ -598,7 +283,7 @@ export default function HomeScreen() {
     layoutCacheRef.current = null;
   }, [dragHover, draggingId]);
 
-  const createDragGesture = useCallback(
+  const createDragGesture = React.useCallback(
     (id: string) =>
       Gesture.Pan()
         .activateAfterLongPress(220)
@@ -617,130 +302,11 @@ export default function HomeScreen() {
           dragTranslateY.value = 0;
           runOnJS(finishDrag)();
         }),
-    [finishDrag, startDrag, updateHoverFromGesture, dragTranslateX, dragTranslateY]
+    [dragTranslateX, dragTranslateY, finishDrag, startDrag, updateHoverFromGesture]
   );
 
-  const addReminder = useCallback(() => {
-    setReminders((prev) => {
-      const bucketItems = prev.filter((reminder) => reminder.bucket === 'today');
-      const nextRank = bucketItems.length ? bucketItems[bucketItems.length - 1].orderRank + 1000 : 1000;
-      const now = new Date();
-      const dueAt = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate(),
-        now.getHours() + 1,
-        0
-      ).getTime();
-
-      return [
-        ...prev,
-        {
-          id: `r-${Date.now()}`,
-          title: 'Neuer Reminder',
-          notes: 'Details anfuegen',
-          dueAt,
-          location: 'Studio',
-          project: 'Inbox',
-          tags: ['Neu'],
-          icon: 'notifications',
-          tint: palette.accentCool,
-          bucket: 'today',
-          orderRank: nextRank,
-        },
-      ];
-    });
-  }, [palette.accentCool]);
-
-  React.useEffect(() => {
-    if (action !== 'add') return;
-    addReminder();
-    router.setParams({ action: undefined });
-  }, [action, addReminder, router]);
-
-  const toggleComplete = useCallback((id: string) => {
-    setReminders((prev) => {
-      const reminder = prev.find((item) => item.id === id);
-      if (!reminder) return prev;
-      const targetBucket =
-        reminder.bucket === 'completed' ? resolveBucketFromDue(reminder.dueAt) : 'completed';
-      const targetIndex = prev.filter((item) => item.bucket === targetBucket).length;
-      return moveReminder(prev, id, targetBucket, targetIndex);
-    });
-  }, []);
-
-  const deleteReminder = useCallback((id: string) => {
-    setReminders((prev) => prev.filter((item) => item.id !== id));
-  }, []);
-
-  React.useEffect(() => {
-    if (Platform.OS === 'web') return;
-
-    let isActive = true;
-    const ensurePermission = async () => {
-      const settings = await Notifications.getPermissionsAsync();
-      let finalStatus = settings.status;
-      if (settings.status !== 'granted') {
-        const request = await Notifications.requestPermissionsAsync();
-        finalStatus = request.status;
-      }
-      if (isActive) {
-        setHasNotificationPermission(finalStatus === 'granted');
-      }
-    };
-
-    ensurePermission();
-
-    return () => {
-      isActive = false;
-    };
-  }, []);
-
-  React.useEffect(() => {
-    if (Platform.OS === 'web') return;
-    const updateBadge = async () => {
-      try {
-        await Notifications.setBadgeCountAsync(dueCount);
-      } catch {
-        // Ignore badge updates on unsupported platforms.
-      }
-    };
-
-    updateBadge();
-  }, [dueCount]);
-
-  React.useEffect(() => {
-    if (Platform.OS === 'web') return;
-    if (!hasNotificationPermission) return;
-
-    const syncNotifications = async () => {
-      await Notifications.cancelAllScheduledNotificationsAsync();
-      const now = Date.now();
-      const upcoming = reminders.filter(
-        (reminder) => reminder.bucket !== 'completed' && reminder.dueAt && reminder.dueAt > now
-      );
-
-      for (const reminder of upcoming) {
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: reminder.title,
-            body: reminder.notes ?? 'Reminder ist faellig.',
-            sound: true,
-          },
-          trigger: { type: null, date: new Date(reminder.dueAt!) } as any,
-        });
-      }
-    };
-
-    syncNotifications();
-  }, [reminders, hasNotificationPermission]);
-
   const dragGestureStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: dragTranslateX.value },
-      { translateY: dragTranslateY.value },
-      { scale: 1.03 },
-    ],
+    transform: [{ translateX: dragTranslateX.value }, { translateY: dragTranslateY.value }, { scale: 1.03 }],
   }));
 
   const dragOverlayStyle = dragLayout
@@ -754,447 +320,162 @@ export default function HomeScreen() {
       ]
     : null;
 
-  return (
-    <View style={[styles.container, { backgroundColor: palette.background }]}>
-      <View pointerEvents="none" style={styles.backgroundLayer}>
-        <View style={[styles.orb, styles.orbTop, { backgroundColor: palette.accentCool }]} />
-        <View style={[styles.orb, styles.orbBottom, { backgroundColor: palette.accent }]} />
-      </View>
+  const draggingTask = draggingId ? tasksById.get(draggingId) : undefined;
 
+  return (
+    <>
       <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        showsVerticalScrollIndicator={false}
+        stickyHeaderIndices={[0]}
         scrollEnabled={!draggingId}
-        contentContainerStyle={[
-          styles.content,
-          { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 120 },
-        ]}
-        showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <View>
-            <Text style={[styles.brand, { color: palette.textPrimary }]}>reminds</Text>
-            <Text style={[styles.subtitle, { color: palette.textSecondary }]}>Dein Fokus fuer heute.</Text>
-          </View>
-          <GlassSurface
-            style={[styles.badge, { borderColor: palette.outline }]}
-            glassEffectStyle="regular"
-            tintColor={withAlpha(palette.surface, colorScheme === 'dark' ? 0.22 : 0.42)}
-            fallbackBackgroundColor={palette.surface}>
-            <Text style={[styles.badgeCount, { color: palette.textPrimary }]}>{dueCount}</Text>
-            <Text style={[styles.badgeLabel, { color: palette.textMuted }]}>faellig</Text>
-          </GlassSurface>
+        contentContainerStyle={styles.content}>
+        <View style={[styles.stickyHeader, { paddingTop: insets.top + 10 }]}>
+          <Text style={styles.stickyTitle}>Tasks</Text>
+          <Text style={styles.stickyHint}>Long-press & ziehen, um zu sortieren.</Text>
         </View>
 
-        <GlassSurface
-          style={[styles.quickRow, { borderColor: palette.outline }]}
-          glassEffectStyle="regular"
-          tintColor={withAlpha(palette.surfaceElevated, colorScheme === 'dark' ? 0.2 : 0.32)}
-          fallbackBackgroundColor={palette.surfaceElevated}>
-          <View>
-            <Text style={[styles.quickTitle, { color: palette.textPrimary }]}>Neue Erinnerung</Text>
-            <Text style={[styles.quickHint, { color: palette.textMuted }]}>Tippe fuers Erstellen</Text>
-          </View>
-          <Pressable
-            onPress={addReminder}
-            style={({ pressed }) => [
-              styles.addButton,
-              {
-                backgroundColor: palette.accent,
-                opacity: pressed ? 0.8 : 1,
-              },
-            ]}>
-            <MaterialIcons name="add" size={20} color={palette.surface} />
-            <Text style={[styles.addButtonText, { color: palette.surface }]}>Neu</Text>
-          </Pressable>
-        </GlassSurface>
-
-        <Text style={[styles.dragHint, { color: palette.textMuted }]}>Long-press am Griff, dann ziehen.</Text>
-
-        {BUCKET_ORDER.map((bucketId) => {
-          const bucketItems = remindersByBucket[bucketId];
-          const bucketAccent =
-            bucketId === 'today'
-              ? palette.accent
-              : bucketId === 'upcoming'
-                ? palette.accentCool
-                : palette.textMuted;
-
+        {SECTION_ORDER.map((sectionId) => {
+          const sectionTasks = tasksBySection[sectionId];
           const dropIndex =
-            dragHover?.bucketId === bucketId && dragHover.index != null ? dragHover.index : null;
+            dragHover?.sectionId === sectionId && dragHover.index != null ? dragHover.index : null;
 
-          const itemsWithDrop = bucketItems.flatMap((item, index) => {
+          const itemsWithDrop = sectionTasks.flatMap((task, index) => {
             const entry: React.ReactNode[] = [];
             if (dropIndex === index) {
-              entry.push(
-                <View
-                  key={`drop-${bucketId}-${index}`}
-                  style={[styles.dropMarker, { backgroundColor: bucketAccent }]}
-                />
-              );
+              entry.push(<View key={`drop-${sectionId}-${index}`} style={styles.dropMarker} />);
             }
+
             entry.push(
-              <ReminderCard
-                key={item.id}
+              <View
+                key={task.id}
                 ref={(node) => {
-                  itemRefs.current[item.id] = node;
-                }}
-                reminder={item}
-                palette={palette}
-                colorScheme={colorScheme}
-                isHidden={draggingId === item.id}
-                onToggleComplete={toggleComplete}
-                onDelete={deleteReminder}
-                dragGesture={createDragGesture(item.id)}
-              />
+                  itemRefs.current[task.id] = node;
+                }}>
+                <GestureDetector gesture={createDragGesture(task.id)}>
+                  <View style={[styles.row, draggingId === task.id ? styles.rowHidden : null]}>
+                    <Text style={styles.rowTitle}>{task.title}</Text>
+                    {task.subtitle ? <Text style={styles.rowSubtitle}>{task.subtitle}</Text> : null}
+                  </View>
+                </GestureDetector>
+              </View>
             );
+
             return entry;
           });
 
-          if (dropIndex === bucketItems.length) {
-            itemsWithDrop.push(
-              <View
-                key={`drop-${bucketId}-end`}
-                style={[styles.dropMarker, { backgroundColor: bucketAccent }]}
-              />
-            );
+          if (dropIndex === sectionTasks.length) {
+            itemsWithDrop.push(<View key={`drop-${sectionId}-end`} style={styles.dropMarker} />);
           }
 
           return (
-            <GlassSurface
-              key={bucketId}
+            <View
+              key={sectionId}
               ref={(node) => {
-                bucketRefs.current[bucketId] = node;
+                sectionRefs.current[sectionId] = node;
               }}
-              style={[
-                styles.bucket,
-                {
-                  borderColor: palette.outline,
-                  shadowColor: palette.shadow,
-                },
-                dragHover?.bucketId === bucketId
-                  ? { shadowOpacity: 0.18, shadowRadius: 16, shadowOffset: { width: 0, height: 8 } }
-                  : null,
-              ]}
-              glassEffectStyle="regular"
-              tintColor={withAlpha(palette.surfaceElevated, colorScheme === 'dark' ? 0.2 : 0.32)}
-              fallbackBackgroundColor={palette.surfaceElevated}>
-              <View style={styles.bucketHeader}>
-                <View style={styles.bucketTitleRow}>
-                  <View style={[styles.bucketDot, { backgroundColor: bucketAccent }]} />
-                  <Text style={[styles.bucketTitle, { color: palette.textPrimary }]}>
-                    {BUCKET_LABELS[bucketId].title}
-                  </Text>
-                </View>
-                <Text style={[styles.bucketCount, { color: palette.textMuted }]}>
-                  {bucketItems.length}
-                </Text>
+              style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <View style={styles.sectionLine} />
+                <Text style={styles.sectionTitle}>{SECTION_TITLES[sectionId]}</Text>
+                <View style={styles.sectionLine} />
               </View>
-              <Text style={[styles.bucketHint, { color: palette.textMuted }]}>
-                {BUCKET_LABELS[bucketId].hint}
-              </Text>
-
-              <View style={styles.bucketBody}>{itemsWithDrop}</View>
-            </GlassSurface>
+              <View style={styles.sectionBody}>{itemsWithDrop}</View>
+            </View>
           );
         })}
       </ScrollView>
 
-      {draggingId && dragLayout ? (
+      {draggingId && dragLayout && draggingTask ? (
         <Animated.View style={dragOverlayStyle} pointerEvents="none">
           <Animated.View style={dragGestureStyle}>
-            {(() => {
-              const reminder = remindersById.get(draggingId);
-              if (!reminder) return null;
-              return (
-                <GlassSurface
-                  style={[
-                    styles.card,
-                    styles.dragCard,
-                    {
-                      borderColor: palette.outline,
-                      shadowColor: palette.shadow,
-                    },
-                  ]}
-                  glassEffectStyle="regular"
-                  tintColor={withAlpha(palette.surface, colorScheme === 'dark' ? 0.22 : 0.42)}
-                  fallbackBackgroundColor={palette.surface}>
-                  <View style={styles.cardHeader}>
-                    <View style={[styles.iconPill, { backgroundColor: reminder.tint }]}>
-                      <MaterialIcons name={reminder.icon} size={18} color={palette.textPrimary} />
-                    </View>
-                    <View style={styles.cardTitleBlock}>
-                      <Text style={[styles.cardTitle, { color: palette.textPrimary }]}>
-                        {reminder.title}
-                      </Text>
-                      {reminder.notes ? (
-                        <Text style={[styles.cardNotes, { color: palette.textSecondary }]}> 
-                          {reminder.notes}
-                        </Text>
-                      ) : null}
-                    </View>
-                    <View style={styles.cardRight}>
-                      <Text style={[styles.cardTime, { color: palette.textPrimary }]}> 
-                        {formatTime(reminder.dueAt)}
-                      </Text>
-                      <Text style={[styles.cardDate, { color: palette.textMuted }]}> 
-                        {formatDate(reminder.dueAt)}
-                      </Text>
-                    </View>
-                  </View>
-                </GlassSurface>
-              );
-            })()}
+            <View style={[styles.row, styles.dragRow]}>
+              <Text style={styles.rowTitle}>{draggingTask.title}</Text>
+              {draggingTask.subtitle ? (
+                <Text style={styles.rowSubtitle}>{draggingTask.subtitle}</Text>
+              ) : null}
+            </View>
           </Animated.View>
         </Animated.View>
       ) : null}
-    </View>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  backgroundLayer: {
-    ...StyleSheet.absoluteFillObject,
-    opacity: 0.4,
-  },
-  orb: {
-    position: 'absolute',
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    opacity: 0.25,
-  },
-  orbTop: {
-    top: -120,
-    right: -80,
-  },
-  orbBottom: {
-    bottom: -140,
-    left: -80,
-  },
   content: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
+    paddingBottom: 120,
+    gap: 12,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 16,
+  stickyHeader: {
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(0,0,0,0.12)',
   },
-  brand: {
-    fontSize: 36,
-    fontFamily: Fonts.rounded,
-    letterSpacing: 0.8,
+  stickyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
   },
-  subtitle: {
-    fontSize: 14,
-    marginTop: 6,
-    fontFamily: Fonts.serif,
-  },
-  badge: {
-    minWidth: 72,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 18,
-    borderWidth: 1,
-    alignItems: 'center',
-    gap: 2,
-  },
-  badgeCount: {
-    fontSize: 22,
-    fontFamily: Fonts.rounded,
-  },
-  badgeLabel: {
-    fontSize: 12,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-  },
-  quickRow: {
-    marginTop: 24,
-    borderWidth: 1,
-    borderRadius: 20,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  quickTitle: {
-    fontSize: 16,
-    fontFamily: Fonts.rounded,
-  },
-  quickHint: {
+  stickyHint: {
     marginTop: 4,
-    fontSize: 13,
-    fontFamily: Fonts.serif,
-  },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  addButtonText: {
-    fontSize: 14,
-    fontFamily: Fonts.rounded,
-  },
-  dragHint: {
-    marginTop: 16,
     fontSize: 12,
-    fontFamily: Fonts.serif,
-    letterSpacing: 0.4,
+    opacity: 0.6,
   },
-  bucket: {
-    marginTop: 20,
-    borderRadius: 22,
-    padding: 18,
-    borderWidth: 1,
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
+  section: {
+    gap: 10,
   },
-  bucketHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  bucketTitleRow: {
+  sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    marginTop: 8,
+    marginBottom: 4,
   },
-  bucketDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 999,
-  },
-  bucketTitle: {
-    fontSize: 18,
-    fontFamily: Fonts.rounded,
-  },
-  bucketCount: {
-    fontSize: 14,
-    fontFamily: Fonts.rounded,
-  },
-  bucketHint: {
-    marginTop: 4,
+  sectionTitle: {
     fontSize: 12,
-    fontFamily: Fonts.serif,
+    fontWeight: '700',
+    letterSpacing: 0.9,
+    textTransform: 'uppercase',
+    opacity: 0.55,
   },
-  bucketBody: {
-    marginTop: 12,
-    gap: 12,
+  sectionLine: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(0,0,0,0.12)',
   },
-  card: {
-    borderRadius: 18,
-    borderWidth: 1,
-    padding: 14,
+  row: {
+    minHeight: 56,
+    borderRadius: 12,
+    backgroundColor: '#00000010',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 4,
   },
-  cardHidden: {
+  rowHidden: {
     opacity: 0,
   },
-  dragCard: {
-    shadowOpacity: 0.2,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
+  dragRow: {
+    backgroundColor: '#00000018',
   },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  iconPill: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardTitleBlock: {
-    flex: 1,
-  },
-  cardTitle: {
+  rowTitle: {
     fontSize: 16,
-    fontFamily: Fonts.rounded,
+    fontWeight: '600',
   },
-  cardTitleCompleted: {
-    textDecorationLine: 'line-through',
-  },
-  cardNotes: {
-    marginTop: 4,
+  rowSubtitle: {
     fontSize: 13,
-    fontFamily: Fonts.serif,
+    opacity: 0.7,
   },
-  cardRight: {
-    alignItems: 'flex-end',
-    gap: 6,
-  },
-  cardTime: {
-    fontSize: 14,
-    fontFamily: Fonts.rounded,
-  },
-  cardDate: {
-    fontSize: 12,
-    fontFamily: Fonts.serif,
-  },
-  dragHandle: {
-    marginTop: 6,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  metaRow: {
-    marginTop: 10,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  metaChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-  },
-  metaChipText: {
-    fontSize: 11,
-    fontFamily: Fonts.serif,
-  },
-  tagRow: {
-    marginTop: 8,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  tagChip: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  tagChipText: {
-    fontSize: 11,
-    fontFamily: Fonts.serif,
-  },
-  swipeAction: {
-    width: 120,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: 18,
-    marginVertical: 4,
-  },
-  swipeText: {
-    fontSize: 12,
-    fontFamily: Fonts.rounded,
-    letterSpacing: 0.4,
+  sectionBody: {
+    gap: 12,
   },
   dropMarker: {
     height: 6,
     borderRadius: 999,
+    backgroundColor: 'rgba(0,0,0,0.22)',
   },
   dragOverlay: {
     position: 'absolute',
