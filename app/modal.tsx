@@ -55,7 +55,7 @@ export default function ModalScreen() {
               if (!canSubmit) return;
               const text = title.trim();
               // Dispatch creation to Home via params.
-              router.navigate({ pathname: '/', params: { action: 'add', title: text } });
+              router.navigate({ pathname: '/home', params: { action: 'add', title: text } });
               router.back();
             }}
             disabled={!canSubmit}

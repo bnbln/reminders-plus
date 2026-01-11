@@ -1,0 +1,28 @@
+diff --git a/node_modules/@react-native-menu/menu/ios/Shared/MenuViewImplementation.swift b/node_modules/@react-native-menu/menu/ios/Shared/MenuViewImplementation.swift
+index 5c4e0da..d2243fe 100644
+--- a/node_modules/@react-native-menu/menu/ios/Shared/MenuViewImplementation.swift
++++ b/node_modules/@react-native-menu/menu/ios/Shared/MenuViewImplementation.swift
+@@ -54,23 +54,9 @@ public class MenuViewImplementation: UIButton {
+ 
+     override init(frame: CGRect) {
+         super.init(frame: frame)
+-        let interaction = UIContextMenuInteraction(delegate: self)
+-        self.addInteraction(interaction)
+         self.setup()
+     }
+ 
+-    public override func contextMenuInteraction(_ interaction: UIContextMenuInteraction, configurationForMenuAtLocation location: CGPoint) -> UIContextMenuConfiguration? {
+-        sendMenuOpen()
+-        return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
+-            guard let self = self else { return nil }
+-            return self.menu
+-        }
+-    }
+-    
+-    public override func contextMenuInteraction(_ interaction: UIContextMenuInteraction, willEndFor configuration: UIContextMenuConfiguration, animator: UIContextMenuInteractionAnimating?) {
+-        sendMenuClose()
+-    }
+-
+     func setup () {
+         let menu = UIMenu(title: _title,
+             identifier: nil,

@@ -14,7 +14,7 @@ function AddOrConfirmButton() {
       onPress={() => {
         if (!canSubmit) return;
         router.setParams({ q: '' });
-        router.navigate({ pathname: '/', params: { action: 'add', title: text } });
+        router.navigate({ pathname: '/home', params: { action: 'add', title: text } });
       }}
       disabled={!canSubmit}
       hitSlop={10}
