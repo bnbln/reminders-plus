@@ -1,15 +1,18 @@
 import { Image } from 'expo-image';
 import { Platform, StyleSheet } from 'react-native';
 
-import { Collapsible } from '@/components/ui/collapsible';
 import { ExternalLink } from '@/components/external-link';
 import ParallaxScrollView from '@/components/parallax-scroll-view';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import { Collapsible } from '@/components/ui/collapsible';
+import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Fonts } from '@/constants/theme';
+import { Colors, Fonts } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function TabTwoScreen() {
+  const theme = useColorScheme() ?? 'light';
+
   return (
     <ParallaxScrollView
       headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
@@ -21,7 +24,11 @@ export default function TabTwoScreen() {
           style={styles.headerImage}
         />
       }>
-      <ThemedView style={styles.titleContainer}>
+      <GlassSurface
+        style={styles.titleContainer}
+        glassEffectStyle="regular"
+        tintColor={withAlpha(Colors[theme].background, theme === 'dark' ? 0.18 : 0.32)}
+        fallbackBackgroundColor={Colors[theme].background}>
         <ThemedText
           type="title"
           style={{
@@ -29,7 +36,7 @@ export default function TabTwoScreen() {
           }}>
           Explore
         </ThemedText>
-      </ThemedView>
+      </GlassSurface>
       <ThemedText>This app includes example code to help you get started.</ThemedText>
       <Collapsible title="File-based routing">
         <ThemedText>
@@ -108,5 +115,11 @@ const styles = StyleSheet.create({
   titleContainer: {
     flexDirection: 'row',
     gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+    alignSelf: 'flex-start',
   },
 });
