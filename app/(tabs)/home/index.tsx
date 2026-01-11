@@ -1,9 +1,8 @@
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams } from 'expo-router';
 import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist';
 
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
@@ -30,13 +29,6 @@ const BASE_TASKS = [
   { title: 'Briefing sortiert', subtitle: 'Stakeholder-Feedback eingearbeitet' },
 ] as const;
 
-type LayoutRect = { x: number; y: number; width: number; height: number };
-
-type LayoutCache = {
-  sections: Record<SectionId, LayoutRect>;
-  items: Record<SectionId, { id: string; rect: LayoutRect }[]>;
-};
-
 const SECTION_ORDER: SectionId[] = ['today', 'upcoming', 'completed'];
 
 const parseSectionsParam = (value: unknown): SectionId[] => {
@@ -54,17 +46,6 @@ const SECTION_TITLES: Record<SectionId, string> = {
   upcoming: 'Upcoming',
   completed: 'Completed',
 };
-
-const measureView = (view: View | null) =>
-  new Promise<LayoutRect | null>((resolve) => {
-    if (!view) {
-      resolve(null);
-      return;
-    }
-    view.measureInWindow((x, y, width, height) => {
-      resolve({ x, y, width, height });
-    });
-  });
 
 const getDueAtForSection = (section: SectionId) => {
   const now = new Date();
@@ -91,12 +72,6 @@ const getDueAtForSection = (section: SectionId) => {
   return completedAt.getTime();
 };
 
-const reseedRanks = (tasks: Task[]) =>
-  tasks.map((task, index) => ({
-    ...task,
-    orderRank: (index + 1) * 1000,
-  }));
-
 const adjustDueAtOnSectionChange = (task: Task, nextSection: SectionId): Task => {
   // Only auto-adjust between Today <-> Upcoming as requested.
   if (
@@ -114,33 +89,6 @@ const adjustDueAtOnSectionChange = (task: Task, nextSection: SectionId): Task =>
     ...task,
     section: nextSection,
   };
-};
-
-const moveTask = (tasks: Task[], id: string, targetSection: SectionId, targetIndex: number) => {
-  const dragging = tasks.find((task) => task.id === id);
-  if (!dragging) return tasks;
-
-  const bySection: Record<SectionId, Task[]> = {
-    today: [],
-    upcoming: [],
-    completed: [],
-  };
-
-  for (const task of tasks) {
-    if (task.id === id) continue;
-    bySection[task.section].push(task);
-  }
-
-  for (const sectionId of SECTION_ORDER) {
-    bySection[sectionId] = [...bySection[sectionId]].sort((a, b) => a.orderRank - b.orderRank);
-  }
-
-  const insertInto = [...bySection[targetSection]];
-  const clampedIndex = Math.max(0, Math.min(insertInto.length, targetIndex));
-  insertInto.splice(clampedIndex, 0, adjustDueAtOnSectionChange(dragging, targetSection));
-  bySection[targetSection] = insertInto;
-
-  return [...reseedRanks(bySection.today), ...reseedRanks(bySection.upcoming), ...reseedRanks(bySection.completed)];
 };
 
 const createSeedTasks = (): Task[] => {
@@ -171,9 +119,8 @@ export default function HomeScreen() {
   const styles = React.useMemo(() => createStyles(theme), [theme]);
 
   const [tasks, setTasks] = React.useState<Task[]>(() => createSeedTasks());
-  const [draggingId, setDraggingId] = React.useState<string | null>(null);
-  const [dragLayout, setDragLayout] = React.useState<LayoutRect | null>(null);
-  const [dragHover, setDragHover] = React.useState<{ sectionId: SectionId | null; index: number | null } | null>(null);
+  const isDraggingRef = React.useRef(false);
+  const placeholderIndexRef = React.useRef<number>(-1);
 
   const visibleTasks = React.useMemo(() => {
     const base = tasks.filter((t) => enabledSections.includes(t.section));
@@ -185,21 +132,7 @@ export default function HomeScreen() {
     return SECTION_ORDER.filter((s) => enabledSections.includes(s));
   }, [enabledSections]);
 
-  const dragLayoutRef = React.useRef<LayoutRect | null>(null);
-  const layoutCacheRef = React.useRef<LayoutCache | null>(null);
-
-  const sectionRefs = React.useRef<Record<SectionId, View | null>>({
-    today: null,
-    upcoming: null,
-    completed: null,
-  });
-
-  const itemRefs = React.useRef<Record<string, View | null>>({});
-
-  const dragTranslateX = useSharedValue(0);
-  const dragTranslateY = useSharedValue(0);
-  const dragScale = useSharedValue(1);
-  const dragShadow = useSharedValue(0);
+  const firstVisibleSection = visibleSections[0] ?? 'today';
 
   const tasksById = React.useMemo(() => new Map(visibleTasks.map((task) => [task.id, task])), [visibleTasks]);
 
@@ -218,237 +151,177 @@ export default function HomeScreen() {
     [isDark, theme]
   );
 
-  const hapticLift = React.useCallback(() => {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
-  }, []);
+  type ListItem =
+    | { type: 'header'; key: string; sectionId: SectionId }
+    | { type: 'task'; key: string; taskId: string };
 
-  const hapticDrop = React.useCallback(() => {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
-  }, []);
-
-  const startDrag = React.useCallback(
-    async (id: string) => {
-      const dragNode = itemRefs.current[id];
-      const dragRect = await measureView(dragNode);
-      if (!dragRect) return;
-
-      const sectionLayouts: Record<SectionId, LayoutRect> = {
-        today: { x: 0, y: 0, width: 0, height: 0 },
-        upcoming: { x: 0, y: 0, width: 0, height: 0 },
-        completed: { x: 0, y: 0, width: 0, height: 0 },
-      };
-
-      for (const sectionId of visibleSections) {
-        const sectionRect = await measureView(sectionRefs.current[sectionId]);
-        if (sectionRect) sectionLayouts[sectionId] = sectionRect;
+  const listData = React.useMemo<ListItem[]>(() => {
+    const data: ListItem[] = [];
+    for (const sectionId of visibleSections) {
+      if (sectionId !== firstVisibleSection) {
+        data.push({ type: 'header', key: `h-${sectionId}`, sectionId });
       }
-
-      const itemLayouts: Record<SectionId, { id: string; rect: LayoutRect }[]> = {
-        today: [],
-        upcoming: [],
-        completed: [],
-      };
-
-      await Promise.all(
-        Object.entries(itemRefs.current).map(async ([taskId, node]) => {
-          const itemRect = await measureView(node);
-          const task = tasksById.get(taskId);
-          if (!itemRect || !task) return;
-          itemLayouts[task.section].push({ id: taskId, rect: itemRect });
-        })
-      );
-
-      for (const sectionId of visibleSections) {
-        itemLayouts[sectionId] = [...itemLayouts[sectionId]].sort((a, b) => a.rect.y - b.rect.y);
+      for (const task of tasksBySection[sectionId]) {
+        data.push({ type: 'task', key: task.id, taskId: task.id });
       }
-
-      layoutCacheRef.current = { sections: sectionLayouts, items: itemLayouts };
-      dragLayoutRef.current = dragRect;
-      setDragLayout(dragRect);
-      const initialSection = tasksById.get(id)?.section ?? null;
-      setDraggingId(id);
-      setDragHover({ sectionId: initialSection, index: null });
-    },
-    [tasksById, visibleSections]
-  );
-
-  const updateHoverFromGesture = React.useCallback(
-    (translationX: number, translationY: number) => {
-      const layout = dragLayoutRef.current;
-      const cache = layoutCacheRef.current;
-      if (!layout || !cache || !draggingId) return;
-
-      const centerX = layout.x + layout.width / 2 + translationX;
-      const centerY = layout.y + layout.height / 2 + translationY;
-
-      let targetSection: SectionId | null = null;
-      for (const sectionId of visibleSections) {
-        const rect = cache.sections[sectionId];
-        if (
-          centerX >= rect.x &&
-          centerX <= rect.x + rect.width &&
-          centerY >= rect.y &&
-          centerY <= rect.y + rect.height
-        ) {
-          targetSection = sectionId;
-          break;
-        }
-      }
-
-      if (!targetSection) {
-        setDragHover({ sectionId: null, index: null });
-        return;
-      }
-
-      const items = cache.items[targetSection].filter((item) => item.id !== draggingId);
-      const foundIndex = items.findIndex((item) => centerY < item.rect.y + item.rect.height / 2);
-      const resolvedIndex = foundIndex === -1 ? items.length : foundIndex;
-
-      setDragHover({ sectionId: targetSection, index: resolvedIndex });
-    },
-    [draggingId, visibleSections]
-  );
-
-  const finishDrag = React.useCallback(() => {
-    if (!draggingId || !dragHover?.sectionId || dragHover.index == null) {
-      setDraggingId(null);
-      setDragLayout(null);
-      setDragHover(null);
-      dragLayoutRef.current = null;
-      layoutCacheRef.current = null;
-      return;
     }
+    return data;
+  }, [firstVisibleSection, tasksBySection, visibleSections]);
 
-    setTasks((prev) => moveTask(prev, draggingId, dragHover.sectionId!, dragHover.index!));
+  const [flatListData, setFlatListData] = React.useState<ListItem[]>(() => listData);
 
-    setDraggingId(null);
-    setDragLayout(null);
-    setDragHover(null);
-    dragLayoutRef.current = null;
-    layoutCacheRef.current = null;
-  }, [dragHover, draggingId]);
+  React.useEffect(() => {
+    if (!isDraggingRef.current) {
+      setFlatListData(listData);
+    }
+  }, [listData]);
 
-  const createDragGesture = React.useCallback(
-    (id: string) =>
-      Gesture.Pan()
-        .activateAfterLongPress(220)
-        .onStart(() => {
-          dragTranslateX.value = 0;
-          dragTranslateY.value = 0;
-          dragScale.value = withSpring(1.04, { damping: 18, stiffness: 260 });
-          dragShadow.value = withSpring(0.28, { damping: 20, stiffness: 220 });
-          runOnJS(hapticLift)();
-          runOnJS(startDrag)(id);
-        })
-        .onUpdate((event) => {
-          dragTranslateX.value = event.translationX;
-          dragTranslateY.value = event.translationY;
-          runOnJS(updateHoverFromGesture)(event.translationX, event.translationY);
-        })
-        .onEnd(() => {
-          dragTranslateX.value = 0;
-          dragTranslateY.value = 0;
-          dragScale.value = withSpring(1, { damping: 20, stiffness: 240 });
-          dragShadow.value = withSpring(0, { damping: 20, stiffness: 240 });
-          runOnJS(finishDrag)();
-          runOnJS(hapticDrop)();
-        }),
-    [dragScale, dragShadow, dragTranslateX, dragTranslateY, finishDrag, hapticDrop, hapticLift, startDrag, updateHoverFromGesture]
+  const applyOrderFromListData = React.useCallback(
+    (data: ListItem[]) => {
+      if (visibleSections.length === 0) return;
+
+      const bySection: Record<SectionId, string[]> = { today: [], upcoming: [], completed: [] };
+      let currentSection: SectionId = firstVisibleSection;
+
+      for (const item of data) {
+        if (item.type === 'header') {
+          currentSection = item.sectionId;
+          continue;
+        }
+        bySection[currentSection].push(item.taskId);
+      }
+
+      setTasks((prev) => {
+        const visibleIdSet = new Set(visibleTasks.map((t) => t.id));
+
+        const nextById = new Map<string, Task>();
+        for (const task of prev) nextById.set(task.id, task);
+
+        for (const sectionId of SECTION_ORDER) {
+          const reorderedVisibleIds = bySection[sectionId];
+          const reorderedVisibleSet = new Set(reorderedVisibleIds);
+
+          // Keep non-visible tasks in this section in their current order.
+          const stableHidden = prev
+            .filter((t) => t.section === sectionId && !visibleIdSet.has(t.id))
+            .sort((a, b) => a.orderRank - b.orderRank)
+            .map((t) => t.id);
+
+          const finalOrder = [...reorderedVisibleIds, ...stableHidden];
+          finalOrder.forEach((id, index) => {
+            const existing = nextById.get(id);
+            if (!existing) return;
+            const moved = reorderedVisibleSet.has(id) ? adjustDueAtOnSectionChange(existing, sectionId) : existing;
+            nextById.set(id, { ...moved, orderRank: (index + 1) * 1000 });
+          });
+        }
+
+        return prev.map((t) => nextById.get(t.id) ?? t);
+      });
+    },
+    [firstVisibleSection, setTasks, visibleSections, visibleTasks]
   );
 
-  const dragGestureStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: dragTranslateX.value }, { translateY: dragTranslateY.value }, { scale: dragScale.value }],
-    shadowOpacity: dragShadow.value,
-  }));
+  const renderListItem = React.useCallback(
+    ({ item, drag, isActive }: RenderItemParams<ListItem>) => {
+      if (item.type === 'header') {
+        return (
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionLine} />
+            <Text style={styles.sectionTitle}>{SECTION_TITLES[item.sectionId]}</Text>
+            <View style={styles.sectionLine} />
+          </View>
+        );
+      }
 
-  const dragOverlayStyle = dragLayout
-    ? [
-        styles.dragOverlay,
-        {
-          top: dragLayout.y,
-          left: dragLayout.x,
-          width: dragLayout.width,
-        },
-      ]
-    : null;
+      const task = tasksById.get(item.taskId);
+      if (!task) return null;
 
-  const draggingTask = draggingId ? tasksById.get(draggingId) : undefined;
+      return (
+        <View style={styles.itemSpacer}>
+          <Pressable onLongPress={drag} delayLongPress={220}>
+            {isActive ? (
+              <GlassSurface
+                style={[styles.row, styles.dragRow]}
+                glassEffectStyle="regular"
+                tintColor={glassDragTint}
+                fallbackBackgroundColor={glassDragFallback}
+              >
+                <Text style={styles.rowTitle}>{task.title}</Text>
+                {task.subtitle ? <Text style={styles.rowSubtitle}>{task.subtitle}</Text> : null}
+              </GlassSurface>
+            ) : (
+              <View style={styles.row}>
+                <Text style={styles.rowTitle}>{task.title}</Text>
+                {task.subtitle ? <Text style={styles.rowSubtitle}>{task.subtitle}</Text> : null}
+              </View>
+            )}
+          </Pressable>
+        </View>
+      );
+    },
+    [glassDragFallback, glassDragTint, styles.dragRow, styles.itemSpacer, styles.row, styles.rowSubtitle, styles.rowTitle, styles.sectionHeader, styles.sectionLine, styles.sectionTitle, tasksById]
+  );
 
   return (
     <>
-      <ScrollView
+      <DraggableFlatList
+        data={flatListData}
+        keyExtractor={(item) => item.key}
+        renderItem={renderListItem}
+        ListHeaderComponent={
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionLine} />
+            <Text style={styles.sectionTitle}>{SECTION_TITLES[firstVisibleSection]}</Text>
+            <View style={styles.sectionLine} />
+          </View>
+        }
+        containerStyle={{ backgroundColor: Colors[theme].background }}
+        contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
-        showsVerticalScrollIndicator={false}
-        scrollEnabled={!draggingId}
-        style={{ backgroundColor: Colors[theme].background }}
-        contentContainerStyle={styles.content}>
-        {visibleSections.map((sectionId) => {
-          const sectionTasks = tasksBySection[sectionId];
-          const dropIndex = dragHover?.sectionId === sectionId && dragHover.index != null ? dragHover.index : null;
-
-          const itemsWithDrop = sectionTasks.flatMap((task, index) => {
-            const entry: React.ReactNode[] = [];
-            if (dropIndex === index) {
-              entry.push(<View key={`drop-${sectionId}-${index}`} style={styles.dropMarker} />);
-            }
-
-            entry.push(
-              <View
-                key={task.id}
-                ref={(node) => {
-                  itemRefs.current[task.id] = node;
-                }}
-              >
-                <GestureDetector gesture={createDragGesture(task.id)}>
-                  <View style={[styles.row, draggingId === task.id ? styles.rowHidden : null]}>
-                    <Text style={styles.rowTitle}>{task.title}</Text>
-                    {task.subtitle ? <Text style={styles.rowSubtitle}>{task.subtitle}</Text> : null}
-                  </View>
-                </GestureDetector>
-              </View>
-            );
-
-            return entry;
-          });
-
-          if (dropIndex === sectionTasks.length) {
-            itemsWithDrop.push(<View key={`drop-${sectionId}-end`} style={styles.dropMarker} />);
+        activationDistance={12}
+        autoscrollSpeed={22}
+        animationConfig={{
+          damping: 32,
+          stiffness: 420,
+          mass: 0.22,
+          overshootClamping: true,
+        }}
+        dragItemOverflow
+        onDragBegin={(fromIndex) => {
+          isDraggingRef.current = true;
+          placeholderIndexRef.current = fromIndex;
+          setFlatListData(listData);
+          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+        }}
+        onPlaceholderIndexChange={(index) => {
+          placeholderIndexRef.current = index;
+        }}
+        onRelease={(fromIndex) => {
+          // `onDragEnd` fires after animation completion; this runs immediately on finger-up.
+          // Also update `data` immediately to avoid any transient render of the old ordering
+          // when the dragged cell transitions back to the list.
+          const toIndex = placeholderIndexRef.current;
+          if (toIndex >= 0 && fromIndex >= 0 && toIndex !== fromIndex) {
+            setFlatListData((prev) => {
+              if (fromIndex >= prev.length || toIndex >= prev.length) return prev;
+              const next = [...prev];
+              const [moved] = next.splice(fromIndex, 1);
+              if (!moved) return prev;
+              next.splice(toIndex, 0, moved);
+              return next;
+            });
           }
-
-          return (
-            <View
-              key={sectionId}
-              ref={(node) => {
-                sectionRefs.current[sectionId] = node;
-              }}
-              style={styles.section}
-            >
-              <View style={styles.sectionHeader}>
-                <View style={styles.sectionLine} />
-                <Text style={styles.sectionTitle}>{SECTION_TITLES[sectionId]}</Text>
-                <View style={styles.sectionLine} />
-              </View>
-              <View style={styles.sectionBody}>{itemsWithDrop}</View>
-            </View>
-          );
-        })}
-      </ScrollView>
-
-      {draggingId && dragLayout && draggingTask ? (
-        <Animated.View style={dragOverlayStyle} pointerEvents="none">
-          <Animated.View style={dragGestureStyle}>
-            <GlassSurface
-              style={[styles.row, styles.dragRow]}
-              glassEffectStyle="regular"
-              tintColor={glassDragTint}
-              fallbackBackgroundColor={glassDragFallback}
-            >
-              <Text style={styles.rowTitle}>{draggingTask.title}</Text>
-              {draggingTask.subtitle ? <Text style={styles.rowSubtitle}>{draggingTask.subtitle}</Text> : null}
-            </GlassSurface>
-          </Animated.View>
-        </Animated.View>
-      ) : null}
+          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+        }}
+        onDragEnd={({ data }) => {
+          // Prevent any transient render of the old ordering when the library clears its activeKey.
+          setFlatListData(data);
+          isDraggingRef.current = false;
+          applyOrderFromListData(data);
+        }}
+        showsVerticalScrollIndicator={false}
+      />
     </>
   );
 }
@@ -459,17 +332,12 @@ const createStyles = (theme: ThemeName) => {
 
   const hairline = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.12)';
   const cardBg = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
-  const dropMarkerBg = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.22)';
 
   return StyleSheet.create({
     content: {
       paddingHorizontal: 16,
       paddingTop: 0,
       paddingBottom: 120,
-      gap: 12,
-    },
-    section: {
-      gap: 10,
     },
     sectionHeader: {
       flexDirection: 'row',
@@ -500,9 +368,6 @@ const createStyles = (theme: ThemeName) => {
       paddingVertical: 10,
       gap: 4,
     },
-    rowHidden: {
-      opacity: 0,
-    },
     dragRow: {
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: hairline,
@@ -520,17 +385,8 @@ const createStyles = (theme: ThemeName) => {
       color: text,
       opacity: 0.7,
     },
-    sectionBody: {
-      gap: 12,
-    },
-    dropMarker: {
-      height: 6,
-      borderRadius: 999,
-      backgroundColor: dropMarkerBg,
-    },
-    dragOverlay: {
-      position: 'absolute',
-      zIndex: 999,
+    itemSpacer: {
+      marginBottom: 12,
     },
   });
 };
