@@ -1,6 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import React from 'react';
-import { Pressable, StyleSheet, ViewStyle } from 'react-native';
+import { Platform, Pressable, StyleSheet, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Colors } from '@/constants/theme';
@@ -11,11 +11,32 @@ type Props = {
   onPress: () => void;
   style?: ViewStyle;
   accessibilityLabel?: string;
+  placement?: 'accessory' | 'overlay';
+  tabBarHeight?: number;
 };
 
-export function FloatingAddButton({ onPress, style, accessibilityLabel }: Props) {
+const DEFAULT_TAB_BAR_HEIGHT = {
+  ios: 49,
+  android: 56,
+  default: 0,
+} as const;
+
+export function FloatingAddButton({
+  onPress,
+  style,
+  accessibilityLabel,
+  placement = 'accessory',
+  tabBarHeight,
+}: Props) {
   const theme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
+
+  const resolvedTabBarHeight =
+    tabBarHeight ?? Platform.select({ ios: DEFAULT_TAB_BAR_HEIGHT.ios, android: DEFAULT_TAB_BAR_HEIGHT.android, default: 0 });
+  const bottomOffset =
+    placement === 'overlay'
+      ? Math.max(0, insets.bottom - 8)
+      : Math.max(0, insets.bottom + resolvedTabBarHeight + 12);
 
   // iOS system blue-ish tint for the glass.
   const blue = '#0A84FF';
@@ -29,8 +50,8 @@ export function FloatingAddButton({ onPress, style, accessibilityLabel }: Props)
       style={[
         styles.position,
         {
-          // Sit close to the native tab bar (slightly overlapping is OK).
-          bottom: Math.max(0, insets.bottom - 8),
+          // Accessory sits above the tab bar; overlay can overlap it.
+          bottom: bottomOffset,
         },
         style,
       ]}

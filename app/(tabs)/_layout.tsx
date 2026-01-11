@@ -1,11 +1,10 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import Constants from 'expo-constants';
-import { Tabs, useRouter } from 'expo-router';
+import { Tabs } from 'expo-router';
 import { Icon, Label, NativeTabs, VectorIcon } from 'expo-router/unstable-native-tabs';
 import React from 'react';
 import { DynamicColorIOS, Platform, StyleSheet, View } from 'react-native';
 
-import { FloatingAddButton } from '@/components/ui/floating-add-button';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
@@ -14,7 +13,6 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const theme = colorScheme ?? 'light';
-  const router = useRouter();
 
   if (__DEV__ && Platform.OS === 'ios' && Number(Platform.Version) >= 26) {
     if (Constants.appOwnership === 'expo') {
@@ -52,6 +50,13 @@ export default function TabLayout() {
             }}
           />
           <Tabs.Screen
+            name="search"
+            options={{
+              title: 'Hinzufügen',
+              tabBarIcon: ({ color }) => <MaterialIcons name="add" size={28} color={color} />,
+            }}
+          />
+          <Tabs.Screen
             name="explore"
             options={{
               title: 'Explore',
@@ -59,8 +64,6 @@ export default function TabLayout() {
             }}
           />
         </Tabs>
-
-        <FloatingAddButton onPress={() => router.push('/modal')} accessibilityLabel="Erinnerung hinzufügen" />
       </View>
     );
   }
@@ -97,6 +100,14 @@ export default function TabLayout() {
           })}
         </NativeTabs.Trigger>
 
+        <NativeTabs.Trigger name="search" role="search">
+          <Label>Hinzufügen</Label>
+          {Platform.select({
+            ios: <Icon sf={{ default: 'plus', selected: 'plus' }} />,
+            android: <Icon src={<VectorIcon family={MaterialIcons} name="add" />} />,
+          })}
+        </NativeTabs.Trigger>
+
         <NativeTabs.Trigger name="explore">
           <Label>Explore</Label>
           {Platform.select({
@@ -105,17 +116,7 @@ export default function TabLayout() {
           })}
         </NativeTabs.Trigger>
 
-        {/* TEMP: Test-Tab um zu prüfen, ob Minimize grundsätzlich funktioniert */}
-        <NativeTabs.Trigger name="minimize-test">
-          <Label>Test</Label>
-          {Platform.select({
-            ios: <Icon sf={{ default: 'sparkles', selected: 'sparkles' }} />,
-            android: <Icon src={<VectorIcon family={MaterialIcons} name="science" />} />,
-          })}
-        </NativeTabs.Trigger>
       </NativeTabs>
-
-      <FloatingAddButton onPress={() => router.push('/modal')} accessibilityLabel="Erinnerung hinzufügen" />
     </View>
   );
 }
