@@ -207,7 +207,6 @@ export default function HomeLayout() {
         name="archive"
         options={{
           title: 'Archiv',
-          //headerShown: false,
         }}
       />
 
@@ -215,12 +214,14 @@ export default function HomeLayout() {
         name="streaks"
         options={{
           title: 'Streaks',
+          headerBackButtonDisplayMode: 'minimal',
         }}
       />
       <Stack.Screen
         name="inbox"
         options={{
           title: 'Inbox',
+          headerBackButtonDisplayMode: 'minimal',
           headerRight: () => <FilterMenuButton theme={theme} />,
         }}
       />
@@ -228,12 +229,14 @@ export default function HomeLayout() {
         name="routines"
         options={{
           title: 'Routinen',
+          headerBackButtonDisplayMode: 'minimal',
         }}
       />
       <Stack.Screen
         name="today"
         options={{
-          title: 'Tasks',
+          title: 'Heute',
+          headerBackButtonDisplayMode: 'minimal',
           headerRight: () => <FilterMenuButton theme={theme} />,
         }}
       />

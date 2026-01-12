@@ -21,6 +21,7 @@ export default function ExploreLayout() {
                 name="index"
                 options={{
                     title: 'Projects',
+                    headerBackButtonDisplayMode: 'minimal',
                 }}
             />
         </Stack>

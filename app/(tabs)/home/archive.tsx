@@ -180,7 +180,8 @@ export default function ArchiveScreen() {
     return (
       <View style={styles.header}>
         <View style={styles.headerRow}>
-          <View style={[styles.headerEmojiTile, { borderColor: hairline }]}>
+
+          {/* <View style={[styles.headerEmojiTile, { borderColor: hairline }]}>
             <GlassSurface
               style={styles.headerEmojiTileInner}
               glassEffectStyle="regular"
@@ -188,12 +189,12 @@ export default function ArchiveScreen() {
               fallbackBackgroundColor={glassFallback}>
               <Text style={styles.headerEmojiText}>{headerEmoji}</Text>
             </GlassSurface>
-          </View>
+          </View> */}
 
-          <View style={styles.headerMeta}>
+          {/* <View style={styles.headerMeta}>
             <Text style={[styles.titleText, { color: Colors[theme].text }]}>{title}</Text>
             <Text style={[styles.subtitleText, { color: withAlpha(Colors[theme].text, 0.72) }]}>{subtitle}</Text>
-          </View>
+          </View> */}
         </View>
 
         <GlassSurface
@@ -318,12 +319,14 @@ export default function ArchiveScreen() {
     <View style={styles.screen}>
       <Stack.Screen
         options={{
-          title: '',
-          headerTitle: '',
-          headerTransparent: true,
-          headerShadowVisible: false,
-          headerStyle: { backgroundColor: 'transparent' },
+          title: 'Archiv',
+          headerTitle: 'Archiv',
+          //headerBackTitle: ' ',
           headerBackButtonDisplayMode: 'minimal',
+          //headerTransparent: true,
+          //headerShadowVisible: false,
+          //headerStyle: { backgroundColor: 'transparent' },
+          //headerBackButtonDisplayMode: 'minimal',
         } as any}
       />
 

@@ -247,6 +247,7 @@ export default function ProjectDetailScreen() {
                         headerTransparent: true,
                         headerShadowVisible: false,
                         headerBackTitle: 'Projekte',
+                        // headerBackButtonDisplayMode: 'minimal',
                         headerTintColor: Colors[theme].tint,
                         headerStyle: { backgroundColor: 'transparent' },
                         headerRight: () => (

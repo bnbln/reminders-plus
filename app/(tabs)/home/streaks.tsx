@@ -11,26 +11,23 @@ import { ChartDataPoint, useStreaks } from '@/hooks/use-streaks';
 type ThemeName = keyof typeof Colors;
 type RangeOption = '7d' | '14d' | '1m' | '1y' | 'max';
 
-// Reusing QuickNavGrid style logic from home/index.tsx
+// Exact styles from home/index.tsx QuickNavGrid
 const createStyles = (theme: ThemeName) => {
   const isDark = theme === 'dark';
   const text = Colors[theme].text;
   const hairline = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.12)';
   const cardBg = isDark ? '#1C1C1E' : '#F2F2F7';
-  const quickTileSubtitle = withAlpha(text, 0.62);
+  const subtitleColor = withAlpha(text, 0.62);
 
   return StyleSheet.create({
-    container: {
-      paddingHorizontal: 16,
-      paddingBottom: 40,
-      gap: 20,
-    },
+    // Hero section
     hero: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       gap: 16,
-      paddingVertical: 16,
+      paddingVertical: 20,
+      marginBottom: 8,
     },
     fireContainer: {
       position: 'relative',
@@ -56,99 +53,98 @@ const createStyles = (theme: ThemeName) => {
     heroSubtitle: {
       fontSize: 16,
       fontWeight: '600',
-      color: quickTileSubtitle,
+      color: subtitleColor,
     },
-    // QuickTile-style grid
-    grid: {
+    // QuickTile grid (exact copy from home/index.tsx)
+    quickGridWrap: {
+      marginBottom: 16,
+    },
+    quickGrid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
       gap: 10,
     },
-    tilePressable: {
-      width: '48%',
-      flexGrow: 1,
+    quickTilePressable: {
+      width: '48.5%',
     },
-    tile: {
+    quickTile: {
       borderRadius: 16,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: hairline,
       overflow: 'hidden',
       backgroundColor: cardBg,
-      minHeight: 100,
     },
-    tileInner: {
+    quickTileInner: {
       paddingHorizontal: 12,
       paddingVertical: 12,
       gap: 6,
-      flex: 1,
-      justifyContent: 'space-between',
     },
-    tileIconRow: {
+    quickTileIconRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
     },
-    tileIconBadge: {
-      width: 32,
-      height: 32,
+    quickTileIconBadge: {
+      width: 30,
+      height: 30,
       borderRadius: 10,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    tileTitle: {
-      fontSize: 13,
-      fontWeight: '600',
-      letterSpacing: 0.2,
-      color: quickTileSubtitle,
-    },
-    tileValue: {
-      fontSize: 24,
+    quickTileTitle: {
+      fontSize: 14,
       fontWeight: '800',
       color: text,
-      letterSpacing: -0.5,
+      letterSpacing: 0.2,
     },
-    // Chart Card
+    quickTileSubtitle: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: subtitleColor,
+    },
+    // Chart styles
     chartCard: {
-      borderRadius: 20,
-      padding: 16,
-      overflow: 'hidden',
-      backgroundColor: cardBg,
+      borderRadius: 16,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: hairline,
+      overflow: 'hidden',
+      backgroundColor: cardBg,
+      padding: 16,
     },
     chartHeader: {
       marginBottom: 16,
       gap: 12,
     },
     cardTitle: {
-      fontSize: 16,
-      fontWeight: '700',
+      fontSize: 14,
+      fontWeight: '800',
       color: text,
+      letterSpacing: 0.2,
     },
     segmentedControl: {
       flexDirection: 'row',
-      padding: 4,
+      padding: 3,
       borderRadius: 10,
       height: 32,
-      backgroundColor: withAlpha(text, 0.05),
+      backgroundColor: withAlpha(text, isDark ? 0.08 : 0.06),
     },
     segment: {
       flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
-      borderRadius: 6,
+      borderRadius: 7,
+    },
+    segmentActive: {
+      backgroundColor: cardBg,
+      shadowColor: '#000',
+      shadowOpacity: isDark ? 0.3 : 0.1,
+      shadowRadius: 4,
+      shadowOffset: { width: 0, height: 2 },
     },
     segmentText: {
       fontSize: 11,
-      fontWeight: '500',
-      color: quickTileSubtitle,
-    },
-    segmentActive: {
-      backgroundColor: isDark ? '#374151' : '#FFFFFF',
-      shadowColor: '#000',
-      shadowOpacity: 0.08,
-      shadowRadius: 4,
-      shadowOffset: { width: 0, height: 2 },
+      fontWeight: '600',
+      color: subtitleColor,
     },
     segmentTextActive: {
       fontWeight: '700',
@@ -158,8 +154,8 @@ const createStyles = (theme: ThemeName) => {
       flexDirection: 'row',
       alignItems: 'flex-end',
       justifyContent: 'space-between',
-      height: 140,
-      paddingBottom: 4,
+      height: 120,
+      paddingTop: 8,
     },
     barContainer: {
       flex: 1,
@@ -181,6 +177,7 @@ const createStyles = (theme: ThemeName) => {
     },
     barLabel: {
       fontSize: 9,
+      fontWeight: '600',
       textAlign: 'center',
       width: 18,
     },
@@ -194,11 +191,12 @@ const createStyles = (theme: ThemeName) => {
 };
 
 function ChartBar({ item, max, textColor, isDark }: { item: ChartDataPoint; max: number; textColor: string; isDark: boolean }) {
-  const styles = createStyles(isDark ? 'dark' : 'light');
   const heightPercent = max > 0 ? (item.count / max) * 100 : 0;
   const barHeight = item.count > 0 ? `${Math.max(8, heightPercent)}%` : '0%';
   const isZero = item.count === 0;
-  const barColor = item.isToday ? '#EF4444' : withAlpha(textColor, 0.7);
+  const barColor = item.isToday ? '#EF4444' : withAlpha(textColor, 0.6);
+
+  const styles = createStyles(isDark ? 'dark' : 'light');
 
   return (
     <View style={styles.barContainer}>
@@ -208,7 +206,7 @@ function ChartBar({ item, max, textColor, isDark }: { item: ChartDataPoint; max:
             styles.barFill,
             {
               height: barHeight as any,
-              backgroundColor: isZero ? withAlpha(textColor, 0.1) : barColor,
+              backgroundColor: isZero ? withAlpha(textColor, 0.08) : barColor,
             },
             isZero && { height: 4 }
           ]}
@@ -218,8 +216,8 @@ function ChartBar({ item, max, textColor, isDark }: { item: ChartDataPoint; max:
         style={[
           styles.barLabel,
           {
-            color: item.isToday ? '#EF4444' : withAlpha(textColor, 0.5),
-            fontWeight: item.isToday ? '700' : '500'
+            color: item.isToday ? '#EF4444' : withAlpha(textColor, 0.45),
+            fontWeight: item.isToday ? '700' : '600'
           }
         ]}
         numberOfLines={1}
@@ -230,6 +228,7 @@ function ChartBar({ item, max, textColor, isDark }: { item: ChartDataPoint; max:
   );
 }
 
+// QuickTile-style stat card (matches home/index.tsx exactly)
 function StatTile({
   title,
   value,
@@ -238,6 +237,8 @@ function StatTile({
   styles,
   glassTint,
   glassFallback,
+  chevronColor,
+  isDark,
 }: {
   title: string;
   value: number | string;
@@ -246,25 +247,28 @@ function StatTile({
   styles: ReturnType<typeof createStyles>;
   glassTint: string;
   glassFallback: string;
+  chevronColor: string;
+  isDark: boolean;
 }) {
+  const badgeBg = withAlpha(iconColor, isDark ? 0.15 : 0.12);
+
   return (
-    <View style={styles.tilePressable}>
+    <View style={styles.quickTilePressable}>
       <GlassSurface
-        style={styles.tile}
+        style={styles.quickTile}
         glassEffectStyle="regular"
         tintColor={glassTint}
         fallbackBackgroundColor={glassFallback}
       >
-        <View style={styles.tileInner}>
-          <View style={styles.tileIconRow}>
-            <View style={[styles.tileIconBadge, { backgroundColor: withAlpha(iconColor, 0.15) }]}>
+        <View style={styles.quickTileInner}>
+          <View style={styles.quickTileIconRow}>
+            <View style={[styles.quickTileIconBadge, { backgroundColor: badgeBg }]}>
               <MaterialIcons name={icon} size={18} color={iconColor} />
             </View>
+            <MaterialIcons name="chevron-right" size={18} color={chevronColor} />
           </View>
-          <View>
-            <Text style={styles.tileTitle}>{title}</Text>
-            <Text style={styles.tileValue}>{value}</Text>
-          </View>
+          <Text style={styles.quickTileTitle}>{title}</Text>
+          <Text style={styles.quickTileSubtitle}>{value}</Text>
         </View>
       </GlassSurface>
     </View>
@@ -295,8 +299,10 @@ export default function StreaksScreen() {
   const backgroundColor = Colors[theme].background;
   const fireColor = currentStreak > 0 ? '#F59E0B' : '#9CA3AF';
 
+  // Match home/index.tsx QuickNavTheme exactly
   const glassTint = withAlpha(backgroundColor, isDark ? 0.18 : 0.28);
   const glassFallback = isDark ? '#1C1C1E' : '#F2F2F7';
+  const chevronColor = withAlpha(textColor, 0.45);
 
   const ranges: { label: string; value: RangeOption }[] = [
     { label: '7 T', value: '7d' },
@@ -308,10 +314,6 @@ export default function StreaksScreen() {
 
   return (
     <ScrollView
-      contentContainerStyle={[
-        styles.container,
-        { backgroundColor, paddingTop: headerHeight + 16 }
-      ]}
       showsVerticalScrollIndicator={false}
     >
       {/* Hero Streak Section */}
@@ -328,44 +330,54 @@ export default function StreaksScreen() {
         </View>
       </View>
 
-      {/* Stats Grid - QuickTile Style */}
-      <View style={styles.grid}>
-        <StatTile
-          title="Heute"
-          value={todayCompletedCount}
-          icon="check-circle"
-          iconColor="#10B981"
-          styles={styles}
-          glassTint={glassTint}
-          glassFallback={glassFallback}
-        />
-        <StatTile
-          title="Diese Woche"
-          value={last7DaysCount}
-          icon="date-range"
-          iconColor="#3B82F6"
-          styles={styles}
-          glassTint={glassTint}
-          glassFallback={glassFallback}
-        />
-        <StatTile
-          title="Rekord/Tag"
-          value={mostTasksInOneDay}
-          icon="emoji-events"
-          iconColor="#F59E0B"
-          styles={styles}
-          glassTint={glassTint}
-          glassFallback={glassFallback}
-        />
-        <StatTile
-          title="Längster Streak"
-          value={longestStreak}
-          icon="local-fire-department"
-          iconColor="#EF4444"
-          styles={styles}
-          glassTint={glassTint}
-          glassFallback={glassFallback}
-        />
+      {/* Stats Grid - Exact QuickNavGrid style */}
+      <View style={styles.quickGridWrap}>
+        <View style={styles.quickGrid}>
+          <StatTile
+            title="Heute"
+            value={`${todayCompletedCount} Tasks`}
+            icon="check-circle"
+            iconColor="#10B981"
+            styles={styles}
+            glassTint={glassTint}
+            glassFallback={glassFallback}
+            chevronColor={chevronColor}
+            isDark={isDark}
+          />
+          <StatTile
+            title="Diese Woche"
+            value={`${last7DaysCount} Tasks`}
+            icon="date-range"
+            iconColor="#3B82F6"
+            styles={styles}
+            glassTint={glassTint}
+            glassFallback={glassFallback}
+            chevronColor={chevronColor}
+            isDark={isDark}
+          />
+          <StatTile
+            title="Rekord"
+            value={`${mostTasksInOneDay} an einem Tag`}
+            icon="emoji-events"
+            iconColor="#F59E0B"
+            styles={styles}
+            glassTint={glassTint}
+            glassFallback={glassFallback}
+            chevronColor={chevronColor}
+            isDark={isDark}
+          />
+          <StatTile
+            title="Längster Streak"
+            value={`${longestStreak} Tage`}
+            icon="local-fire-department"
+            iconColor="#EF4444"
+            styles={styles}
+            glassTint={glassTint}
+            glassFallback={glassFallback}
+            chevronColor={chevronColor}
+            isDark={isDark}
+          />
+        </View>
       </View>
 
       {/* Chart Section */}
@@ -411,7 +423,7 @@ export default function StreaksScreen() {
           ))}
           {chartData.length === 0 && (
             <View style={styles.emptyChart}>
-              <Text style={{ color: withAlpha(textColor, 0.5) }}>Keine Daten</Text>
+              <Text style={{ color: withAlpha(textColor, 0.5), fontSize: 12, fontWeight: '600' }}>Keine Daten</Text>
             </View>
           )}
         </View>
