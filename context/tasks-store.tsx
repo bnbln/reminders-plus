@@ -7,6 +7,8 @@ export type Project = {
   name: string;
   color: string; // hex
   icon: string; // emoji
+  completed?: boolean;
+  deletedAt?: number;
 };
 
 export type Subtask = {
@@ -83,6 +85,8 @@ export const createSeedProjects = (): Project[] => {
       name: t.project.name,
       color: t.project.color,
       icon: t.project.icon,
+      completed: false,
+      deletedAt: undefined,
     });
   }
   return Array.from(map.values());
@@ -121,9 +125,9 @@ export const createSeedTasks = (): Task[] => {
 
     const subtasks: Subtask[] | undefined = index % 3 === 0
       ? [
-          { id: `st-${index + 1}-1`, title: 'Kurz prüfen', done: section === 'completed' },
-          { id: `st-${index + 1}-2`, title: 'Nächsten Schritt festlegen', done: section === 'completed' },
-        ]
+        { id: `st-${index + 1}-1`, title: 'Kurz prüfen', done: section === 'completed' },
+        { id: `st-${index + 1}-2`, title: 'Nächsten Schritt festlegen', done: section === 'completed' },
+      ]
       : index % 5 === 0
         ? [{ id: `st-${index + 1}-1`, title: 'Erledigen', done: section === 'completed' }]
         : undefined;

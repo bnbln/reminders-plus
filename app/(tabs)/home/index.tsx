@@ -20,7 +20,8 @@ import Animated, {
 
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
-import { getDueAtForSection, SectionId, Task, useTasksStore } from '@/context/tasks-store';
+import { TAG_DEFS, TAG_ORDER, useHomeFilters, type TagId } from '@/context/home-filters-store';
+import { getDueAtForSection, Project, SectionId, Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 // filter params are parsed locally in this file
@@ -31,8 +32,49 @@ const SWIPE_OPEN_THRESHOLD = 22;
 const SWIPE_TRIGGER = 132;
 const SWIPE_ELASTIC = 0.55;
 
+type TagChipModel = {
+  key: string;
+  tagId: TagId;
+  label: string;
+  tone?: 'neutral' | 'danger';
+};
+
+const extractHashtags = (value: string | undefined): string[] => {
+  if (!value) return [];
+  const matches = value.match(/#[\p{L}0-9_]+/gu) ?? [];
+  const unique: string[] = [];
+  for (const m of matches) {
+    const norm = m.toLowerCase();
+    if (!unique.some((x) => x.toLowerCase() === norm)) unique.push(m);
+  }
+  return unique;
+};
+
+const formatDueLabel = (dueAt: number, dueHasTime?: boolean) => {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const due = new Date(dueAt);
+  const dueDay = new Date(due.getFullYear(), due.getMonth(), due.getDate());
+
+  const dayLabel =
+    dueDay.getTime() === today.getTime()
+      ? 'Heute'
+      : dueDay.getTime() === tomorrow.getTime()
+        ? 'Morgen'
+        : new Intl.DateTimeFormat('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' }).format(due);
+
+  if (!dueHasTime) return dayLabel;
+
+  const timeLabel = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit' }).format(due);
+  return `${dayLabel} ${timeLabel}`;
+};
+
 type SwipeTaskRowProps = {
   task: Task;
+  project?: Project;
   drag: () => void;
   isActive: boolean;
   styles: ReturnType<typeof createStyles>;
@@ -42,6 +84,8 @@ type SwipeTaskRowProps = {
   emojiFallback: string;
   swipeCompleteBg: string;
   swipeDeleteBg: string;
+  enabledTags: Set<TagId>;
+  showTaskIcons: boolean;
   beginSwipe: (taskId: string) => void;
   endSwipe: (taskId: string) => void;
   registerClose: (taskId: string, close: () => void) => void;
@@ -54,6 +98,7 @@ type SwipeTaskRowProps = {
 
 const SwipeTaskRow = React.memo(function SwipeTaskRow({
   task,
+  project,
   drag,
   isActive,
   styles,
@@ -63,6 +108,8 @@ const SwipeTaskRow = React.memo(function SwipeTaskRow({
   emojiFallback,
   swipeCompleteBg,
   swipeDeleteBg,
+  enabledTags,
+  showTaskIcons,
   beginSwipe,
   endSwipe,
   registerClose,
@@ -302,6 +349,78 @@ const SwipeTaskRow = React.memo(function SwipeTaskRow({
     transform: [{ translateX: translateX.value }, { scale: rowScale.value }],
   }));
 
+  const tagChips = React.useMemo<TagChipModel[]>(() => {
+    if (enabledTags.size === 0) return [];
+
+    const chips: TagChipModel[] = [];
+
+    const now = Date.now();
+    const isOverdue = task.section !== 'completed' && task.dueAt < now;
+    const hashtags = extractHashtags([task.title, task.subtitle, task.notes].filter(Boolean).join(' '));
+
+    for (const tagId of TAG_ORDER) {
+      if (!enabledTags.has(tagId)) continue;
+
+      if (tagId === 'overdue') {
+        if (!isOverdue) continue;
+        chips.push({ key: 'overdue', tagId, label: TAG_DEFS.overdue.title, tone: 'danger' });
+        continue;
+      }
+
+      if (tagId === 'datetime') {
+        chips.push({ key: `dt-${task.dueAt}`, tagId, label: formatDueLabel(task.dueAt, task.dueHasTime) });
+        continue;
+      }
+
+      if (tagId === 'location') {
+        if (!task.location) continue;
+        chips.push({ key: `loc-${task.location}`, tagId, label: task.location });
+        continue;
+      }
+
+      if (tagId === 'project') {
+        if (!project) continue;
+        chips.push({ key: `proj-${project.id}`, tagId, label: project.name });
+        continue;
+      }
+
+      if (tagId === 'keywords') {
+        if (hashtags.length === 0) continue;
+        for (const h of hashtags.slice(0, 3)) {
+          chips.push({ key: `kw-${h}`, tagId, label: h });
+        }
+      }
+    }
+
+    return chips;
+  }, [enabledTags, project, task.dueAt, task.dueHasTime, task.location, task.notes, task.section, task.subtitle, task.title]);
+
+  const tagsView = tagChips.length ? (
+    <View style={styles.tagRow}>
+      {tagChips.map((chip) => (
+        <View
+          key={chip.key}
+          style={[styles.tagChip, chip.tone === 'danger' ? styles.tagChipDanger : undefined]}
+        >
+          <Text style={styles.tagChipText} numberOfLines={1}>
+            {chip.label}
+          </Text>
+        </View>
+      ))}
+    </View>
+  ) : null;
+
+  const emojiTileView = showTaskIcons ? (
+    <GlassSurface
+      style={styles.emojiTile}
+      glassEffectStyle="regular"
+      tintColor={emojiTint}
+      fallbackBackgroundColor={emojiFallback}
+    >
+      <Text style={styles.emojiText}>{task.emoji}</Text>
+    </GlassSurface>
+  ) : null;
+
   return (
     <Animated.View style={[styles.itemSpacer, spacerAnimatedStyle]}>
       <View style={clipStyle}>
@@ -348,34 +467,22 @@ const SwipeTaskRow = React.memo(function SwipeTaskRow({
                   fallbackBackgroundColor={glassDragFallback}
                 >
                   <View style={styles.rowInner}>
-                    <GlassSurface
-                      style={styles.emojiTile}
-                      glassEffectStyle="regular"
-                      tintColor={emojiTint}
-                      fallbackBackgroundColor={emojiFallback}
-                    >
-                      <Text style={styles.emojiText}>{task.emoji}</Text>
-                    </GlassSurface>
+                    {emojiTileView}
                     <View style={styles.textStack}>
                       <Text style={styles.rowTitle}>{task.title}</Text>
                       {task.subtitle ? <Text style={styles.rowSubtitle}>{task.subtitle}</Text> : null}
+                      {tagsView}
                     </View>
                   </View>
                 </GlassSurface>
               ) : (
                 <View style={styles.row}>
                   <View style={styles.rowInner}>
-                    <GlassSurface
-                      style={styles.emojiTile}
-                      glassEffectStyle="regular"
-                      tintColor={emojiTint}
-                      fallbackBackgroundColor={emojiFallback}
-                    >
-                      <Text style={styles.emojiText}>{task.emoji}</Text>
-                    </GlassSurface>
+                    {emojiTileView}
                     <View style={styles.textStack}>
                       <Text style={styles.rowTitle}>{task.title}</Text>
                       {task.subtitle ? <Text style={styles.rowSubtitle}>{task.subtitle}</Text> : null}
+                      {tagsView}
                     </View>
                   </View>
                 </View>
@@ -434,9 +541,13 @@ export default function HomeScreen() {
   const enabledSections = React.useMemo(() => parseSectionsParam(params.sections), [params.sections]);
   const withNotesEnabled = params.withNotes === '1';
 
+  const { enabledTags, showTagIcons } = useHomeFilters();
+
   const styles = React.useMemo(() => createStyles(theme), [theme]);
 
-  const { tasks, setTasks } = useTasksStore();
+  const { tasks, setTasks, projects } = useTasksStore();
+
+  const projectsById = React.useMemo(() => new Map(projects.map((p) => [p.id, p] as const)), [projects]);
 
   const homeEnabledSections = React.useMemo(() => {
     // Home should never show completed; those live in Archive.
@@ -724,6 +835,7 @@ export default function HomeScreen() {
       return (
         <SwipeTaskRow
           task={task}
+          project={projectsById.get(task.projectId)}
           drag={drag}
           isActive={isActive}
           styles={styles}
@@ -733,6 +845,8 @@ export default function HomeScreen() {
           emojiFallback={emojiFallback}
           swipeCompleteBg={swipeCompleteBg}
           swipeDeleteBg={swipeDeleteBg}
+          enabledTags={enabledTags}
+          showTaskIcons={showTagIcons}
           beginSwipe={beginSwipe}
           endSwipe={endSwipe}
           registerClose={registerClose}
@@ -749,6 +863,9 @@ export default function HomeScreen() {
       glassDragTint,
       emojiFallback,
       emojiTint,
+      enabledTags,
+      projectsById,
+      showTagIcons,
       styles,
       tasksById,
       deleteTask,
@@ -910,12 +1027,16 @@ const createStyles = (theme: ThemeName) => {
   const hairline = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.12)';
   // Opaque row background so swipe actions don't "shine through" before reveal.
   const cardBg = isDark ? '#1C1C1E' : '#F2F2F7';
+  const tagBg = withAlpha(text, isDark ? 0.10 : 0.08);
+  const tagText = withAlpha(text, 0.78);
+  const dangerBg = isDark ? 'rgba(255,69,58,0.18)' : 'rgba(255,59,48,0.14)';
+  const dangerBorder = isDark ? 'rgba(255,69,58,0.32)' : 'rgba(255,59,48,0.26)';
 
   return StyleSheet.create({
     content: {
       paddingHorizontal: 16,
       paddingTop: 0,
-      paddingBottom: 120,
+      paddingBottom: 168,
     },
     sectionHeader: {
       flexDirection: 'row',
@@ -947,7 +1068,7 @@ const createStyles = (theme: ThemeName) => {
 
     archivePillFooter: {
       paddingTop: 14,
-      paddingBottom: 16,
+      paddingBottom: 26,
       alignItems: 'center',
     },
     archivePill: {
@@ -999,6 +1120,40 @@ const createStyles = (theme: ThemeName) => {
     textStack: {
       flex: 1,
       gap: 4,
+    },
+
+    tagRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 6,
+      marginTop: 2,
+    },
+    tagChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      maxWidth: '100%',
+      paddingVertical: 4,
+      paddingHorizontal: 8,
+      borderRadius: 999,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: hairline,
+      backgroundColor: tagBg,
+    },
+    tagChipDanger: {
+      backgroundColor: dangerBg,
+      borderColor: dangerBorder,
+    },
+    tagIcon: {
+      width: 12,
+      height: 12,
+      color: tagText,
+    },
+    tagChipText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: tagText,
+      maxWidth: 220,
     },
 
     emptyState: {
