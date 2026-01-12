@@ -205,6 +205,31 @@ export default function HomeLayout() {
           headerShown: false,
         }}
       />
+
+      <Stack.Screen
+        name="streaks"
+        options={{
+          title: 'Streaks',
+        }}
+      />
+      <Stack.Screen
+        name="inbox"
+        options={{
+          title: 'Inbox',
+        }}
+      />
+      <Stack.Screen
+        name="routines"
+        options={{
+          title: 'Routinen',
+        }}
+      />
+      <Stack.Screen
+        name="today"
+        options={{
+          title: 'Heute',
+        }}
+      />
     </Stack>
   );
 }

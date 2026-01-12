@@ -6,7 +6,8 @@ export type Project = {
   id: string;
   name: string;
   color: string; // hex
-  icon: string; // emoji
+  icon: string; // sf symbol name
+  description?: string;
   completed?: boolean;
   deletedAt?: number;
 };
@@ -23,6 +24,7 @@ export type Task = {
   subtitle?: string;
   emoji: string;
   projectId: string;
+  /** Unix ms. `0` bedeutet: kein Datum gesetzt. */
   dueAt: number;
   dueHasTime?: boolean;
   location?: string;
@@ -39,7 +41,13 @@ const BASE_TASKS = [
     title: 'Design sync',
     subtitle: 'Gradient, motion, microcopy prüfen',
     emoji: '🎛️',
-    project: { id: 'p-design', name: 'Design', color: '#7C3AED', icon: '🎨' },
+    project: {
+      id: 'p-design',
+      name: 'Design',
+      color: '#7C3AED',
+      icon: 'paintbrush.fill',
+      description: 'UI/UX Design Projekte'
+    },
     location: 'Studio · Raum 3',
     notes: 'Achte auf Reduced Motion, Haptics und Text-Kontrast.\n\n• iOS-native feel\n• Klare Informationshierarchie',
   },
@@ -47,7 +55,13 @@ const BASE_TASKS = [
     title: 'Kunden-Call',
     subtitle: 'Scope für Q2 finalisieren',
     emoji: '📞',
-    project: { id: 'p-clients', name: 'Clients', color: '#2563EB', icon: '🤝' },
+    project: {
+      id: 'p-clients',
+      name: 'Clients',
+      color: '#2563EB',
+      icon: 'person.2.fill',
+      description: 'Kundenkommunikation & Meetings'
+    },
     location: 'Zoom',
     notes: 'Agenda: Ziele, Scope, Risiken, nächste Schritte.\n\nBeispiele sammeln und priorisieren.',
   },
@@ -55,7 +69,13 @@ const BASE_TASKS = [
     title: 'Moodboard export',
     subtitle: 'Konzeptvarianten markieren',
     emoji: '🖼️',
-    project: { id: 'p-brand', name: 'Brand', color: '#F97316', icon: '✨' },
+    project: {
+      id: 'p-brand',
+      name: 'Brand',
+      color: '#F97316',
+      icon: 'star.fill',
+      description: 'Branding & Identity Assets'
+    },
     location: 'Figma',
     notes: 'Export in 2 Größen: 1080px & 2048px.\n\nLinks in Notion ergänzen.',
   },
@@ -63,7 +83,13 @@ const BASE_TASKS = [
     title: 'Spaziergang',
     subtitle: 'Headspace für neue Idee',
     emoji: '🚶‍♂️',
-    project: { id: 'p-self', name: 'Self', color: '#10B981', icon: '🧘‍♂️' },
+    project: {
+      id: 'p-self',
+      name: 'Self',
+      color: '#10B981',
+      icon: 'figure.mind.and.body',
+      description: 'Persönliche Entwicklung & Gesundheit'
+    },
     location: 'Park',
     notes: 'Ohne Musik. 20 Minuten.\n\nDanach 3 Bullet-Insights notieren.',
   },
@@ -71,7 +97,13 @@ const BASE_TASKS = [
     title: 'Briefing sortiert',
     subtitle: 'Stakeholder-Feedback eingearbeitet',
     emoji: '🗂️',
-    project: { id: 'p-planning', name: 'Planning', color: '#EF4444', icon: '🧭' },
+    project: {
+      id: 'p-planning',
+      name: 'Planning',
+      color: '#EF4444',
+      icon: 'map.fill',
+      description: 'Roadmap & Strategie'
+    },
     location: 'Notion',
     notes: 'Widersprüche auflösen, offene Punkte markieren, Abhängigkeiten klären.',
   },
@@ -85,6 +117,7 @@ export const createSeedProjects = (): Project[] => {
       name: t.project.name,
       color: t.project.color,
       icon: t.project.icon,
+      description: t.project.description,
       completed: false,
       deletedAt: undefined,
     });
@@ -123,6 +156,8 @@ export const createSeedTasks = (): Task[] => {
     const section: SectionId = index < 28 ? 'today' : index < 56 ? 'upcoming' : 'completed';
     const sectionIndex = section === 'today' ? index : section === 'upcoming' ? index - 28 : index - 56;
 
+    const noDueDate = index < 8 && section !== 'completed';
+
     const subtasks: Subtask[] | undefined = index % 3 === 0
       ? [
         { id: `st-${index + 1}-1`, title: 'Kurz prüfen', done: section === 'completed' },
@@ -141,8 +176,8 @@ export const createSeedTasks = (): Task[] => {
       location: template.location,
       notes: template.notes,
       section,
-      dueAt: getDueAtForSection(section),
-      dueHasTime: true,
+      dueAt: noDueDate ? 0 : getDueAtForSection(section),
+      dueHasTime: noDueDate ? false : true,
       orderRank: (sectionIndex + 1) * 1000,
       subtasks,
       deletedAt: undefined,

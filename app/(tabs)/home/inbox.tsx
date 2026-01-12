@@ -1,0 +1,284 @@
+import { useRouter } from 'expo-router';
+import React from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+
+import { TaskSwipeDraggableList } from '@/components/tasks/task-swipe-draggable-list';
+import { withAlpha } from '@/components/ui/glass-surface';
+import { Colors } from '@/constants/theme';
+import { getDueAtForSection, type Task, useTasksStore } from '@/context/tasks-store';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+
+function hasNoDueDate(task: Task) {
+  // Robust gegen ältere/teilweise Daten (z.B. Persisted State), obwohl `Task.dueAt` im Typ required ist.
+  const dueAt = (task as any).dueAt as unknown;
+  return typeof dueAt !== 'number' || !Number.isFinite(dueAt) || dueAt <= 0;
+}
+
+function isInboxTask(task: Task) {
+  // Inbox = alle aktiven Tasks ohne Datum.
+  return !task.deletedAt && task.section !== 'completed' && hasNoDueDate(task);
+}
+
+export default function InboxScreen() {
+  const router = useRouter();
+  const theme = useColorScheme() ?? 'light';
+  const isDark = theme === 'dark';
+
+  const { tasks, setTasks } = useTasksStore();
+  const styles = React.useMemo(() => createStyles(theme), [theme]);
+
+  const inboxTasks = React.useMemo(() => {
+    return tasks.filter(isInboxTask).sort((a, b) => a.orderRank - b.orderRank);
+  }, [tasks]);
+
+  const bg = Colors[theme].background;
+  const text = Colors[theme].text;
+  const hairline = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.12)';
+  const tileTint = React.useMemo(() => withAlpha(bg, isDark ? 0.18 : 0.28), [bg, isDark]);
+  const tileFallback = React.useMemo(() => withAlpha(bg, isDark ? 0.86 : 0.92), [bg, isDark]);
+
+  const onPressTask = React.useCallback(
+    (taskId: string) => {
+      router.push({ pathname: '/task/[id]', params: { id: taskId } });
+    },
+    [router]
+  );
+
+  const toggleComplete = React.useCallback(
+    (taskId: string) => {
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === taskId
+            ? {
+                ...t,
+                section: 'completed',
+                dueAt: getDueAtForSection('completed'),
+                dueHasTime: true,
+              }
+            : t
+        )
+      );
+    },
+    [setTasks]
+  );
+
+  const deleteTask = React.useCallback(
+    (taskId: string) => {
+      setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, deletedAt: Date.now() } : t)));
+    },
+    [setTasks]
+  );
+
+  const applyOrderFromListData = React.useCallback(
+    (orderedTaskIds: string[]) => {
+      const orderIndex = new Map(orderedTaskIds.map((id, i) => [id, i] as const));
+      setTasks((prev) => {
+        // Only reseed inbox tasks.
+        const maxRank = 1000;
+        return prev.map((t) => {
+          const i = orderIndex.get(t.id);
+          if (i === undefined) return t;
+          return { ...t, orderRank: (i + 1) * maxRank };
+        });
+      });
+    },
+    [setTasks]
+  );
+
+  const header = React.useMemo(() => {
+    return (
+      <View>
+
+      </View>
+    );
+  }, [hairline, inboxTasks.length, styles, text, tileFallback, tileTint]);
+
+  return (
+    <TaskSwipeDraggableList
+      theme={theme}
+      tasks={inboxTasks}
+      rowStyles={styles}
+      contentContainerStyle={styles.content}
+      header={header}
+      empty={
+        <View style={styles.empty}>
+          <Text style={[styles.emptyText, { color: text }]}>Keine Tasks ohne Datum.</Text>
+        </View>
+      }
+      onPressTask={onPressTask}
+      toggleComplete={toggleComplete}
+      deleteTask={deleteTask}
+      onReorder={applyOrderFromListData}
+    />
+  );
+}
+
+const createStyles = (theme: keyof typeof Colors) => {
+  const isDark = theme === 'dark';
+  const text = Colors[theme].text;
+  const hairline = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.12)';
+  const cardBg = isDark ? '#1C1C1E' : '#F2F2F7';
+  const tagBg = withAlpha(text, isDark ? 0.10 : 0.08);
+  const tagText = withAlpha(text, 0.78);
+  const dangerBg = isDark ? 'rgba(255,69,58,0.18)' : 'rgba(255,59,48,0.14)';
+  const dangerBorder = isDark ? 'rgba(255,69,58,0.32)' : 'rgba(255,59,48,0.26)';
+
+  return StyleSheet.create({
+    content: {
+      paddingHorizontal: 16,
+      paddingTop: 0,
+      paddingBottom: 168,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    title: {
+      fontSize: 16,
+      fontWeight: '800',
+      color: text,
+    },
+    subtitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      opacity: 0.7,
+      color: text,
+    },
+    hintCard: {
+      borderRadius: 16,
+      borderWidth: StyleSheet.hairlineWidth,
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+    },
+    hintTitle: {
+      fontSize: 13,
+      fontWeight: '800',
+      marginBottom: 4,
+    },
+    hintText: {
+      fontSize: 12,
+      fontWeight: '600',
+      lineHeight: 16,
+    },
+
+    itemSpacer: {
+      marginBottom: 12,
+    },
+    swipeClip: {
+      borderRadius: 12,
+      overflow: 'hidden',
+    },
+    underlay: {
+      ...StyleSheet.absoluteFillObject,
+    },
+    actionSlot: {
+      position: 'absolute',
+      top: 0,
+      bottom: 0,
+      justifyContent: 'center',
+    },
+    actionSlotLeft: {
+      left: 0,
+      alignItems: 'center',
+    },
+    actionSlotRight: {
+      right: 0,
+      alignItems: 'center',
+    },
+    actionSlotInner: {
+      width: 44,
+      height: 44,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+
+    row: {
+      minHeight: 56,
+      borderRadius: 12,
+      backgroundColor: cardBg,
+      justifyContent: 'center',
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      gap: 4,
+    },
+    rowInner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    emojiTile: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden',
+    },
+    emojiText: {
+      fontSize: 18,
+    },
+    textStack: {
+      flex: 1,
+      gap: 4,
+    },
+    rowTitle: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: text,
+    },
+    rowSubtitle: {
+      fontSize: 13,
+      color: text,
+      opacity: 0.7,
+    },
+
+    tagRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 6,
+      marginTop: 2,
+    },
+    tagChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      maxWidth: '100%',
+      paddingVertical: 4,
+      paddingHorizontal: 8,
+      borderRadius: 999,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: hairline,
+      backgroundColor: tagBg,
+    },
+    tagChipDanger: {
+      backgroundColor: dangerBg,
+      borderColor: dangerBorder,
+    },
+    tagChipText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: tagText,
+      maxWidth: 220,
+    },
+
+    dragRow: {
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: hairline,
+      shadowColor: '#000',
+      shadowRadius: 18,
+      shadowOffset: { width: 0, height: 10 },
+    },
+
+    empty: {
+      alignItems: 'center',
+      paddingVertical: 18,
+    },
+    emptyText: {
+      fontSize: 13,
+      fontWeight: '600',
+      opacity: 0.65,
+    },
+  });
+};

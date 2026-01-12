@@ -84,6 +84,7 @@ const COMPLETE_GREEN = '#34C759';
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
 const formatDueLabel = (ms: number, hasTime: boolean) => {
+  if (!Number.isFinite(ms) || ms <= 0) return 'Kein Datum';
   const d = new Date(ms);
   const date = d.toLocaleDateString(undefined, { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
   if (!hasTime) return date;
@@ -312,6 +313,11 @@ export default function TaskViewScreen() {
   React.useEffect(() => {
     if (!task) return;
     if (!duePickerOpen) return;
+    if (!Number.isFinite(task.dueAt) || task.dueAt <= 0) {
+      setDueDraft(new Date());
+      setDueHasTimeDraft(false);
+      return;
+    }
     setDueDraft(new Date(task.dueAt));
     setDueHasTimeDraft(task.dueHasTime ?? true);
   }, [duePickerOpen, task]);
@@ -325,6 +331,12 @@ export default function TaskViewScreen() {
     updateTask({ dueAt: next.getTime(), dueHasTime: dueHasTimeDraft });
     setDuePickerOpen(false);
   }, [dueDraft, dueHasTimeDraft, task, updateTask]);
+
+  const clearDue = React.useCallback(() => {
+    if (!task) return;
+    updateTask({ dueAt: 0, dueHasTime: false });
+    setDuePickerOpen(false);
+  }, [task, updateTask]);
 
   // Project picker + create
   const [projectPickerOpen, setProjectPickerOpen] = React.useState(false);
@@ -426,6 +438,7 @@ export default function TaskViewScreen() {
   }
 
   const dueHasTime = task.dueHasTime ?? true;
+  const hasDueDate = Number.isFinite(task.dueAt) && task.dueAt > 0;
 
   return (
     <ScrollView
@@ -525,10 +538,23 @@ export default function TaskViewScreen() {
         <View style={[styles.divider, { backgroundColor: hairline }]} />
 
         <FormField label="Due" icon="event" accent={neutralAccent} theme={theme}>
-          <Pressable onPress={() => setDuePickerOpen(true)} style={styles.rowButton}>
-            <Text style={[styles.valueText, { color: withAlpha(Colors[theme].text, 0.92) }]}>{formatDueLabel(task.dueAt, dueHasTime)}</Text>
-            <MaterialIcons name="chevron-right" size={18} color={withAlpha(Colors[theme].text, 0.5)} />
-          </Pressable>
+          <View style={styles.locationRow}>
+            <Pressable onPress={() => setDuePickerOpen(true)} style={[styles.rowButton, { flex: 1 }]}>
+              <Text style={[styles.valueText, { color: withAlpha(Colors[theme].text, 0.92) }]}>{formatDueLabel(task.dueAt, dueHasTime)}</Text>
+              <MaterialIcons name="chevron-right" size={18} color={withAlpha(Colors[theme].text, 0.5)} />
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Datum entfernen"
+              onPress={clearDue}
+              disabled={!hasDueDate}
+              hitSlop={10}
+              style={[styles.inlineIconBtn, !hasDueDate ? { opacity: 0.35 } : null]}
+            >
+              <MaterialIcons name="close" size={18} color={withAlpha(Colors[theme].text, 0.75)} />
+            </Pressable>
+          </View>
         </FormField>
 
         <View style={[styles.divider, { backgroundColor: hairline }]} />
@@ -667,6 +693,27 @@ export default function TaskViewScreen() {
             <Text style={[styles.modalDone, { color: withAlpha(Colors[theme].text, 0.9) }]}>Fertig</Text>
           </Pressable>
         </View>
+
+        <Pressable
+          onPress={clearDue}
+          hitSlop={10}
+          style={[
+            styles.modalRow,
+            {
+              borderRadius: 14,
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: hairline,
+              backgroundColor: withAlpha(Colors[theme].text, isDark ? 0.04 : 0.03),
+              marginBottom: 10,
+            },
+          ]}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <MaterialIcons name="event-busy" size={18} color={withAlpha(Colors[theme].text, 0.8)} />
+            <Text style={[styles.modalLabelInline, { color: withAlpha(Colors[theme].text, 0.92), fontWeight: '800' }]}>Kein Datum</Text>
+          </View>
+          <MaterialIcons name="chevron-right" size={18} color={withAlpha(Colors[theme].text, 0.5)} />
+        </Pressable>
 
         <View style={styles.pickerBlock}>
           <DateTimePicker
