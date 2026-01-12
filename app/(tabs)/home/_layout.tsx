@@ -233,7 +233,7 @@ export default function HomeLayout() {
       <Stack.Screen
         name="today"
         options={{
-          title: 'Heute',
+          title: 'Tasks',
           headerRight: () => <FilterMenuButton theme={theme} />,
         }}
       />

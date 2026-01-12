@@ -45,22 +45,22 @@ export default function TabLayout() {
           <Tabs.Screen
             name="home"
             options={{
-              title: 'Home',
-              tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+              title: 'Tasks',
+              tabBarIcon: ({ color }) => <IconSymbol size={28} name="checkmark.circle.fill" color={color} />,
             }}
           />
           <Tabs.Screen
             name="search"
             options={{
-              title: 'Hinzufügen',
+              title: 'Add Task',
               tabBarIcon: ({ color }) => <MaterialIcons name="add" size={28} color={color} />,
             }}
           />
           <Tabs.Screen
             name="explore"
             options={{
-              title: 'Explore',
-              tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+              title: 'Projects',
+              tabBarIcon: ({ color }) => <IconSymbol size={28} name="folder.fill" color={color} />,
             }}
           />
         </Tabs>
@@ -93,15 +93,15 @@ export default function TabLayout() {
             : Colors[theme].tint
         }>
         <NativeTabs.Trigger name="home">
-          <Label>Home</Label>
+          <Label>Tasks</Label>
           {Platform.select({
-            ios: <Icon sf={{ default: 'house', selected: 'house.fill' }} />,
-            android: <Icon src={<VectorIcon family={MaterialIcons} name="home" />} />,
+            ios: <Icon sf={{ default: 'checkmark.circle', selected: 'checkmark.circle.fill' }} />,
+            android: <Icon src={<VectorIcon family={MaterialIcons} name="check-circle" />} />,
           })}
         </NativeTabs.Trigger>
 
         <NativeTabs.Trigger name="search" role="search">
-          <Label>Hinzufügen</Label>
+          <Label>Add Task</Label>
           {Platform.select({
             ios: <Icon sf={{ default: 'plus', selected: 'plus' }} />,
             android: <Icon src={<VectorIcon family={MaterialIcons} name="add" />} />,
@@ -109,10 +109,10 @@ export default function TabLayout() {
         </NativeTabs.Trigger>
 
         <NativeTabs.Trigger name="explore">
-          <Label>Explore</Label>
+          <Label>Projects</Label>
           {Platform.select({
-            ios: <Icon sf={{ default: 'paperplane', selected: 'paperplane.fill' }} />,
-            android: <Icon src={<VectorIcon family={MaterialIcons} name="explore" />} />,
+            ios: <Icon sf={{ default: 'folder', selected: 'folder.fill' }} />,
+            android: <Icon src={<VectorIcon family={MaterialIcons} name="folder" />} />,
           })}
         </NativeTabs.Trigger>
 
