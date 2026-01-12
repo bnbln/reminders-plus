@@ -38,6 +38,16 @@ export type TaskSwipeDraggableListProps = {
   containerStyle?: StyleProp<ViewStyle>;
   contentInsetAdjustmentBehavior?: 'automatic' | 'never';
 
+  /**
+   * `react-native-draggable-flatlist` exposes scroll via `onScrollOffsetChange` (number), not `onScroll`.
+   */
+  onScrollOffsetChange?: (scrollOffset: number) => void;
+
+  /**
+   * Reports drag state changes so callers can avoid treating drag as scroll.
+   */
+  onDragStateChange?: (isDragging: boolean) => void;
+
   header?: React.ReactElement | null;
   footer?: React.ReactElement | null;
   empty?: React.ReactElement | null;
@@ -67,6 +77,8 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   contentContainerStyle,
   containerStyle,
   contentInsetAdjustmentBehavior,
+  onScrollOffsetChange,
+  onDragStateChange,
   header,
   footer,
   empty,
@@ -252,6 +264,7 @@ ref
       containerStyle={resolvedContainerStyle}
       contentContainerStyle={contentContainerStyle}
       contentInsetAdjustmentBehavior={contentInsetAdjustmentBehavior ?? 'automatic'}
+      onScrollOffsetChange={onScrollOffsetChange}
       showsVerticalScrollIndicator={false}
       activationDistance={12}
       autoscrollSpeed={22}
@@ -264,6 +277,7 @@ ref
       dragItemOverflow
       onDragBegin={(fromIndex) => {
         isDraggingRef.current = true;
+        onDragStateChange?.(true);
         placeholderIndexRef.current = fromIndex;
         closeAnyOpen();
         setFlatListData(resolvedData);
@@ -289,6 +303,7 @@ ref
       onDragEnd={({ data }) => {
         setFlatListData(data);
         isDraggingRef.current = false;
+        onDragStateChange?.(false);
         onReorderData?.(data);
         onReorder?.(data.filter((d) => d.kind === 'task').map((d) => d.taskId));
       }}

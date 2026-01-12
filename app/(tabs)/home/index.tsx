@@ -1,5 +1,6 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -9,8 +10,10 @@ import {
     type TaskSwipeDraggableListItem,
 } from '@/components/tasks/task-swipe-draggable-list';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
+import { FloatingAddPillButton } from '@/components/ui/floating-add-button';
 import { Colors } from '@/constants/theme';
 import { useHomeFilters } from '@/context/home-filters-store';
+import { useTabBarMinimize } from '@/context/tabbar-minimize-store';
 import { getDueAtForSection, SectionId, Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -146,9 +149,47 @@ export default function HomeScreen() {
   });
   const listRef = React.useRef<TaskSwipeDraggableListHandle | null>(null);
 
+  const { isMinimized: isAddMinimized, reportScrollOffset, resetTracking, lastOffset, lastDy } = useTabBarMinimize();
+  const [showMinimizeDebug, setShowMinimizeDebug] = React.useState(false);
+  const lastDebugAtRef = React.useRef(0);
+  const isDraggingRef = React.useRef(false);
+  const navigation = useNavigation();
+
   const closeAnyOpen = React.useCallback(() => {
     listRef.current?.closeAnyOpen();
   }, []);
+
+  // Expand accessory when the Tasks tab becomes active or is tapped.
+  useFocusEffect(
+    React.useCallback(() => {
+      resetTracking(300);
+    }, [resetTracking])
+  );
+
+  React.useEffect(() => {
+    const parent = navigation.getParent?.();
+    if (!parent?.addListener) return;
+    const unsub = parent.addListener('tabPress' as any, () => {
+      resetTracking(350);
+    });
+    return unsub;
+  }, [navigation, resetTracking]);
+
+  const onScrollOffsetChange = React.useCallback(
+    (y: number) => {
+      if (isDraggingRef.current) return;
+      reportScrollOffset(y);
+
+      if (__DEV__ && showMinimizeDebug) {
+        const now = Date.now();
+        if (now - lastDebugAtRef.current > 80) {
+          lastDebugAtRef.current = now;
+          // state is tracked centrally; nothing to set here.
+        }
+      }
+    },
+    [reportScrollOffset, showMinimizeDebug]
+  );
 
   const onPressTask = React.useCallback(
     (taskId: string) => {
@@ -222,8 +263,6 @@ export default function HomeScreen() {
     };
   }, [isDark, theme]);
 
-  const tasksById = React.useMemo(() => new Map(visibleTasks.map((task) => [task.id, task])), [visibleTasks]);
-
   const tasksBySection = React.useMemo(() => {
     const grouped: Record<SectionId, Task[]> = { today: [], upcoming: [], completed: [] };
     for (const task of visibleTasks) grouped[task.section].push(task);
@@ -232,18 +271,6 @@ export default function HomeScreen() {
     }
     return grouped;
   }, [visibleTasks]);
-
-  const glassDragTint = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.18 : 0.28), [isDark, theme]);
-  const glassDragFallback = React.useMemo(
-    () => withAlpha(Colors[theme].background, isDark ? 0.86 : 0.92),
-    [isDark, theme]
-  );
-
-  const emojiTint = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.12 : 0.22), [isDark, theme]);
-  const emojiFallback = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.52 : 0.74), [isDark, theme]);
-
-  const swipeCompleteBg = React.useMemo(() => (isDark ? '#30D158' : '#34C759'), [isDark]);
-  const swipeDeleteBg = React.useMemo(() => (isDark ? '#FF453A' : '#FF3B30'), [isDark]);
 
   type ListItem =
     | { type: 'header'; key: string; sectionId: SectionId }
@@ -542,11 +569,41 @@ export default function HomeScreen() {
           </View>
         }
         contentContainerStyle={styles.content}
+        onScrollOffsetChange={onScrollOffsetChange}
+        onDragStateChange={(dragging) => {
+          isDraggingRef.current = dragging;
+          if (dragging) resetTracking(600);
+        }}
         onPressTask={onPressTask}
         toggleComplete={toggleComplete}
         deleteTask={deleteTask}
         onReorderData={applyOrderFromSwipeListData}
       />
+
+      <FloatingAddPillButton
+        minimized={isAddMinimized}
+        label="Task hinzufügen"
+        accessibilityLabel="Task hinzufügen"
+        onPress={() => {
+          closeAnyOpen();
+          router.push('/task/create-modal');
+        }}
+        onLongPress={
+          __DEV__
+            ? () => {
+                setShowMinimizeDebug((prev) => !prev);
+              }
+            : undefined
+        }
+      />
+
+      {__DEV__ && showMinimizeDebug ? (
+        <View pointerEvents="none" style={styles.debugOverlay}>
+          <Text style={styles.debugText}>
+            y={lastOffset.toFixed(1)} dy={lastDy.toFixed(2)} minimized={String(isAddMinimized)}
+          </Text>
+        </View>
+      ) : null}
     </>
   );
 }
@@ -597,6 +654,24 @@ const createStyles = (theme: ThemeName) => {
       flex: 1,
       height: StyleSheet.hairlineWidth,
       backgroundColor: hairline,
+    },
+
+    debugOverlay: {
+      position: 'absolute',
+      top: 10,
+      left: 10,
+      zIndex: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 10,
+      backgroundColor: withAlpha(isDark ? '#000' : '#fff', 0.72),
+      borderWidth: 1,
+      borderColor: withAlpha(text, 0.18),
+    },
+    debugText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: text,
     },
 
     quickGridWrap: {

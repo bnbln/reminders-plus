@@ -8,6 +8,7 @@ import { DynamicColorIOS, Platform, StyleSheet, View } from 'react-native';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
+import { TabBarMinimizeProvider } from '@/context/tabbar-minimize-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function TabLayout() {
@@ -52,8 +53,8 @@ export default function TabLayout() {
           <Tabs.Screen
             name="search"
             options={{
-              title: 'Add Task',
-              tabBarIcon: ({ color }) => <MaterialIcons name="add" size={28} color={color} />,
+              title: 'Search',
+              tabBarIcon: ({ color }) => <MaterialIcons name="search" size={26} color={color} />,
             }}
           />
           <Tabs.Screen
@@ -70,8 +71,9 @@ export default function TabLayout() {
 
   return (
     <View style={{ flex: 1 }}>
-      <NativeTabs
-        minimizeBehavior="onScrollDown"
+      <TabBarMinimizeProvider behavior="onScrollDown">
+        <NativeTabs
+          minimizeBehavior="automatic"
         // Docs: can fix scroll edge detection issues which can also break scroll-based behaviors
         disableTransparentOnScrollEdge
         labelStyle={
@@ -101,10 +103,10 @@ export default function TabLayout() {
         </NativeTabs.Trigger>
 
         <NativeTabs.Trigger name="search" role="search">
-          <Label>Add Task</Label>
+          <Label>Search</Label>
           {Platform.select({
-            ios: <Icon sf={{ default: 'plus', selected: 'plus' }} />,
-            android: <Icon src={<VectorIcon family={MaterialIcons} name="add" />} />,
+            ios: <Icon sf={{ default: 'magnifyingglass', selected: 'magnifyingglass' }} />,
+            android: <Icon src={<VectorIcon family={MaterialIcons} name="search" />} />,
           })}
         </NativeTabs.Trigger>
 
@@ -116,7 +118,8 @@ export default function TabLayout() {
           })}
         </NativeTabs.Trigger>
 
-      </NativeTabs>
+        </NativeTabs>
+      </TabBarMinimizeProvider>
     </View>
   );
 }

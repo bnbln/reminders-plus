@@ -22,6 +22,15 @@ export default function RootLayout() {
           <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
             <Stack>
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen
+                name="task/create-modal"
+                options={{
+                  presentation: 'transparentModal',
+                  headerShown: false,
+                  contentStyle: { backgroundColor: 'transparent' },
+                  animation: 'fade',
+                }}
+              />
               <Stack.Screen name="task/[id]" options={{ title: 'Task' }} />
               <Stack.Screen name="project/[id]" options={{ title: 'Projekt' }} />
               <Stack.Screen name="project/edit-modal" options={{ presentation: 'modal', title: 'Projekt bearbeiten' }} />
