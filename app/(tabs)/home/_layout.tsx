@@ -40,11 +40,16 @@ function FilterMenuButton({ theme }: { theme: keyof typeof Colors }) {
 
   // One-way sync from URL params -> store (deep links / restore).
   React.useEffect(() => {
-    const nextEnabled = parseTagsParam(params.tags);
-    setEnabledTags((prev) => (setsEqual(prev, nextEnabled) ? prev : nextEnabled));
+    // Important: if the param is absent, do NOT override persisted/app state.
+    if (params.tags !== undefined) {
+      const nextEnabled = parseTagsParam(params.tags);
+      setEnabledTags((prev) => (setsEqual(prev, nextEnabled) ? prev : nextEnabled));
+    }
 
-    const nextIcons = parseTagIconsParam(params.tagIcons);
-    setShowTagIcons((prev) => (prev === nextIcons ? prev : nextIcons));
+    if (params.tagIcons !== undefined) {
+      const nextIcons = parseTagIconsParam(params.tagIcons);
+      setShowTagIcons((prev) => (prev === nextIcons ? prev : nextIcons));
+    }
   }, [params.tagIcons, params.tags, setEnabledTags, setShowTagIcons]);
 
   const pendingReopenRef = React.useRef(false);
@@ -216,6 +221,7 @@ export default function HomeLayout() {
         name="inbox"
         options={{
           title: 'Inbox',
+          headerRight: () => <FilterMenuButton theme={theme} />,
         }}
       />
       <Stack.Screen
@@ -228,6 +234,7 @@ export default function HomeLayout() {
         name="today"
         options={{
           title: 'Heute',
+          headerRight: () => <FilterMenuButton theme={theme} />,
         }}
       />
     </Stack>

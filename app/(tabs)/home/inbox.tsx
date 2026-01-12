@@ -1,10 +1,11 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { TaskSwipeDraggableList } from '@/components/tasks/task-swipe-draggable-list';
 import { withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
+import { useHomeFilters } from '@/context/home-filters-store';
 import { getDueAtForSection, type Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -22,20 +23,22 @@ function isInboxTask(task: Task) {
 export default function InboxScreen() {
   const router = useRouter();
   const theme = useColorScheme() ?? 'light';
-  const isDark = theme === 'dark';
+  const params = useLocalSearchParams<{ withNotes?: string }>();
+  const withNotesEnabled = params.withNotes === '1';
 
-  const { tasks, setTasks } = useTasksStore();
+  const { enabledTags, showTagIcons } = useHomeFilters();
+  const { tasks, setTasks, projects } = useTasksStore();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
 
-  const inboxTasks = React.useMemo(() => {
-    return tasks.filter(isInboxTask).sort((a, b) => a.orderRank - b.orderRank);
-  }, [tasks]);
+  const projectsById = React.useMemo(() => new Map(projects.map((p) => [p.id, p] as const)), [projects]);
 
-  const bg = Colors[theme].background;
-  const text = Colors[theme].text;
-  const hairline = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.12)';
-  const tileTint = React.useMemo(() => withAlpha(bg, isDark ? 0.18 : 0.28), [bg, isDark]);
-  const tileFallback = React.useMemo(() => withAlpha(bg, isDark ? 0.86 : 0.92), [bg, isDark]);
+  const inboxTasks = React.useMemo(() => {
+    const base = tasks.filter(isInboxTask);
+    if (!withNotesEnabled) return base.sort((a, b) => a.orderRank - b.orderRank);
+    return base
+      .filter((t) => !!t.subtitle)
+      .sort((a, b) => a.orderRank - b.orderRank);
+  }, [tasks, withNotesEnabled]);
 
   const onPressTask = React.useCallback(
     (taskId: string) => {
@@ -90,13 +93,16 @@ export default function InboxScreen() {
     <TaskSwipeDraggableList
       theme={theme}
       tasks={inboxTasks}
+      projectsById={projectsById}
       rowStyles={styles}
       contentContainerStyle={styles.content}
       empty={
         <View style={styles.empty}>
-          <Text style={[styles.emptyText, { color: text }]}>Keine Tasks ohne Datum.</Text>
+          <Text style={[styles.emptyText, { color: Colors[theme].text }]}>Keine Tasks ohne Datum.</Text>
         </View>
       }
+      enabledTags={enabledTags}
+      showTaskIcons={showTagIcons}
       onPressTask={onPressTask}
       toggleComplete={toggleComplete}
       deleteTask={deleteTask}

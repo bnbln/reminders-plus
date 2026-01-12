@@ -1,4 +1,7 @@
 import React from 'react';
+import { NativeModules, Platform } from 'react-native';
+
+import { requireOptionalNativeModule } from 'expo-modules-core';
 
 export type TagId = 'overdue' | 'datetime' | 'location' | 'project' | 'keywords';
 
@@ -11,6 +14,176 @@ export const TAG_DEFS: Record<TagId, { title: string; iosSymbol: string }> = {
   project: { title: 'Project', iosSymbol: 'folder.fill' },
   keywords: { title: 'Keywords', iosSymbol: 'tag.fill' },
 };
+
+const STORAGE_KEYS = {
+  tags: 'reminds.homeFilters.tags',
+  tagIcons: 'reminds.homeFilters.tagIcons',
+} as const;
+
+type KeyValueBackend = {
+  getItem: (key: string) => Promise<string | null>;
+  setItem: (key: string, value: string) => Promise<void>;
+  removeItem: (key: string) => Promise<void>;
+};
+
+let backendPromise: Promise<KeyValueBackend> | null = null;
+
+const resolveBackend = (): Promise<KeyValueBackend> => {
+  if (backendPromise) return backendPromise;
+
+  backendPromise = (async () => {
+    if (Platform.OS === 'web') {
+      return {
+        getItem: async (key) => (typeof localStorage === 'undefined' ? null : localStorage.getItem(key)),
+        setItem: async (key, value) => {
+          if (typeof localStorage !== 'undefined') localStorage.setItem(key, value);
+        },
+        removeItem: async (key) => {
+          if (typeof localStorage !== 'undefined') localStorage.removeItem(key);
+        },
+      };
+    }
+
+    // Prefer expo-secure-store when available.
+    if (requireOptionalNativeModule('ExpoSecureStore')) {
+      try {
+        const SecureStore = await import('expo-secure-store');
+        if (SecureStore?.getItemAsync && SecureStore?.setItemAsync && SecureStore?.deleteItemAsync) {
+          return {
+            getItem: (key) => SecureStore.getItemAsync(key),
+            setItem: (key, value) => SecureStore.setItemAsync(key, value),
+            removeItem: (key) => SecureStore.deleteItemAsync(key),
+          };
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // Fallback: expo-file-system JSON store (works in many Expo Go versions).
+    if (requireOptionalNativeModule('FileSystem')) {
+      try {
+        const FileSystemMod = await import('expo-file-system');
+        const FileSystem: any = (FileSystemMod as any)?.default ?? FileSystemMod;
+
+        if (FileSystem?.documentDirectory && FileSystem?.readAsStringAsync && FileSystem?.writeAsStringAsync && FileSystem?.getInfoAsync) {
+          const fileUri = `${FileSystem.documentDirectory}reminds.homeFilters.json`;
+          let cache: Record<string, string> | null = null;
+          let writeChain: Promise<void> = Promise.resolve();
+
+          const readAll = async (): Promise<Record<string, string>> => {
+            if (cache) return cache;
+            try {
+              const info = await FileSystem.getInfoAsync(fileUri);
+              if (!info.exists) {
+                cache = {};
+                return cache;
+              }
+              const raw = await FileSystem.readAsStringAsync(fileUri);
+              const parsed = JSON.parse(raw);
+              cache = parsed && typeof parsed === 'object' ? (parsed as Record<string, string>) : {};
+              return cache;
+            } catch {
+              cache = {};
+              return cache;
+            }
+          };
+
+          const commit = async (next: Record<string, string>) => {
+            cache = next;
+            const keys = Object.keys(next);
+            if (keys.length === 0) {
+              try {
+                await FileSystem.deleteAsync(fileUri, { idempotent: true });
+              } catch {
+                // ignore
+              }
+              return;
+            }
+            try {
+              await FileSystem.writeAsStringAsync(fileUri, JSON.stringify(next), {
+                encoding: FileSystem?.EncodingType?.UTF8,
+              });
+            } catch {
+              // ignore
+            }
+          };
+
+          return {
+            getItem: async (key) => {
+              const all = await readAll();
+              return Object.prototype.hasOwnProperty.call(all, key) ? all[key] : null;
+            },
+            setItem: async (key, value) => {
+              writeChain = writeChain.then(async () => {
+                const all = await readAll();
+                await commit({ ...all, [key]: value });
+              });
+              await writeChain;
+            },
+            removeItem: async (key) => {
+              writeChain = writeChain.then(async () => {
+                const all = await readAll();
+                const { [key]: _ignored, ...rest } = all;
+                await commit(rest);
+              });
+              await writeChain;
+            },
+          };
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // Fallback: AsyncStorage if linked (some dev clients / bare RN).
+    // IMPORTANT: Guard this import. Some runtimes will throw a loud red error even if we catch the promise rejection.
+    if ((NativeModules as any)?.RNCAsyncStorage) {
+      try {
+        const AsyncStorageMod = await import('@react-native-async-storage/async-storage');
+        const api: any = (AsyncStorageMod as any)?.default ?? (AsyncStorageMod as any);
+        if (api?.getItem && api?.setItem && api?.removeItem) {
+          return {
+            getItem: (key) => api.getItem(key),
+            setItem: (key, value) => api.setItem(key, value),
+            removeItem: (key) => api.removeItem(key),
+          };
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // Last resort: keep settings in-memory (no persistence) to avoid crashing.
+    const mem = new Map<string, string>();
+    return {
+      getItem: async (key) => (mem.has(key) ? (mem.get(key) as string) : null),
+      setItem: async (key, value) => {
+        mem.set(key, value);
+      },
+      removeItem: async (key) => {
+        mem.delete(key);
+      },
+    };
+  })();
+
+  return backendPromise;
+};
+
+async function getStoredItem(key: string): Promise<string | null> {
+  const backend = await resolveBackend();
+  return backend.getItem(key);
+}
+
+async function setStoredItem(key: string, value: string): Promise<void> {
+  const backend = await resolveBackend();
+  await backend.setItem(key, value);
+}
+
+async function removeStoredItem(key: string): Promise<void> {
+  const backend = await resolveBackend();
+  await backend.removeItem(key);
+}
 
 type HomeFiltersContextValue = {
   enabledTags: Set<TagId>;
@@ -25,6 +198,60 @@ export function HomeFiltersProvider({ children }: { children: React.ReactNode })
   // Default: all tags hidden, task-icons visible
   const [enabledTags, setEnabledTags] = React.useState<Set<TagId>>(() => new Set());
   const [showTagIcons, setShowTagIcons] = React.useState<boolean>(true);
+
+  const hydratedRef = React.useRef(false);
+
+  // Hydrate from persistent storage once.
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      try {
+        const [storedTags, storedIcons] = await Promise.all([
+          getStoredItem(STORAGE_KEYS.tags),
+          getStoredItem(STORAGE_KEYS.tagIcons),
+        ]);
+
+        if (cancelled) return;
+
+        if (storedTags != null) {
+          const nextEnabled = parseTagsParam(storedTags);
+          setEnabledTags((prev) => {
+            // Avoid replacing with an equal-but-different Set instance.
+            if (prev.size === nextEnabled.size && Array.from(prev).every((t) => nextEnabled.has(t))) return prev;
+            return nextEnabled;
+          });
+        }
+
+        if (storedIcons != null) {
+          const nextIcons = parseTagIconsParam(storedIcons);
+          setShowTagIcons((prev) => (prev === nextIcons ? prev : nextIcons));
+        }
+      } finally {
+        if (!cancelled) hydratedRef.current = true;
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Persist on change (after hydration).
+  React.useEffect(() => {
+    if (!hydratedRef.current) return;
+
+    const run = async () => {
+      const tagsParam = serializeTagsParam(enabledTags);
+      if (tagsParam) await setStoredItem(STORAGE_KEYS.tags, tagsParam);
+      else await removeStoredItem(STORAGE_KEYS.tags);
+
+      await setStoredItem(STORAGE_KEYS.tagIcons, showTagIcons ? '1' : '0');
+    };
+
+    void run();
+  }, [enabledTags, showTagIcons]);
 
   const value = React.useMemo(
     () => ({ enabledTags, setEnabledTags, showTagIcons, setShowTagIcons }),
