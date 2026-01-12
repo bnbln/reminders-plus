@@ -10,7 +10,11 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.reminds"
+      "bundleIdentifier": "com.anonymous.reminds",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Wir verwenden deinen Standort, um den aktuellen Ort für den Task vorzuschlagen.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Wir verwenden deinen Standort, um den aktuellen Ort für den Task vorzuschlagen."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -28,6 +32,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-location",
       [
         "expo-splash-screen",
         {
@@ -39,7 +44,8 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,

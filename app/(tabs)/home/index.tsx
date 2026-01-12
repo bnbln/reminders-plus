@@ -1,8 +1,8 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Haptics from 'expo-haptics';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -20,21 +20,10 @@ import Animated, {
 
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
+import { getDueAtForSection, SectionId, Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 // filter params are parsed locally in this file
-
-type SectionId = 'today' | 'upcoming' | 'completed';
-
-type Task = {
-  id: string;
-  title: string;
-  subtitle?: string;
-  emoji: string;
-  dueAt: number;
-  section: SectionId;
-  orderRank: number;
-};
 
 const SWIPE_STOP = 76;
 const SWIPE_OPEN_THRESHOLD = 22;
@@ -58,6 +47,7 @@ type SwipeTaskRowProps = {
   registerClose: (taskId: string, close: () => void) => void;
   unregisterClose: (taskId: string) => void;
   closeAnyOpen: () => void;
+  onPressTask: (taskId: string) => void;
   toggleComplete: (taskId: string) => void;
   deleteTask: (taskId: string) => void;
 };
@@ -78,6 +68,7 @@ const SwipeTaskRow = React.memo(function SwipeTaskRow({
   registerClose,
   unregisterClose,
   closeAnyOpen,
+  onPressTask,
   toggleComplete,
   deleteTask,
 }: SwipeTaskRowProps) {
@@ -97,8 +88,6 @@ const SwipeTaskRow = React.memo(function SwipeTaskRow({
       stiffness: 420,
       mass: 0.9,
       overshootClamping: true,
-      restDisplacementThreshold: 0.5,
-      restSpeedThreshold: 1,
     });
     direction.value = 0;
   }, [direction, translateX]);
@@ -158,11 +147,11 @@ const SwipeTaskRow = React.memo(function SwipeTaskRow({
   }, [beginSwipe, dismiss, task.id]);
 
   const gesture = React.useMemo(() => {
-    return Gesture.Pan()
+    const pan = Gesture.Pan()
       .enabled(!isActive)
       .activeOffsetX([-6, 6])
       .failOffsetY([-12, 12])
-      .onBegin(() => {
+      .onStart(() => {
         startOffsetX.value = translateX.value;
         // If we previously dismissed and the key was reused, ensure we're back to a clean state.
         rowOpacity.value = 1;
@@ -204,8 +193,6 @@ const SwipeTaskRow = React.memo(function SwipeTaskRow({
           stiffness: 420,
           mass: 0.9,
           overshootClamping: true,
-          restDisplacementThreshold: 0.5,
-          restSpeedThreshold: 1,
           velocity: v,
         };
 
@@ -239,7 +226,16 @@ const SwipeTaskRow = React.memo(function SwipeTaskRow({
       .onFinalize(() => {
         runOnJS(endSwipe)(task.id);
       });
-  }, [beginSwipe, collapse, dismiss, direction, endSwipe, isActive, rowOpacity, rowScale, startOffsetX, swipeVisualAlpha, task.id, translateX]);
+
+    const tap = Gesture.Tap()
+      .enabled(Platform.OS === 'ios' && !isActive)
+      .maxDistance(8)
+      .onEnd(() => {
+        runOnJS(onPressTask)(task.id);
+      });
+
+    return Gesture.Race(pan, tap);
+  }, [beginSwipe, collapse, dismiss, direction, endSwipe, isActive, onPressTask, rowOpacity, rowScale, startOffsetX, swipeVisualAlpha, task.id, translateX]);
 
   const spacerAnimatedStyle = useAnimatedStyle(() => {
     const p = 1 - collapse.value;
@@ -341,8 +337,7 @@ const SwipeTaskRow = React.memo(function SwipeTaskRow({
                 rowHeight.value = e.nativeEvent.layout.height;
               }}
               onPress={() => {
-                // Tap closes any open row.
-                closeAnyOpen();
+                if (Platform.OS !== 'ios') onPressTask(task.id);
               }}
             >
               {isActive ? (
@@ -392,15 +387,6 @@ const SwipeTaskRow = React.memo(function SwipeTaskRow({
     </Animated.View>
   );
 });
-
-const BASE_TASKS = [
-  { title: 'Design sync', subtitle: 'Gradient, motion, microcopy prüfen', emoji: '🎛️' },
-  { title: 'Kunden-Call', subtitle: 'Scope für Q2 finalisieren', emoji: '📞' },
-  { title: 'Moodboard export', subtitle: 'Konzeptvarianten markieren', emoji: '🖼️' },
-  { title: 'Spaziergang', subtitle: 'Headspace für neue Idee', emoji: '🚶‍♂️' },
-  { title: 'Briefing sortiert', subtitle: 'Stakeholder-Feedback eingearbeitet', emoji: '🗂️' },
-] as const;
-
 const SECTION_ORDER: SectionId[] = ['today', 'upcoming', 'completed'];
 
 const parseSectionsParam = (value: unknown): SectionId[] => {
@@ -417,31 +403,6 @@ const SECTION_TITLES: Record<SectionId, string> = {
   today: 'Today',
   upcoming: 'Upcoming',
   completed: 'Completed',
-};
-
-const getDueAtForSection = (section: SectionId) => {
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  if (section === 'today') {
-    const preferred = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      Math.min(23, Math.max(8, now.getHours() + 1)),
-      0
-    );
-    return preferred.getTime();
-  }
-  if (section === 'upcoming') {
-    const tomorrow = new Date(startOfToday);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(11, 0, 0, 0);
-    return tomorrow.getTime();
-  }
-  // completed
-  const completedAt = new Date(now);
-  completedAt.setMinutes(completedAt.getMinutes() - 5);
-  return completedAt.getTime();
 };
 
 const adjustDueAtOnSectionChange = (task: Task, nextSection: SectionId): Task => {
@@ -463,26 +424,10 @@ const adjustDueAtOnSectionChange = (task: Task, nextSection: SectionId): Task =>
   };
 };
 
-const createSeedTasks = (): Task[] => {
-  return Array.from({ length: 80 }).map((_, index) => {
-    const template = BASE_TASKS[index % BASE_TASKS.length];
-    const section: SectionId = index < 28 ? 'today' : index < 56 ? 'upcoming' : 'completed';
-    const sectionIndex = section === 'today' ? index : section === 'upcoming' ? index - 28 : index - 56;
-    return {
-      id: `t-${index + 1}`,
-      title: `${template.title} #${index + 1}`,
-      subtitle: template.subtitle,
-      emoji: template.emoji,
-      section,
-      dueAt: getDueAtForSection(section),
-      orderRank: (sectionIndex + 1) * 1000,
-    };
-  });
-};
-
 type ThemeName = keyof typeof Colors;
 
 export default function HomeScreen() {
+  const router = useRouter();
   const theme = useColorScheme() ?? 'light';
   const isDark = theme === 'dark';
   const params = useLocalSearchParams<{ sections?: string; withNotes?: string }>();
@@ -491,7 +436,7 @@ export default function HomeScreen() {
 
   const styles = React.useMemo(() => createStyles(theme), [theme]);
 
-  const [tasks, setTasks] = React.useState<Task[]>(() => createSeedTasks());
+  const { tasks, setTasks } = useTasksStore();
   const isDraggingRef = React.useRef(false);
   const placeholderIndexRef = React.useRef<number>(-1);
   const openSwipeIdRef = React.useRef<string | null>(null);
@@ -512,6 +457,18 @@ export default function HomeScreen() {
     closeByIdRef.current.get(openId)?.();
     openSwipeIdRef.current = null;
   }, []);
+
+  const onPressTask = React.useCallback(
+    (taskId: string) => {
+      // First tap closes swipe if anything is open.
+      if (openSwipeIdRef.current) {
+        closeAnyOpen();
+        return;
+      }
+      router.push({ pathname: '/task/[id]', params: { id: taskId } });
+    },
+    [closeAnyOpen, router]
+  );
 
   const beginSwipe = React.useCallback(
     (taskId: string) => {
@@ -690,7 +647,7 @@ export default function HomeScreen() {
         return reseededBoth;
       });
     },
-    [reseedSection]
+    [reseedSection, setTasks]
   );
 
   const deleteTask = React.useCallback(
@@ -703,7 +660,7 @@ export default function HomeScreen() {
         return reseedSection(remaining, sectionId);
       });
     },
-    [reseedSection]
+    [reseedSection, setTasks]
   );
 
   const renderListItem = React.useCallback(
@@ -738,6 +695,7 @@ export default function HomeScreen() {
           registerClose={registerClose}
           unregisterClose={unregisterClose}
           closeAnyOpen={closeAnyOpen}
+          onPressTask={onPressTask}
           toggleComplete={toggleComplete}
           deleteTask={deleteTask}
         />
@@ -759,6 +717,7 @@ export default function HomeScreen() {
       swipeCompleteBg,
       swipeDeleteBg,
       toggleComplete,
+      onPressTask,
     ]
   );
 
