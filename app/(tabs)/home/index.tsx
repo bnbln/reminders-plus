@@ -400,9 +400,9 @@ const parseSectionsParam = (value: unknown): SectionId[] => {
 };
 
 const SECTION_TITLES: Record<SectionId, string> = {
-  today: 'Today',
-  upcoming: 'Upcoming',
-  completed: 'Completed',
+  today: 'Heute',
+  upcoming: 'Demnächst',
+  completed: 'Abgeschlossen',
 };
 
 const adjustDueAtOnSectionChange = (task: Task, nextSection: SectionId): Task => {
@@ -437,6 +437,17 @@ export default function HomeScreen() {
   const styles = React.useMemo(() => createStyles(theme), [theme]);
 
   const { tasks, setTasks } = useTasksStore();
+
+  const homeEnabledSections = React.useMemo(() => {
+    // Home should never show completed; those live in Archive.
+    const withoutCompleted = enabledSections.filter((s) => s !== 'completed');
+    return (withoutCompleted.length ? withoutCompleted : ['today', 'upcoming']) as SectionId[];
+  }, [enabledSections]);
+
+  const [collapsedSections, setCollapsedSections] = React.useState<Record<'today' | 'upcoming', boolean>>({
+    today: false,
+    upcoming: false,
+  });
   const isDraggingRef = React.useRef(false);
   const placeholderIndexRef = React.useRef<number>(-1);
   const openSwipeIdRef = React.useRef<string | null>(null);
@@ -486,14 +497,14 @@ export default function HomeScreen() {
   }, []);
 
   const visibleTasks = React.useMemo(() => {
-    const base = tasks.filter((t) => enabledSections.includes(t.section));
+    const base = tasks.filter((t) => !t.deletedAt && homeEnabledSections.includes(t.section));
     if (!withNotesEnabled) return base;
     return base.filter((t) => !!t.subtitle);
-  }, [enabledSections, tasks, withNotesEnabled]);
+  }, [homeEnabledSections, tasks, withNotesEnabled]);
 
   const visibleSections = React.useMemo(() => {
-    return SECTION_ORDER.filter((s) => enabledSections.includes(s));
-  }, [enabledSections]);
+    return (SECTION_ORDER.filter((s) => homeEnabledSections.includes(s)) as SectionId[]);
+  }, [homeEnabledSections]);
 
   const firstVisibleSection = visibleSections[0] ?? 'today';
 
@@ -530,13 +541,18 @@ export default function HomeScreen() {
       if (sectionId !== firstVisibleSection) {
         data.push({ type: 'header', key: `h-${sectionId}`, sectionId });
       }
+
+      const isCollapsed =
+        sectionId === 'today' ? collapsedSections.today : sectionId === 'upcoming' ? collapsedSections.upcoming : false;
+      if (isCollapsed) continue;
+
       for (const task of tasksBySection[sectionId]) {
         // Section-aware key prevents "pop back" on complete/undo by forcing a remount when section changes.
         data.push({ type: 'task', key: `${task.id}:${sectionId}`, taskId: task.id });
       }
     }
     return data;
-  }, [firstVisibleSection, tasksBySection, visibleSections]);
+  }, [collapsedSections.today, collapsedSections.upcoming, firstVisibleSection, tasksBySection, visibleSections]);
 
   const [flatListData, setFlatListData] = React.useState<ListItem[]>(() => listData);
 
@@ -655,21 +671,48 @@ export default function HomeScreen() {
       setTasks((prev) => {
         const task = prev.find((t) => t.id === taskId);
         if (!task) return prev;
-        const sectionId = task.section;
-        const remaining = prev.filter((t) => t.id !== taskId);
-        return reseedSection(remaining, sectionId);
+        // Soft-delete: move to trash.
+        return prev.map((t) => (t.id === taskId ? { ...t, deletedAt: Date.now() } : t));
       });
     },
-    [reseedSection, setTasks]
+    [setTasks]
   );
 
   const renderListItem = React.useCallback(
     ({ item, drag, isActive }: RenderItemParams<ListItem>) => {
       if (item.type === 'header') {
+        const isCollapsible = item.sectionId === 'today' || item.sectionId === 'upcoming';
+        const isCollapsed = item.sectionId === 'today' ? collapsedSections.today : collapsedSections.upcoming;
+
+        const onToggle = () => {
+          if (!isCollapsible) return;
+          closeAnyOpen();
+          setCollapsedSections((prev) => ({
+            ...prev,
+            [item.sectionId]: !prev[item.sectionId as 'today' | 'upcoming'],
+          }));
+        };
+
         return (
           <View style={styles.sectionHeader}>
             <View style={styles.sectionLine} />
-            <Text style={styles.sectionTitle}>{SECTION_TITLES[item.sectionId]}</Text>
+            <Pressable
+              accessibilityRole={isCollapsible ? 'button' : undefined}
+              accessibilityLabel={isCollapsible ? `${SECTION_TITLES[item.sectionId]} umschalten` : undefined}
+              onPress={onToggle}
+              hitSlop={10}
+              style={styles.sectionHeaderButton}
+            >
+              {isCollapsible ? (
+                <MaterialIcons
+                  name="chevron-right"
+                  size={16}
+                  color={withAlpha(Colors[theme].text, 0.55)}
+                  style={{ transform: [{ rotate: isCollapsed ? '0deg' : '90deg' }] }}
+                />
+              ) : null}
+              <Text style={styles.sectionTitle}>{SECTION_TITLES[item.sectionId]}</Text>
+            </Pressable>
             <View style={styles.sectionLine} />
           </View>
         );
@@ -711,6 +754,7 @@ export default function HomeScreen() {
       deleteTask,
       beginSwipe,
       closeAnyOpen,
+      collapsedSections,
       endSwipe,
       registerClose,
       unregisterClose,
@@ -718,8 +762,82 @@ export default function HomeScreen() {
       swipeDeleteBg,
       toggleComplete,
       onPressTask,
+      theme,
     ]
   );
+
+  const archivePill = React.useMemo(() => {
+    const completedCount = tasks.filter((t) => t.section === 'completed' && !t.deletedAt).length;
+    const trashedCount = tasks.filter((t) => !!t.deletedAt).length;
+    const show = completedCount > 0 || trashedCount > 0;
+    if (!show) return null;
+
+    const label =
+      completedCount > 0
+        ? `${completedCount} Abgeschlossen`
+        : trashedCount > 0
+          ? `${trashedCount} Papierkorb`
+          : 'Archiv';
+
+    const iconKind: 'completed' | 'trash' = completedCount > 0 ? 'completed' : 'trash';
+
+    return (
+      <View style={styles.archivePillFooter}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Archiv öffnen"
+          onPress={() => router.push('/home/archive')}
+          style={({ pressed }) => [pressed && { opacity: 0.92 }]}>
+          <GlassSurface
+            tintColor={withAlpha(Colors[theme].background, isDark ? 0.18 : 0.28)}
+            fallbackBackgroundColor={withAlpha(Colors[theme].background, isDark ? 0.86 : 0.92)}
+            style={styles.archivePill}>
+            <MaterialIcons name={iconKind === 'completed' ? 'check-circle' : 'delete'} size={18} color={Colors[theme].text} />
+            <Text style={styles.archivePillText}>{label}</Text>
+          </GlassSurface>
+        </Pressable>
+      </View>
+    );
+  }, [isDark, router, styles, tasks, theme]);
+
+  const listHeader = React.useMemo(() => {
+    const sectionId = firstVisibleSection;
+    const isCollapsible = sectionId === 'today' || sectionId === 'upcoming';
+    const isCollapsed = sectionId === 'today' ? collapsedSections.today : collapsedSections.upcoming;
+
+    const onToggle = () => {
+      if (!isCollapsible) return;
+      closeAnyOpen();
+      setCollapsedSections((prev) => ({
+        ...prev,
+        [sectionId]: !prev[sectionId as 'today' | 'upcoming'],
+      }));
+    };
+
+    return (
+      <View style={styles.sectionHeader}>
+        <View style={styles.sectionLine} />
+        <Pressable
+          accessibilityRole={isCollapsible ? 'button' : undefined}
+          accessibilityLabel={isCollapsible ? `${SECTION_TITLES[sectionId]} umschalten` : undefined}
+          onPress={onToggle}
+          hitSlop={10}
+          style={styles.sectionHeaderButton}
+        >
+          {isCollapsible ? (
+            <MaterialIcons
+              name="chevron-right"
+              size={16}
+              color={withAlpha(Colors[theme].text, 0.55)}
+              style={{ transform: [{ rotate: isCollapsed ? '0deg' : '90deg' }] }}
+            />
+          ) : null}
+          <Text style={styles.sectionTitle}>{SECTION_TITLES[sectionId]}</Text>
+        </Pressable>
+        <View style={styles.sectionLine} />
+      </View>
+    );
+  }, [closeAnyOpen, collapsedSections.today, collapsedSections.upcoming, firstVisibleSection, styles, theme]);
 
   return (
     <>
@@ -727,11 +845,11 @@ export default function HomeScreen() {
         data={flatListData}
         keyExtractor={(item) => item.key}
         renderItem={renderListItem}
-        ListHeaderComponent={
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionLine} />
-            <Text style={styles.sectionTitle}>{SECTION_TITLES[firstVisibleSection]}</Text>
-            <View style={styles.sectionLine} />
+        ListHeaderComponent={listHeader}
+        ListFooterComponent={archivePill}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>Keine Aufgaben</Text>
           </View>
         }
         containerStyle={{ backgroundColor: Colors[theme].background }}
@@ -806,6 +924,13 @@ const createStyles = (theme: ThemeName) => {
       marginTop: 8,
       marginBottom: 4,
     },
+    sectionHeaderButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingVertical: 6,
+      paddingHorizontal: 6,
+    },
     sectionTitle: {
       fontSize: 12,
       fontWeight: '700',
@@ -818,6 +943,33 @@ const createStyles = (theme: ThemeName) => {
       flex: 1,
       height: StyleSheet.hairlineWidth,
       backgroundColor: hairline,
+    },
+
+    archivePillFooter: {
+      paddingTop: 14,
+      paddingBottom: 16,
+      alignItems: 'center',
+    },
+    archivePill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingHorizontal: 18,
+      paddingVertical: 12,
+      borderRadius: 999,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: hairline,
+      shadowColor: '#000',
+      shadowOpacity: isDark ? 0.32 : 0.16,
+      shadowRadius: 18,
+      shadowOffset: { width: 0, height: 10 },
+      elevation: 8,
+    },
+    archivePillText: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: text,
+      opacity: 0.92,
     },
     row: {
       minHeight: 56,
@@ -847,6 +999,17 @@ const createStyles = (theme: ThemeName) => {
     textStack: {
       flex: 1,
       gap: 4,
+    },
+
+    emptyState: {
+      paddingTop: 16,
+      paddingBottom: 12,
+      alignItems: 'center',
+    },
+    emptyText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: withAlpha(text, 0.55),
     },
     dragRow: {
       borderWidth: StyleSheet.hairlineWidth,

@@ -16,3 +16,7 @@ export const FILTERS: {
 export function isFilterId(value: unknown): value is FilterId {
   return typeof value === 'string' && (FILTERS as { id: string }[]).some((f) => f.id === value);
 }
+
+export default function FiltersRoute() {
+  return null;
+}

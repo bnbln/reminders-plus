@@ -28,6 +28,8 @@ export type Task = {
   subtasks?: Subtask[];
   section: SectionId;
   orderRank: number;
+  /** Unix ms timestamp when moved to trash. Undefined = active. */
+  deletedAt?: number;
 };
 
 const BASE_TASKS = [
@@ -139,6 +141,7 @@ export const createSeedTasks = (): Task[] => {
       dueHasTime: true,
       orderRank: (sectionIndex + 1) * 1000,
       subtasks,
+      deletedAt: undefined,
     };
   });
 };

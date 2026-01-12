@@ -15,6 +15,12 @@ import {
     TextInput,
     View,
 } from 'react-native';
+import Animated, {
+    useAnimatedKeyboard,
+    useAnimatedStyle,
+    useSharedValue,
+    withTiming,
+} from 'react-native-reanimated';
 
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
@@ -163,6 +169,11 @@ export default function TaskViewScreen() {
   const { tasks, setTasks, projects, setProjects } = useTasksStore();
   const theme = useColorScheme() ?? 'light';
   const isDark = theme === 'dark';
+  const keyboard = useAnimatedKeyboard();
+
+  const animatedSpacerStyle = useAnimatedStyle(() => ({
+    height: Math.max(0, keyboard.height.value - 40),
+  }));
 
   const styles = React.useMemo(() => createStyles(theme), [theme]);
 
@@ -182,6 +193,28 @@ export default function TaskViewScreen() {
   const hairline = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)';
   const placeholder = withAlpha(Colors[theme].text, 0.35);
 
+  const completeBg = isDark ? '#30D158' : '#34C759';
+  const deleteBg = isDark ? '#FF453A' : '#FF3B30';
+  const repeatBg = isDark ? '#8E8E93' : '#9ea4aa';
+
+  // Animation for completion state
+  const isCompleted = task?.section === 'completed';
+  const completionProgress = useSharedValue(isCompleted ? 1 : 0);
+
+  React.useEffect(() => {
+    completionProgress.value = withTiming(isCompleted ? 1 : 0, { duration: 300 });
+  }, [isCompleted]);
+
+  const activeStyle = useAnimatedStyle(() => ({
+    opacity: 1 - completionProgress.value,
+    transform: [{ scale: 1 - completionProgress.value * 0.05 }],
+  }));
+
+  const doneStyle = useAnimatedStyle(() => ({
+    opacity: completionProgress.value,
+    transform: [{ scale: 0.95 + completionProgress.value * 0.05 }],
+  }));
+
   const updateTask = React.useCallback(
     (patch: Partial<Task>) => {
       setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
@@ -199,6 +232,15 @@ export default function TaskViewScreen() {
   const [isLocating, setIsLocating] = React.useState(false);
   const [titleHeight, setTitleHeight] = React.useState<number>(0);
   const [subtitleHeight, setSubtitleHeight] = React.useState<number>(0);
+
+  const scrollRef = React.useRef<ScrollView>(null);
+
+  const scrollToBottom = React.useCallback(() => {
+    // Wait slightly for keyboard to animate / spacer to appear
+    setTimeout(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    }, 300);
+  }, []);
 
   const onUseCurrentLocation = React.useCallback(async () => {
     if (!task) return;
@@ -249,13 +291,13 @@ export default function TaskViewScreen() {
 
   const onDelete = React.useCallback(() => {
     if (!task) return;
-    Alert.alert('Task löschen?', 'Dieser Task wird endgültig gelöscht.', [
+    Alert.alert('Task löschen?', 'Dieser Task wird in den Papierkorb verschoben.', [
       { text: 'Abbrechen', style: 'cancel' },
       {
         text: 'Löschen',
         style: 'destructive',
         onPress: () => {
-          setTasks((prev) => prev.filter((t) => t.id !== task.id));
+          setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, deletedAt: Date.now() } : t)));
           router.back();
         },
       },
@@ -387,6 +429,7 @@ export default function TaskViewScreen() {
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={styles.screen}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
@@ -563,39 +606,61 @@ export default function TaskViewScreen() {
           placeholder="Notizen…"
           placeholderTextColor={placeholder}
           multiline
+          onFocus={scrollToBottom}
           style={[styles.notesInput, { color: Colors[theme].text }]}
         />
       </GlassSurface>
 
       <View style={styles.actionsRow}>
-        <Pressable onPress={onToggleComplete} style={styles.primaryActionWrap}>
-          <GlassSurface
-            style={styles.primaryActionButton}
-            glassEffectStyle="regular"
-            tintColor={withAlpha(COMPLETE_GREEN, isDark ? 0.18 : 0.14)}
-            fallbackBackgroundColor={withAlpha(COMPLETE_GREEN, isDark ? 0.22 : 0.16)}
-          >
-            <MaterialIcons name={task.section === 'completed' ? 'undo' : 'check'} size={18} color={withAlpha(Colors[theme].text, 0.95)} />
-            <Text style={[styles.primaryActionText, { color: withAlpha(Colors[theme].text, 0.95) }]}>
-              {task.section === 'completed' ? 'Erledigt rückgängig' : 'Task erledigt'}
-            </Text>
-          </GlassSurface>
-        </Pressable>
-
         <Pressable onPress={onDelete} hitSlop={10} style={styles.iconDangerWrap}>
           <GlassSurface
             style={styles.iconDangerButton}
             glassEffectStyle="regular"
-            tintColor={withAlpha('#FF3B30', isDark ? 0.16 : 0.12)}
-            fallbackBackgroundColor={isDark ? 'rgba(255,59,48,0.18)' : 'rgba(255,59,48,0.12)'}
+            tintColor={withAlpha(deleteBg, isDark ? 0.55 : 0.45)}
+            fallbackBackgroundColor={withAlpha(deleteBg, isDark ? 0.6 : 0.5)}
           >
-            <MaterialIcons name="delete" size={18} color={withAlpha(Colors[theme].text, 0.95)} />
+            <MaterialIcons name="delete" size={24} color={withAlpha(Colors[theme].text, 0.95)} />
           </GlassSurface>
+        </Pressable>
+
+        <Pressable onPress={onToggleComplete} style={styles.primaryActionWrap}>
+          <View>
+            {/* Active State (Green) */}
+            <Animated.View style={[StyleSheet.absoluteFill, activeStyle]}>
+              <GlassSurface
+                style={styles.primaryActionButton}
+                glassEffectStyle="regular"
+                tintColor={withAlpha(completeBg, isDark ? 0.55 : 0.45)}
+                fallbackBackgroundColor={withAlpha(completeBg, isDark ? 0.6 : 0.5)}
+              >
+                <MaterialIcons name="check" size={18} color={withAlpha(Colors[theme].text, 0.95)} />
+                <Text style={[styles.primaryActionText, { color: withAlpha(Colors[theme].text, 0.95) }]}>
+                  Task erledigt
+                </Text>
+              </GlassSurface>
+            </Animated.View>
+
+            {/* Completed State (Grey) */}
+            <Animated.View style={doneStyle}>
+              <GlassSurface
+                style={styles.primaryActionButton}
+                glassEffectStyle="regular"
+                tintColor={withAlpha(repeatBg, isDark ? 0.45 : 0.35)}
+                fallbackBackgroundColor={withAlpha(repeatBg, isDark ? 0.5 : 0.4)}
+              >
+                <MaterialIcons name="undo" size={18} color={withAlpha(Colors[theme].text, 0.95)} />
+                <Text style={[styles.primaryActionText, { color: withAlpha(Colors[theme].text, 0.95) }]}>
+                  Task wiederholen
+                </Text>
+              </GlassSurface>
+            </Animated.View>
+          </View>
         </Pressable>
       </View>
 
       {/* Due Picker */}
-      <SheetModal visible={duePickerOpen} onClose={() => setDuePickerOpen(false)} theme={theme} hairline={hairline}>
+      < SheetModal visible={duePickerOpen} onClose={() => setDuePickerOpen(false)
+      } theme={theme} hairline={hairline} >
         <View style={styles.modalHeader}>
           <Text style={[styles.modalTitle, { color: Colors[theme].text }]}>Due</Text>
           <Pressable onPress={commitDue} hitSlop={10}>
@@ -620,27 +685,29 @@ export default function TaskViewScreen() {
           <Switch value={dueHasTimeDraft} onValueChange={setDueHasTimeDraft} />
         </View>
 
-        {dueHasTimeDraft ? (
-          <View style={styles.pickerBlock}>
-            <DateTimePicker
-              value={dueDraft}
-              mode="time"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={(_, date) => {
-                if (!date) return;
-                setDueDraft((prev) => {
-                  const next = new Date(prev);
-                  next.setHours(date.getHours(), date.getMinutes(), 0, 0);
-                  return next;
-                });
-              }}
-            />
-          </View>
-        ) : null}
-      </SheetModal>
+        {
+          dueHasTimeDraft ? (
+            <View style={styles.pickerBlock}>
+              <DateTimePicker
+                value={dueDraft}
+                mode="time"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={(_, date) => {
+                  if (!date) return;
+                  setDueDraft((prev) => {
+                    const next = new Date(prev);
+                    next.setHours(date.getHours(), date.getMinutes(), 0, 0);
+                    return next;
+                  });
+                }}
+              />
+            </View>
+          ) : null
+        }
+      </SheetModal >
 
       {/* Project Picker */}
-      <SheetModal visible={projectPickerOpen} onClose={() => setProjectPickerOpen(false)} theme={theme} hairline={hairline}>
+      < SheetModal visible={projectPickerOpen} onClose={() => setProjectPickerOpen(false)} theme={theme} hairline={hairline} >
         <View style={styles.modalHeader}>
           <Text style={[styles.modalTitle, { color: Colors[theme].text }]}>Projekt</Text>
           <Pressable onPress={() => setCreateProjectOpen(true)} hitSlop={10}>
@@ -693,10 +760,10 @@ export default function TaskViewScreen() {
             );
           })}
         </ScrollView>
-      </SheetModal>
+      </SheetModal >
 
       {/* Create Project */}
-      <SheetModal visible={createProjectOpen} onClose={() => setCreateProjectOpen(false)} theme={theme} hairline={hairline}>
+      < SheetModal visible={createProjectOpen} onClose={() => setCreateProjectOpen(false)} theme={theme} hairline={hairline} >
         <View style={styles.modalHeader}>
           <Text style={[styles.modalTitle, { color: Colors[theme].text }]}>Neues Projekt</Text>
           <Pressable onPress={createProject} hitSlop={10} disabled={!newProjectName.trim().length}>
@@ -750,10 +817,10 @@ export default function TaskViewScreen() {
             />
           ))}
         </View>
-      </SheetModal>
+      </SheetModal >
 
       {/* Emoji + Color Picker */}
-      <SheetModal visible={emojiPickerOpen} onClose={() => setEmojiPickerOpen(false)} theme={theme} hairline={hairline}>
+      < SheetModal visible={emojiPickerOpen} onClose={() => setEmojiPickerOpen(false)} theme={theme} hairline={hairline} >
         <View style={styles.modalHeader}>
           <Text style={[styles.modalTitle, { color: Colors[theme].text }]}>Emoji & Farbe</Text>
           <Pressable onPress={() => setEmojiPickerOpen(false)} hitSlop={10}>
@@ -781,27 +848,31 @@ export default function TaskViewScreen() {
         </View>
 
         <Text style={[styles.modalLabel, { color: withAlpha(Colors[theme].text, 0.7), marginTop: 12 }]}>Projektfarbe</Text>
-        {project ? (
-          <View style={styles.swatchGrid}>
-            {COLOR_SWATCHES.map((c) => (
-              <Pressable
-                key={c}
-                onPress={() => onPickProjectColor(c)}
-                style={[
-                  styles.colorSwatch,
-                  {
-                    backgroundColor: c,
-                    borderColor: (project?.color ?? '') === c ? withAlpha(Colors[theme].text, 0.6) : 'transparent',
-                  },
-                ]}
-              />
-            ))}
-          </View>
-        ) : (
-          <Text style={[styles.helperText, { color: withAlpha(Colors[theme].text, 0.6) }]}>Wähle zuerst ein Projekt.</Text>
-        )}
-      </SheetModal>
-    </ScrollView>
+        {
+          project ? (
+            <View style={styles.swatchGrid}>
+              {COLOR_SWATCHES.map((c) => (
+                <Pressable
+                  key={c}
+                  onPress={() => onPickProjectColor(c)}
+                  style={[
+                    styles.colorSwatch,
+                    {
+                      backgroundColor: c,
+                      borderColor: (project?.color ?? '') === c ? withAlpha(Colors[theme].text, 0.6) : 'transparent',
+                    },
+                  ]}
+                />
+              ))}
+            </View>
+          ) : (
+            <Text style={[styles.helperText, { color: withAlpha(Colors[theme].text, 0.6) }]}>Wähle zuerst ein Projekt.</Text>
+          )
+        }
+      </SheetModal >
+
+      <Animated.View style={animatedSpacerStyle} />
+    </ScrollView >
   );
 }
 
@@ -1083,9 +1154,9 @@ const createStyles = (theme: keyof typeof Colors) => {
       alignItems: 'center',
       justifyContent: 'center',
       gap: 10,
-      paddingHorizontal: 14,
-      paddingVertical: 14,
-      borderRadius: 16,
+      paddingHorizontal: 16,
+      paddingVertical: 16,
+      borderRadius: 24,
       overflow: 'hidden',
     },
     primaryActionText: {
