@@ -3,23 +3,23 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Alert,
+    Modal,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    View,
 } from 'react-native';
 import Animated, {
-  useAnimatedKeyboard,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
+    useAnimatedKeyboard,
+    useAnimatedStyle,
+    useSharedValue,
+    withTiming,
 } from 'react-native-reanimated';
 
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
@@ -303,10 +303,15 @@ export default function TaskViewScreen() {
   const onToggleComplete = React.useCallback(() => {
     if (!task) return;
     if (task.section === 'completed') {
-      updateTask({ section: 'today', dueAt: getDueAtForSection('today') });
+      const hasDueAt = typeof task.dueAt === 'number' && Number.isFinite(task.dueAt) && task.dueAt > 0;
+      updateTask(
+        hasDueAt
+          ? { section: 'today', completedAt: undefined }
+          : { section: 'today', completedAt: undefined, dueAt: getDueAtForSection('today'), dueHasTime: true }
+      );
       return;
     }
-    updateTask({ section: 'completed', dueAt: getDueAtForSection('completed') });
+    updateTask({ section: 'completed', completedAt: Date.now() });
   }, [task, updateTask]);
 
   const onDelete = React.useCallback(() => {
@@ -347,7 +352,18 @@ export default function TaskViewScreen() {
     if (!dueHasTimeDraft) {
       next.setHours(12, 0, 0, 0);
     }
-    updateTask({ dueAt: next.getTime(), dueHasTime: dueHasTimeDraft });
+
+    const nextDueAt = next.getTime();
+    let nextSection: Task['section'] | undefined;
+    if (task.section !== 'completed') {
+      const now = new Date();
+      const due = new Date(nextDueAt);
+      const isToday =
+        now.getFullYear() === due.getFullYear() && now.getMonth() === due.getMonth() && now.getDate() === due.getDate();
+      nextSection = isToday ? 'today' : 'upcoming';
+    }
+
+    updateTask({ dueAt: nextDueAt, dueHasTime: dueHasTimeDraft, ...(nextSection ? { section: nextSection } : null) });
     setDuePickerOpen(false);
   }, [dueDraft, dueHasTimeDraft, task, updateTask]);
 
@@ -532,30 +548,43 @@ export default function TaskViewScreen() {
         <Text style={styles.panelTitle}>Details</Text>
 
         <FormField label="Projekt" icon="folder" accent={neutralAccent} theme={theme}>
-          <Pressable onPress={() => setProjectPickerOpen(true)} style={styles.rowButton}>
-            <View style={styles.projectInline}>
-              <View
-                style={[
-                  styles.projectInlineIconBg,
-                  {
-                    backgroundColor: projectColor
-                      ? withAlpha(projectColor, isDark ? 0.22 : 0.16)
-                      : withAlpha(Colors[theme].text, isDark ? 0.08 : 0.06),
-                  },
-                ]}
-              >
-                {project ? (
-                  <SFSymbol name={project.icon} size={16} color={project.color} />
-                ) : (
-                  <Text style={styles.projectInlineIcon}>—</Text>
-                )}
-              </View>
-              <Text style={[styles.valueText, { color: withAlpha(Colors[theme].text, 0.92) }]} numberOfLines={1}>
-                {project?.name ?? 'Kein Projekt'}
-              </Text>
-            </View>
-            <MaterialIcons name="chevron-right" size={18} color={withAlpha(Colors[theme].text, 0.5)} />
-          </Pressable>
+          <View style={styles.locationRow}>
+            <Pressable onPress={() => setProjectPickerOpen(true)} style={[styles.rowButton, { flex: 1 }]}>
+              {project ? (
+                <View style={styles.projectInline}>
+                  <View
+                    style={[
+                      styles.projectInlineIconBg,
+                      {
+                        backgroundColor: withAlpha(project.color, isDark ? 0.22 : 0.16),
+                      },
+                    ]}
+                  >
+                    <SFSymbol name={project.icon} size={16} color={project.color} />
+                  </View>
+                  <Text style={[styles.valueText, { color: withAlpha(Colors[theme].text, 0.92) }]} numberOfLines={1}>
+                    {project.name}
+                  </Text>
+                </View>
+              ) : (
+                <Text style={[styles.valueText, { color: withAlpha(Colors[theme].text, 0.92) }]} numberOfLines={1}>
+                  Kein Projekt
+                </Text>
+              )}
+              <MaterialIcons name="chevron-right" size={18} color={withAlpha(Colors[theme].text, 0.5)} />
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Projekt entfernen"
+              onPress={clearProject}
+              disabled={!task.projectId}
+              hitSlop={10}
+              style={[styles.inlineIconBtn, !task.projectId ? { opacity: 0.35 } : null]}
+            >
+              <MaterialIcons name="close" size={18} color={withAlpha(Colors[theme].text, 0.75)} />
+            </Pressable>
+          </View>
         </FormField>
 
         <View style={[styles.divider, { backgroundColor: hairline }]} />

@@ -5,7 +5,7 @@ import { Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Colors } from '@/constants/theme';
-import { getDueAtForSection, type SectionId, useTasksStore } from '@/context/tasks-store';
+import { type SectionId, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 const createTaskId = () => `t-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -16,18 +16,12 @@ export default function CreateTaskModal() {
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
 
-  const { projects, setTasks, tasks } = useTasksStore();
+  const { setTasks } = useTasksStore();
 
   const [title, setTitle] = React.useState('');
   const trimmed = title.trim();
   const canSubmit = trimmed.length > 0;
 
-  const defaultProjectId = React.useMemo(() => {
-    const active = projects.find((p) => !p.deletedAt);
-    if (active) return active.id;
-    const fromExisting = tasks.find((t) => !t.deletedAt)?.projectId;
-    return fromExisting ?? 'p-default';
-  }, [projects, tasks]);
 
   const inputRef = React.useRef<TextInput | null>(null);
 
@@ -43,7 +37,8 @@ export default function CreateTaskModal() {
     }
 
     const nextId = createTaskId();
-    const section: SectionId = 'today';
+    // Tasks without a due date should show up under "Demnächst" on Home.
+    const section: SectionId = 'upcoming';
 
     setTasks((prev) => {
       const minRank = prev
@@ -58,23 +53,24 @@ export default function CreateTaskModal() {
           title: trimmed,
           subtitle: undefined,
           emoji: '📝',
-          projectId: defaultProjectId,
-          dueAt: getDueAtForSection(section),
-          dueHasTime: true,
+          projectId: '',
+          dueAt: 0,
+          dueHasTime: false,
           section,
           orderRank,
           location: undefined,
           notes: undefined,
           subtasks: undefined,
+          completedAt: undefined,
           deletedAt: undefined,
         },
         ...prev,
       ];
     });
 
-    // Replace the modal with the created task detail.
-    router.replace({ pathname: '/task/[id]', params: { id: nextId } });
-  }, [canSubmit, defaultProjectId, router, setTasks, trimmed]);
+    // Stay on the current screen: just close the modal.
+    router.back();
+  }, [canSubmit, router, setTasks, trimmed]);
 
   const close = React.useCallback(() => {
     router.back();

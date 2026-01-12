@@ -1,315 +1,15 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import * as Haptics from 'expo-haptics';
 import { Stack, useRouter } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
 import React from 'react';
-import { FlatList, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, {
-    Easing,
-    Extrapolation,
-    interpolate,
-    runOnJS,
-    runOnUI,
-    useAnimatedStyle,
-    useSharedValue,
-    withDelay,
-    withSpring,
-    withTiming,
-} from 'react-native-reanimated';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { SwipeTaskRow } from '@/components/tasks/swipe-task-row';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
+import { useHomeFilters } from '@/context/home-filters-store';
 import { getDueAtForSection, type Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 type TabId = 'completed' | 'trash';
-
-const SWIPE_STOP = 76;
-const SWIPE_TRIGGER = 132;
-const SWIPE_ELASTIC = 0.55;
-
-type SwipeAction = {
-  label: string;
-  iconAndroid: React.ComponentProps<typeof MaterialIcons>['name'];
-  iconIOS: string;
-  backgroundColor: string;
-  onTrigger: () => void;
-  haptic?: 'success' | 'warning' | 'error';
-};
-
-type SwipeTaskRowProps = {
-  task: Task;
-  styles: ReturnType<typeof createStyles>;
-  glassTint: string;
-  glassFallback: string;
-  beginSwipe: (taskId: string) => void;
-  endSwipe: (taskId: string) => void;
-  registerClose: (taskId: string, close: () => void) => void;
-  unregisterClose: (taskId: string) => void;
-  closeAnyOpen: () => void;
-  onPressTask: (taskId: string) => void;
-  leftAction: SwipeAction;
-  rightAction: SwipeAction;
-};
-
-const SwipeTaskRow = React.memo(function SwipeTaskRow({
-  task,
-  styles,
-  glassTint,
-  glassFallback,
-  beginSwipe,
-  endSwipe,
-  registerClose,
-  unregisterClose,
-  closeAnyOpen,
-  onPressTask,
-  leftAction,
-  rightAction,
-}: SwipeTaskRowProps) {
-  const translateX = useSharedValue(0);
-  const direction = useSharedValue<-1 | 0 | 1>(0);
-  const startOffsetX = useSharedValue(0);
-  const rowWidth = useSharedValue(0);
-  const rowHeight = useSharedValue(0);
-  const rowOpacity = useSharedValue(1);
-  const rowScale = useSharedValue(1);
-  const swipeVisualAlpha = useSharedValue(1);
-  const collapse = useSharedValue(0);
-
-  const closeSelf = React.useCallback(() => {
-    translateX.value = withSpring(0, {
-      damping: 34,
-      stiffness: 420,
-      mass: 0.9,
-      overshootClamping: true,
-    });
-    direction.value = 0;
-  }, [direction, translateX]);
-
-  React.useEffect(() => {
-    registerClose(task.id, closeSelf);
-    return () => {
-      unregisterClose(task.id);
-    };
-  }, [closeSelf, registerClose, task.id, unregisterClose]);
-
-  const runHaptic = React.useCallback((kind: SwipeAction['haptic']) => {
-    if (!kind) return;
-    const map: Record<NonNullable<SwipeAction['haptic']>, Haptics.NotificationFeedbackType> = {
-      success: Haptics.NotificationFeedbackType.Success,
-      warning: Haptics.NotificationFeedbackType.Warning,
-      error: Haptics.NotificationFeedbackType.Error,
-    };
-    void Haptics.notificationAsync(map[kind]).catch(() => undefined);
-  }, []);
-
-  const dismiss = React.useCallback(
-    (sign: -1 | 1) => {
-      'worklet';
-      const width = rowWidth.value > 0 ? rowWidth.value : 420;
-      const target = (width + 96) * sign;
-
-      swipeVisualAlpha.value = withTiming(0, { duration: 140, easing: Easing.out(Easing.cubic) });
-      rowOpacity.value = withTiming(0, { duration: 170, easing: Easing.out(Easing.cubic) });
-      rowScale.value = withTiming(0.985, { duration: 220, easing: Easing.out(Easing.cubic) });
-      translateX.value = withTiming(target, { duration: 240, easing: Easing.out(Easing.cubic) });
-      collapse.value = withDelay(
-        40,
-        withTiming(1, { duration: 220, easing: Easing.out(Easing.cubic) }, (finished) => {
-          if (!finished) return;
-          if (sign > 0) {
-            runOnJS(leftAction.onTrigger)();
-            runOnJS(runHaptic)(leftAction.haptic);
-          } else {
-            runOnJS(rightAction.onTrigger)();
-            runOnJS(runHaptic)(rightAction.haptic);
-          }
-          runOnJS(endSwipe)(task.id);
-        })
-      );
-    },
-    [collapse, endSwipe, leftAction, rightAction, rowOpacity, rowScale, rowWidth, runHaptic, swipeVisualAlpha, task.id, translateX]
-  );
-
-  const onPressLeft = React.useCallback(() => {
-    beginSwipe(task.id);
-    runOnUI(dismiss)(1);
-  }, [beginSwipe, dismiss, task.id]);
-
-  const onPressRight = React.useCallback(() => {
-    beginSwipe(task.id);
-    runOnUI(dismiss)(-1);
-  }, [beginSwipe, dismiss, task.id]);
-
-  const gesture = React.useMemo(() => {
-    const pan = Gesture.Pan()
-      .activeOffsetX([-6, 6])
-      .failOffsetY([-12, 12])
-      .onStart(() => {
-        startOffsetX.value = translateX.value;
-        rowOpacity.value = 1;
-        rowScale.value = 1;
-        swipeVisualAlpha.value = 1;
-        collapse.value = 0;
-        runOnJS(beginSwipe)(task.id);
-      })
-      .onUpdate((event) => {
-        let raw = startOffsetX.value + event.translationX;
-        if (startOffsetX.value > 0) raw = Math.max(0, raw);
-        if (startOffsetX.value < 0) raw = Math.min(0, raw);
-        const sign: -1 | 0 | 1 = raw > 0 ? 1 : raw < 0 ? -1 : 0;
-        direction.value = sign;
-
-        const abs = Math.abs(raw);
-        const beyond = Math.max(0, abs - SWIPE_STOP);
-        const resisted = SWIPE_STOP + beyond * SWIPE_ELASTIC;
-        const nextAbs = abs <= SWIPE_STOP ? abs : resisted;
-        const target = nextAbs * sign;
-        translateX.value = translateX.value + (target - translateX.value) * 0.55;
-      })
-      .onEnd((event) => {
-        let raw = startOffsetX.value + event.translationX;
-        if (startOffsetX.value > 0) raw = Math.max(0, raw);
-        if (startOffsetX.value < 0) raw = Math.min(0, raw);
-
-        const sign: -1 | 0 | 1 = raw > 0 ? 1 : raw < 0 ? -1 : 0;
-        const abs = Math.abs(translateX.value);
-        const absFinger = Math.abs(raw);
-        const v = Math.max(-1200, Math.min(1200, event.velocityX));
-
-        const springCfg = {
-          damping: 34,
-          stiffness: 420,
-          mass: 0.9,
-          overshootClamping: true,
-          velocity: v,
-        };
-
-        const triggerFinger = SWIPE_STOP + (SWIPE_TRIGGER - SWIPE_STOP) / SWIPE_ELASTIC;
-        if (abs >= SWIPE_TRIGGER || absFinger >= triggerFinger) {
-          direction.value = 0;
-          if (sign !== 0) dismiss(sign as -1 | 1);
-          return;
-        }
-
-        const CLOSE_SNAP = SWIPE_STOP * 0.72;
-        if (abs < CLOSE_SNAP) {
-          translateX.value = withSpring(0, springCfg);
-          direction.value = 0;
-          runOnJS(endSwipe)(task.id);
-          return;
-        }
-
-        translateX.value = withSpring(SWIPE_STOP * sign, springCfg);
-        direction.value = sign;
-      })
-      .onFinalize(() => {
-        // Keep it open if snapped, otherwise mark swipe ended.
-        if (Math.abs(translateX.value) < 1) {
-          runOnJS(endSwipe)(task.id);
-        }
-      });
-
-    return pan;
-  }, [beginSwipe, collapse, direction, dismiss, endSwipe, rowOpacity, rowScale, startOffsetX, swipeVisualAlpha, task.id, translateX]);
-
-  const underlayStyle = useAnimatedStyle(() => {
-    return {
-      opacity: swipeVisualAlpha.value,
-    };
-  });
-
-  const leftActionStyle = useAnimatedStyle(() => {
-    const x = Math.max(0, translateX.value);
-    const a = interpolate(x, [0, SWIPE_STOP], [0, 1], Extrapolation.CLAMP);
-    return { opacity: a, transform: [{ scale: 0.98 + a * 0.02 }] };
-  });
-
-  const rightActionStyle = useAnimatedStyle(() => {
-    const x = Math.max(0, -translateX.value);
-    const a = interpolate(x, [0, SWIPE_STOP], [0, 1], Extrapolation.CLAMP);
-    return { opacity: a, transform: [{ scale: 0.98 + a * 0.02 }] };
-  });
-
-  const rowStyle = useAnimatedStyle(() => {
-    const h = rowHeight.value;
-    const collapsedHeight = interpolate(collapse.value, [0, 1], [h, 0], Extrapolation.CLAMP);
-    return {
-      height: h > 0 ? collapsedHeight : undefined,
-      opacity: rowOpacity.value,
-      transform: [{ translateX: translateX.value }, { scale: rowScale.value }],
-    };
-  });
-
-  return (
-    <View
-      style={styles.rowWrap}
-      onLayout={(e) => {
-        rowWidth.value = e.nativeEvent.layout.width;
-        rowHeight.value = e.nativeEvent.layout.height;
-      }}>
-      <Animated.View style={[styles.underlay, underlayStyle]} pointerEvents="box-none">
-        <Animated.View style={[styles.underlaySide, { backgroundColor: leftAction.backgroundColor, left: 0 }, leftActionStyle]}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={leftAction.label}
-            onPress={onPressLeft}
-            hitSlop={10}
-            style={({ pressed }) => [styles.underlayBtn, pressed && { opacity: 0.9 }]}>
-            {Platform.OS === 'ios' ? (
-              <SymbolView name={leftAction.iconIOS as any} tintColor="#fff" style={{ width: 18, height: 18 }} />
-            ) : (
-              <MaterialIcons name={leftAction.iconAndroid} size={18} color="#fff" />
-            )}
-          </Pressable>
-        </Animated.View>
-
-        <Animated.View style={[styles.underlaySide, { backgroundColor: rightAction.backgroundColor, right: 0 }, rightActionStyle]}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={rightAction.label}
-            onPress={onPressRight}
-            hitSlop={10}
-            style={({ pressed }) => [styles.underlayBtn, pressed && { opacity: 0.9 }]}>
-            {Platform.OS === 'ios' ? (
-              <SymbolView name={rightAction.iconIOS as any} tintColor="#fff" style={{ width: 18, height: 18 }} />
-            ) : (
-              <MaterialIcons name={rightAction.iconAndroid} size={18} color="#fff" />
-            )}
-          </Pressable>
-        </Animated.View>
-      </Animated.View>
-
-      <GestureDetector gesture={gesture}>
-        <Animated.View style={rowStyle}>
-          <Pressable
-            onPress={() => {
-              closeAnyOpen();
-              onPressTask(task.id);
-            }}
-            style={({ pressed }) => [styles.rowPressable, pressed && { opacity: 0.92 }]}>
-            <GlassSurface style={styles.row} glassEffectStyle="regular" tintColor={glassTint} fallbackBackgroundColor={glassFallback}>
-              <View style={styles.emojiTile}>
-                <Text style={styles.emojiText}>{task.emoji}</Text>
-              </View>
-              <View style={styles.textStack}>
-                <Text style={styles.rowTitle} numberOfLines={1}>
-                  {task.title}
-                </Text>
-                {task.subtitle ? (
-                  <Text style={styles.rowSubtitle} numberOfLines={1}>
-                    {task.subtitle}
-                  </Text>
-                ) : null}
-              </View>
-            </GlassSurface>
-          </Pressable>
-        </Animated.View>
-      </GestureDetector>
-    </View>
-  );
-});
 
 function formatCountLabel(count: number, singular: string, plural: string) {
   return count === 1 ? `${count} ${singular}` : `${count} ${plural}`;
@@ -321,16 +21,32 @@ export default function ArchiveScreen() {
   const isDark = theme === 'dark';
   const styles = React.useMemo(() => createStyles(theme), [theme]);
 
+  const { enabledTags, showTagIcons } = useHomeFilters();
+
   const hairline = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)';
 
   const cardBg = isDark ? '#1C1C1E' : '#F2F2F7';
   const glassTint = withAlpha(Colors[theme].text, isDark ? 0.12 : 0.06);
   const glassFallback = withAlpha(cardBg, isDark ? 0.92 : 1);
 
-  const { tasks, setTasks } = useTasksStore();
+  const glassDragTint = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.18 : 0.28), [isDark, theme]);
+  const glassDragFallback = React.useMemo(
+    () => withAlpha(Colors[theme].background, isDark ? 0.86 : 0.92),
+    [isDark, theme]
+  );
+  const emojiTint = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.12 : 0.22), [isDark, theme]);
+  const emojiFallback = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.52 : 0.74), [isDark, theme]);
+
+  const swipeGreenBg = React.useMemo(() => (isDark ? '#30D158' : '#34C759'), [isDark]);
+  const swipeRedBg = React.useMemo(() => (isDark ? '#FF453A' : '#FF3B30'), [isDark]);
+
+  const { tasks, setTasks, projects } = useTasksStore();
+  const projectsById = React.useMemo(() => new Map(projects.map((p) => [p.id, p] as const)), [projects]);
 
   const completed = React.useMemo(
-    () => tasks.filter((t) => t.section === 'completed' && !t.deletedAt).sort((a, b) => b.dueAt - a.dueAt),
+    () => tasks
+      .filter((t) => t.section === 'completed' && !t.deletedAt)
+      .sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0)),
     [tasks]
   );
 
@@ -384,6 +100,18 @@ export default function ArchiveScreen() {
     openTaskIdRef.current = null;
   }, []);
 
+  const handlePressTask = React.useCallback(
+    (taskId: string) => {
+      // First tap closes swipe if anything is open.
+      if (openTaskIdRef.current) {
+        closeAnyOpen();
+        return;
+      }
+      onPressTask(taskId);
+    },
+    [closeAnyOpen, onPressTask]
+  );
+
   const moveCompletedBackToToday = React.useCallback(
     (taskId: string) => {
       setTasks((prev) => {
@@ -398,10 +126,17 @@ export default function ArchiveScreen() {
 
         return prev.map((t) => {
           if (t.id !== taskId) return t;
+          const hasDueAt = typeof t.dueAt === 'number' && Number.isFinite(t.dueAt) && t.dueAt > 0;
           return {
             ...t,
             section: 'today',
-            dueAt: getDueAtForSection('today'),
+            completedAt: undefined,
+            ...(hasDueAt
+              ? {}
+              : {
+                  dueAt: getDueAtForSection('today'),
+                  dueHasTime: true,
+                }),
             orderRank: nextRank,
           };
         });
@@ -510,58 +245,47 @@ export default function ArchiveScreen() {
 
   const renderRow = React.useCallback(
     ({ item }: { item: Task }) => {
-      const leftAction: SwipeAction =
-        tab === 'completed'
-          ? {
-              label: 'Rückgängig',
-              iconAndroid: 'undo',
-              iconIOS: 'arrow.uturn.left',
-              backgroundColor: isDark ? '#30D158' : '#34C759',
-              onTrigger: () => moveCompletedBackToToday(item.id),
-              haptic: 'success',
-            }
-          : {
-              label: 'Wiederherstellen',
-              iconAndroid: 'restore',
-              iconIOS: 'arrow.uturn.left',
-              backgroundColor: isDark ? '#30D158' : '#34C759',
-              onTrigger: () => restoreFromTrash(item.id),
-              haptic: 'success',
-            };
-
-      const rightAction: SwipeAction =
-        tab === 'completed'
-          ? {
-              label: 'Papierkorb',
-              iconAndroid: 'delete',
-              iconIOS: 'trash',
-              backgroundColor: isDark ? '#FF453A' : '#FF3B30',
-              onTrigger: () => moveToTrash(item.id),
-              haptic: 'warning',
-            }
-          : {
-              label: 'Löschen',
-              iconAndroid: 'delete',
-              iconIOS: 'trash',
-              backgroundColor: isDark ? '#FF453A' : '#FF3B30',
-              onTrigger: () => deleteForever(item.id),
-              haptic: 'warning',
-            };
-
       return (
         <SwipeTaskRow
           task={item}
+          project={projectsById.get(item.projectId)}
+          drag={() => undefined}
+          isActive={false}
           styles={styles}
-          glassTint={glassTint}
-          glassFallback={glassFallback}
+          glassDragTint={glassDragTint}
+          glassDragFallback={glassDragFallback}
+          emojiTint={emojiTint}
+          emojiFallback={emojiFallback}
+          swipeCompleteBg={swipeGreenBg}
+          swipeDeleteBg={swipeRedBg}
+          leftAction={
+            tab === 'trash'
+              ? {
+                  icon: 'restore',
+                  backgroundColor: swipeGreenBg,
+                  onTrigger: (taskId) => restoreFromTrash(taskId),
+                }
+              : undefined
+          }
+          rightAction={
+            tab === 'trash'
+              ? {
+                  icon: 'delete-forever',
+                  backgroundColor: swipeRedBg,
+                  onTrigger: (taskId) => deleteForever(taskId),
+                }
+              : undefined
+          }
+          enabledTags={enabledTags}
+          showTaskIcons={showTagIcons}
           beginSwipe={beginSwipe}
           endSwipe={endSwipe}
           registerClose={registerClose}
           unregisterClose={unregisterClose}
           closeAnyOpen={closeAnyOpen}
-          onPressTask={onPressTask}
-          leftAction={leftAction}
-          rightAction={rightAction}
+          onPressTask={handlePressTask}
+          toggleComplete={(taskId) => moveCompletedBackToToday(taskId)}
+          deleteTask={(taskId) => moveToTrash(taskId)}
         />
       );
     },
@@ -570,17 +294,23 @@ export default function ArchiveScreen() {
       closeAnyOpen,
       deleteForever,
       endSwipe,
-      glassFallback,
-      glassTint,
-      isDark,
+      enabledTags,
+      emojiFallback,
+      emojiTint,
+      glassDragFallback,
+      glassDragTint,
+      handlePressTask,
       moveCompletedBackToToday,
       moveToTrash,
-      onPressTask,
+      projectsById,
       registerClose,
       restoreFromTrash,
+      showTagIcons,
       styles,
       tab,
       unregisterClose,
+      swipeGreenBg,
+      swipeRedBg,
     ]
   );
 
@@ -624,6 +354,12 @@ const createStyles = (theme: keyof typeof Colors) => {
   const isDark = theme === 'dark';
   const text = Colors[theme].text;
   const hairline = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)';
+
+  const cardBg = isDark ? '#1C1C1E' : '#F2F2F7';
+  const tagBg = withAlpha(text, isDark ? 0.10 : 0.08);
+  const tagText = withAlpha(text, 0.78);
+  const dangerBg = isDark ? 'rgba(255,69,58,0.18)' : 'rgba(255,59,48,0.14)';
+  const dangerBorder = isDark ? 'rgba(255,69,58,0.32)' : 'rgba(255,59,48,0.26)';
 
   return StyleSheet.create({
     screen: {
@@ -703,48 +439,60 @@ const createStyles = (theme: keyof typeof Colors) => {
       color: text,
     },
 
-    rowPressable: {
-      borderRadius: 14,
-    },
-
-    rowWrap: {
+    // --- shared task row styles (same contract as Home SwipeTaskRow) ---
+    itemSpacer: {
       marginBottom: 12,
-      position: 'relative',
+    },
+    swipeClip: {
+      borderRadius: 12,
+      overflow: 'hidden',
     },
     underlay: {
       ...StyleSheet.absoluteFillObject,
-      borderRadius: 14,
-      overflow: 'hidden',
-      flexDirection: 'row',
-      alignItems: 'stretch',
-      justifyContent: 'space-between',
     },
-    underlaySide: {
+    actionSlot: {
       position: 'absolute',
       top: 0,
       bottom: 0,
-      width: SWIPE_STOP,
-      alignItems: 'center',
       justifyContent: 'center',
     },
-    underlayBtn: {
-      width: 42,
-      height: 42,
-      borderRadius: 21,
+    actionSlotLeft: {
+      left: 0,
+      alignItems: 'center',
+    },
+    actionSlotRight: {
+      right: 0,
+      alignItems: 'center',
+    },
+    actionSlotInner: {
+      width: 44,
+      height: 44,
+      borderRadius: 12,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: withAlpha('#000', isDark ? 0.18 : 0.12),
     },
     row: {
       minHeight: 56,
-      borderRadius: 14,
+      borderRadius: 12,
+      backgroundColor: cardBg,
+      justifyContent: 'center',
       paddingHorizontal: 12,
       paddingVertical: 10,
+      gap: 4,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: hairline,
+    },
+    dragRow: {
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: hairline,
+      shadowColor: '#000',
+      shadowRadius: 18,
+      shadowOffset: { width: 0, height: 10 },
+    },
+    rowInner: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 10,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hairline,
     },
     emojiTile: {
       width: 38,
@@ -752,7 +500,7 @@ const createStyles = (theme: keyof typeof Colors) => {
       borderRadius: 12,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: withAlpha(text, isDark ? 0.08 : 0.06),
+      overflow: 'hidden',
     },
     emojiText: {
       fontSize: 18,
@@ -763,13 +511,41 @@ const createStyles = (theme: keyof typeof Colors) => {
     },
     rowTitle: {
       fontSize: 16,
-      fontWeight: '700',
+      fontWeight: '600',
       color: text,
     },
     rowSubtitle: {
       fontSize: 13,
+      color: text,
+      opacity: 0.7,
+    },
+    tagRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 6,
+      marginTop: 2,
+    },
+    tagChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      maxWidth: '100%',
+      paddingVertical: 4,
+      paddingHorizontal: 8,
+      borderRadius: 999,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: hairline,
+      backgroundColor: tagBg,
+    },
+    tagChipDanger: {
+      backgroundColor: dangerBg,
+      borderColor: dangerBorder,
+    },
+    tagChipText: {
+      fontSize: 12,
       fontWeight: '600',
-      color: withAlpha(text, 0.7),
+      color: tagText,
+      maxWidth: 220,
     },
 
     empty: {

@@ -162,6 +162,10 @@ export default function ExploreScreen() {
     return projects.filter((p) => !p.deletedAt);
   }, [projects]);
 
+  const onCreateProject = React.useCallback(() => {
+    router.push('/project/edit-modal');
+  }, [router]);
+
   const onPressProject = React.useCallback(
     (id: string) => {
       router.push(`/project/${id}`);
@@ -191,7 +195,7 @@ export default function ExploreScreen() {
           ))}
           {/* Add Button Tile */}
           <Pressable
-            onPress={() => router.push('/project/edit-modal')}
+            onPress={onCreateProject}
             style={({ pressed }) => [
               styles.tilePressable,
               pressed && { opacity: 0.9 },

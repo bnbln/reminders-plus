@@ -1,16 +1,16 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
-    TaskSwipeDraggableList,
-    type TaskSwipeDraggableListHandle,
-    type TaskSwipeDraggableListItem,
+  TaskSwipeDraggableList,
+  type TaskSwipeDraggableListHandle,
+  type TaskSwipeDraggableListItem,
 } from '@/components/tasks/task-swipe-draggable-list';
-import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { FloatingAddPillButton } from '@/components/ui/floating-add-button';
+import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
 import { useHomeFilters } from '@/context/home-filters-store';
 import { useTabBarMinimize } from '@/context/tabbar-minimize-store';
@@ -36,17 +36,36 @@ const SECTION_TITLES: Record<SectionId, string> = {
   completed: 'Abgeschlossen',
 };
 
+const getStartOfToday = () => {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
+};
+
 const adjustDueAtOnSectionChange = (task: Task, nextSection: SectionId): Task => {
   // Only auto-adjust between Today <-> Upcoming as requested.
   if (
     (task.section === 'today' && nextSection === 'upcoming') ||
     (task.section === 'upcoming' && nextSection === 'today')
   ) {
-    return {
-      ...task,
-      section: nextSection,
-      dueAt: getDueAtForSection(nextSection),
-    };
+    if (task.section === 'upcoming' && nextSection === 'today') {
+      // When promoting to Today via drag, set due date to today's date without a time.
+      return {
+        ...task,
+        section: 'today',
+        dueAt: getStartOfToday(),
+        dueHasTime: false,
+      };
+    }
+
+    if (task.section === 'today' && nextSection === 'upcoming') {
+      // When moving out of Today via drag, clear the due date.
+      return {
+        ...task,
+        section: 'upcoming',
+        dueAt: 0,
+        dueHasTime: false,
+      };
+    }
   }
 
   return {
@@ -199,7 +218,15 @@ export default function HomeScreen() {
   );
 
   const visibleTasks = React.useMemo(() => {
-    const base = tasks.filter((t) => !t.deletedAt && homeEnabledSections.includes(t.section) && t.dueAt > 0);
+    const base = tasks.filter((t) => {
+      if (t.deletedAt) return false;
+      if (!homeEnabledSections.includes(t.section)) return false;
+
+      // Upcoming should also show tasks without a due date.
+      if (t.section === 'upcoming') return true;
+
+      return typeof t.dueAt === 'number' && Number.isFinite(t.dueAt) && t.dueAt > 0;
+    });
     if (!withNotesEnabled) return base;
     return base.filter((t) => !!t.subtitle);
   }, [homeEnabledSections, tasks, withNotesEnabled]);
@@ -384,13 +411,30 @@ export default function HomeScreen() {
         const fromSection = task.section;
         const toSection: SectionId = fromSection === 'completed' ? 'today' : 'completed';
 
-        const next = prev.map((t) => {
+        const now = Date.now();
+
+        const next = prev.map((t): Task => {
           if (t.id !== taskId) return t;
+
+          if (toSection === 'completed') {
+            return {
+              ...t,
+              section: 'completed' as const,
+              completedAt: now,
+            };
+          }
+
+          const hasDueAt = typeof t.dueAt === 'number' && Number.isFinite(t.dueAt) && t.dueAt > 0;
           return {
             ...t,
-            section: toSection,
-            // Explicitly set a sensible timestamp for complete/undo.
-            dueAt: getDueAtForSection(toSection),
+            section: 'today' as const,
+            completedAt: undefined,
+            ...(hasDueAt
+              ? {}
+              : {
+                  dueAt: getDueAtForSection('today'),
+                  dueHasTime: true,
+                }),
           };
         });
 

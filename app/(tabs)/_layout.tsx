@@ -73,7 +73,7 @@ export default function TabLayout() {
     <View style={{ flex: 1 }}>
       <TabBarMinimizeProvider behavior="onScrollDown">
         <NativeTabs
-          minimizeBehavior="automatic"
+          minimizeBehavior="onScrollDown"
         // Docs: can fix scroll edge detection issues which can also break scroll-based behaviors
         disableTransparentOnScrollEdge
         labelStyle={

@@ -101,6 +101,18 @@ export type SwipeTaskRowProps = {
   emojiFallback: string;
   swipeCompleteBg: string;
   swipeDeleteBg: string;
+  leftAction?: {
+    icon?: React.ComponentProps<typeof MaterialIcons>['name'];
+    backgroundColor?: string;
+    onTrigger: (taskId: string) => void;
+    haptic?: Haptics.NotificationFeedbackType;
+  };
+  rightAction?: {
+    icon?: React.ComponentProps<typeof MaterialIcons>['name'];
+    backgroundColor?: string;
+    onTrigger: (taskId: string) => void;
+    haptic?: Haptics.NotificationFeedbackType;
+  };
   enabledTags: Set<TagId>;
   showTaskIcons: boolean;
   beginSwipe: (taskId: string) => void;
@@ -125,6 +137,8 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   emojiFallback,
   swipeCompleteBg,
   swipeDeleteBg,
+  leftAction,
+  rightAction,
   enabledTags,
   showTaskIcons,
   beginSwipe,
@@ -163,15 +177,25 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     };
   }, [closeSelf, registerClose, task.id, unregisterClose]);
 
-  const commitComplete = React.useCallback(() => {
+  const commitLeft = React.useCallback(() => {
+    if (leftAction) {
+      leftAction.onTrigger(task.id);
+      void Haptics.notificationAsync(leftAction.haptic ?? Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+      return;
+    }
     toggleComplete(task.id);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
-  }, [task.id, toggleComplete]);
+  }, [leftAction, task.id, toggleComplete]);
 
-  const commitDelete = React.useCallback(() => {
+  const commitRight = React.useCallback(() => {
+    if (rightAction) {
+      rightAction.onTrigger(task.id);
+      void Haptics.notificationAsync(rightAction.haptic ?? Haptics.NotificationFeedbackType.Warning).catch(() => undefined);
+      return;
+    }
     deleteTask(task.id);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => undefined);
-  }, [deleteTask, task.id]);
+  }, [deleteTask, rightAction, task.id]);
 
   const dismiss = React.useCallback(
     (sign: -1 | 1) => {
@@ -188,15 +212,15 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
         withTiming(1, { duration: 220, easing: Easing.out(Easing.cubic) }, (finished) => {
           if (!finished) return;
           if (sign > 0) {
-            runOnJS(commitComplete)();
+            runOnJS(commitLeft)();
           } else {
-            runOnJS(commitDelete)();
+            runOnJS(commitRight)();
           }
           runOnJS(endSwipe)(task.id);
         })
       );
     },
-    [collapse, commitComplete, commitDelete, endSwipe, rowOpacity, rowScale, rowWidth, swipeVisualAlpha, task.id, translateX]
+    [collapse, commitLeft, commitRight, endSwipe, rowOpacity, rowScale, rowWidth, swipeVisualAlpha, task.id, translateX]
   );
 
   const onPressComplete = React.useCallback(() => {
@@ -319,10 +343,10 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     const boost = tx > SWIPE_STOP ? Math.min(1, (tx - SWIPE_STOP) / (SWIPE_TRIGGER - SWIPE_STOP)) : 0;
     return {
       opacity: visible * swipeVisualAlpha.value,
-      backgroundColor: swipeCompleteBg,
+      backgroundColor: leftAction?.backgroundColor ?? swipeCompleteBg,
       transform: [{ scaleX: 1 + boost * 0.03 }],
     };
-  }, [swipeCompleteBg]);
+  }, [leftAction?.backgroundColor, swipeCompleteBg]);
 
   const underlayRedStyle = useAnimatedStyle(() => {
     const tx = translateX.value;
@@ -330,10 +354,10 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     const boost = tx < -SWIPE_STOP ? Math.min(1, (-tx - SWIPE_STOP) / (SWIPE_TRIGGER - SWIPE_STOP)) : 0;
     return {
       opacity: visible * swipeVisualAlpha.value,
-      backgroundColor: swipeDeleteBg,
+      backgroundColor: rightAction?.backgroundColor ?? swipeDeleteBg,
       transform: [{ scaleX: 1 + boost * 0.03 }],
     };
-  }, [swipeDeleteBg]);
+  }, [rightAction?.backgroundColor, swipeDeleteBg]);
 
   const leftIconStyle = useAnimatedStyle(() => {
     const tx = translateX.value;
@@ -372,7 +396,20 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     const chips: TagChipModel[] = [];
 
     const now = Date.now();
-    const isOverdue = task.section !== 'completed' && task.dueAt < now;
+    const isOverdue = (() => {
+      if (task.section === 'completed') return false;
+      if (!Number.isFinite(task.dueAt) || task.dueAt <= 0) return false;
+
+      // If the task has no explicit time, treat it as due "by end of day".
+      if (task.dueHasTime === false) {
+        const due = new Date(task.dueAt);
+        const startOfNextDay = new Date(due.getFullYear(), due.getMonth(), due.getDate() + 1, 0, 0, 0, 0).getTime();
+        return now >= startOfNextDay;
+      }
+
+      // Has time (or unknown): overdue once the timestamp passed.
+      return task.dueAt < now;
+    })();
     const hashtags = extractHashtags([task.title, task.subtitle, task.notes].filter(Boolean).join(' '));
 
     for (const tagId of TAG_ORDER) {
@@ -385,6 +422,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       }
 
       if (tagId === 'datetime') {
+        if (!Number.isFinite(task.dueAt) || task.dueAt <= 0) continue;
         chips.push({ key: `dt-${task.dueAt}`, tagId, label: formatDueLabel(task.dueAt, task.dueHasTime) });
         continue;
       }
@@ -438,12 +476,12 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
 
         <Pressable style={[styles.actionSlot, styles.actionSlotLeft, { width: SWIPE_STOP }]} onPress={onPressComplete} hitSlop={10}>
           <Animated.View style={[styles.actionSlotInner, leftIconStyle]}>
-            <MaterialIcons name={task.section === 'completed' ? 'undo' : 'check'} size={22} color="white" />
+            <MaterialIcons name={leftAction?.icon ?? (task.section === 'completed' ? 'undo' : 'check')} size={22} color="white" />
           </Animated.View>
         </Pressable>
         <Pressable style={[styles.actionSlot, styles.actionSlotRight, { width: SWIPE_STOP }]} onPress={onPressDelete} hitSlop={10}>
           <Animated.View style={[styles.actionSlotInner, rightIconStyle]}>
-            <MaterialIcons name="delete" size={22} color="white" />
+            <MaterialIcons name={rightAction?.icon ?? 'delete'} size={22} color="white" />
           </Animated.View>
         </Pressable>
 

@@ -38,19 +38,22 @@ const COLOR_PRESETS = [
 ];
 
 export default function ProjectEditScreen() {
-    const { id } = useLocalSearchParams<{ id: string }>();
+    const { id } = useLocalSearchParams<{ id?: string }>();
     const router = useRouter();
     const theme = useColorScheme() ?? 'light';
     const isDark = theme === 'dark';
     const styles = React.useMemo(() => createStyles(theme), [theme]);
 
     const { projects, setProjects, tasks, setTasks } = useTasksStore();
-    const project = React.useMemo(() => projects.find((p) => p.id === id), [projects, id]);
+    const project = React.useMemo(() => (id ? projects.find((p) => p.id === id) : undefined), [projects, id]);
+    const isCreate = !id || !project;
+
+    const createProjectId = React.useCallback(() => `p-${Date.now()}-${Math.random().toString(16).slice(2)}`, []);
 
     // Local state
     const [name, setName] = React.useState(project?.name ?? '');
     const [icon, setIcon] = React.useState(project?.icon ?? 'folder.fill');
-    const [color, setColor] = React.useState(project?.color ?? '#808080');
+    const [color, setColor] = React.useState(project?.color ?? '#2563EB');
     const [description, setDescription] = React.useState(project?.description ?? '');
 
     React.useEffect(() => {
@@ -59,18 +62,45 @@ export default function ProjectEditScreen() {
             setIcon(project.icon);
             setColor(project.color);
             setDescription(project.description ?? '');
+        } else if (isCreate) {
+            setName('');
+            setIcon('folder.fill');
+            setColor('#2563EB');
+            setDescription('');
         }
-    }, [project]);
+    }, [isCreate, project]);
 
     const onSave = React.useCallback(() => {
-        if (!project) return;
+        const trimmed = name.trim();
+        if (!trimmed) return;
+
+        if (isCreate) {
+            const nextId = createProjectId();
+            setProjects(prev => [
+                {
+                    id: nextId,
+                    name: trimmed,
+                    icon,
+                    color,
+                    description: description.trim() ? description.trim() : undefined,
+                    completed: false,
+                    deletedAt: undefined,
+                },
+                ...prev,
+            ]);
+            router.back();
+            return;
+        }
+
+        if (!id) return;
         setProjects(prev => prev.map(p =>
-            p.id === id ? { ...p, name, icon, color, description } : p
+            p.id === id ? { ...p, name: trimmed, icon, color, description } : p
         ));
         router.back();
-    }, [id, name, icon, color, description, project, setProjects, router]);
+    }, [color, createProjectId, description, icon, id, isCreate, name, router, setProjects]);
 
     const onDelete = React.useCallback(() => {
+        if (!id) return;
         setProjects(prev => prev.map(p =>
             p.id === id ? { ...p, deletedAt: Date.now() } : p
         ));
@@ -81,7 +111,7 @@ export default function ProjectEditScreen() {
         router.navigate('/(tabs)/explore');
     }, [id, setProjects, setTasks, router]);
 
-    if (!project) return null;
+    const headerTitle = isCreate ? 'Neues Projekt' : 'Projekt bearbeiten';
 
     return (
         <KeyboardAvoidingView
@@ -92,9 +122,12 @@ export default function ProjectEditScreen() {
             <ScrollView style={styles.container} contentContainerStyle={styles.content}>
                 <Stack.Screen
                     options={{
+                        title: headerTitle,
                         headerRight: () => (
                             <Pressable onPress={onSave} disabled={!name.trim()}>
-                                <Text style={[styles.saveButton, !name.trim() && styles.disabledButton]}>Fertig</Text>
+                                <View style={!name.trim() ? styles.disabledButton : undefined}>
+                                    <SFSymbol name="checkmark" size={18} color={Colors[theme].tint} weight="bold" />
+                                </View>
                             </Pressable>
                         ),
                     }}
@@ -161,10 +194,12 @@ export default function ProjectEditScreen() {
                     </View>
                 </View>
 
-                <Pressable onPress={onDelete} style={styles.deleteButton}>
-                    <MaterialIcons name="delete-outline" size={20} color="#FF3B30" />
-                    <Text style={styles.deleteText}>Projekt löschen</Text>
-                </Pressable>
+                {!isCreate ? (
+                    <Pressable onPress={onDelete} style={styles.deleteButton}>
+                        <MaterialIcons name="delete-outline" size={20} color="#FF3B30" />
+                        <Text style={styles.deleteText}>Projekt löschen</Text>
+                    </Pressable>
+                ) : null}
 
             </ScrollView>
         </KeyboardAvoidingView>

@@ -1,5 +1,13 @@
 import React from 'react';
 
+import { syncTaskDueNotifications } from '@/notifications/tasks-notifications';
+import {
+  createOnboardingSeedData,
+  hasCompletedOnboardingSeed,
+  markCompletedOnboardingSeed,
+} from '@/storage/tasks-onboarding-seed';
+import { loadEncryptedTasksSnapshot, saveEncryptedTasksSnapshot } from '@/storage/tasks-storage';
+
 export type SectionId = 'today' | 'upcoming' | 'completed';
 
 export type Project = {
@@ -27,6 +35,8 @@ export type Task = {
   /** Unix ms. `0` bedeutet: kein Datum gesetzt. */
   dueAt: number;
   dueHasTime?: boolean;
+  /** Unix ms timestamp when marked completed. Undefined = not completed. */
+  completedAt?: number;
   location?: string;
   notes?: string;
   subtasks?: Subtask[];
@@ -34,95 +44,6 @@ export type Task = {
   orderRank: number;
   /** Unix ms timestamp when moved to trash. Undefined = active. */
   deletedAt?: number;
-};
-
-const BASE_TASKS = [
-  {
-    title: 'Design sync',
-    subtitle: 'Gradient, motion, microcopy prüfen',
-    emoji: '🎛️',
-    project: {
-      id: 'p-design',
-      name: 'Design',
-      color: '#7C3AED',
-      icon: 'paintbrush.fill',
-      description: 'UI/UX Design Projekte'
-    },
-    location: 'Studio · Raum 3',
-    notes: 'Achte auf Reduced Motion, Haptics und Text-Kontrast.\n\n• iOS-native feel\n• Klare Informationshierarchie',
-  },
-  {
-    title: 'Kunden-Call',
-    subtitle: 'Scope für Q2 finalisieren',
-    emoji: '📞',
-    project: {
-      id: 'p-clients',
-      name: 'Clients',
-      color: '#2563EB',
-      icon: 'person.2.fill',
-      description: 'Kundenkommunikation & Meetings'
-    },
-    location: 'Zoom',
-    notes: 'Agenda: Ziele, Scope, Risiken, nächste Schritte.\n\nBeispiele sammeln und priorisieren.',
-  },
-  {
-    title: 'Moodboard export',
-    subtitle: 'Konzeptvarianten markieren',
-    emoji: '🖼️',
-    project: {
-      id: 'p-brand',
-      name: 'Brand',
-      color: '#F97316',
-      icon: 'star.fill',
-      description: 'Branding & Identity Assets'
-    },
-    location: 'Figma',
-    notes: 'Export in 2 Größen: 1080px & 2048px.\n\nLinks in Notion ergänzen.',
-  },
-  {
-    title: 'Spaziergang',
-    subtitle: 'Headspace für neue Idee',
-    emoji: '🚶‍♂️',
-    project: {
-      id: 'p-self',
-      name: 'Self',
-      color: '#10B981',
-      icon: 'figure.mind.and.body',
-      description: 'Persönliche Entwicklung & Gesundheit'
-    },
-    location: 'Park',
-    notes: 'Ohne Musik. 20 Minuten.\n\nDanach 3 Bullet-Insights notieren.',
-  },
-  {
-    title: 'Briefing sortiert',
-    subtitle: 'Stakeholder-Feedback eingearbeitet',
-    emoji: '🗂️',
-    project: {
-      id: 'p-planning',
-      name: 'Planning',
-      color: '#EF4444',
-      icon: 'map.fill',
-      description: 'Roadmap & Strategie'
-    },
-    location: 'Notion',
-    notes: 'Widersprüche auflösen, offene Punkte markieren, Abhängigkeiten klären.',
-  },
-] as const;
-
-export const createSeedProjects = (): Project[] => {
-  const map = new Map<string, Project>();
-  for (const t of BASE_TASKS) {
-    map.set(t.project.id, {
-      id: t.project.id,
-      name: t.project.name,
-      color: t.project.color,
-      icon: t.project.icon,
-      description: t.project.description,
-      completed: false,
-      deletedAt: undefined,
-    });
-  }
-  return Array.from(map.values());
 };
 
 export const getDueAtForSection = (section: SectionId) => {
@@ -150,40 +71,88 @@ export const getDueAtForSection = (section: SectionId) => {
   return completedAt.getTime();
 };
 
-export const createSeedTasks = (): Task[] => {
-  return Array.from({ length: 80 }).map((_, index) => {
-    const template = BASE_TASKS[index % BASE_TASKS.length];
-    const section: SectionId = index < 28 ? 'today' : index < 56 ? 'upcoming' : 'completed';
-    const sectionIndex = section === 'today' ? index : section === 'upcoming' ? index - 28 : index - 56;
+const SNAPSHOT_VERSION = 1 as const;
 
-    const noDueDate = index < 8 && section !== 'completed';
+function isSectionId(v: unknown): v is SectionId {
+  return v === 'today' || v === 'upcoming' || v === 'completed';
+}
 
-    const subtasks: Subtask[] | undefined = index % 3 === 0
-      ? [
-        { id: `st-${index + 1}-1`, title: 'Kurz prüfen', done: section === 'completed' },
-        { id: `st-${index + 1}-2`, title: 'Nächsten Schritt festlegen', done: section === 'completed' },
-      ]
-      : index % 5 === 0
-        ? [{ id: `st-${index + 1}-1`, title: 'Erledigen', done: section === 'completed' }]
-        : undefined;
+function isSameLocalDay(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
 
-    return {
-      id: `t-${index + 1}`,
-      title: `${template.title} #${index + 1}`,
-      subtitle: template.subtitle,
-      emoji: template.emoji,
-      projectId: template.project.id,
-      location: template.location,
-      notes: template.notes,
-      section,
-      dueAt: noDueDate ? 0 : getDueAtForSection(section),
-      dueHasTime: noDueDate ? false : true,
-      orderRank: (sectionIndex + 1) * 1000,
-      subtasks,
-      deletedAt: undefined,
-    };
-  });
-};
+function deriveActiveSectionFromDueAt(dueAt: number): SectionId {
+  if (!Number.isFinite(dueAt) || dueAt <= 0) return 'upcoming';
+  const now = new Date();
+  const due = new Date(dueAt);
+  return isSameLocalDay(now, due) ? 'today' : 'upcoming';
+}
+
+function normalizeSnapshot(raw: any): { tasks: Task[]; projects: Project[] } {
+  const rawTasks = Array.isArray(raw?.tasks) ? raw.tasks : [];
+  const rawProjects = Array.isArray(raw?.projects) ? raw.projects : [];
+
+  const tasks: Task[] = rawTasks
+    .map((t: any, index: number): Task | null => {
+      if (!t || typeof t !== 'object') return null;
+      if (typeof t.id !== 'string' || t.id.trim().length === 0) return null;
+      if (typeof t.title !== 'string') return null;
+
+      const dueAt = typeof t.dueAt === 'number' && Number.isFinite(t.dueAt) ? t.dueAt : 0;
+      const orderRank = typeof t.orderRank === 'number' && Number.isFinite(t.orderRank) ? t.orderRank : (index + 1) * 1000;
+      const rawSection: SectionId = isSectionId(t.section) ? t.section : 'today';
+      // Keep completed as-is. For active tasks, derive section from due date so Home grouping matches due dates.
+      // - undated -> upcoming
+      // - due today -> today
+      // - due future -> upcoming
+      const section: SectionId = rawSection === 'completed' ? 'completed' : deriveActiveSectionFromDueAt(dueAt);
+      const deletedAt = typeof t.deletedAt === 'number' && Number.isFinite(t.deletedAt) ? t.deletedAt : undefined;
+      const completedAt =
+        typeof t.completedAt === 'number' && Number.isFinite(t.completedAt)
+          ? t.completedAt
+          : section === 'completed'
+            ? (typeof t.dueAt === 'number' && Number.isFinite(t.dueAt) && t.dueAt > 0 ? t.dueAt : Date.now())
+            : undefined;
+
+      return {
+        id: t.id,
+        title: t.title,
+        subtitle: typeof t.subtitle === 'string' ? t.subtitle : undefined,
+        emoji: typeof t.emoji === 'string' && t.emoji.length > 0 ? t.emoji : '📝',
+        projectId: typeof t.projectId === 'string' ? t.projectId : '',
+        dueAt,
+        dueHasTime: typeof t.dueHasTime === 'boolean' ? t.dueHasTime : undefined,
+        completedAt,
+        location: typeof t.location === 'string' ? t.location : undefined,
+        notes: typeof t.notes === 'string' ? t.notes : undefined,
+        subtasks: Array.isArray(t.subtasks) ? (t.subtasks as any) : undefined,
+        section,
+        orderRank,
+        deletedAt,
+      };
+    })
+    .filter((t: Task | null): t is Task => !!t);
+
+  const projects: Project[] = rawProjects
+    .map((p: any): Project | null => {
+      if (!p || typeof p !== 'object') return null;
+      if (typeof p.id !== 'string' || p.id.trim().length === 0) return null;
+      if (typeof p.name !== 'string') return null;
+
+      return {
+        id: p.id,
+        name: p.name,
+        color: typeof p.color === 'string' ? p.color : '#2563EB',
+        icon: typeof p.icon === 'string' ? p.icon : 'folder.fill',
+        description: typeof p.description === 'string' ? p.description : undefined,
+        completed: typeof p.completed === 'boolean' ? p.completed : undefined,
+        deletedAt: typeof p.deletedAt === 'number' && Number.isFinite(p.deletedAt) ? p.deletedAt : undefined,
+      };
+    })
+    .filter((p: Project | null): p is Project => !!p);
+
+  return { tasks, projects };
+}
 
 type TasksContextValue = {
   tasks: Task[];
@@ -195,8 +164,93 @@ type TasksContextValue = {
 const TasksContext = React.createContext<TasksContextValue | null>(null);
 
 export function TasksProvider({ children }: { children: React.ReactNode }) {
-  const [tasks, setTasks] = React.useState<Task[]>(() => createSeedTasks());
-  const [projects, setProjects] = React.useState<Project[]>(() => createSeedProjects());
+  const [tasks, setTasks] = React.useState<Task[]>([]);
+  const [projects, setProjects] = React.useState<Project[]>([]);
+  const hydratedRef = React.useRef(false);
+  const persistEnabledRef = React.useRef(false);
+
+  // Hydrate from local encrypted snapshot once.
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      try {
+        const res = await loadEncryptedTasksSnapshot();
+        if (cancelled) return;
+        if (res.status === 'ok') {
+          const next = normalizeSnapshot(res.snapshot);
+          setTasks(next.tasks);
+          setProjects(next.projects);
+          persistEnabledRef.current = true;
+          return;
+        }
+
+        if (res.status === 'missing') {
+          // No snapshot yet: first launch. Seed once during onboarding.
+          const alreadySeeded = await hasCompletedOnboardingSeed();
+          if (cancelled) return;
+
+          if (!alreadySeeded) {
+            const seed = createOnboardingSeedData();
+            setTasks(seed.tasks);
+            setProjects(seed.projects);
+            persistEnabledRef.current = true;
+            // Mark as seeded (best-effort). Persistence will write the snapshot via effect.
+            void markCompletedOnboardingSeed();
+            return;
+          }
+
+          // Missing snapshot but seed already ran before: allow persistence to create one.
+          persistEnabledRef.current = true;
+          return;
+        }
+
+        // 'unavailable' or 'error': keep in-memory state but DO NOT persist (prevents overwriting existing snapshot).
+        persistEnabledRef.current = false;
+      } finally {
+        if (!cancelled) hydratedRef.current = true;
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Persist on change (after hydration). Debounced to avoid excessive writes on drag/reorder.
+  React.useEffect(() => {
+    if (!hydratedRef.current) return;
+    if (!persistEnabledRef.current) return;
+
+    const handle = setTimeout(() => {
+      void saveEncryptedTasksSnapshot({
+        schemaVersion: SNAPSHOT_VERSION,
+        savedAt: Date.now(),
+        tasks,
+        projects,
+      });
+    }, 250);
+
+    return () => {
+      clearTimeout(handle);
+    };
+  }, [projects, tasks]);
+
+  // Keep iOS scheduled notifications in sync with tasks.
+  React.useEffect(() => {
+    if (!hydratedRef.current) return;
+    if (!persistEnabledRef.current) return;
+
+    const handle = setTimeout(() => {
+      void syncTaskDueNotifications({ tasks, projects });
+    }, 750);
+
+    return () => {
+      clearTimeout(handle);
+    };
+  }, [projects, tasks]);
+
   const value = React.useMemo(() => ({ tasks, setTasks, projects, setProjects }), [projects, tasks]);
   return <TasksContext.Provider value={value}>{children}</TasksContext.Provider>;
 }

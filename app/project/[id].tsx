@@ -160,16 +160,32 @@ export default function ProjectDetailScreen() {
                 const fromSection = task.section;
                 const toSection: SectionId = fromSection === 'completed' ? 'today' : 'completed';
 
-                const next = prev.map((t) =>
-                    t.id === taskId
-                        ? {
+                const now = Date.now();
+
+                const next = prev.map((t) => {
+                    if (t.id !== taskId) return t;
+
+                    if (toSection === 'completed') {
+                        return {
                             ...t,
-                            section: toSection,
-                            dueAt: getDueAtForSection(toSection),
-                            dueHasTime: true,
-                        }
-                        : t
-                );
+                            section: 'completed',
+                            completedAt: now,
+                        };
+                    }
+
+                    const hasDueAt = typeof t.dueAt === 'number' && Number.isFinite(t.dueAt) && t.dueAt > 0;
+                    return {
+                        ...t,
+                        section: 'today',
+                        completedAt: undefined,
+                        ...(hasDueAt
+                            ? {}
+                            : {
+                                dueAt: getDueAtForSection('today'),
+                                dueHasTime: true,
+                            }),
+                    };
+                });
 
                 // Keep ordering tidy within the destination section by putting moved task at the top.
                 const moved = next.find((t) => t.id === taskId);

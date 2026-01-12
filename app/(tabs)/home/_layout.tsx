@@ -207,7 +207,7 @@ export default function HomeLayout() {
         name="archive"
         options={{
           title: 'Archiv',
-          headerShown: false,
+          //headerShown: false,
         }}
       />
 

@@ -6,7 +6,7 @@ import { TaskSwipeDraggableList } from '@/components/tasks/task-swipe-draggable-
 import { withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
 import { useHomeFilters } from '@/context/home-filters-store';
-import { getDueAtForSection, type Task, useTasksStore } from '@/context/tasks-store';
+import { type Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 function hasNoDueDate(task: Task) {
@@ -55,8 +55,7 @@ export default function InboxScreen() {
             ? {
                 ...t,
                 section: 'completed',
-                dueAt: getDueAtForSection('completed'),
-                dueHasTime: true,
+                completedAt: Date.now(),
               }
             : t
         )
