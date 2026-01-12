@@ -2,22 +2,15 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
-import { Dimensions, LayoutRectangle, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
-import Animated, {
-    measure,
-    MeasuredDimensions,
-    runOnJS,
-    useAnimatedRef,
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring
-} from 'react-native-reanimated';
+import { Dimensions, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import type { SwipeTaskRowStyles } from '@/components/tasks/swipe-task-row';
+import { TaskSwipeDraggableList } from '@/components/tasks/task-swipe-draggable-list';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { SFSymbol } from '@/components/ui/sfsymbol';
 import { Colors } from '@/constants/theme';
-import { SectionId, Task, useTasksStore } from '@/context/tasks-store';
+import { getDueAtForSection, Project, SectionId, Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -39,115 +32,37 @@ const SECTION_TITLES: Record<SectionId, string> = {
     completed: 'Abgeschlossen',
 };
 
-type DragInfo = {
-    taskId: string;
-    originalSection: SectionId;
-    width: number;
-    height: number;
-    x: number;
-    y: number;
-    emoji: string;
-    title: string;
-    subtitle?: string;
-};
+type ThemeName = keyof typeof Colors;
 
 // --- Components ---
-
-function KanbanTaskCard({
-    task,
-    onPress,
-    styles,
-    theme,
-    isDark,
-    onLongPress,
-    isHidden
-}: {
-    task: Task;
-    onPress: () => void;
-    styles: any;
-    theme: any;
-    isDark: boolean;
-    onLongPress: (task: Task, measurement: MeasuredDimensions) => void;
-    isHidden: boolean;
-}) {
-    const bg = theme === 'dark' ? '#1C1C1E' : '#F2F2F7'; // Match cardBg from home
-    const aref = useAnimatedRef<View>();
-    const isCompletedSection = task.section === 'completed';
-
-    // Match home/index.tsx tints
-    const emojiTint = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.12 : 0.22), [theme, isDark]);
-    const emojiFallback = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.52 : 0.74), [theme, isDark]);
-
-    const longPress = Gesture.LongPress()
-        .minDuration(300)
-        .onStart(() => {
-            const measurement = measure(aref);
-            if (measurement) {
-                runOnJS(onLongPress)(task, measurement);
-            }
-        });
-
-    return (
-        <GestureDetector gesture={longPress}>
-            <Pressable
-                ref={aref}
-                onPress={onPress}
-                style={({ pressed }) => [
-                    styles.card,
-                    { backgroundColor: bg, borderColor: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.12)', borderWidth: StyleSheet.hairlineWidth },
-                    pressed && { opacity: 0.92 },
-                    isHidden && { opacity: 0 },
-                    isCompletedSection && { opacity: 0.5 }
-                ]}
-            >
-                <View style={styles.cardInner}>
-                    <GlassSurface
-                        style={styles.emojiTile}
-                        glassEffectStyle="regular"
-                        tintColor={emojiTint}
-                        fallbackBackgroundColor={emojiFallback}
-                    >
-                        <Text style={styles.emoji}>{task.emoji}</Text>
-                    </GlassSurface>
-
-                    <View style={styles.textStack}>
-                        <Text numberOfLines={2} style={styles.cardTitle}>{task.title}</Text>
-                        {task.subtitle ? (
-                            <Text numberOfLines={1} style={styles.cardSubtitle}>{task.subtitle}</Text>
-                        ) : null}
-                    </View>
-                </View>
-            </Pressable>
-        </GestureDetector>
-    );
-}
 
 function KanbanColumn({
     section,
     tasks,
     onPressTask,
-    styles,
     theme,
     isDark,
-    onLongPressTask,
-    hiddenTaskId,
-    onLayout
+    styles,
+    rowStyles,
+    projectsById,
+    toggleComplete,
+    deleteTask,
+    onReorderSection
 }: {
     section: SectionId;
     tasks: Task[];
     onPressTask: (id: string) => void;
-    styles: any;
-    theme: any;
+    theme: ThemeName;
     isDark: boolean;
-    onLongPressTask: (task: Task, measurement: MeasuredDimensions) => void;
-    hiddenTaskId: string | null;
-    onLayout: (section: SectionId, layout: LayoutRectangle) => void;
+    styles: ReturnType<typeof createStyles>;
+    rowStyles: SwipeTaskRowStyles;
+    projectsById: Map<string, Project>;
+    toggleComplete: (taskId: string) => void;
+    deleteTask: (taskId: string) => void;
+    onReorderSection: (sectionId: SectionId, orderedTaskIds: string[]) => void;
 }) {
     return (
-        <View
-            style={styles.column}
-            onLayout={(e) => onLayout(section, e.nativeEvent.layout)}
-        >
+        <View style={styles.column}>
             <View style={styles.columnHeader}>
                 <Text style={styles.columnTitle}>{SECTION_TITLES[section]}</Text>
                 <GlassSurface
@@ -159,28 +74,27 @@ function KanbanColumn({
                     <Text style={styles.countText}>{tasks.length}</Text>
                 </GlassSurface>
             </View>
-            <ScrollView
+
+            <TaskSwipeDraggableList
+                theme={theme}
+                tasks={tasks}
+                projectsById={projectsById}
+                rowStyles={rowStyles}
+                enabledTags={new Set()}
+                showTaskIcons={true}
                 contentContainerStyle={styles.columnContent}
-                showsVerticalScrollIndicator={false}
-            >
-                {tasks.map((task) => (
-                    <KanbanTaskCard
-                        key={task.id}
-                        task={task}
-                        onPress={() => onPressTask(task.id)}
-                        styles={styles}
-                        theme={theme}
-                        isDark={isDark}
-                        onLongPress={onLongPressTask}
-                        isHidden={hiddenTaskId === task.id}
-                    />
-                ))}
-                {tasks.length === 0 && (
+                containerStyle={{ backgroundColor: 'transparent' }}
+                contentInsetAdjustmentBehavior="never"
+                empty={
                     <View style={styles.emptyState}>
                         <Text style={styles.emptyText}>Keine Tasks</Text>
                     </View>
-                )}
-            </ScrollView>
+                }
+                onPressTask={onPressTask}
+                toggleComplete={toggleComplete}
+                deleteTask={deleteTask}
+                onReorder={(orderedTaskIds) => onReorderSection(section, orderedTaskIds)}
+            />
         </View>
     );
 }
@@ -188,10 +102,13 @@ function KanbanColumn({
 export default function ProjectDetailScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
     const router = useRouter();
-    const theme = useColorScheme() ?? 'light';
+    const theme = (useColorScheme() ?? 'light') as ThemeName;
     const isDark = theme === 'dark';
     const styles = React.useMemo(() => createStyles(theme), [theme]);
+    const rowStyles = React.useMemo(() => createRowStyles(theme), [theme]);
     const { projects, tasks, setTasks } = useTasksStore();
+
+    const projectsById = React.useMemo(() => new Map(projects.map((p) => [p.id, p] as const)), [projects]);
 
     const project = React.useMemo(() => projects.find((p) => p.id === id), [projects, id]);
 
@@ -206,6 +123,9 @@ export default function ProjectDetailScreen() {
                 grouped[t.section].push(t);
             }
         }
+        for (const sectionId of SECTIONS) {
+            grouped[sectionId] = [...grouped[sectionId]].sort((a, b) => (a.orderRank ?? 0) - (b.orderRank ?? 0));
+        }
         return grouped;
     }, [projectTasks]);
 
@@ -217,110 +137,80 @@ export default function ProjectDetailScreen() {
         router.push({ pathname: '/project/edit-modal', params: { id } });
     }, [id, router]);
 
-    // --- Drag and Drop State ---
-    const [dragItem, setDragItem] = React.useState<DragInfo | null>(null);
-    const [columnLayouts, setColumnLayouts] = React.useState<Record<SectionId, LayoutRectangle>>({
-        today: { x: 0, y: 0, width: 0, height: 0 },
-        upcoming: { x: 0, y: 0, width: 0, height: 0 },
-        completed: { x: 0, y: 0, width: 0, height: 0 }
-    });
+    const onReorderSection = React.useCallback(
+        (section: SectionId, orderedTaskIds: string[]) => {
+            const orderIndex = new Map(orderedTaskIds.map((taskId, i) => [taskId, i] as const));
+            setTasks((prev) =>
+                prev.map((t) => {
+                    const idx = orderIndex.get(t.id);
+                    if (idx === undefined) return t;
+                    return { ...t, orderRank: (idx + 1) * 1000 };
+                })
+            );
+        },
+        [setTasks]
+    );
 
-    const translateX = useSharedValue(0);
-    const translateY = useSharedValue(0);
-    const isDragging = useSharedValue(false);
-    const scale = useSharedValue(1);
-    const scrollX = useSharedValue(0);
+    const toggleComplete = React.useCallback(
+        (taskId: string) => {
+            setTasks((prev) => {
+                const task = prev.find((t) => t.id === taskId);
+                if (!task) return prev;
 
-    const handleLongPress = React.useCallback((task: Task, measurement: MeasuredDimensions) => {
-        if (measurement) {
-            setDragItem({
-                taskId: task.id,
-                originalSection: task.section,
-                width: measurement.width,
-                height: measurement.height,
-                x: measurement.pageX,
-                y: measurement.pageY,
-                emoji: task.emoji,
-                title: task.title,
-                subtitle: task.subtitle
+                const fromSection = task.section;
+                const toSection: SectionId = fromSection === 'completed' ? 'today' : 'completed';
+
+                const next = prev.map((t) =>
+                    t.id === taskId
+                        ? {
+                            ...t,
+                            section: toSection,
+                            dueAt: getDueAtForSection(toSection),
+                            dueHasTime: true,
+                        }
+                        : t
+                );
+
+                // Keep ordering tidy within the destination section by putting moved task at the top.
+                const moved = next.find((t) => t.id === taskId);
+                if (!moved) return next;
+
+                const others = next.filter((t) => t.id !== taskId);
+                const dest = others
+                    .filter((t) => t.section === toSection)
+                    .sort((a, b) => (a.orderRank ?? 0) - (b.orderRank ?? 0));
+                const rest = others.filter((t) => t.section !== toSection);
+
+                const withInserted = [...rest, moved, ...dest];
+
+                const reseed = (items: Task[], sectionId: SectionId) => {
+                    const sectionIds = items
+                        .filter((t) => t.section === sectionId)
+                        .sort((a, b) => (a.orderRank ?? 0) - (b.orderRank ?? 0))
+                        .map((t) => t.id);
+                    const byId = new Map(items.map((t) => [t.id, t] as const));
+                    sectionIds.forEach((id, index) => {
+                        const current = byId.get(id);
+                        if (!current) return;
+                        byId.set(id, { ...current, orderRank: (index + 1) * 1000 });
+                    });
+                    return items.map((t) => byId.get(t.id) ?? t);
+                };
+
+                const reseededFrom = reseed(withInserted, fromSection);
+                const reseededBoth = reseed(reseededFrom, toSection);
+                return reseededBoth;
             });
-            translateX.value = measurement.pageX;
-            translateY.value = measurement.pageY;
-            isDragging.value = true;
-            scale.value = withSpring(1.05);
-        }
-    }, []);
+        },
+        [setTasks]
+    );
 
-    const onColumnLayout = React.useCallback((section: SectionId, layout: LayoutRectangle) => {
-        setColumnLayouts(prev => ({ ...prev, [section]: layout }));
-    }, []);
-
-    const panGesture = Gesture.Pan()
-        .manualActivation(true)
-        .onTouchesMove((e, state) => {
-            if (dragItem) {
-                state.activate();
-            } else {
-                state.fail();
-            }
-        })
-        .onUpdate((e) => {
-            translateX.value = e.absoluteX - (dragItem?.width || 0) / 2;
-            translateY.value = e.absoluteY - (dragItem?.height || 0) / 2;
-        })
-        .onEnd((e) => {
-            const dropX = e.absoluteX;
-            const dropY = e.absoluteY;
-            const contentX = scrollX.value + dropX;
-
-            // Padding Horizontal is 16.
-            const relativeX = contentX - 16;
-
-            // Width 78%, Gap 12.
-            // Width approx 300. Gap 12.
-            // Split points roughly at Width + Gap/2.
-
-            let targetSection: SectionId | null = null;
-            if (relativeX < COLUMN_WIDTH + COLUMN_GAP / 2) targetSection = 'upcoming';
-            else if (relativeX < 2 * COLUMN_WIDTH + 1.5 * COLUMN_GAP) targetSection = 'today';
-            else targetSection = 'completed';
-
-            if (dropY < 180) targetSection = null;
-
-            if (targetSection && targetSection !== dragItem?.originalSection) {
-                runOnJS(handleDrop)(dragItem!.taskId, targetSection);
-            } else {
-                runOnJS(cancelDrag)();
-            }
-        });
-
-    const handleDrop = (taskId: string, newSection: SectionId) => {
-        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, section: newSection } : t));
-        cancelDrag();
-    };
-
-    const cancelDrag = () => {
-        setDragItem(null);
-        isDragging.value = false;
-        scale.value = 1;
-    };
-
-    const animatedDragStyle = useAnimatedStyle(() => {
-        if (!dragItem) return { display: 'none' };
-        return {
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            width: dragItem.width,
-            height: dragItem.height,
-            transform: [
-                { translateX: translateX.value },
-                { translateY: translateY.value },
-                { scale: scale.value }
-            ],
-            zIndex: 1000
-        };
-    });
+    const deleteTask = React.useCallback(
+        (taskId: string) => {
+            setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, deletedAt: Date.now() } : t)));
+        },
+        [setTasks]
+    );
 
     if (!project) {
         return (
@@ -374,7 +264,7 @@ export default function ProjectDetailScreen() {
                 </View>
 
                 {/* Main Board */}
-                <Animated.ScrollView
+                <ScrollView
                     horizontal
                     pagingEnabled={false}
                     snapToOffsets={SNAP_OFFSETS}
@@ -385,8 +275,6 @@ export default function ProjectDetailScreen() {
                     ]}
                     showsHorizontalScrollIndicator={false}
                     contentInsetAdjustmentBehavior="never"
-                    onScroll={(e) => { scrollX.value = e.nativeEvent.contentOffset.x }}
-                    scrollEventThrottle={16}
                     contentOffset={{ x: SNAP_OFFSETS[1], y: 0 }} // Start focused on Today
                 >
                     {SECTIONS.map((section) => (
@@ -395,56 +283,23 @@ export default function ProjectDetailScreen() {
                             section={section}
                             tasks={tasksBySection[section]}
                             onPressTask={onPressTask}
-                            styles={styles}
                             theme={theme}
                             isDark={isDark}
-                            onLongPressTask={handleLongPress}
-                            hiddenTaskId={dragItem?.taskId ?? null}
-                            onLayout={onColumnLayout}
+                            styles={styles}
+                            rowStyles={rowStyles}
+                            projectsById={projectsById}
+                            toggleComplete={toggleComplete}
+                            deleteTask={deleteTask}
+                            onReorderSection={onReorderSection}
                         />
                     ))}
-                </Animated.ScrollView>
-
-                {/* Drag Overlay */}
-                {dragItem && (
-                    <GestureDetector gesture={panGesture}>
-                        <Animated.View style={[
-                            styles.card,
-                            {
-                                backgroundColor: theme === 'dark' ? '#1C1C1E' : '#F2F2F7',
-                                borderColor: theme === 'dark' ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.12)',
-                                borderWidth: StyleSheet.hairlineWidth,
-                                shadowOpacity: 0.2, // Increased shadow for lift
-                                shadowRadius: 8,
-                                elevation: 5
-                            },
-                            animatedDragStyle
-                        ]}>
-                            <View style={styles.cardInner}>
-                                <GlassSurface
-                                    style={styles.emojiTile}
-                                    glassEffectStyle="regular"
-                                    tintColor={withAlpha(Colors[theme].background, isDark ? 0.12 : 0.22)}
-                                    fallbackBackgroundColor={withAlpha(Colors[theme].background, isDark ? 0.52 : 0.74)}
-                                >
-                                    <Text style={styles.emoji}>{dragItem.emoji}</Text>
-                                </GlassSurface>
-                                <View style={styles.textStack}>
-                                    <Text numberOfLines={2} style={styles.cardTitle}>{dragItem.title}</Text>
-                                    {dragItem.subtitle && (
-                                        <Text numberOfLines={1} style={styles.cardSubtitle}>{dragItem.subtitle}</Text>
-                                    )}
-                                </View>
-                            </View>
-                        </Animated.View>
-                    </GestureDetector>
-                )}
+                </ScrollView>
             </View>
         </GestureHandlerRootView>
     );
 }
 
-const createStyles = (theme: 'light' | 'dark') =>
+const createStyles = (theme: ThemeName) =>
     StyleSheet.create({
         container: {
             flex: 1,
@@ -566,3 +421,124 @@ const createStyles = (theme: 'light' | 'dark') =>
             fontStyle: 'italic',
         },
     });
+
+const createRowStyles = (theme: ThemeName): SwipeTaskRowStyles => {
+    const isDark = theme === 'dark';
+    const text = Colors[theme].text;
+    const hairline = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.12)';
+    const cardBg = isDark ? '#1C1C1E' : '#F2F2F7';
+    const tagBg = withAlpha(text, isDark ? 0.10 : 0.08);
+    const tagText = withAlpha(text, 0.78);
+    const dangerBg = isDark ? 'rgba(255,69,58,0.18)' : 'rgba(255,59,48,0.14)';
+    const dangerBorder = isDark ? 'rgba(255,69,58,0.32)' : 'rgba(255,59,48,0.26)';
+
+    return StyleSheet.create({
+        itemSpacer: {
+            marginBottom: 12,
+        },
+        swipeClip: {
+            borderRadius: 12,
+            overflow: 'hidden',
+        },
+        underlay: {
+            ...StyleSheet.absoluteFillObject,
+        },
+        actionSlot: {
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            justifyContent: 'center',
+        },
+        actionSlotLeft: {
+            left: 0,
+            alignItems: 'center',
+        },
+        actionSlotRight: {
+            right: 0,
+            alignItems: 'center',
+        },
+        actionSlotInner: {
+            width: 44,
+            height: 44,
+            borderRadius: 12,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+
+        row: {
+            minHeight: 56,
+            borderRadius: 12,
+            backgroundColor: cardBg,
+            justifyContent: 'center',
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            gap: 4,
+        },
+        dragRow: {
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: hairline,
+            shadowColor: '#000',
+            shadowRadius: 18,
+            shadowOffset: { width: 0, height: 10 },
+        },
+        rowInner: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 10,
+        },
+        emojiTile: {
+            width: 38,
+            height: 38,
+            borderRadius: 12,
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden',
+        },
+        emojiText: {
+            fontSize: 18,
+        },
+        textStack: {
+            flex: 1,
+            gap: 4,
+        },
+        rowTitle: {
+            fontSize: 16,
+            fontWeight: '600',
+            color: text,
+        },
+        rowSubtitle: {
+            fontSize: 13,
+            color: text,
+            opacity: 0.7,
+        },
+
+        tagRow: {
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            gap: 6,
+            marginTop: 2,
+        },
+        tagChip: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
+            maxWidth: '100%',
+            paddingVertical: 4,
+            paddingHorizontal: 8,
+            borderRadius: 999,
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: hairline,
+            backgroundColor: tagBg,
+        },
+        tagChipDanger: {
+            backgroundColor: dangerBg,
+            borderColor: dangerBorder,
+        },
+        tagChipText: {
+            fontSize: 12,
+            fontWeight: '600',
+            color: tagText,
+            maxWidth: 220,
+        },
+    }) as unknown as SwipeTaskRowStyles;
+};

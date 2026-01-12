@@ -1,11 +1,13 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist';
 
-import { SwipeTaskRow } from '@/components/tasks/swipe-task-row';
+import {
+    TaskSwipeDraggableList,
+    type TaskSwipeDraggableListHandle,
+    type TaskSwipeDraggableListItem,
+} from '@/components/tasks/task-swipe-draggable-list';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
 import { useHomeFilters } from '@/context/home-filters-store';
@@ -142,53 +144,18 @@ export default function HomeScreen() {
     today: false,
     upcoming: false,
   });
-  const isDraggingRef = React.useRef(false);
-  const placeholderIndexRef = React.useRef<number>(-1);
-  const openSwipeIdRef = React.useRef<string | null>(null);
-  const closeByIdRef = React.useRef(new Map<string, () => void>());
-
-  const registerClose = React.useCallback((taskId: string, close: () => void) => {
-    closeByIdRef.current.set(taskId, close);
-  }, []);
-
-  const unregisterClose = React.useCallback((taskId: string) => {
-    closeByIdRef.current.delete(taskId);
-    if (openSwipeIdRef.current === taskId) openSwipeIdRef.current = null;
-  }, []);
+  const listRef = React.useRef<TaskSwipeDraggableListHandle | null>(null);
 
   const closeAnyOpen = React.useCallback(() => {
-    const openId = openSwipeIdRef.current;
-    if (!openId) return;
-    closeByIdRef.current.get(openId)?.();
-    openSwipeIdRef.current = null;
+    listRef.current?.closeAnyOpen();
   }, []);
 
   const onPressTask = React.useCallback(
     (taskId: string) => {
-      // First tap closes swipe if anything is open.
-      if (openSwipeIdRef.current) {
-        closeAnyOpen();
-        return;
-      }
       router.push({ pathname: '/task/[id]', params: { id: taskId } });
     },
-    [closeAnyOpen, router]
+    [router]
   );
-
-  const beginSwipe = React.useCallback(
-    (taskId: string) => {
-      // Ensure only one row is open anywhere in the list.
-      for (const [id, close] of closeByIdRef.current.entries()) {
-        if (id !== taskId) close();
-      }
-      openSwipeIdRef.current = taskId;
-    },
-    []
-  );
-
-  const endSwipe = React.useCallback((taskId: string) => {
-    if (openSwipeIdRef.current === taskId) openSwipeIdRef.current = null;
-  }, []);
 
   const visibleTasks = React.useMemo(() => {
     const base = tasks.filter((t) => !t.deletedAt && homeEnabledSections.includes(t.section) && t.dueAt > 0);
@@ -301,12 +268,12 @@ export default function HomeScreen() {
     return data;
   }, [collapsedSections.today, collapsedSections.upcoming, firstVisibleSection, tasksBySection, visibleSections]);
 
-  const [flatListData, setFlatListData] = React.useState<ListItem[]>(() => listData);
-
-  React.useEffect(() => {
-    if (!isDraggingRef.current) {
-      setFlatListData(listData);
-    }
+  const swipeListData = React.useMemo<TaskSwipeDraggableListItem[]>(() => {
+    return listData.map((item) =>
+      item.type === 'header'
+        ? { kind: 'header', key: item.key, sectionId: item.sectionId }
+        : { kind: 'task', key: item.key, taskId: item.taskId }
+    );
   }, [listData]);
 
   const applyOrderFromListData = React.useCallback(
@@ -353,6 +320,18 @@ export default function HomeScreen() {
       });
     },
     [firstVisibleSection, setTasks, visibleSections, visibleTasks]
+  );
+
+  const applyOrderFromSwipeListData = React.useCallback(
+    (data: TaskSwipeDraggableListItem[]) => {
+      const mapped: ListItem[] = data.map((item) =>
+        item.kind === 'header'
+          ? { type: 'header', key: item.key, sectionId: item.sectionId as SectionId }
+          : { type: 'task', key: item.key, taskId: item.taskId }
+      );
+      applyOrderFromListData(mapped);
+    },
+    [applyOrderFromListData]
   );
 
   const reseedSection = React.useCallback((items: Task[], sectionId: SectionId) => {
@@ -425,103 +404,46 @@ export default function HomeScreen() {
     [setTasks]
   );
 
-  const renderListItem = React.useCallback(
-    ({ item, drag, isActive }: RenderItemParams<ListItem>) => {
-      if (item.type === 'header') {
-        const isCollapsible = item.sectionId === 'today' || item.sectionId === 'upcoming';
-        const isCollapsed = item.sectionId === 'today' ? collapsedSections.today : collapsedSections.upcoming;
+  const renderSectionHeaderRow = React.useCallback(
+    (sectionId: string) => {
+      const id = sectionId as SectionId;
+      const isCollapsible = id === 'today' || id === 'upcoming';
+      const isCollapsed = id === 'today' ? collapsedSections.today : collapsedSections.upcoming;
 
-        const onToggle = () => {
-          if (!isCollapsible) return;
-          closeAnyOpen();
-          setCollapsedSections((prev) => ({
-            ...prev,
-            [item.sectionId]: !prev[item.sectionId as 'today' | 'upcoming'],
-          }));
-        };
-
-        return (
-          <View>
-            {item.sectionId === 'today' ? <QuickNavGrid tiles={quickTiles} styles={styles} theme={quickNavTheme} /> : null}
-            <View style={styles.sectionHeader}>
-              <View style={styles.sectionLine} />
-              <Pressable
-                accessibilityRole={isCollapsible ? 'button' : undefined}
-                accessibilityLabel={isCollapsible ? `${SECTION_TITLES[item.sectionId]} umschalten` : undefined}
-                onPress={onToggle}
-                hitSlop={10}
-                style={styles.sectionHeaderButton}
-              >
-                {isCollapsible ? (
-                  <MaterialIcons
-                    name="chevron-right"
-                    size={16}
-                    color={withAlpha(Colors[theme].text, 0.55)}
-                    style={{ transform: [{ rotate: isCollapsed ? '0deg' : '90deg' }] }}
-                  />
-                ) : null}
-                <Text style={styles.sectionTitle}>{SECTION_TITLES[item.sectionId]}</Text>
-              </Pressable>
-              <View style={styles.sectionLine} />
-            </View>
-          </View>
-        );
-      }
-
-      const task = tasksById.get(item.taskId);
-      if (!task) return null;
+      const onToggle = () => {
+        if (!isCollapsible) return;
+        closeAnyOpen();
+        setCollapsedSections((prev) => ({
+          ...prev,
+          [id]: !prev[id as 'today' | 'upcoming'],
+        }));
+      };
 
       return (
-        <SwipeTaskRow
-          task={task}
-          project={projectsById.get(task.projectId)}
-          drag={drag}
-          isActive={isActive}
-          styles={styles}
-          glassDragTint={glassDragTint}
-          glassDragFallback={glassDragFallback}
-          emojiTint={emojiTint}
-          emojiFallback={emojiFallback}
-          swipeCompleteBg={swipeCompleteBg}
-          swipeDeleteBg={swipeDeleteBg}
-          enabledTags={enabledTags}
-          showTaskIcons={showTagIcons}
-          beginSwipe={beginSwipe}
-          endSwipe={endSwipe}
-          registerClose={registerClose}
-          unregisterClose={unregisterClose}
-          closeAnyOpen={closeAnyOpen}
-          onPressTask={onPressTask}
-          toggleComplete={toggleComplete}
-          deleteTask={deleteTask}
-        />
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionLine} />
+          <Pressable
+            accessibilityRole={isCollapsible ? 'button' : undefined}
+            accessibilityLabel={isCollapsible ? `${SECTION_TITLES[id]} umschalten` : undefined}
+            onPress={onToggle}
+            hitSlop={10}
+            style={styles.sectionHeaderButton}
+          >
+            {isCollapsible ? (
+              <MaterialIcons
+                name="chevron-right"
+                size={16}
+                color={withAlpha(Colors[theme].text, 0.55)}
+                style={{ transform: [{ rotate: isCollapsed ? '0deg' : '90deg' }] }}
+              />
+            ) : null}
+            <Text style={styles.sectionTitle}>{SECTION_TITLES[id]}</Text>
+          </Pressable>
+          <View style={styles.sectionLine} />
+        </View>
       );
     },
-    [
-      glassDragFallback,
-      glassDragTint,
-      emojiFallback,
-      emojiTint,
-      enabledTags,
-      projectsById,
-      showTagIcons,
-      styles,
-      tasksById,
-      deleteTask,
-      beginSwipe,
-      closeAnyOpen,
-      collapsedSections,
-      endSwipe,
-      registerClose,
-      unregisterClose,
-      swipeCompleteBg,
-      swipeDeleteBg,
-      toggleComplete,
-      onPressTask,
-      theme,
-      quickTiles,
-      quickNavTheme,
-    ]
+    [closeAnyOpen, collapsedSections.today, collapsedSections.upcoming, styles, theme]
   );
 
   const archivePill = React.useMemo(() => {
@@ -602,63 +524,28 @@ export default function HomeScreen() {
 
   return (
     <>
-      <DraggableFlatList
-        data={flatListData}
-        keyExtractor={(item) => item.key}
-        renderItem={renderListItem}
-        ListHeaderComponent={listHeader}
-        ListFooterComponent={archivePill}
-        ListEmptyComponent={
+      <TaskSwipeDraggableList
+        ref={listRef}
+        theme={theme}
+        tasks={visibleTasks}
+        projectsById={projectsById}
+        rowStyles={styles}
+        enabledTags={enabledTags}
+        showTaskIcons={showTagIcons}
+        data={swipeListData}
+        renderHeaderRow={renderSectionHeaderRow}
+        header={listHeader}
+        footer={archivePill}
+        empty={
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>Keine Aufgaben</Text>
           </View>
         }
-        containerStyle={{ backgroundColor: Colors[theme].background }}
         contentContainerStyle={styles.content}
-        contentInsetAdjustmentBehavior="automatic"
-        activationDistance={12}
-        autoscrollSpeed={22}
-        animationConfig={{
-          damping: 32,
-          stiffness: 420,
-          mass: 0.22,
-          overshootClamping: true,
-        }}
-        dragItemOverflow
-        onDragBegin={(fromIndex) => {
-          isDraggingRef.current = true;
-          placeholderIndexRef.current = fromIndex;
-          closeAnyOpen();
-          setFlatListData(listData);
-          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
-        }}
-        onPlaceholderIndexChange={(index) => {
-          placeholderIndexRef.current = index;
-        }}
-        onRelease={(fromIndex) => {
-          // `onDragEnd` fires after animation completion; this runs immediately on finger-up.
-          // Also update `data` immediately to avoid any transient render of the old ordering
-          // when the dragged cell transitions back to the list.
-          const toIndex = placeholderIndexRef.current;
-          if (toIndex >= 0 && fromIndex >= 0 && toIndex !== fromIndex) {
-            setFlatListData((prev) => {
-              if (fromIndex >= prev.length || toIndex >= prev.length) return prev;
-              const next = [...prev];
-              const [moved] = next.splice(fromIndex, 1);
-              if (!moved) return prev;
-              next.splice(toIndex, 0, moved);
-              return next;
-            });
-          }
-          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
-        }}
-        onDragEnd={({ data }) => {
-          // Prevent any transient render of the old ordering when the library clears its activeKey.
-          setFlatListData(data);
-          isDraggingRef.current = false;
-          applyOrderFromListData(data);
-        }}
-        showsVerticalScrollIndicator={false}
+        onPressTask={onPressTask}
+        toggleComplete={toggleComplete}
+        deleteTask={deleteTask}
+        onReorderData={applyOrderFromSwipeListData}
       />
     </>
   );

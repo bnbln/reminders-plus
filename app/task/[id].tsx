@@ -3,26 +3,27 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Modal,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import Animated, {
-    useAnimatedKeyboard,
-    useAnimatedStyle,
-    useSharedValue,
-    withTiming,
+  useAnimatedKeyboard,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
 } from 'react-native-reanimated';
 
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
+import { SFSymbol } from '@/components/ui/sfsymbol';
 import { Colors } from '@/constants/theme';
 import { getDueAtForSection, Project, Subtask, Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -77,7 +78,25 @@ const EMOJI_SWATCHES = [
   '🔒',
 ] as const;
 
-const PROJECT_ICON_SWATCHES = ['🎨', '🤝', '✨', '🧭', '🧑‍💻', '📦', '📚', '🧠', '🧪', '🛠️', '🧘‍♂️', '🖼️'] as const;
+
+// ... imports
+
+const PROJECT_ICON_SWATCHES = [
+  'paintpalette.fill',
+  'person.2.fill',
+  'sparkles',
+  'safari.fill',
+  'laptopcomputer',
+  'shippingbox.fill',
+  'books.vertical.fill',
+  'brain.head.profile',
+  'flask.fill',
+  'hammer.fill',
+  'figure.mind.and.body',
+  'photo.artframe',
+] as const;
+
+
 
 const COMPLETE_GREEN = '#34C759';
 
@@ -525,7 +544,11 @@ export default function TaskViewScreen() {
                   },
                 ]}
               >
-                <Text style={styles.projectInlineIcon}>{project?.icon ?? '—'}</Text>
+                {project ? (
+                  <SFSymbol name={project.icon} size={16} color={project.color} />
+                ) : (
+                  <Text style={styles.projectInlineIcon}>—</Text>
+                )}
               </View>
               <Text style={[styles.valueText, { color: withAlpha(Colors[theme].text, 0.92) }]} numberOfLines={1}>
                 {project?.name ?? 'Kein Projekt'}
@@ -795,7 +818,20 @@ export default function TaskViewScreen() {
                   },
                 ]}
               >
-                <Text style={styles.projectRowIcon}>{p.icon}</Text>
+                <GlassSurface
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 14,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                  glassEffectStyle="regular"
+                  tintColor={withAlpha(p.color, 0.15)}
+                  fallbackBackgroundColor={withAlpha(p.color, 0.15)}
+                >
+                  <SFSymbol name={p.icon} size={20} color={p.color} />
+                </GlassSurface>
                 <View style={styles.projectRowBody}>
                   <Text style={[styles.projectRowName, { color: Colors[theme].text }]}>{p.name}</Text>
                   <View style={styles.projectRowMeta}>
@@ -843,7 +879,7 @@ export default function TaskViewScreen() {
                 },
               ]}
             >
-              <Text style={styles.emojiSwatchText}>{e}</Text>
+              <SFSymbol name={e} size={22} color={Colors[theme].text} />
             </Pressable>
           ))}
         </View>

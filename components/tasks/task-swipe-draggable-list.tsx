@@ -12,7 +12,13 @@ import type { Project, Task } from '@/context/tasks-store';
 
 type ThemeName = keyof typeof Colors;
 
-type ListItem = { key: string; taskId: string };
+export type TaskSwipeDraggableListItem =
+  | { kind: 'task'; key: string; taskId: string }
+  | { kind: 'header'; key: string; sectionId: string };
+
+export type TaskSwipeDraggableListHandle = {
+  closeAnyOpen: () => void;
+};
 
 export type TaskSwipeDraggableListProps = {
   theme: ThemeName;
@@ -20,7 +26,17 @@ export type TaskSwipeDraggableListProps = {
   projectsById?: Map<string, Project>;
   rowStyles: SwipeTaskRowStyles;
 
+  /**
+   * Optional custom list data.
+   * - `task` items render `SwipeTaskRow`.
+   * - `header` items render via `renderHeaderRow`.
+   */
+  data?: TaskSwipeDraggableListItem[];
+  renderHeaderRow?: (sectionId: string) => React.ReactElement | null;
+
   contentContainerStyle?: StyleProp<ViewStyle>;
+  containerStyle?: StyleProp<ViewStyle>;
+  contentInsetAdjustmentBehavior?: 'automatic' | 'never';
 
   header?: React.ReactElement | null;
   footer?: React.ReactElement | null;
@@ -34,17 +50,23 @@ export type TaskSwipeDraggableListProps = {
   deleteTask: (taskId: string) => void;
 
   onReorder?: (orderedTaskIds: string[]) => void;
+  onReorderData?: (data: TaskSwipeDraggableListItem[]) => void;
 
   keyForTask?: (task: Task) => string;
   sortByOrderRank?: boolean;
 };
 
-export function TaskSwipeDraggableList({
+export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHandle, TaskSwipeDraggableListProps>(function TaskSwipeDraggableList(
+{
   theme,
   tasks,
   projectsById,
   rowStyles,
+  data,
+  renderHeaderRow,
   contentContainerStyle,
+  containerStyle,
+  contentInsetAdjustmentBehavior,
   header,
   footer,
   empty,
@@ -54,9 +76,12 @@ export function TaskSwipeDraggableList({
   toggleComplete,
   deleteTask,
   onReorder,
+  onReorderData,
   keyForTask,
   sortByOrderRank,
-}: TaskSwipeDraggableListProps) {
+},
+ref
+) {
   const isDark = theme === 'dark';
 
   const glassDragTint = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.18 : 0.28), [isDark, theme]);
@@ -98,6 +123,14 @@ export function TaskSwipeDraggableList({
     openSwipeIdRef.current = null;
   }, []);
 
+  React.useImperativeHandle(
+    ref,
+    () => ({
+      closeAnyOpen,
+    }),
+    [closeAnyOpen]
+  );
+
   const handlePressTask = React.useCallback(
     (taskId: string) => {
       // First tap closes swipe if anything is open.
@@ -131,19 +164,25 @@ export function TaskSwipeDraggableList({
 
   const tasksById = React.useMemo(() => new Map(tasksSorted.map((t) => [t.id, t] as const)), [tasksSorted]);
 
-  const listData = React.useMemo<ListItem[]>(() => {
+  const listData = React.useMemo<TaskSwipeDraggableListItem[]>(() => {
     const makeKey = keyForTask ?? ((t: Task) => t.id);
-    return tasksSorted.map((t) => ({ key: makeKey(t), taskId: t.id }));
+    return tasksSorted.map((t) => ({ kind: 'task', key: makeKey(t), taskId: t.id }));
   }, [keyForTask, tasksSorted]);
 
-  const [flatListData, setFlatListData] = React.useState<ListItem[]>(() => listData);
+  const resolvedData = data ?? listData;
+
+  const [flatListData, setFlatListData] = React.useState<TaskSwipeDraggableListItem[]>(() => resolvedData);
 
   React.useEffect(() => {
-    if (!isDraggingRef.current) setFlatListData(listData);
-  }, [listData]);
+    if (!isDraggingRef.current) setFlatListData(resolvedData);
+  }, [resolvedData]);
 
   const renderItem = React.useCallback(
-    ({ item, drag, isActive }: RenderItemParams<ListItem>) => {
+    ({ item, drag, isActive }: RenderItemParams<TaskSwipeDraggableListItem>) => {
+      if (item.kind === 'header') {
+        return renderHeaderRow ? renderHeaderRow(item.sectionId) : null;
+      }
+
       const task = tasksById.get(item.taskId);
       if (!task) return null;
 
@@ -184,6 +223,7 @@ export function TaskSwipeDraggableList({
       glassDragFallback,
       glassDragTint,
       handlePressTask,
+      renderHeaderRow,
       projectsById,
       rowStyles,
       registerClose,
@@ -196,6 +236,10 @@ export function TaskSwipeDraggableList({
     ]
   );
 
+  const resolvedContainerStyle: StyleProp<ViewStyle> = React.useMemo(() => {
+    return [{ flex: 1, backgroundColor: Colors[theme].background }, containerStyle];
+  }, [containerStyle, theme]);
+
   return (
     <DraggableFlatList
       data={flatListData}
@@ -205,9 +249,9 @@ export function TaskSwipeDraggableList({
       ListFooterComponent={footer ?? null}
       ListEmptyComponent={empty ?? null}
       style={{ flex: 1 }}
-      containerStyle={{ flex: 1, backgroundColor: Colors[theme].background }}
+      containerStyle={resolvedContainerStyle}
       contentContainerStyle={contentContainerStyle}
-      contentInsetAdjustmentBehavior="automatic"
+      contentInsetAdjustmentBehavior={contentInsetAdjustmentBehavior ?? 'automatic'}
       showsVerticalScrollIndicator={false}
       activationDistance={12}
       autoscrollSpeed={22}
@@ -222,7 +266,7 @@ export function TaskSwipeDraggableList({
         isDraggingRef.current = true;
         placeholderIndexRef.current = fromIndex;
         closeAnyOpen();
-        setFlatListData(listData);
+        setFlatListData(resolvedData);
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
       }}
       onPlaceholderIndexChange={(index) => {
@@ -245,8 +289,9 @@ export function TaskSwipeDraggableList({
       onDragEnd={({ data }) => {
         setFlatListData(data);
         isDraggingRef.current = false;
-        onReorder?.(data.map((d) => d.taskId));
+        onReorderData?.(data);
+        onReorder?.(data.filter((d) => d.kind === 'task').map((d) => d.taskId));
       }}
     />
   );
-}
+});

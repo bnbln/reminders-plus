@@ -85,13 +85,6 @@ export default function InboxScreen() {
     [setTasks]
   );
 
-  const header = React.useMemo(() => {
-    return (
-      <View>
-
-      </View>
-    );
-  }, [hairline, inboxTasks.length, styles, text, tileFallback, tileTint]);
 
   return (
     <TaskSwipeDraggableList
@@ -99,7 +92,6 @@ export default function InboxScreen() {
       tasks={inboxTasks}
       rowStyles={styles}
       contentContainerStyle={styles.content}
-      header={header}
       empty={
         <View style={styles.empty}>
           <Text style={[styles.emptyText, { color: text }]}>Keine Tasks ohne Datum.</Text>
