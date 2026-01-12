@@ -16,6 +16,7 @@ import { useHomeFilters } from '@/context/home-filters-store';
 import { useTabBarMinimize } from '@/context/tabbar-minimize-store';
 import { getDueAtForSection, SectionId, Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useStreaks } from '@/hooks/use-streaks';
 
 // filter params are parsed locally in this file
 const SECTION_ORDER: SectionId[] = ['today', 'upcoming', 'completed'];
@@ -153,6 +154,7 @@ export default function HomeScreen() {
   const styles = React.useMemo(() => createStyles(theme), [theme]);
 
   const { tasks, setTasks, projects } = useTasksStore();
+  const { currentStreak } = useStreaks();
 
   const projectsById = React.useMemo(() => new Map(projects.map((p) => [p.id, p] as const)), [projects]);
 
@@ -252,7 +254,7 @@ export default function HomeScreen() {
       {
         key: 'streaks',
         title: 'Streaks',
-        subtitle: '12 Tage',
+        subtitle: `${currentStreak} ${currentStreak === 1 ? 'Tag' : 'Tage'}`,
         icon: 'local-fire-department',
         onPress: () => router.push('/home/streaks'),
       },
@@ -278,7 +280,7 @@ export default function HomeScreen() {
         onPress: () => router.push('/home/today'),
       },
     ];
-  }, [inboxTasks.length, router, todayLabel]);
+  }, [currentStreak, inboxTasks.length, router, todayLabel]);
 
   const quickNavTheme = React.useMemo<QuickNavTheme>(() => {
     const text = Colors[theme].text;
@@ -432,9 +434,9 @@ export default function HomeScreen() {
             ...(hasDueAt
               ? {}
               : {
-                  dueAt: getDueAtForSection('today'),
-                  dueHasTime: true,
-                }),
+                dueAt: getDueAtForSection('today'),
+                dueHasTime: true,
+              }),
           };
         });
 
@@ -635,8 +637,8 @@ export default function HomeScreen() {
         onLongPress={
           __DEV__
             ? () => {
-                setShowMinimizeDebug((prev) => !prev);
-              }
+              setShowMinimizeDebug((prev) => !prev);
+            }
             : undefined
         }
       />
