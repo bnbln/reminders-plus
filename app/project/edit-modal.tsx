@@ -122,14 +122,18 @@ export default function ProjectEditScreen() {
                 options={{
                     title: headerTitle,
                     headerLeft: () => (
-                        <Pressable onPress={() => router.back()} hitSlop={10} style={styles.iconButton}>
-                            <MaterialIcons name="close" size={24} color={Colors[theme].text} />
-                        </Pressable>
+                        <View style={styles.iconButton}>
+                            <Pressable onPress={() => router.back()} hitSlop={10} style={styles.pressableIcon}>
+                                <MaterialIcons name="close" size={24} color={Colors[theme].text} />
+                            </Pressable>
+                        </View>
                     ),
                     headerRight: () => (
-                        <Pressable onPress={onSave} disabled={!name.trim()} hitSlop={10} style={styles.iconButton}>
-                            <MaterialIcons name="check" size={24} color={name.trim() ? Colors[theme].text : Colors[theme].icon} />
-                        </Pressable>
+                        <View style={styles.iconButton}>
+                            <Pressable onPress={onSave} disabled={!name.trim()} hitSlop={10} style={styles.pressableIcon}>
+                                <MaterialIcons name="check" size={24} color={name.trim() ? Colors[theme].text : Colors[theme].icon} />
+                            </Pressable>
+                        </View>
                     ),
                     headerShown: true,
                     headerStyle: {
@@ -315,6 +319,12 @@ const createStyles = (theme: 'light' | 'dark') =>
         iconButton: {
             width: 32,
             height: 32,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        pressableIcon: {
+            width: '100%',
+            height: '100%',
             alignItems: 'center',
             justifyContent: 'center',
         },

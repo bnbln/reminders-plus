@@ -31,8 +31,11 @@ export default function RootLayout() {
               <Stack.Screen
                 name="task/create-modal"
                 options={{
-                  presentation: 'formSheet',
+                  // Zurück zum alten Styling: transparentes Overlay ohne Header
+                  presentation: 'transparentModal',
+                  headerShown: false,
                   contentStyle: { backgroundColor: 'transparent' },
+                  animation: 'fade',
                 }}
               />
               <Stack.Screen
