@@ -145,7 +145,7 @@ export default function ProjectEditScreen() {
             <View style={styles.sheet}>
                 <ScrollView
                     style={styles.content}
-                    contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 40 }}
+                    contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
                 >
                     <View style={styles.formGroup}>
                         <View style={styles.iconPreview}>
@@ -229,6 +229,8 @@ const createStyles = (theme: 'light' | 'dark') =>
         },
         content: {
             flex: 1,
+            padding: 16,
+            backgroundColor: theme === 'dark' ? '#000000' : '#F2F2F7',
         },
         sheet: {
             flex: 1,

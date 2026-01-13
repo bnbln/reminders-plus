@@ -4,8 +4,6 @@ import React from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -26,55 +24,7 @@ import { Colors } from '@/constants/theme';
 import { getDueAtForSection, getNextRoutineDate, Project, Subtask, Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
-const COLOR_SWATCHES = [
-  '#34C759',
-  '#0A84FF',
-  '#FF9500',
-  '#FF3B30',
-  '#AF52DE',
-  '#5E5CE6',
-  '#32D74B',
-  '#FFD60A',
-  '#64D2FF',
-  '#FF2D55',
-  '#8E8E93',
-  '#1C1C1E',
-] as const;
 
-const EMOJI_SWATCHES = [
-  '✅',
-  '🧠',
-  '🧹',
-  '🎧',
-  '📞',
-  '🧾',
-  '🗂️',
-  '🧭',
-  '🧪',
-  '🧩',
-  '📝',
-  '📅',
-  '📌',
-  '📦',
-  '📍',
-  '🛒',
-  '🏃‍♂️',
-  '🚶‍♂️',
-  '🧘‍♂️',
-  '🍽️',
-  '☕️',
-  '💡',
-  '✨',
-  '🎯',
-  '🎨',
-  '🖼️',
-  '📚',
-  '🛠️',
-  '🧑‍💻',
-  '🤝',
-  '🧷',
-  '🔒',
-] as const;
 
 
 // ... imports
@@ -147,60 +97,7 @@ const sectionLabel = (section: Task['section']) => {
 
 const newId = (prefix: string) => `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 
-function SheetModal({
-  visible,
-  onClose,
-  theme,
-  hairline,
-  children,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  theme: keyof typeof Colors;
-  hairline: string;
-  children: React.ReactNode;
-}) {
-  const isIOS = Platform.OS === 'ios';
-  return (
-    <Modal
-      visible={visible}
-      animationType={isIOS ? 'slide' : 'slide'}
-      presentationStyle={isIOS ? 'pageSheet' : undefined}
-      transparent={!isIOS}
-      onRequestClose={onClose}
-    >
-      {isIOS ? (
-        <View style={[stylesModal.sheetRoot, { backgroundColor: Colors[theme].background }]}>{children}</View>
-      ) : (
-        <View style={stylesModal.overlay}>
-          <Pressable style={stylesModal.backdrop} onPress={onClose} />
-          <View style={[stylesModal.card, { borderColor: hairline, backgroundColor: Colors[theme].background }]}>{children}</View>
-        </View>
-      )}
-    </Modal>
-  );
-}
 
-const stylesModal = StyleSheet.create({
-  sheetRoot: {
-    flex: 1,
-    padding: 16,
-  },
-  overlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-  },
-  card: {
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 16,
-  },
-});
 
 export default function TaskViewScreen() {
   const router = useRouter();
@@ -385,8 +282,7 @@ export default function TaskViewScreen() {
     updateTask({ projectId: '' });
   }, [updateTask]);
 
-  // Emoji + color picker (task emoji + project color)
-  const [emojiPickerOpen, setEmojiPickerOpen] = React.useState(false);
+
 
   const onPickEmoji = React.useCallback((emoji: string) => updateTask({ emoji }), [updateTask]);
 
@@ -507,7 +403,7 @@ export default function TaskViewScreen() {
 
       {/* Hero Section */}
       <View style={styles.heroSection}>
-        <Pressable onPress={() => setEmojiPickerOpen(true)} style={styles.heroEmojiWrap}>
+        <Pressable onPress={() => router.push(`/task/emoji-picker?taskId=${task.id}`)} style={styles.heroEmojiWrap}>
           <View style={[styles.heroGlow, { backgroundColor: accent }]} />
           <GlassSurface
             style={styles.heroEmojiBg}
@@ -792,60 +688,7 @@ export default function TaskViewScreen() {
 
 
 
-      {/* Emoji + Color Picker */}
-      < SheetModal visible={emojiPickerOpen} onClose={() => setEmojiPickerOpen(false)} theme={theme} hairline={hairline} >
-        <View style={styles.modalHeader}>
-          <Text style={[styles.modalTitle, { color: Colors[theme].text }]}>Emoji & Farbe</Text>
-          <Pressable onPress={() => setEmojiPickerOpen(false)} hitSlop={10}>
-            <Text style={[styles.modalDone, { color: withAlpha(Colors[theme].text, 0.9) }]}>Fertig</Text>
-          </Pressable>
-        </View>
 
-        <Text style={[styles.modalLabel, { color: withAlpha(Colors[theme].text, 0.7) }]}>Emoji</Text>
-        <View style={styles.swatchGrid}>
-          {EMOJI_SWATCHES.map((e) => (
-            <Pressable
-              key={e}
-              onPress={() => onPickEmoji(e)}
-              style={[
-                styles.emojiSwatch,
-                {
-                  borderColor: e === task.emoji ? withAlpha(accent, 0.7) : hairline,
-                  backgroundColor: withAlpha(Colors[theme].text, isDark ? 0.05 : 0.04),
-                },
-              ]}
-            >
-              <Text style={styles.emojiSwatchText}>{e}</Text>
-            </Pressable>
-          ))}
-        </View>
-
-        <Text style={[styles.modalLabel, { color: withAlpha(Colors[theme].text, 0.7), marginTop: 12 }]}>Farbe</Text>
-        <View style={styles.swatchGrid}>
-          {COLOR_SWATCHES.map((c) => (
-            <Pressable
-              key={c}
-              onPress={() => updateTask({ color: c })}
-              style={[
-                styles.colorSwatch,
-                {
-                  backgroundColor: c,
-                  borderColor: (taskColor ?? '') === c ? withAlpha(Colors[theme].text, 0.6) : 'transparent',
-                },
-              ]}
-            />
-          ))}
-        </View>
-        {taskColor && (
-          <Pressable
-            onPress={() => updateTask({ color: undefined })}
-            hitSlop={10}
-            style={{ marginTop: 12, alignItems: 'center' }}
-          >
-            <Text style={[styles.helperText, { color: withAlpha(Colors[theme].text, 0.6) }]}>Farbe zurücksetzen</Text>
-          </Pressable>
-        )}
-      </SheetModal >
 
       <Animated.View style={animatedSpacerStyle} />
     </ScrollView >

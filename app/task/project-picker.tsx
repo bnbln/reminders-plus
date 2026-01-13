@@ -59,14 +59,18 @@ export default function ProjectPickerScreen() {
                 options={{
                     title: 'Projekt',
                     headerLeft: () => (
-                        <Pressable onPress={handleCancel} hitSlop={10} style={styles.iconButton}>
-                            <MaterialIcons name="close" size={24} color={Colors[theme].text} />
-                        </Pressable>
+                        <View style={styles.iconButton}>
+                            <Pressable onPress={handleCancel} hitSlop={10} style={styles.pressableIcon}>
+                                <MaterialIcons name="close" size={24} color={Colors[theme].text} />
+                            </Pressable>
+                        </View>
                     ),
                     headerRight: () => (
-                        <Pressable onPress={handleSave} hitSlop={10} style={styles.iconButton}>
-                            <MaterialIcons name="check" size={24} color={Colors[theme].text} />
-                        </Pressable>
+                        <View style={styles.iconButton}>
+                            <Pressable onPress={handleSave} hitSlop={10} style={styles.pressableIcon}>
+                                <MaterialIcons name="check" size={24} color={Colors[theme].text} />
+                            </Pressable>
+                        </View>
                     ),
                     headerShown: true,
                     headerStyle: {
@@ -150,6 +154,7 @@ const createStyles = (theme: keyof typeof Colors) => {
         content: {
             flex: 1,
             padding: 16,
+            backgroundColor: isDark ? '#000000' : '#F2F2F7',
         },
         optionRow: {
             flexDirection: 'row',
@@ -191,6 +196,12 @@ const createStyles = (theme: keyof typeof Colors) => {
         iconButton: {
             width: 32,
             height: 32,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        pressableIcon: {
+            width: '100%',
+            height: '100%',
             alignItems: 'center',
             justifyContent: 'center',
         },

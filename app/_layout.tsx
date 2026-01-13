@@ -59,6 +59,13 @@ export default function RootLayout() {
                   contentStyle: { backgroundColor: 'transparent' },
                 }}
               />
+              <Stack.Screen
+                name="task/emoji-picker"
+                options={{
+                  presentation: 'formSheet',
+                  contentStyle: { backgroundColor: 'transparent' },
+                }}
+              />
               <Stack.Screen name="task/[id]" options={{ title: 'Task' }} />
               <Stack.Screen name="project/[id]" options={{ title: 'Projekt' }} />
               <Stack.Screen
