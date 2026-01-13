@@ -27,15 +27,17 @@ export type Subtask = {
 };
 
 export type RoutineType =
-  | 'daily'           // Täglich
-  | 'weekly'          // Wöchentlich (am aktuellen Wochentag)
-  | 'monthly'         // Monatlich (am aktuellen Tag)
-  | 'yearly'          // Jährlich (am aktuellen Datum)
-  | 'weekday'         // Jeden bestimmten Wochentag (z.B. jeden Dienstag)
-  | 'nth-weekday'     // Jeden n-ten Wochentag im Monat (z.B. 2. Dienstag)
-  | 'first-of-month'  // Erster Tag im Monat
-  | 'last-of-month'   // Letzter Tag im Monat
-  | 'yearly-date';    // Jährlich an bestimmtem Datum
+  | 'hourly'           // Stündlich
+  | 'daily'            // Täglich
+  | 'weekdays'         // An Wochentagen (Mo-Fr)
+  | 'weekends'         // An Wochenenden (Sa-So)
+  | 'weekly'           // Wöchentlich
+  | 'biweekly'         // Alle 2 Wochen
+  | 'monthly'          // Monatlich
+  | 'quarterly'        // Alle 3 Monate
+  | 'biannually'       // Alle 6 Monate
+  | 'yearly'           // Jährlich
+  | 'custom';          // Eigene
 
 // Keep for backward compatibility
 export type RoutineInterval = 'daily' | 'weekly' | 'monthly' | 'yearly';
@@ -56,6 +58,8 @@ export type Task = {
   subtasks?: Subtask[];
   section: SectionId;
   orderRank: number;
+  /** Optional task color (hex), independent of project */
+  color?: string;
   /** Unix ms timestamp when moved to trash. Undefined = active. */
   deletedAt?: number;
   /** Whether this task repeats */

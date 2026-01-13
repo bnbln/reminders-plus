@@ -37,6 +37,15 @@ export default function RootLayout() {
                   animation: 'fade',
                 }}
               />
+              <Stack.Screen
+                name="task/routine-picker"
+                options={{
+                  presentation: 'formSheet',
+                  sheetCornerRadius: 50,
+                  contentStyle: { backgroundColor: 'transparent' },
+                  headerShown: false,
+                } as any}
+              />
               <Stack.Screen name="task/[id]" options={{ title: 'Task' }} />
               <Stack.Screen name="project/[id]" options={{ title: 'Projekt' }} />
               <Stack.Screen name="project/edit-modal" options={{ presentation: 'modal', title: 'Projekt bearbeiten' }} />

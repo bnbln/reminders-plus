@@ -144,7 +144,7 @@ export function FloatingAddPillButton({
 
   const isDark = theme === 'dark';
   const blue = '#0A84FF';
-  const onBlueText = 'white';
+  const onBlueText = isDark ? 'white' : 'black';
 
   return (
     <Animated.View
@@ -174,8 +174,8 @@ export function FloatingAddPillButton({
             <GlassSurface
               style={stylesPill.glass}
               glassEffectStyle="regular"
-              tintColor={withAlpha(blue, isDark ? 0.34 : 0.28)}
-              fallbackBackgroundColor={withAlpha(blue, isDark ? 0.94 : 0.98)}
+              tintColor={withAlpha(blue, isDark ? 0.34 : 0.22)}
+              fallbackBackgroundColor={isDark ? withAlpha(blue, 0.94) : withAlpha(Colors.light.background, 0.96)}
               isInteractive
             >
               <Animated.View style={[stylesPill.inner, animInnerPaddingStyle, animContentStyle]}>

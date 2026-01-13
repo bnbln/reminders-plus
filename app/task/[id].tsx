@@ -240,7 +240,8 @@ export default function TaskViewScreen() {
   }, [projects, task]);
 
   const projectColor = project?.color;
-  const accent = projectColor ?? (isDark ? '#30D158' : '#34C759');
+  const taskColor = task?.color;
+  const accent = taskColor ?? projectColor ?? (isDark ? '#30D158' : '#34C759');
   const neutralAccent = isDark ? '#8E8E93' : '#6B7280';
   const glassTint = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.12 : 0.2), [isDark, theme]);
   const glassFallback = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.62 : 0.78), [isDark, theme]);
@@ -468,9 +469,6 @@ export default function TaskViewScreen() {
   // Emoji + color picker (task emoji + project color)
   const [emojiPickerOpen, setEmojiPickerOpen] = React.useState(false);
 
-  // Routine picker
-  const [routinePickerOpen, setRoutinePickerOpen] = React.useState(false);
-
   const onPickEmoji = React.useCallback((emoji: string) => updateTask({ emoji }), [updateTask]);
 
   const onToggleRoutine = React.useCallback((enabled: boolean) => {
@@ -594,173 +592,181 @@ export default function TaskViewScreen() {
         } as any}
       />
 
-      <View style={styles.header}>
-        <Pressable onPress={() => setEmojiPickerOpen(true)} style={[styles.emojiTile, { borderColor: hairline }]}>
+      {/* Hero Section */}
+      <View style={styles.heroSection}>
+        <Pressable onPress={() => setEmojiPickerOpen(true)} style={styles.heroEmojiWrap}>
+          <View style={[styles.heroGlow, { backgroundColor: accent }]} />
           <GlassSurface
-            style={styles.emojiTileInner}
+            style={styles.heroEmojiBg}
             glassEffectStyle="regular"
-            tintColor={withAlpha(Colors[theme].text, isDark ? 0.12 : 0.06)}
-            fallbackBackgroundColor={withAlpha(Colors[theme].text, isDark ? 0.18 : 0.1)}
+            tintColor={withAlpha(accent, isDark ? 0.25 : 0.18)}
+            fallbackBackgroundColor={withAlpha(accent, isDark ? 0.22 : 0.14)}
           >
-            <Text style={styles.emojiText}>{task.emoji}</Text>
+            <Text style={styles.heroEmojiText}>{task.emoji}</Text>
           </GlassSurface>
         </Pressable>
 
-        <View style={styles.headerMeta}>
-          <TextInput
-            value={task.title}
-            onChangeText={(v) => updateTask({ title: v })}
-            placeholder="Titel"
-            placeholderTextColor={placeholder}
-            multiline
-            scrollEnabled={false}
-            onContentSizeChange={(e) => setTitleHeight(e.nativeEvent.contentSize.height)}
-            style={[
-              styles.titleInput,
-              { color: Colors[theme].text },
-              titleHeight > 0 ? { height: Math.max(styles.titleInput.minHeight ?? 0, Math.ceil(titleHeight)) } : null,
-            ]}
-          />
-          <TextInput
-            value={task.subtitle ?? ''}
-            onChangeText={(v) => updateTask({ subtitle: v.trim().length ? v : undefined })}
-            placeholder="Subtitle"
-            placeholderTextColor={placeholder}
-            multiline
-            scrollEnabled={false}
-            onContentSizeChange={(e) => setSubtitleHeight(e.nativeEvent.contentSize.height)}
-            style={[
-              styles.subtitleInput,
-              { color: withAlpha(Colors[theme].text, 0.78) },
-              subtitleHeight > 0 ? { height: Math.max(styles.subtitleInput.minHeight ?? 0, Math.ceil(subtitleHeight)) } : null,
-            ]}
-          />
-
-          <View style={styles.tagsRow}>
-            <View style={[styles.sectionTag, { borderColor: hairline, backgroundColor: withAlpha(Colors[theme].text, isDark ? 0.06 : 0.04) }]}>
-              <Text style={[styles.sectionTagText, { color: withAlpha(Colors[theme].text, 0.72) }]}>{sectionLabel(task.section)}</Text>
-            </View>
-          </View>
-        </View>
+        <TextInput
+          value={task.title}
+          onChangeText={(v) => updateTask({ title: v })}
+          placeholder="Titel"
+          placeholderTextColor={placeholder}
+          multiline
+          scrollEnabled={false}
+          textAlign="center"
+          onContentSizeChange={(e) => setTitleHeight(e.nativeEvent.contentSize.height)}
+          style={[
+            styles.heroTitle,
+            { color: Colors[theme].text },
+            titleHeight > 0 ? { height: Math.max(32, Math.ceil(titleHeight)) } : null,
+          ]}
+        />
+        <TextInput
+          value={task.subtitle ?? ''}
+          onChangeText={(v) => updateTask({ subtitle: v.trim().length ? v : undefined })}
+          placeholder="Beschreibung…"
+          placeholderTextColor={placeholder}
+          multiline
+          scrollEnabled={false}
+          textAlign="center"
+          onContentSizeChange={(e) => setSubtitleHeight(e.nativeEvent.contentSize.height)}
+          style={[
+            styles.heroSubtitle,
+            { color: withAlpha(Colors[theme].text, 0.7) },
+            subtitleHeight > 0 ? { height: Math.max(20, Math.ceil(subtitleHeight)) } : null,
+          ]}
+        />
       </View>
 
-      <GlassSurface style={[styles.panel, { borderColor: hairline }]} glassEffectStyle="regular" tintColor={glassTint} fallbackBackgroundColor={glassFallback}>
-        <Text style={styles.panelTitle}>Details</Text>
-
-        <FormField label="Projekt" icon="folder" accent={neutralAccent} theme={theme}>
-          <View style={styles.locationRow}>
-            <Pressable onPress={() => setProjectPickerOpen(true)} style={[styles.rowButton, { flex: 1 }]}>
-              {project ? (
-                <View style={styles.projectInline}>
-                  <View
-                    style={[
-                      styles.projectInlineIconBg,
-                      {
-                        backgroundColor: withAlpha(project.color, isDark ? 0.22 : 0.16),
-                      },
-                    ]}
-                  >
-                    <SFSymbol name={project.icon} size={16} color={project.color} />
-                  </View>
-                  <Text style={[styles.valueText, { color: withAlpha(Colors[theme].text, 0.92) }]} numberOfLines={1}>
-                    {project.name}
-                  </Text>
+      {/* Property Grid - 2x2 QuickTile Style */}
+      <View style={styles.propertyGrid}>
+        {/* Datum Tile */}
+        <Pressable onPress={() => setDuePickerOpen(true)} style={styles.propertyTilePressable}>
+          <GlassSurface
+            style={[styles.propertyTile, { borderColor: hairline }]}
+            glassEffectStyle="regular"
+            tintColor={glassTint}
+            fallbackBackgroundColor={glassFallback}
+            isInteractive
+          >
+            <View style={styles.propertyTileInner}>
+              <View style={styles.propertyTileIconRow}>
+                <View style={[styles.propertyTileIconBadge, { backgroundColor: withAlpha(hasDueDate ? '#0A84FF' : Colors[theme].text, isDark ? 0.15 : 0.1) }]}>
+                  <MaterialIcons name="event" size={16} color={hasDueDate ? '#0A84FF' : withAlpha(Colors[theme].text, 0.6)} />
                 </View>
-              ) : (
-                <Text style={[styles.valueText, { color: withAlpha(Colors[theme].text, 0.92) }]} numberOfLines={1}>
-                  Kein Projekt
-                </Text>
-              )}
-              <MaterialIcons name="chevron-right" size={18} color={withAlpha(Colors[theme].text, 0.5)} />
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Projekt entfernen"
-              onPress={clearProject}
-              disabled={!task.projectId}
-              hitSlop={10}
-              style={[styles.inlineIconBtn, !task.projectId ? { opacity: 0.35 } : null]}
-            >
-              <MaterialIcons name="close" size={18} color={withAlpha(Colors[theme].text, 0.75)} />
-            </Pressable>
-          </View>
-        </FormField>
-
-        <View style={[styles.divider, { backgroundColor: hairline }]} />
-
-        <FormField label="Due" icon="event" accent={neutralAccent} theme={theme}>
-          <View style={styles.locationRow}>
-            <Pressable onPress={() => setDuePickerOpen(true)} style={[styles.rowButton, { flex: 1 }]}>
-              <Text style={[styles.valueText, { color: withAlpha(Colors[theme].text, 0.92) }]}>{formatDueLabel(task.dueAt, dueHasTime)}</Text>
-              <MaterialIcons name="chevron-right" size={18} color={withAlpha(Colors[theme].text, 0.5)} />
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Datum entfernen"
-              onPress={clearDue}
-              disabled={!hasDueDate}
-              hitSlop={10}
-              style={[styles.inlineIconBtn, !hasDueDate ? { opacity: 0.35 } : null]}
-            >
-              <MaterialIcons name="close" size={18} color={withAlpha(Colors[theme].text, 0.75)} />
-            </Pressable>
-          </View>
-        </FormField>
-
-        <View style={[styles.divider, { backgroundColor: hairline }]} />
-
-        <FormField label="Location" icon="place" accent={task.location ? '#0A84FF' : neutralAccent} theme={theme}>
-          <View style={styles.locationRow}>
-            <TextInput
-              value={task.location ?? ''}
-              onChangeText={(v) => updateTask({ location: v.trim().length ? v : undefined })}
-              placeholder="Ort"
-              placeholderTextColor={placeholder}
-              style={[styles.fieldInput, { color: Colors[theme].text, flex: 1 }]}
-            />
-            <Pressable onPress={onUseCurrentLocation} hitSlop={10} style={styles.inlineIconBtn}>
-              {isLocating ? <ActivityIndicator size="small" /> : <MaterialIcons name="my-location" size={18} color={withAlpha(Colors[theme].text, 0.75)} />}
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Ort entfernen"
-              onPress={() => updateTask({ location: undefined })}
-              disabled={!task.location}
-              hitSlop={10}
-              style={[styles.inlineIconBtn, !task.location ? { opacity: 0.35 } : null]}
-            >
-              <MaterialIcons name="close" size={18} color={withAlpha(Colors[theme].text, 0.75)} />
-            </Pressable>
-          </View>
-        </FormField>
-
-        <View style={[styles.divider, { backgroundColor: hairline }]} />
-
-        <FormField label="Routine" icon="loop" accent={task.isRoutine ? '#0A84FF' : neutralAccent} theme={theme}>
-          <View style={styles.locationRow}>
-            <Pressable onPress={() => setRoutinePickerOpen(true)} style={[styles.rowButton, { flex: 1 }]}>
-              <Text style={[styles.valueText, { color: withAlpha(Colors[theme].text, task.isRoutine ? 0.92 : 0.55) }]}>
-                {task.isRoutine ? getRoutineLabel(task) : 'Keine Routine'}
+                {hasDueDate && (
+                  <Pressable onPress={clearDue} hitSlop={8}>
+                    <MaterialIcons name="close" size={16} color={withAlpha(Colors[theme].text, 0.5)} />
+                  </Pressable>
+                )}
+              </View>
+              <Text style={styles.propertyTileLabel}>Datum</Text>
+              <Text style={[styles.propertyTileValue, { color: hasDueDate ? Colors[theme].text : withAlpha(Colors[theme].text, 0.5) }]} numberOfLines={1}>
+                {formatDueLabel(task.dueAt, dueHasTime)}
               </Text>
-              <MaterialIcons name="chevron-right" size={18} color={withAlpha(Colors[theme].text, 0.5)} />
-            </Pressable>
+            </View>
+          </GlassSurface>
+        </Pressable>
 
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Routine entfernen"
-              onPress={clearRoutine}
-              disabled={!task.isRoutine}
-              hitSlop={10}
-              style={[styles.inlineIconBtn, !task.isRoutine ? { opacity: 0.35 } : null]}
-            >
-              <MaterialIcons name="close" size={18} color={withAlpha(Colors[theme].text, 0.75)} />
-            </Pressable>
-          </View>
-        </FormField>
-      </GlassSurface>
+        {/* Routine Tile */}
+        <Pressable onPress={() => router.push(`/task/routine-picker?taskId=${task.id}`)} style={styles.propertyTilePressable}>
+          <GlassSurface
+            style={[styles.propertyTile, { borderColor: hairline }]}
+            glassEffectStyle="regular"
+            tintColor={glassTint}
+            fallbackBackgroundColor={glassFallback}
+            isInteractive
+          >
+            <View style={styles.propertyTileInner}>
+              <View style={styles.propertyTileIconRow}>
+                <View style={[styles.propertyTileIconBadge, { backgroundColor: withAlpha(task.isRoutine ? '#8B5CF6' : Colors[theme].text, isDark ? 0.15 : 0.1) }]}>
+                  <MaterialIcons name="loop" size={16} color={task.isRoutine ? '#8B5CF6' : withAlpha(Colors[theme].text, 0.6)} />
+                </View>
+                {task.isRoutine && (
+                  <Pressable onPress={clearRoutine} hitSlop={8}>
+                    <MaterialIcons name="close" size={16} color={withAlpha(Colors[theme].text, 0.5)} />
+                  </Pressable>
+                )}
+              </View>
+              <Text style={styles.propertyTileLabel}>Routine</Text>
+              <Text style={[styles.propertyTileValue, { color: task.isRoutine ? Colors[theme].text : withAlpha(Colors[theme].text, 0.5) }]} numberOfLines={1}>
+                {task.isRoutine ? getRoutineLabel(task) : 'Keine'}
+              </Text>
+            </View>
+          </GlassSurface>
+        </Pressable>
 
+        {/* Location Tile */}
+        <Pressable onPress={() => { /* Focus location input or show picker */ }} style={styles.propertyTilePressable}>
+          <GlassSurface
+            style={[styles.propertyTile, { borderColor: hairline }]}
+            glassEffectStyle="regular"
+            tintColor={glassTint}
+            fallbackBackgroundColor={glassFallback}
+            isInteractive
+          >
+            <View style={styles.propertyTileInner}>
+              <View style={styles.propertyTileIconRow}>
+                <View style={[styles.propertyTileIconBadge, { backgroundColor: withAlpha(task.location ? '#10B981' : Colors[theme].text, isDark ? 0.15 : 0.1) }]}>
+                  <MaterialIcons name="place" size={16} color={task.location ? '#10B981' : withAlpha(Colors[theme].text, 0.6)} />
+                </View>
+                {task.location ? (
+                  <Pressable onPress={() => updateTask({ location: undefined })} hitSlop={8}>
+                    <MaterialIcons name="close" size={16} color={withAlpha(Colors[theme].text, 0.5)} />
+                  </Pressable>
+                ) : (
+                  <Pressable onPress={onUseCurrentLocation} hitSlop={8}>
+                    {isLocating ? <ActivityIndicator size="small" /> : <MaterialIcons name="my-location" size={14} color={withAlpha(Colors[theme].text, 0.5)} />}
+                  </Pressable>
+                )}
+              </View>
+              <Text style={styles.propertyTileLabel}>Ort</Text>
+              <TextInput
+                value={task.location ?? ''}
+                onChangeText={(v) => updateTask({ location: v.trim().length ? v : undefined })}
+                placeholder="Hinzufügen…"
+                placeholderTextColor={withAlpha(Colors[theme].text, 0.4)}
+                style={[styles.propertyTileInput, { color: task.location ? Colors[theme].text : withAlpha(Colors[theme].text, 0.5) }]}
+                numberOfLines={1}
+              />
+            </View>
+          </GlassSurface>
+        </Pressable>
+
+        {/* Projekt Tile */}
+        <Pressable onPress={() => setProjectPickerOpen(true)} style={styles.propertyTilePressable}>
+          <GlassSurface
+            style={[styles.propertyTile, { borderColor: hairline }]}
+            glassEffectStyle="regular"
+            tintColor={glassTint}
+            fallbackBackgroundColor={glassFallback}
+            isInteractive
+          >
+            <View style={styles.propertyTileInner}>
+              <View style={styles.propertyTileIconRow}>
+                <View style={[styles.propertyTileIconBadge, { backgroundColor: withAlpha(project?.color ?? Colors[theme].text, isDark ? 0.15 : 0.1) }]}>
+                  {project ? (
+                    <SFSymbol name={project.icon} size={14} color={project.color} />
+                  ) : (
+                    <MaterialIcons name="folder" size={16} color={withAlpha(Colors[theme].text, 0.6)} />
+                  )}
+                </View>
+                {project && (
+                  <Pressable onPress={clearProject} hitSlop={8}>
+                    <MaterialIcons name="close" size={16} color={withAlpha(Colors[theme].text, 0.5)} />
+                  </Pressable>
+                )}
+              </View>
+              <Text style={styles.propertyTileLabel}>Projekt</Text>
+              <Text style={[styles.propertyTileValue, { color: project ? Colors[theme].text : withAlpha(Colors[theme].text, 0.5) }]} numberOfLines={1}>
+                {project?.name ?? 'Keins'}
+              </Text>
+            </View>
+          </GlassSurface>
+        </Pressable>
+      </View>
+
+      {/* Subtasks Section */}
       <GlassSurface style={[styles.panel, { borderColor: hairline }]} glassEffectStyle="regular" tintColor={glassTint} fallbackBackgroundColor={glassFallback}>
         <Text style={styles.panelTitle}>Tasks</Text>
 
@@ -1093,164 +1099,32 @@ export default function TaskViewScreen() {
           ))}
         </View>
 
-        <Text style={[styles.modalLabel, { color: withAlpha(Colors[theme].text, 0.7), marginTop: 12 }]}>Projektfarbe</Text>
-        {
-          project ? (
-            <View style={styles.swatchGrid}>
-              {COLOR_SWATCHES.map((c) => (
-                <Pressable
-                  key={c}
-                  onPress={() => onPickProjectColor(c)}
-                  style={[
-                    styles.colorSwatch,
-                    {
-                      backgroundColor: c,
-                      borderColor: (project?.color ?? '') === c ? withAlpha(Colors[theme].text, 0.6) : 'transparent',
-                    },
-                  ]}
-                />
-              ))}
-            </View>
-          ) : (
-            <Text style={[styles.helperText, { color: withAlpha(Colors[theme].text, 0.6) }]}>Wähle zuerst ein Projekt.</Text>
-          )
-        }
-      </SheetModal >
-
-      {/* Routine Picker */}
-      <SheetModal visible={routinePickerOpen} onClose={() => setRoutinePickerOpen(false)} theme={theme} hairline={hairline}>
-        <View style={styles.modalHeader}>
-          <Text style={[styles.modalTitle, { color: Colors[theme].text }]}>Wiederholung</Text>
-          <Pressable onPress={() => setRoutinePickerOpen(false)} hitSlop={10}>
-            <Text style={[styles.modalDone, { color: withAlpha(Colors[theme].text, 0.9) }]}>Fertig</Text>
-          </Pressable>
+        <Text style={[styles.modalLabel, { color: withAlpha(Colors[theme].text, 0.7), marginTop: 12 }]}>Farbe</Text>
+        <View style={styles.swatchGrid}>
+          {COLOR_SWATCHES.map((c) => (
+            <Pressable
+              key={c}
+              onPress={() => updateTask({ color: c })}
+              style={[
+                styles.colorSwatch,
+                {
+                  backgroundColor: c,
+                  borderColor: (taskColor ?? '') === c ? withAlpha(Colors[theme].text, 0.6) : 'transparent',
+                },
+              ]}
+            />
+          ))}
         </View>
-
-        {/* No Routine Option */}
-        <Pressable
-          onPress={() => { clearRoutine(); setRoutinePickerOpen(false); }}
-          style={[
-            styles.projectRow,
-            {
-              borderColor: !task.isRoutine ? withAlpha('#0A84FF', 0.45) : hairline,
-              backgroundColor: !task.isRoutine
-                ? withAlpha('#0A84FF', isDark ? 0.18 : 0.12)
-                : withAlpha(Colors[theme].text, isDark ? 0.04 : 0.03),
-            },
-          ]}
-        >
-          <View style={[styles.inlineIconBtn, { backgroundColor: withAlpha(Colors[theme].text, isDark ? 0.08 : 0.06) }]}>
-            <MaterialIcons name="block" size={20} color={withAlpha(Colors[theme].text, 0.6)} />
-          </View>
-          <View style={styles.projectRowBody}>
-            <Text style={[styles.projectRowName, { color: Colors[theme].text }]}>Keine Routine</Text>
-          </View>
-          {!task.isRoutine && <MaterialIcons name="check" size={20} color="#0A84FF" />}
-        </Pressable>
-
-        <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
-          {ROUTINE_OPTIONS.map((option) => {
-            const currentType = task.routineType || task.routineInterval;
-            const isActive = task.isRoutine && currentType === option.value;
-
-            // For weekday-based options, show additional weekday selection
-            const needsWeekday = option.value === 'weekday' || option.value === 'nth-weekday';
-
-            return (
-              <Pressable
-                key={option.value}
-                onPress={() => {
-                  if (!task.isRoutine) {
-                    onToggleRoutine(true);
-                  }
-                  // For simple types, just set the type directly
-                  if (!needsWeekday) {
-                    onSelectRoutineType(option.value);
-                  } else {
-                    // For weekday types, use current day as default
-                    const currentWeekday = task.routineWeekday ?? new Date().getDay();
-                    const nthWeek = option.value === 'nth-weekday' ? (task.routineNthWeek ?? 1) : undefined;
-                    onSelectRoutineType(option.value, { weekday: currentWeekday, nthWeek });
-                  }
-                }}
-                style={[
-                  styles.projectRow,
-                  {
-                    borderColor: isActive ? withAlpha('#0A84FF', 0.45) : hairline,
-                    backgroundColor: isActive
-                      ? withAlpha('#0A84FF', isDark ? 0.18 : 0.12)
-                      : withAlpha(Colors[theme].text, isDark ? 0.04 : 0.03),
-                  },
-                ]}
-              >
-                <View style={[styles.inlineIconBtn, { backgroundColor: withAlpha('#0A84FF', isDark ? 0.15 : 0.12) }]}>
-                  <MaterialIcons name={option.icon} size={20} color="#0A84FF" />
-                </View>
-                <View style={styles.projectRowBody}>
-                  <Text style={[styles.projectRowName, { color: Colors[theme].text }]}>{option.label}</Text>
-                  {option.sublabel && (
-                    <Text style={[styles.projectRowColor, { color: withAlpha(Colors[theme].text, 0.5) }]}>{option.sublabel}</Text>
-                  )}
-                </View>
-                {isActive && <MaterialIcons name="check" size={20} color="#0A84FF" />}
-              </Pressable>
-            );
-          })}
-
-          {/* Weekday selector for weekday-based routines */}
-          {task.isRoutine && (task.routineType === 'weekday' || task.routineType === 'nth-weekday') && (
-            <>
-              <Text style={[styles.modalLabel, { color: withAlpha(Colors[theme].text, 0.7), marginTop: 16, marginBottom: 8 }]}>Wochentag</Text>
-              <View style={styles.swatchGrid}>
-                {WEEKDAY_NAMES.map((name, idx) => (
-                  <Pressable
-                    key={idx}
-                    onPress={() => updateTask({ routineWeekday: idx })}
-                    style={[
-                      styles.emojiSwatch,
-                      { minWidth: 44 },
-                      {
-                        borderColor: task.routineWeekday === idx ? withAlpha('#0A84FF', 0.7) : hairline,
-                        backgroundColor: task.routineWeekday === idx
-                          ? withAlpha('#0A84FF', isDark ? 0.2 : 0.15)
-                          : withAlpha(Colors[theme].text, isDark ? 0.05 : 0.04),
-                      },
-                    ]}
-                  >
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: Colors[theme].text }}>{name.slice(0, 2)}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            </>
-          )}
-
-          {/* Nth week selector for nth-weekday */}
-          {task.isRoutine && task.routineType === 'nth-weekday' && (
-            <>
-              <Text style={[styles.modalLabel, { color: withAlpha(Colors[theme].text, 0.7), marginTop: 12, marginBottom: 8 }]}>Welche Woche</Text>
-              <View style={styles.swatchGrid}>
-                {NTH_LABELS.map((label, idx) => (
-                  <Pressable
-                    key={idx}
-                    onPress={() => updateTask({ routineNthWeek: idx + 1 })}
-                    style={[
-                      styles.emojiSwatch,
-                      {
-                        borderColor: task.routineNthWeek === idx + 1 ? withAlpha('#0A84FF', 0.7) : hairline,
-                        backgroundColor: task.routineNthWeek === idx + 1
-                          ? withAlpha('#0A84FF', isDark ? 0.2 : 0.15)
-                          : withAlpha(Colors[theme].text, isDark ? 0.05 : 0.04),
-                      },
-                    ]}
-                  >
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: Colors[theme].text }}>{label}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            </>
-          )}
-        </ScrollView>
-      </SheetModal>
+        {taskColor && (
+          <Pressable
+            onPress={() => updateTask({ color: undefined })}
+            hitSlop={10}
+            style={{ marginTop: 12, alignItems: 'center' }}
+          >
+            <Text style={[styles.helperText, { color: withAlpha(Colors[theme].text, 0.6) }]}>Farbe zurücksetzen</Text>
+          </Pressable>
+        )}
+      </SheetModal >
 
       <Animated.View style={animatedSpacerStyle} />
     </ScrollView >
@@ -1318,6 +1192,7 @@ const createStyles = (theme: keyof typeof Colors) => {
   const isDark = theme === 'dark';
   const text = Colors[theme].text;
   const background = Colors[theme].background;
+  const cardBg = isDark ? '#1C1C1E' : '#F2F2F7';
 
   return StyleSheet.create({
     screen: {
@@ -1339,6 +1214,105 @@ const createStyles = (theme: keyof typeof Colors) => {
     headerMeta: {
       flex: 1,
       gap: 10,
+    },
+
+    // Hero Section
+    heroSection: {
+      alignItems: 'center',
+      gap: 8,
+      paddingVertical: 8,
+    },
+    heroEmojiWrap: {
+      position: 'relative',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    heroGlow: {
+      position: 'absolute',
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      opacity: 0.35,
+      transform: [{ scale: 2 }],
+      zIndex: -1,
+    },
+    heroEmojiBg: {
+      width: 72,
+      height: 72,
+      borderRadius: 24,
+      overflow: 'hidden',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    heroEmojiText: {
+      fontSize: 36,
+    },
+    heroTitle: {
+      fontSize: 24,
+      fontWeight: '800',
+      letterSpacing: -0.3,
+      paddingVertical: 0,
+      textAlign: 'center',
+      minHeight: 32,
+    },
+    heroSubtitle: {
+      fontSize: 15,
+      fontWeight: '500',
+      lineHeight: 20,
+      paddingVertical: 0,
+      textAlign: 'center',
+      minHeight: 20,
+    },
+
+    // Property Grid
+    propertyGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+    },
+    propertyTilePressable: {
+      width: '48.5%',
+    },
+    propertyTile: {
+      borderRadius: 16,
+      borderWidth: StyleSheet.hairlineWidth,
+      overflow: 'hidden',
+      backgroundColor: cardBg,
+    },
+    propertyTileInner: {
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      gap: 4,
+    },
+    propertyTileIconRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 2,
+    },
+    propertyTileIconBadge: {
+      width: 28,
+      height: 28,
+      borderRadius: 9,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    propertyTileLabel: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: withAlpha(text, 0.55),
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    propertyTileValue: {
+      fontSize: 13,
+      fontWeight: '700',
+    },
+    propertyTileInput: {
+      fontSize: 13,
+      fontWeight: '700',
+      paddingVertical: 0,
+      margin: 0,
     },
 
     emojiTile: {
