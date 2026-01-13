@@ -1,5 +1,4 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 import {
@@ -10,10 +9,9 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
-  View,
+  View
 } from 'react-native';
 import Animated, {
   useAnimatedKeyboard,
@@ -25,7 +23,7 @@ import Animated, {
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { SFSymbol } from '@/components/ui/sfsymbol';
 import { Colors } from '@/constants/theme';
-import { getDueAtForSection, getNextRoutineDate, Project, RoutineType, Subtask, Task, useTasksStore } from '@/context/tasks-store';
+import { getDueAtForSection, getNextRoutineDate, Project, Subtask, Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 const COLOR_SWATCHES = [
@@ -96,37 +94,24 @@ const PROJECT_ICON_SWATCHES = [
   'photo.artframe',
 ] as const;
 
-const ROUTINE_OPTIONS: { value: RoutineType; label: string; sublabel?: string; icon: keyof typeof MaterialIcons.glyphMap }[] = [
-  { value: 'daily', label: 'Täglich', icon: 'today' },
-  { value: 'weekly', label: 'Wöchentlich', icon: 'date-range' },
-  { value: 'weekday', label: 'Bestimmter Wochentag', sublabel: 'z.B. jeden Dienstag', icon: 'event-repeat' },
-  { value: 'monthly', label: 'Monatlich', sublabel: 'am gleichen Tag', icon: 'calendar-today' },
-  { value: 'nth-weekday', label: 'N-ter Wochentag', sublabel: 'z.B. 2. Dienstag im Monat', icon: 'event-available' },
-  { value: 'first-of-month', label: 'Erster Tag im Monat', icon: 'first-page' },
-  { value: 'last-of-month', label: 'Letzter Tag im Monat', icon: 'last-page' },
-  { value: 'yearly', label: 'Jährlich', icon: 'event' },
-  { value: 'yearly-date', label: 'Jährlich am Datum', sublabel: 'bestimmtes Datum', icon: 'cake' },
-];
 
-const WEEKDAY_NAMES = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
-const NTH_LABELS = ['1.', '2.', '3.', '4.'];
 
 const getRoutineLabel = (task: Task): string => {
   const type = task.routineType || task.routineInterval;
   if (!type) return 'Nicht aktiv';
 
   switch (type) {
+    case 'hourly': return 'Stündlich';
     case 'daily': return 'Täglich';
+    case 'weekdays': return 'An Wochentagen';
+    case 'weekends': return 'An Wochenenden';
     case 'weekly': return 'Wöchentlich';
-    case 'weekday':
-      return `Jeden ${WEEKDAY_NAMES[task.routineWeekday ?? 0]}`;
+    case 'biweekly': return 'Alle 2 Wochen';
     case 'monthly': return 'Monatlich';
-    case 'nth-weekday':
-      return `${NTH_LABELS[(task.routineNthWeek ?? 1) - 1]} ${WEEKDAY_NAMES[task.routineWeekday ?? 0]} im Monat`;
-    case 'first-of-month': return 'Erster Tag im Monat';
-    case 'last-of-month': return 'Letzter Tag im Monat';
+    case 'quarterly': return 'Alle 3 Monate';
+    case 'biannually': return 'Alle 6 Monate';
     case 'yearly': return 'Jährlich';
-    case 'yearly-date': return 'Jährlich am Datum';
+    case 'custom': return 'Eigene';
     default: return 'Routine';
   }
 };
@@ -391,80 +376,14 @@ export default function TaskViewScreen() {
     ]);
   }, [router, setTasks, task]);
 
-  // Due picker modal
-  const [duePickerOpen, setDuePickerOpen] = React.useState(false);
-  const [dueDraft, setDueDraft] = React.useState<Date>(new Date());
-  const [dueHasTimeDraft, setDueHasTimeDraft] = React.useState(true);
-
-  React.useEffect(() => {
-    if (!task) return;
-    if (!duePickerOpen) return;
-    if (!Number.isFinite(task.dueAt) || task.dueAt <= 0) {
-      setDueDraft(new Date());
-      setDueHasTimeDraft(false);
-      return;
-    }
-    setDueDraft(new Date(task.dueAt));
-    setDueHasTimeDraft(task.dueHasTime ?? true);
-  }, [duePickerOpen, task]);
-
-  const commitDue = React.useCallback(() => {
-    if (!task) return;
-    const next = new Date(dueDraft);
-    if (!dueHasTimeDraft) {
-      next.setHours(12, 0, 0, 0);
-    }
-
-    const nextDueAt = next.getTime();
-    let nextSection: Task['section'] | undefined;
-    if (task.section !== 'completed') {
-      const now = new Date();
-      const due = new Date(nextDueAt);
-      const isToday =
-        now.getFullYear() === due.getFullYear() && now.getMonth() === due.getMonth() && now.getDate() === due.getDate();
-      nextSection = isToday ? 'today' : 'upcoming';
-    }
-
-    updateTask({ dueAt: nextDueAt, dueHasTime: dueHasTimeDraft, ...(nextSection ? { section: nextSection } : null) });
-    setDuePickerOpen(false);
-  }, [dueDraft, dueHasTimeDraft, task, updateTask]);
-
   const clearDue = React.useCallback(() => {
     if (!task) return;
     updateTask({ dueAt: 0, dueHasTime: false });
-    setDuePickerOpen(false);
   }, [task, updateTask]);
-
-  // Project picker + create
-  const [projectPickerOpen, setProjectPickerOpen] = React.useState(false);
-  const [createProjectOpen, setCreateProjectOpen] = React.useState(false);
-  const [newProjectName, setNewProjectName] = React.useState('');
-  const [newProjectColor, setNewProjectColor] = React.useState<string>(COLOR_SWATCHES[0]);
-  const [newProjectIcon, setNewProjectIcon] = React.useState<string>(PROJECT_ICON_SWATCHES[0]);
-
-  const selectProject = React.useCallback(
-    (projectId: string) => {
-      updateTask({ projectId });
-      setProjectPickerOpen(false);
-    },
-    [updateTask]
-  );
 
   const clearProject = React.useCallback(() => {
     updateTask({ projectId: '' });
-    setProjectPickerOpen(false);
   }, [updateTask]);
-
-  const createProject = React.useCallback(() => {
-    const name = newProjectName.trim();
-    if (!name) return;
-    const p: Project = { id: newId('p'), name, color: newProjectColor, icon: newProjectIcon };
-    setProjects((prev) => [p, ...prev]);
-    updateTask({ projectId: p.id });
-    setCreateProjectOpen(false);
-    setProjectPickerOpen(false);
-    setNewProjectName('');
-  }, [newProjectColor, newProjectIcon, newProjectName, setProjects, updateTask]);
 
   // Emoji + color picker (task emoji + project color)
   const [emojiPickerOpen, setEmojiPickerOpen] = React.useState(false);
@@ -487,13 +406,7 @@ export default function TaskViewScreen() {
     }
   }, [updateTask]);
 
-  const onSelectRoutineType = React.useCallback((type: RoutineType, options?: { weekday?: number; nthWeek?: number }) => {
-    const patch: Partial<Task> = { routineType: type };
-    if (options?.weekday !== undefined) patch.routineWeekday = options.weekday;
-    if (options?.nthWeek !== undefined) patch.routineNthWeek = options.nthWeek;
-    updateTask(patch);
-    setRoutinePickerOpen(false);
-  }, [updateTask]);
+
 
   const clearRoutine = React.useCallback(() => {
     updateTask({
@@ -641,7 +554,7 @@ export default function TaskViewScreen() {
       {/* Property Grid - 2x2 QuickTile Style */}
       <View style={styles.propertyGrid}>
         {/* Datum Tile */}
-        <Pressable onPress={() => setDuePickerOpen(true)} style={styles.propertyTilePressable}>
+        <Pressable onPress={() => router.push(`/task/date-picker?taskId=${task.id}`)} style={styles.propertyTilePressable}>
           <GlassSurface
             style={[styles.propertyTile, { borderColor: hairline }]}
             glassEffectStyle="regular"
@@ -734,7 +647,7 @@ export default function TaskViewScreen() {
         </Pressable>
 
         {/* Projekt Tile */}
-        <Pressable onPress={() => setProjectPickerOpen(true)} style={styles.propertyTilePressable}>
+        <Pressable onPress={() => router.push(`/task/project-picker?taskId=${task.id}`)} style={styles.propertyTilePressable}>
           <GlassSurface
             style={[styles.propertyTile, { borderColor: hairline }]}
             glassEffectStyle="regular"
@@ -742,6 +655,7 @@ export default function TaskViewScreen() {
             fallbackBackgroundColor={glassFallback}
             isInteractive
           >
+
             <View style={styles.propertyTileInner}>
               <View style={styles.propertyTileIconRow}>
                 <View style={[styles.propertyTileIconBadge, { backgroundColor: withAlpha(project?.color ?? Colors[theme].text, isDark ? 0.15 : 0.1) }]}>
@@ -876,200 +790,7 @@ export default function TaskViewScreen() {
         </Pressable>
       </View>
 
-      {/* Due Picker */}
-      < SheetModal visible={duePickerOpen} onClose={() => setDuePickerOpen(false)
-      } theme={theme} hairline={hairline} >
-        <View style={styles.modalHeader}>
-          <Text style={[styles.modalTitle, { color: Colors[theme].text }]}>Due</Text>
-          <Pressable onPress={commitDue} hitSlop={10}>
-            <Text style={[styles.modalDone, { color: withAlpha(Colors[theme].text, 0.9) }]}>Fertig</Text>
-          </Pressable>
-        </View>
 
-        <Pressable
-          onPress={clearDue}
-          hitSlop={10}
-          style={[
-            styles.modalRow,
-            {
-              borderRadius: 14,
-              borderWidth: StyleSheet.hairlineWidth,
-              borderColor: hairline,
-              backgroundColor: withAlpha(Colors[theme].text, isDark ? 0.04 : 0.03),
-              marginBottom: 10,
-            },
-          ]}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <MaterialIcons name="event-busy" size={18} color={withAlpha(Colors[theme].text, 0.8)} />
-            <Text style={[styles.modalLabelInline, { color: withAlpha(Colors[theme].text, 0.92), fontWeight: '800' }]}>Kein Datum</Text>
-          </View>
-          <MaterialIcons name="chevron-right" size={18} color={withAlpha(Colors[theme].text, 0.5)} />
-        </Pressable>
-
-        <View style={styles.pickerBlock}>
-          <DateTimePicker
-            value={dueDraft}
-            mode="date"
-            display={Platform.OS === 'ios' ? 'inline' : 'default'}
-            onChange={(_, date) => {
-              if (!date) return;
-              setDueDraft((prev) => normalizeDateWithTimeFlag(date, dueHasTimeDraft, prev));
-            }}
-          />
-        </View>
-
-        <View style={styles.modalRow}>
-          <Text style={[styles.modalLabelInline, { color: withAlpha(Colors[theme].text, 0.7) }]}>Zeit</Text>
-          <Switch value={dueHasTimeDraft} onValueChange={setDueHasTimeDraft} />
-        </View>
-
-        {
-          dueHasTimeDraft ? (
-            <View style={styles.pickerBlock}>
-              <DateTimePicker
-                value={dueDraft}
-                mode="time"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                onChange={(_, date) => {
-                  if (!date) return;
-                  setDueDraft((prev) => {
-                    const next = new Date(prev);
-                    next.setHours(date.getHours(), date.getMinutes(), 0, 0);
-                    return next;
-                  });
-                }}
-              />
-            </View>
-          ) : null
-        }
-      </SheetModal >
-
-      {/* Project Picker */}
-      < SheetModal visible={projectPickerOpen} onClose={() => setProjectPickerOpen(false)} theme={theme} hairline={hairline} >
-        <View style={styles.modalHeader}>
-          <Text style={[styles.modalTitle, { color: Colors[theme].text }]}>Projekt</Text>
-          <Pressable onPress={() => setCreateProjectOpen(true)} hitSlop={10}>
-            <Text style={[styles.modalDone, { color: withAlpha(Colors[theme].text, 0.9) }]}>Neu</Text>
-          </Pressable>
-        </View>
-
-        <Pressable
-          onPress={clearProject}
-          style={[
-            styles.projectRow,
-            {
-              borderColor: hairline,
-              backgroundColor: withAlpha(Colors[theme].text, isDark ? 0.04 : 0.03),
-            },
-          ]}
-        >
-          <Text style={styles.projectRowIcon}>—</Text>
-          <View style={styles.projectRowBody}>
-            <Text style={[styles.projectRowName, { color: Colors[theme].text }]}>Kein Projekt</Text>
-          </View>
-        </Pressable>
-
-        <ScrollView style={{ maxHeight: 520 }} showsVerticalScrollIndicator={false}>
-          {projects.map((p) => {
-            const active = p.id === task.projectId;
-            return (
-              <Pressable
-                key={p.id}
-                onPress={() => selectProject(p.id)}
-                style={[
-                  styles.projectRow,
-                  {
-                    borderColor: active ? withAlpha(p.color, 0.45) : hairline,
-                    backgroundColor: active
-                      ? withAlpha(p.color, isDark ? 0.18 : 0.12)
-                      : withAlpha(Colors[theme].text, isDark ? 0.04 : 0.03),
-                  },
-                ]}
-              >
-                <GlassSurface
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 14,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                  glassEffectStyle="regular"
-                  tintColor={withAlpha(p.color, 0.15)}
-                  fallbackBackgroundColor={withAlpha(p.color, 0.15)}
-                >
-                  <SFSymbol name={p.icon} size={20} color={p.color} />
-                </GlassSurface>
-                <View style={styles.projectRowBody}>
-                  <Text style={[styles.projectRowName, { color: Colors[theme].text }]}>{p.name}</Text>
-                  <View style={styles.projectRowMeta}>
-                    <View style={[styles.colorDot, { backgroundColor: p.color }]} />
-                    <Text style={[styles.projectRowColor, { color: withAlpha(Colors[theme].text, 0.6) }]}>{p.color}</Text>
-                  </View>
-                </View>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </SheetModal >
-
-      {/* Create Project */}
-      < SheetModal visible={createProjectOpen} onClose={() => setCreateProjectOpen(false)} theme={theme} hairline={hairline} >
-        <View style={styles.modalHeader}>
-          <Text style={[styles.modalTitle, { color: Colors[theme].text }]}>Neues Projekt</Text>
-          <Pressable onPress={createProject} hitSlop={10} disabled={!newProjectName.trim().length}>
-            <Text style={[styles.modalDone, { color: withAlpha(Colors[theme].text, newProjectName.trim().length ? 0.9 : 0.35) }]}>Erstellen</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.createRow}>
-          <Text style={[styles.modalLabel, { color: withAlpha(Colors[theme].text, 0.7) }]}>Name</Text>
-          <TextInput
-            value={newProjectName}
-            onChangeText={setNewProjectName}
-            placeholder="Projektname"
-            placeholderTextColor={placeholder}
-            style={[styles.createInput, { color: Colors[theme].text }]}
-          />
-        </View>
-
-        <Text style={[styles.modalLabel, { color: withAlpha(Colors[theme].text, 0.7), marginTop: 12 }]}>Icon</Text>
-        <View style={styles.swatchGrid}>
-          {PROJECT_ICON_SWATCHES.map((e) => (
-            <Pressable
-              key={e}
-              onPress={() => setNewProjectIcon(e)}
-              style={[
-                styles.emojiSwatch,
-                {
-                  borderColor: e === newProjectIcon ? withAlpha(accent, 0.7) : hairline,
-                  backgroundColor: withAlpha(Colors[theme].text, isDark ? 0.05 : 0.04),
-                },
-              ]}
-            >
-              <SFSymbol name={e} size={22} color={Colors[theme].text} />
-            </Pressable>
-          ))}
-        </View>
-
-        <Text style={[styles.modalLabel, { color: withAlpha(Colors[theme].text, 0.7), marginTop: 12 }]}>Farbe</Text>
-        <View style={styles.swatchGrid}>
-          {COLOR_SWATCHES.map((c) => (
-            <Pressable
-              key={c}
-              onPress={() => setNewProjectColor(c)}
-              style={[
-                styles.colorSwatch,
-                {
-                  backgroundColor: c,
-                  borderColor: newProjectColor === c ? withAlpha(Colors[theme].text, 0.6) : 'transparent',
-                },
-              ]}
-            />
-          ))}
-        </View>
-      </SheetModal >
 
       {/* Emoji + Color Picker */}
       < SheetModal visible={emojiPickerOpen} onClose={() => setEmojiPickerOpen(false)} theme={theme} hairline={hairline} >
@@ -1239,7 +960,7 @@ const createStyles = (theme: keyof typeof Colors) => {
     heroEmojiBg: {
       width: 72,
       height: 72,
-      borderRadius: 24,
+      borderRadius: 99,
       overflow: 'hidden',
       alignItems: 'center',
       justifyContent: 'center',

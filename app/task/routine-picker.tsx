@@ -2,8 +2,9 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
+import { withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
 import { RoutineType, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -35,35 +36,44 @@ export default function RoutinePickerScreen() {
     const { tasks, setTasks } = useTasksStore();
     const task = React.useMemo(() => tasks.find((t) => t.id === taskId), [tasks, taskId]);
 
-    const hairline = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)';
-
-    const updateTask = React.useCallback(
-        (updates: Partial<typeof task>) => {
-            if (!taskId) return;
-            setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...updates } : t)));
-        },
-        [taskId, setTasks]
+    // Local state for the selected routine
+    const [selectedType, setSelectedType] = React.useState<RoutineType | null | undefined>(
+        task?.isRoutine ? (task.routineType || task.routineInterval) : null
     );
 
-    const selectRoutine = React.useCallback(
-        (type: RoutineType | null) => {
-            if (type === null) {
-                updateTask({
-                    isRoutine: false,
-                    routineType: undefined,
-                    routineInterval: undefined,
-                });
-            } else {
-                updateTask({
-                    isRoutine: true,
-                    routineType: type,
-                    routineInterval: type as any,
-                });
-            }
-            router.back();
-        },
-        [updateTask, router]
-    );
+    // Initialize state when task loads (if not already set)
+    React.useEffect(() => {
+        if (task && selectedType === undefined) {
+            setSelectedType(task.isRoutine ? (task.routineType || task.routineInterval) : null);
+        }
+    }, [task]);
+
+    // Save changes
+    const handleSave = React.useCallback(() => {
+        if (!taskId) return;
+
+        if (selectedType === null) {
+            setTasks((prev) => prev.map((t) => (t.id === taskId ? {
+                ...t,
+                isRoutine: false,
+                routineType: undefined,
+                routineInterval: undefined,
+            } : t)));
+        } else {
+            setTasks((prev) => prev.map((t) => (t.id === taskId ? {
+                ...t,
+                isRoutine: true,
+                routineType: selectedType,
+                routineInterval: selectedType as any,
+            } : t)));
+        }
+        router.back();
+    }, [taskId, selectedType, setTasks, router]);
+
+    // Cancel changes
+    const handleCancel = React.useCallback(() => {
+        router.back();
+    }, [router]);
 
     if (!task) {
         return (
@@ -71,16 +81,9 @@ export default function RoutinePickerScreen() {
                 <Stack.Screen
                     options={{
                         presentation: 'formSheet',
-                        headerTitle: 'Add Wiederholung',
-                        headerLeft: () => (
-                            <Text style={styles.doneText}>Abbrechen </Text>
-                        ),
-                        headerRight: () => (
-                            <Text style={styles.doneText}>Speichern</Text>
-                        ),
-                        //sheetCornerRadius: 50,
-                        //contentStyle: { backgroundColor: 'transparent' },
-                        //headerShown: false,
+                        // sheetCornerRadius: 50,
+                        // contentStyle: { backgroundColor: 'transparent' },
+                        headerShown: true,
                     } as any}
                 />
                 <Text style={styles.errorText}>Task nicht gefunden</Text>
@@ -88,43 +91,46 @@ export default function RoutinePickerScreen() {
         );
     }
 
-    const currentType = task.isRoutine ? (task.routineType || task.routineInterval) : null;
+    const insets = useSafeAreaInsets();
 
     return (
         <View style={styles.container}>
             <Stack.Screen
                 options={{
                     presentation: 'formSheet',
-                    sheetCornerRadius: 50,
-                    contentStyle: { backgroundColor: 'transparent' },
-                    headerShown: false,
+                    headerTitle: 'Wiederholung',
+                    headerLeft: () => (
+                        <Pressable onPress={handleCancel} hitSlop={10} style={styles.iconButton}>
+                            <MaterialIcons name="close" size={24} color={Colors[theme].text} />
+                        </Pressable>
+                    ),
+                    headerRight: () => (
+                        <Pressable onPress={handleSave} hitSlop={10} style={styles.iconButton}>
+                            <MaterialIcons name="check" size={24} color={Colors[theme].text} />
+                        </Pressable>
+                    ),
+                    headerShown: true,
+                    headerStyle: {
+                        backgroundColor: isDark ? '#000000' : '#F2F2F7',
+                    },
+                    headerShadowVisible: false, // Optional: removes the hairline border if desired for cleaner look
                 } as any}
             />
 
-            <GlassSurface
-                style={styles.sheet}
-                glassEffectStyle="regular"
-                tintColor={withAlpha(Colors[theme].background, isDark ? 0.85 : 0.92)}
-                fallbackBackgroundColor={Colors[theme].background}
-            >
-                {/* Header */}
-                <View style={styles.header}>
-                    <View style={{ width: 60 }} />
-                    <Text style={styles.title}>Wiederholung</Text>
-                    <Pressable onPress={() => router.back()} hitSlop={10} style={styles.doneButton}>
-                        <Text style={styles.doneText}>Fertig</Text>
-                    </Pressable>
-                </View>
-
-                <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+            <View style={styles.sheet}>
+                <ScrollView
+                    style={styles.content}
+                    contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+                    showsVerticalScrollIndicator={false}
+                >
                     {ROUTINE_OPTIONS.map((option) => {
-                        const isActive = currentType === option.value;
+                        const isActive = selectedType === option.value;
                         const isNone = option.value === null;
 
                         return (
                             <Pressable
                                 key={option.label}
-                                onPress={() => selectRoutine(option.value)}
+                                onPress={() => setSelectedType(option.value)}
                                 style={[styles.optionRow, isActive && styles.optionRowActive]}
                             >
                                 <View style={[styles.optionIcon, { backgroundColor: withAlpha(isNone ? Colors[theme].text : '#0A84FF', isDark ? 0.15 : 0.12) }]}>
@@ -138,7 +144,7 @@ export default function RoutinePickerScreen() {
                         );
                     })}
                 </ScrollView>
-            </GlassSurface>
+            </View>
         </View>
     );
 }
@@ -151,38 +157,31 @@ const createStyles = (theme: ThemeName) => {
     return StyleSheet.create({
         container: {
             flex: 1,
+            backgroundColor: isDark ? '#000000' : '#F2F2F7',
         },
         sheet: {
             flex: 1,
-            borderTopLeftRadius: 50,
-            borderTopRightRadius: 50,
-            overflow: 'hidden',
+            backgroundColor: isDark ? '#000000' : '#F2F2F7',
+            // Header is natively handled, so no top radius needed if native sheet
+            // but if we want the glass effect to fill the sheet:
+            // borderTopLeftRadius: 0,
+            // borderTopRightRadius: 0,
+            // overflow: 'hidden',
         },
-        header: {
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            paddingHorizontal: 20,
-            paddingTop: 20,
-            paddingBottom: 12,
-        },
-        title: {
-            fontSize: 17,
-            fontWeight: '700',
-            color: text,
-        },
-        doneButton: {
-            width: 60,
-            alignItems: 'flex-end',
-        },
+        // Header styles removed
         doneText: {
             fontSize: 17,
             fontWeight: '600',
             color: '#0A84FF',
         },
+        cancelText: {
+            fontSize: 17,
+            color: '#0A84FF',
+        },
         content: {
             flex: 1,
-            paddingHorizontal: 16,
+            padding: 16,
+            backgroundColor: isDark ? '#000000' : '#F2F2F7',
         },
         errorText: {
             fontSize: 16,
@@ -203,6 +202,7 @@ const createStyles = (theme: ThemeName) => {
             backgroundColor: withAlpha(text, isDark ? 0.04 : 0.03),
         },
         optionRowActive: {
+            borderWidth: StyleSheet.hairlineWidth,
             borderColor: withAlpha('#0A84FF', 0.45),
             backgroundColor: withAlpha('#0A84FF', isDark ? 0.18 : 0.12),
         },
@@ -221,6 +221,12 @@ const createStyles = (theme: ThemeName) => {
             fontSize: 16,
             fontWeight: '600',
             color: text,
+        },
+        iconButton: {
+            width: 32,
+            height: 32,
+            alignItems: 'center',
+            justifyContent: 'center',
         },
     });
 };

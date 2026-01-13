@@ -251,8 +251,14 @@ export default function ProjectDetailScreen() {
                         headerTintColor: Colors[theme].tint,
                         headerStyle: { backgroundColor: 'transparent' },
                         headerRight: () => (
-                            <Pressable onPress={onEditProject} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1, padding: 8 })}>
-                                <MaterialIcons name="edit" size={24} color={Colors[theme].tint} />
+                            <Pressable onPress={onEditProject} style={({ pressed }) => ({
+                                opacity: pressed ? 0.6 : 1,
+                                width: 32,
+                                height: 32,
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            })}>
+                                <MaterialIcons name="edit" size={24} color={Colors[theme].text} />
                             </Pressable>
                         ),
                     }}

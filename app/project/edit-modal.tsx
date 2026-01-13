@@ -2,7 +2,8 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SFSymbol } from '@/components/ui/sfsymbol';
 import { Colors } from '@/constants/theme';
@@ -113,96 +114,106 @@ export default function ProjectEditScreen() {
 
     const headerTitle = isCreate ? 'Neues Projekt' : 'Projekt bearbeiten';
 
+    const insets = useSafeAreaInsets();
+
     return (
-        <KeyboardAvoidingView
-            style={{ flex: 1 }}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 70 : 0}
-        >
-            <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-                <Stack.Screen
-                    options={{
-                        title: headerTitle,
-                        headerRight: () => (
-                            <Pressable onPress={onSave} disabled={!name.trim()}>
-                                <View style={!name.trim() ? styles.disabledButton : undefined}>
-                                    <SFSymbol name="checkmark" size={18} color={Colors[theme].tint} weight="bold" />
-                                </View>
-                            </Pressable>
-                        ),
-                    }}
-                />
-
-                <View style={styles.formGroup}>
-                    <View style={styles.iconPreview}>
-                        <SFSymbol name={icon} size={28} color={color} />
+        <View style={styles.container}>
+            <Stack.Screen
+                options={{
+                    title: headerTitle,
+                    headerLeft: () => (
+                        <Pressable onPress={() => router.back()} hitSlop={10} style={styles.iconButton}>
+                            <MaterialIcons name="close" size={24} color={Colors[theme].text} />
+                        </Pressable>
+                    ),
+                    headerRight: () => (
+                        <Pressable onPress={onSave} disabled={!name.trim()} hitSlop={10} style={styles.iconButton}>
+                            <MaterialIcons name="check" size={24} color={name.trim() ? Colors[theme].text : Colors[theme].icon} />
+                        </Pressable>
+                    ),
+                    headerShown: true,
+                    headerStyle: {
+                        backgroundColor: isDark ? '#000000' : '#F2F2F7',
+                    },
+                    headerShadowVisible: false,
+                } as any}
+            />
+            <View style={styles.sheet}>
+                <ScrollView
+                    style={styles.content}
+                    contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 40 }}
+                >
+                    <View style={styles.formGroup}>
+                        <View style={styles.iconPreview}>
+                            <SFSymbol name={icon} size={28} color={color} />
+                        </View>
+                        <TextInput
+                            style={styles.nameInput}
+                            value={name}
+                            onChangeText={setName}
+                            placeholder="Projektname"
+                            placeholderTextColor={Colors[theme].text + '40'}
+                            autoFocus
+                        />
                     </View>
-                    <TextInput
-                        style={styles.nameInput}
-                        value={name}
-                        onChangeText={setName}
-                        placeholder="Projektname"
-                        placeholderTextColor={Colors[theme].text + '40'}
-                        autoFocus
-                    />
-                </View>
 
-                {/* Description Field */}
-                <View style={styles.formGroup}>
-                    <TextInput
-                        style={[styles.nameInput, { fontSize: 15, height: 60 }]}
-                        value={description}
-                        onChangeText={setDescription}
-                        placeholder="Beschreibung (optional)"
-                        placeholderTextColor={Colors[theme].text + '40'}
-                        multiline
-                    />
-                </View>
-
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Icon</Text>
-                    <View style={styles.grid}>
-                        {ICON_PRESETS.map(c => (
-                            <Pressable
-                                key={c}
-                                onPress={() => setIcon(c)}
-                                style={[
-                                    styles.swatch,
-                                    icon === c && styles.selectedSwatch
-                                ]}
-                            >
-                                <SFSymbol name={c} size={24} color={icon === c ? Colors[theme].tint : Colors[theme].text} />
-                            </Pressable>
-                        ))}
+                    {/* Description Field */}
+                    <View style={styles.formGroup}>
+                        <TextInput
+                            style={[styles.nameInput, { fontSize: 15, height: 60 }]}
+                            value={description}
+                            onChangeText={setDescription}
+                            placeholder="Beschreibung (optional)"
+                            placeholderTextColor={Colors[theme].text + '40'}
+                            multiline
+                        />
                     </View>
-                </View>
 
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Farbe</Text>
-                    <View style={styles.grid}>
-                        {COLOR_PRESETS.map(c => (
-                            <Pressable
-                                key={c}
-                                onPress={() => setColor(c)}
-                                style={[
-                                    styles.colorSwatch,
-                                    { backgroundColor: c },
-                                    color === c && styles.selectedSwatch
-                                ]}
-                            />
-                        ))}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Icon</Text>
+                        <View style={styles.grid}>
+                            {ICON_PRESETS.map(c => (
+                                <Pressable
+                                    key={c}
+                                    onPress={() => setIcon(c)}
+                                    style={[
+                                        styles.swatch,
+                                        icon === c && styles.selectedSwatch
+                                    ]}
+                                >
+                                    <SFSymbol name={c} size={24} color={icon === c ? Colors[theme].tint : Colors[theme].text} />
+                                </Pressable>
+                            ))}
+                        </View>
                     </View>
-                </View>
 
-                {!isCreate ? (
-                    <Pressable onPress={onDelete} style={styles.deleteButton}>
-                        <MaterialIcons name="delete-outline" size={20} color="#FF3B30" />
-                        <Text style={styles.deleteText}>Projekt löschen</Text>
-                    </Pressable>
-                ) : null}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Farbe</Text>
+                        <View style={styles.grid}>
+                            {COLOR_PRESETS.map(c => (
+                                <Pressable
+                                    key={c}
+                                    onPress={() => setColor(c)}
+                                    style={[
+                                        styles.colorSwatch,
+                                        { backgroundColor: c },
+                                        color === c && styles.selectedSwatch
+                                    ]}
+                                />
+                            ))}
+                        </View>
+                    </View>
 
-            </ScrollView>
-        </KeyboardAvoidingView>
+                    {!isCreate ? (
+                        <Pressable onPress={onDelete} style={styles.deleteButton}>
+                            <MaterialIcons name="delete-outline" size={20} color="#FF3B30" />
+                            <Text style={styles.deleteText}>Projekt löschen</Text>
+                        </Pressable>
+                    ) : null}
+
+                </ScrollView>
+            </View>
+        </View>
     );
 }
 
@@ -210,11 +221,14 @@ const createStyles = (theme: 'light' | 'dark') =>
     StyleSheet.create({
         container: {
             flex: 1,
-            backgroundColor: theme === 'dark' ? '#1C1C1E' : '#F2F2F7',
+            backgroundColor: theme === 'dark' ? '#000000' : '#F2F2F7',
         },
         content: {
-            padding: 16,
-            paddingBottom: 40,
+            flex: 1,
+        },
+        sheet: {
+            flex: 1,
+            backgroundColor: theme === 'dark' ? '#000000' : '#F2F2F7',
         },
         formGroup: {
             backgroundColor: theme === 'dark' ? '#2C2C2E' : '#FFFFFF',
@@ -297,5 +311,11 @@ const createStyles = (theme: 'light' | 'dark') =>
             fontSize: 17,
             color: '#FF3B30',
             fontWeight: '500',
-        }
+        },
+        iconButton: {
+            width: 32,
+            height: 32,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
     });

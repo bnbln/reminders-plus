@@ -18,17 +18,17 @@ const getRoutineLabel = (task: Task): string => {
   if (!type) return 'Routine';
 
   switch (type) {
+    case 'hourly': return 'Stündlich';
     case 'daily': return 'Täglich';
+    case 'weekdays': return 'An Wochentagen';
+    case 'weekends': return 'An Wochenenden';
     case 'weekly': return 'Wöchentlich';
-    case 'weekday':
-      return `Jeden ${['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'][task.routineWeekday ?? 0]}`;
+    case 'biweekly': return 'Alle 2 Wochen';
     case 'monthly': return 'Monatlich';
-    case 'nth-weekday':
-      return `${NTH_LABELS[(task.routineNthWeek ?? 1) - 1]} ${['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'][task.routineWeekday ?? 0]}`;
-    case 'first-of-month': return '1. im Monat';
-    case 'last-of-month': return 'Letzter Tag';
+    case 'quarterly': return 'Alle 3 Monate';
+    case 'biannually': return 'Alle 6 Monate';
     case 'yearly': return 'Jährlich';
-    case 'yearly-date': return 'Jährlich am Datum';
+    case 'custom': return 'Eigene';
     default: return 'Routine';
   }
 };
@@ -362,9 +362,9 @@ export default function RoutinesScreen() {
             {routineTasks.map((routine) => {
               const intervalLabel = getRoutineLabel(routine);
               const type = routine.routineType || routine.routineInterval;
-              const intervalColor = type === 'daily' ? '#0A84FF' :
-                type === 'weekly' || type === 'weekday' ? '#8B5CF6' :
-                  type === 'monthly' || type === 'nth-weekday' || type === 'first-of-month' || type === 'last-of-month' ? '#F59E0B' : '#10B981';
+              const intervalColor = (type === 'daily' || type === 'hourly') ? '#0A84FF' :
+                (type === 'weekly' || type === 'weekdays' || type === 'weekends' || type === 'biweekly') ? '#8B5CF6' :
+                  (type === 'monthly' || type === 'quarterly' || type === 'biannually') ? '#F59E0B' : '#10B981';
 
               return (
                 <Pressable

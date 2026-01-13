@@ -1,6 +1,7 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import React from 'react';
-import { Button, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
@@ -24,30 +25,27 @@ export default function ModalScreen() {
   };
 
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView style={[styles.container, { backgroundColor: theme === 'dark' ? '#000000' : '#F2F2F7' }]}>
       <Stack.Screen
         options={{
           title: 'Neue Aufgabe',
           headerLeft: () => (
-            <Button
-              onPress={handleCancel}
-              title="Abbrechen"
-              color={theme === 'dark' ? '#0A84FF' : '#007AFF'}
-            />
+            <Pressable onPress={handleCancel} hitSlop={10} style={styles.iconButton}>
+              <MaterialIcons name="close" size={24} color={Colors[theme].text} />
+            </Pressable>
           ),
           headerRight: () => (
-            <Button
-              onPress={handleAdd}
-              title="Hinzufügen"
-              disabled={!canSubmit}
-            // Bold weight isn't directly settable on standard RN Button but it's the standard look. 
-            // We could use a custom Text inside a Pressable if we want specifically "Done" style bolding, 
-            // but Button is the most "native" behaving component for headers usually.
-            />
+            <Pressable onPress={handleAdd} disabled={!canSubmit} hitSlop={10} style={styles.iconButton}>
+              <MaterialIcons name="check" size={24} color={canSubmit ? Colors[theme].text : Colors[theme].icon} />
+            </Pressable>
           ),
           headerLargeTitle: false,
-          presentation: 'modal',
-        }}
+          headerShown: true,
+          headerStyle: {
+            backgroundColor: theme === 'dark' ? '#000000' : '#F2F2F7',
+          },
+          headerShadowVisible: false,
+        } as any}
       />
 
       <View style={styles.content}>
@@ -73,6 +71,7 @@ export default function ModalScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#F2F2F7', // Will be overridden by ThemedView but good default
   },
   content: {
     padding: 16,
@@ -83,5 +82,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 12,
     fontSize: 17, // Standard iOS body size
+    color: '#000', // Default text color for input if not set, though it's overridden below
+  },
+  iconButton: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

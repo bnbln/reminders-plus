@@ -159,14 +159,35 @@ export function getNextRoutineDate(
   const now = new Date();
   const base = currentDueAt > 0 ? new Date(currentDueAt) : now;
   let next = new Date(base);
-
   switch (routineType) {
+    case 'hourly':
+      next.setHours(next.getHours() + 1);
+      break;
+
     case 'daily':
       next.setDate(next.getDate() + 1);
       break;
 
+    case 'weekdays':
+      // Move to next day until it's Mon-Fri (1-5)
+      do {
+        next.setDate(next.getDate() + 1);
+      } while (next.getDay() === 0 || next.getDay() === 6);
+      break;
+
+    case 'weekends':
+      // Move to next day until it's Sat-Sun (6, 0)
+      do {
+        next.setDate(next.getDate() + 1);
+      } while (next.getDay() !== 0 && next.getDay() !== 6);
+      break;
+
     case 'weekly':
       next.setDate(next.getDate() + 7);
+      break;
+
+    case 'biweekly':
+      next.setDate(next.getDate() + 14);
       break;
 
     case 'monthly':
@@ -177,62 +198,39 @@ export function getNextRoutineDate(
       }
       break;
 
+    case 'quarterly':
+      next.setMonth(next.getMonth() + 3);
+      if (typeof options.monthDay === 'number' && options.monthDay >= 1) {
+        const maxDay = getLastDayOfMonth(next.getFullYear(), next.getMonth()).getDate();
+        next.setDate(Math.min(options.monthDay, maxDay));
+      }
+      break;
+
+    case 'biannually':
+      next.setMonth(next.getMonth() + 6);
+      if (typeof options.monthDay === 'number' && options.monthDay >= 1) {
+        const maxDay = getLastDayOfMonth(next.getFullYear(), next.getMonth()).getDate();
+        next.setDate(Math.min(options.monthDay, maxDay));
+      }
+      break;
+
     case 'yearly':
       next.setFullYear(next.getFullYear() + 1);
-      break;
-
-    case 'weekday':
-      // Every specific weekday (e.g., every Tuesday)
-      const targetWeekday = options.weekday ?? base.getDay();
-      next.setDate(next.getDate() + 1); // Start from tomorrow
-      while (next.getDay() !== targetWeekday) {
-        next.setDate(next.getDate() + 1);
+      if (typeof options.month === 'number' && typeof options.monthDay === 'number') {
+        const targetMonth = options.month;
+        const targetDay = options.monthDay;
+        next.setMonth(targetMonth);
+        const maxDay = getLastDayOfMonth(next.getFullYear(), targetMonth).getDate();
+        next.setDate(Math.min(targetDay, maxDay));
       }
       break;
 
-    case 'nth-weekday':
-      // Nth weekday of month (e.g., 2nd Tuesday)
-      const nthWeekday = options.weekday ?? base.getDay();
-      const nthWeek = options.nthWeek ?? 1;
-      // Try current month first, then next months
-      let tryMonth = next.getMonth();
-      let tryYear = next.getFullYear();
-      for (let i = 0; i < 12; i++) {
-        const candidate = getNthWeekdayOfMonth(tryYear, tryMonth, nthWeekday, nthWeek);
-        if (candidate.getTime() > now.getTime() && candidate.getMonth() === tryMonth) {
-          next = candidate;
-          break;
-        }
-        tryMonth++;
-        if (tryMonth > 11) {
-          tryMonth = 0;
-          tryYear++;
-        }
-      }
-      break;
-
-    case 'first-of-month':
-      next.setMonth(next.getMonth() + 1);
-      next.setDate(1);
-      break;
-
-    case 'last-of-month':
-      next.setMonth(next.getMonth() + 1);
-      next = getLastDayOfMonth(next.getFullYear(), next.getMonth());
-      break;
-
-    case 'yearly-date':
-      const targetMonth = options.month ?? base.getMonth();
-      const targetDay = options.monthDay ?? base.getDate();
-      next.setFullYear(next.getFullYear() + 1);
-      next.setMonth(targetMonth);
-      const maxDayForMonth = getLastDayOfMonth(next.getFullYear(), targetMonth).getDate();
-      next.setDate(Math.min(targetDay, maxDayForMonth));
+    case 'custom':
+      // Fallback for custom: daily for now, can be sophisticated later
+      next.setDate(next.getDate() + 1);
       break;
   }
 
-  // Preserve original time
-  next.setHours(base.getHours(), base.getMinutes(), base.getSeconds(), base.getMilliseconds());
 
   // If next date is still in the past, recursively advance
   if (next.getTime() <= now.getTime()) {

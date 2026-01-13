@@ -31,25 +31,48 @@ export default function RootLayout() {
               <Stack.Screen
                 name="task/create-modal"
                 options={{
-                  presentation: 'transparentModal',
-                  headerShown: false,
+                  presentation: 'formSheet',
                   contentStyle: { backgroundColor: 'transparent' },
-                  animation: 'fade',
                 }}
               />
               <Stack.Screen
                 name="task/routine-picker"
                 options={{
                   presentation: 'formSheet',
-                  sheetCornerRadius: 50,
                   contentStyle: { backgroundColor: 'transparent' },
-                  headerShown: false,
                 } as any}
+              />
+              <Stack.Screen
+                name="task/date-picker"
+                options={{
+                  presentation: 'formSheet',
+                  contentStyle: { backgroundColor: 'transparent' },
+                }}
+              />
+              <Stack.Screen
+                name="task/project-picker"
+                options={{
+                  presentation: 'formSheet',
+                  contentStyle: { backgroundColor: 'transparent' },
+                }}
               />
               <Stack.Screen name="task/[id]" options={{ title: 'Task' }} />
               <Stack.Screen name="project/[id]" options={{ title: 'Projekt' }} />
-              <Stack.Screen name="project/edit-modal" options={{ presentation: 'modal', title: 'Projekt bearbeiten' }} />
-              <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+              <Stack.Screen
+                name="project/edit-modal"
+                options={{
+                  presentation: 'formSheet',
+                  contentStyle: { backgroundColor: 'transparent' },
+                }}
+              />
+              <Stack.Screen
+                name="modal"
+                options={{
+                  presentation: 'formSheet',
+                  contentStyle: { backgroundColor: 'transparent' },
+                  title: 'Modal'
+                }}
+              />
             </Stack>
             <StatusBar style="auto" />
           </ThemeProvider>
