@@ -3,29 +3,29 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Modal,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import Animated, {
-    useAnimatedKeyboard,
-    useAnimatedStyle,
-    useSharedValue,
-    withTiming,
+  useAnimatedKeyboard,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
 } from 'react-native-reanimated';
 
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { SFSymbol } from '@/components/ui/sfsymbol';
 import { Colors } from '@/constants/theme';
-import { getDueAtForSection, Project, Subtask, Task, useTasksStore } from '@/context/tasks-store';
+import { getDueAtForSection, getNextRoutineDate, Project, RoutineType, Subtask, Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 const COLOR_SWATCHES = [
@@ -96,6 +96,40 @@ const PROJECT_ICON_SWATCHES = [
   'photo.artframe',
 ] as const;
 
+const ROUTINE_OPTIONS: { value: RoutineType; label: string; sublabel?: string; icon: keyof typeof MaterialIcons.glyphMap }[] = [
+  { value: 'daily', label: 'Täglich', icon: 'today' },
+  { value: 'weekly', label: 'Wöchentlich', icon: 'date-range' },
+  { value: 'weekday', label: 'Bestimmter Wochentag', sublabel: 'z.B. jeden Dienstag', icon: 'event-repeat' },
+  { value: 'monthly', label: 'Monatlich', sublabel: 'am gleichen Tag', icon: 'calendar-today' },
+  { value: 'nth-weekday', label: 'N-ter Wochentag', sublabel: 'z.B. 2. Dienstag im Monat', icon: 'event-available' },
+  { value: 'first-of-month', label: 'Erster Tag im Monat', icon: 'first-page' },
+  { value: 'last-of-month', label: 'Letzter Tag im Monat', icon: 'last-page' },
+  { value: 'yearly', label: 'Jährlich', icon: 'event' },
+  { value: 'yearly-date', label: 'Jährlich am Datum', sublabel: 'bestimmtes Datum', icon: 'cake' },
+];
+
+const WEEKDAY_NAMES = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+const NTH_LABELS = ['1.', '2.', '3.', '4.'];
+
+const getRoutineLabel = (task: Task): string => {
+  const type = task.routineType || task.routineInterval;
+  if (!type) return 'Nicht aktiv';
+
+  switch (type) {
+    case 'daily': return 'Täglich';
+    case 'weekly': return 'Wöchentlich';
+    case 'weekday':
+      return `Jeden ${WEEKDAY_NAMES[task.routineWeekday ?? 0]}`;
+    case 'monthly': return 'Monatlich';
+    case 'nth-weekday':
+      return `${NTH_LABELS[(task.routineNthWeek ?? 1) - 1]} ${WEEKDAY_NAMES[task.routineWeekday ?? 0]} im Monat`;
+    case 'first-of-month': return 'Erster Tag im Monat';
+    case 'last-of-month': return 'Letzter Tag im Monat';
+    case 'yearly': return 'Jährlich';
+    case 'yearly-date': return 'Jährlich am Datum';
+    default: return 'Routine';
+  }
+};
 
 
 const COMPLETE_GREEN = '#34C759';
@@ -311,6 +345,33 @@ export default function TaskViewScreen() {
       );
       return;
     }
+
+    // For routine tasks: reschedule to next occurrence instead of completing
+    const routineType = task.routineType || task.routineInterval;
+    if (task.isRoutine && routineType) {
+      const nextDue = getNextRoutineDate(
+        task.dueAt,
+        routineType,
+        {
+          weekday: task.routineWeekday,
+          nthWeek: task.routineNthWeek,
+          monthDay: task.routineMonthDay,
+          month: task.routineMonth,
+        }
+      );
+      const nextSection = nextDue > 0 ? (
+        new Date(nextDue).toDateString() === new Date().toDateString() ? 'today' : 'upcoming'
+      ) : 'upcoming';
+
+      updateTask({
+        dueAt: nextDue,
+        section: nextSection as 'today' | 'upcoming',
+        // Reset subtasks for next occurrence
+        subtasks: task.subtasks?.map(s => ({ ...s, done: false })),
+      });
+      return;
+    }
+
     updateTask({ section: 'completed', completedAt: Date.now() });
   }, [task, updateTask]);
 
@@ -407,7 +468,46 @@ export default function TaskViewScreen() {
   // Emoji + color picker (task emoji + project color)
   const [emojiPickerOpen, setEmojiPickerOpen] = React.useState(false);
 
+  // Routine picker
+  const [routinePickerOpen, setRoutinePickerOpen] = React.useState(false);
+
   const onPickEmoji = React.useCallback((emoji: string) => updateTask({ emoji }), [updateTask]);
+
+  const onToggleRoutine = React.useCallback((enabled: boolean) => {
+    if (enabled) {
+      updateTask({ isRoutine: true, routineType: 'daily' });
+    } else {
+      updateTask({
+        isRoutine: undefined,
+        routineType: undefined,
+        routineInterval: undefined,
+        routineWeekday: undefined,
+        routineNthWeek: undefined,
+        routineMonthDay: undefined,
+        routineMonth: undefined,
+      });
+    }
+  }, [updateTask]);
+
+  const onSelectRoutineType = React.useCallback((type: RoutineType, options?: { weekday?: number; nthWeek?: number }) => {
+    const patch: Partial<Task> = { routineType: type };
+    if (options?.weekday !== undefined) patch.routineWeekday = options.weekday;
+    if (options?.nthWeek !== undefined) patch.routineNthWeek = options.nthWeek;
+    updateTask(patch);
+    setRoutinePickerOpen(false);
+  }, [updateTask]);
+
+  const clearRoutine = React.useCallback(() => {
+    updateTask({
+      isRoutine: undefined,
+      routineType: undefined,
+      routineInterval: undefined,
+      routineWeekday: undefined,
+      routineNthWeek: undefined,
+      routineMonthDay: undefined,
+      routineMonth: undefined,
+    });
+  }, [updateTask]);
 
   const onPickProjectColor = React.useCallback(
     (color: string) => {
@@ -611,17 +711,51 @@ export default function TaskViewScreen() {
 
         <View style={[styles.divider, { backgroundColor: hairline }]} />
 
-        <FormField label="Location" icon="place" accent={neutralAccent} theme={theme}>
+        <FormField label="Location" icon="place" accent={task.location ? '#0A84FF' : neutralAccent} theme={theme}>
           <View style={styles.locationRow}>
             <TextInput
               value={task.location ?? ''}
               onChangeText={(v) => updateTask({ location: v.trim().length ? v : undefined })}
               placeholder="Ort"
               placeholderTextColor={placeholder}
-              style={[styles.fieldInput, { color: Colors[theme].text }]}
+              style={[styles.fieldInput, { color: Colors[theme].text, flex: 1 }]}
             />
             <Pressable onPress={onUseCurrentLocation} hitSlop={10} style={styles.inlineIconBtn}>
               {isLocating ? <ActivityIndicator size="small" /> : <MaterialIcons name="my-location" size={18} color={withAlpha(Colors[theme].text, 0.75)} />}
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Ort entfernen"
+              onPress={() => updateTask({ location: undefined })}
+              disabled={!task.location}
+              hitSlop={10}
+              style={[styles.inlineIconBtn, !task.location ? { opacity: 0.35 } : null]}
+            >
+              <MaterialIcons name="close" size={18} color={withAlpha(Colors[theme].text, 0.75)} />
+            </Pressable>
+          </View>
+        </FormField>
+
+        <View style={[styles.divider, { backgroundColor: hairline }]} />
+
+        <FormField label="Routine" icon="loop" accent={task.isRoutine ? '#0A84FF' : neutralAccent} theme={theme}>
+          <View style={styles.locationRow}>
+            <Pressable onPress={() => setRoutinePickerOpen(true)} style={[styles.rowButton, { flex: 1 }]}>
+              <Text style={[styles.valueText, { color: withAlpha(Colors[theme].text, task.isRoutine ? 0.92 : 0.55) }]}>
+                {task.isRoutine ? getRoutineLabel(task) : 'Keine Routine'}
+              </Text>
+              <MaterialIcons name="chevron-right" size={18} color={withAlpha(Colors[theme].text, 0.5)} />
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Routine entfernen"
+              onPress={clearRoutine}
+              disabled={!task.isRoutine}
+              hitSlop={10}
+              style={[styles.inlineIconBtn, !task.isRoutine ? { opacity: 0.35 } : null]}
+            >
+              <MaterialIcons name="close" size={18} color={withAlpha(Colors[theme].text, 0.75)} />
             </Pressable>
           </View>
         </FormField>
@@ -982,6 +1116,141 @@ export default function TaskViewScreen() {
           )
         }
       </SheetModal >
+
+      {/* Routine Picker */}
+      <SheetModal visible={routinePickerOpen} onClose={() => setRoutinePickerOpen(false)} theme={theme} hairline={hairline}>
+        <View style={styles.modalHeader}>
+          <Text style={[styles.modalTitle, { color: Colors[theme].text }]}>Wiederholung</Text>
+          <Pressable onPress={() => setRoutinePickerOpen(false)} hitSlop={10}>
+            <Text style={[styles.modalDone, { color: withAlpha(Colors[theme].text, 0.9) }]}>Fertig</Text>
+          </Pressable>
+        </View>
+
+        {/* No Routine Option */}
+        <Pressable
+          onPress={() => { clearRoutine(); setRoutinePickerOpen(false); }}
+          style={[
+            styles.projectRow,
+            {
+              borderColor: !task.isRoutine ? withAlpha('#0A84FF', 0.45) : hairline,
+              backgroundColor: !task.isRoutine
+                ? withAlpha('#0A84FF', isDark ? 0.18 : 0.12)
+                : withAlpha(Colors[theme].text, isDark ? 0.04 : 0.03),
+            },
+          ]}
+        >
+          <View style={[styles.inlineIconBtn, { backgroundColor: withAlpha(Colors[theme].text, isDark ? 0.08 : 0.06) }]}>
+            <MaterialIcons name="block" size={20} color={withAlpha(Colors[theme].text, 0.6)} />
+          </View>
+          <View style={styles.projectRowBody}>
+            <Text style={[styles.projectRowName, { color: Colors[theme].text }]}>Keine Routine</Text>
+          </View>
+          {!task.isRoutine && <MaterialIcons name="check" size={20} color="#0A84FF" />}
+        </Pressable>
+
+        <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
+          {ROUTINE_OPTIONS.map((option) => {
+            const currentType = task.routineType || task.routineInterval;
+            const isActive = task.isRoutine && currentType === option.value;
+
+            // For weekday-based options, show additional weekday selection
+            const needsWeekday = option.value === 'weekday' || option.value === 'nth-weekday';
+
+            return (
+              <Pressable
+                key={option.value}
+                onPress={() => {
+                  if (!task.isRoutine) {
+                    onToggleRoutine(true);
+                  }
+                  // For simple types, just set the type directly
+                  if (!needsWeekday) {
+                    onSelectRoutineType(option.value);
+                  } else {
+                    // For weekday types, use current day as default
+                    const currentWeekday = task.routineWeekday ?? new Date().getDay();
+                    const nthWeek = option.value === 'nth-weekday' ? (task.routineNthWeek ?? 1) : undefined;
+                    onSelectRoutineType(option.value, { weekday: currentWeekday, nthWeek });
+                  }
+                }}
+                style={[
+                  styles.projectRow,
+                  {
+                    borderColor: isActive ? withAlpha('#0A84FF', 0.45) : hairline,
+                    backgroundColor: isActive
+                      ? withAlpha('#0A84FF', isDark ? 0.18 : 0.12)
+                      : withAlpha(Colors[theme].text, isDark ? 0.04 : 0.03),
+                  },
+                ]}
+              >
+                <View style={[styles.inlineIconBtn, { backgroundColor: withAlpha('#0A84FF', isDark ? 0.15 : 0.12) }]}>
+                  <MaterialIcons name={option.icon} size={20} color="#0A84FF" />
+                </View>
+                <View style={styles.projectRowBody}>
+                  <Text style={[styles.projectRowName, { color: Colors[theme].text }]}>{option.label}</Text>
+                  {option.sublabel && (
+                    <Text style={[styles.projectRowColor, { color: withAlpha(Colors[theme].text, 0.5) }]}>{option.sublabel}</Text>
+                  )}
+                </View>
+                {isActive && <MaterialIcons name="check" size={20} color="#0A84FF" />}
+              </Pressable>
+            );
+          })}
+
+          {/* Weekday selector for weekday-based routines */}
+          {task.isRoutine && (task.routineType === 'weekday' || task.routineType === 'nth-weekday') && (
+            <>
+              <Text style={[styles.modalLabel, { color: withAlpha(Colors[theme].text, 0.7), marginTop: 16, marginBottom: 8 }]}>Wochentag</Text>
+              <View style={styles.swatchGrid}>
+                {WEEKDAY_NAMES.map((name, idx) => (
+                  <Pressable
+                    key={idx}
+                    onPress={() => updateTask({ routineWeekday: idx })}
+                    style={[
+                      styles.emojiSwatch,
+                      { minWidth: 44 },
+                      {
+                        borderColor: task.routineWeekday === idx ? withAlpha('#0A84FF', 0.7) : hairline,
+                        backgroundColor: task.routineWeekday === idx
+                          ? withAlpha('#0A84FF', isDark ? 0.2 : 0.15)
+                          : withAlpha(Colors[theme].text, isDark ? 0.05 : 0.04),
+                      },
+                    ]}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: Colors[theme].text }}>{name.slice(0, 2)}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          )}
+
+          {/* Nth week selector for nth-weekday */}
+          {task.isRoutine && task.routineType === 'nth-weekday' && (
+            <>
+              <Text style={[styles.modalLabel, { color: withAlpha(Colors[theme].text, 0.7), marginTop: 12, marginBottom: 8 }]}>Welche Woche</Text>
+              <View style={styles.swatchGrid}>
+                {NTH_LABELS.map((label, idx) => (
+                  <Pressable
+                    key={idx}
+                    onPress={() => updateTask({ routineNthWeek: idx + 1 })}
+                    style={[
+                      styles.emojiSwatch,
+                      {
+                        borderColor: task.routineNthWeek === idx + 1 ? withAlpha('#0A84FF', 0.7) : hairline,
+                        backgroundColor: task.routineNthWeek === idx + 1
+                          ? withAlpha('#0A84FF', isDark ? 0.2 : 0.15)
+                          : withAlpha(Colors[theme].text, isDark ? 0.05 : 0.04),
+                      },
+                    ]}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: Colors[theme].text }}>{label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          )}
+        </ScrollView>
+      </SheetModal>
 
       <Animated.View style={animatedSpacerStyle} />
     </ScrollView >

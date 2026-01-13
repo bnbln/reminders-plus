@@ -249,6 +249,10 @@ export default function HomeScreen() {
     return new Intl.DateTimeFormat('de-DE', { weekday: 'short', day: '2-digit', month: 'short' }).format(now);
   }, []);
 
+  const routineTasksCount = React.useMemo(() => {
+    return tasks.filter((t) => !t.deletedAt && t.isRoutine && (!!t.routineType || !!t.routineInterval)).length;
+  }, [tasks]);
+
   const quickTiles = React.useMemo<QuickTile[]>(() => {
     return [
       {
@@ -268,7 +272,7 @@ export default function HomeScreen() {
       {
         key: 'routines',
         title: 'Routinen',
-        subtitle: '4 wiederkehrende Aufgaben',
+        subtitle: `${routineTasksCount} wiederkehrend`,
         icon: 'loop',
         onPress: () => router.push('/home/routines'),
       },
@@ -280,7 +284,7 @@ export default function HomeScreen() {
         onPress: () => router.push('/home/today'),
       },
     ];
-  }, [currentStreak, inboxTasks.length, router, todayLabel]);
+  }, [currentStreak, inboxTasks.length, routineTasksCount, router, todayLabel]);
 
   const quickNavTheme = React.useMemo<QuickNavTheme>(() => {
     const text = Colors[theme].text;

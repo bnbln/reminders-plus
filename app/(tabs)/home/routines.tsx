@@ -1,92 +1,402 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import React, { useMemo } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
+import { Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+
+type ThemeName = keyof typeof Colors;
+
+const WEEKDAY_NAMES = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+const NTH_LABELS = ['1.', '2.', '3.', '4.'];
+
+const getRoutineLabel = (task: Task): string => {
+  const type = task.routineType || task.routineInterval;
+  if (!type) return 'Routine';
+
+  switch (type) {
+    case 'daily': return 'Täglich';
+    case 'weekly': return 'Wöchentlich';
+    case 'weekday':
+      return `Jeden ${['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'][task.routineWeekday ?? 0]}`;
+    case 'monthly': return 'Monatlich';
+    case 'nth-weekday':
+      return `${NTH_LABELS[(task.routineNthWeek ?? 1) - 1]} ${['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'][task.routineWeekday ?? 0]}`;
+    case 'first-of-month': return '1. im Monat';
+    case 'last-of-month': return 'Letzter Tag';
+    case 'yearly': return 'Jährlich';
+    case 'yearly-date': return 'Jährlich am Datum';
+    default: return 'Routine';
+  }
+};
+
+const formatNextDue = (ms: number) => {
+  if (!Number.isFinite(ms) || ms <= 0) return 'Kein Datum';
+  const d = new Date(ms);
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  if (d.toDateString() === today.toDateString()) return 'Heute';
+  if (d.toDateString() === tomorrow.toDateString()) return 'Morgen';
+
+  return d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: 'short' });
+};
+
+const createStyles = (theme: ThemeName) => {
+  const isDark = theme === 'dark';
+  const text = Colors[theme].text;
+  const hairline = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.12)';
+  const cardBg = isDark ? '#1C1C1E' : '#F2F2F7';
+  const subtitleColor = withAlpha(text, 0.62);
+
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: Colors[theme].background,
+    },
+    content: {
+      paddingHorizontal: 16,
+      paddingBottom: 32,
+      gap: 16,
+    },
+    hero: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 16,
+      paddingVertical: 20,
+    },
+    iconContainer: {
+      position: 'relative',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    glow: {
+      position: 'absolute',
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      opacity: 0.4,
+      transform: [{ scale: 1.8 }],
+      zIndex: -1,
+    },
+    bigNumber: {
+      fontSize: 48,
+      fontWeight: '900',
+      letterSpacing: -1,
+      lineHeight: 48,
+      color: text,
+    },
+    heroSubtitle: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: subtitleColor,
+    },
+    statsGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+    },
+    statTile: {
+      width: '48.5%',
+    },
+    statCard: {
+      borderRadius: 16,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: hairline,
+      overflow: 'hidden',
+      backgroundColor: cardBg,
+    },
+    statCardInner: {
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+      gap: 6,
+    },
+    statIconRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    statIconBadge: {
+      width: 30,
+      height: 30,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    statTitle: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: text,
+      letterSpacing: 0.2,
+    },
+    statSubtitle: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: subtitleColor,
+    },
+    sectionTitle: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: text,
+      letterSpacing: 0.2,
+      marginBottom: 8,
+    },
+    routinesList: {
+      gap: 10,
+    },
+    routineCard: {
+      borderRadius: 16,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: hairline,
+      overflow: 'hidden',
+      backgroundColor: cardBg,
+    },
+    routineCardInner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 14,
+      gap: 12,
+    },
+    routineEmoji: {
+      fontSize: 28,
+    },
+    routineBody: {
+      flex: 1,
+      gap: 4,
+    },
+    routineTitle: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: text,
+    },
+    routineMeta: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    intervalBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 6,
+    },
+    intervalText: {
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    nextDueText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: subtitleColor,
+    },
+    emptyState: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 40,
+      gap: 12,
+    },
+    emptyText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: subtitleColor,
+      textAlign: 'center',
+    },
+  });
+};
+
+function StatTile({
+  title,
+  value,
+  icon,
+  iconColor,
+  styles,
+  glassTint,
+  glassFallback,
+  isDark,
+}: {
+  title: string;
+  value: number | string;
+  icon: keyof typeof MaterialIcons.glyphMap;
+  iconColor: string;
+  styles: ReturnType<typeof createStyles>;
+  glassTint: string;
+  glassFallback: string;
+  isDark: boolean;
+}) {
+  const badgeBg = withAlpha(iconColor, isDark ? 0.15 : 0.12);
+
+  return (
+    <View style={styles.statTile}>
+      <GlassSurface
+        style={styles.statCard}
+        glassEffectStyle="regular"
+        tintColor={glassTint}
+        fallbackBackgroundColor={glassFallback}
+      >
+        <View style={styles.statCardInner}>
+          <View style={styles.statIconRow}>
+            <View style={[styles.statIconBadge, { backgroundColor: badgeBg }]}>
+              <MaterialIcons name={icon} size={18} color={iconColor} />
+            </View>
+          </View>
+          <Text style={styles.statTitle}>{title}</Text>
+          <Text style={styles.statSubtitle}>{value}</Text>
+        </View>
+      </GlassSurface>
+    </View>
+  );
+}
 
 export default function RoutinesScreen() {
   const theme = useColorScheme() ?? 'light';
-  const routinesCount = 4;
+  const isDark = theme === 'dark';
+  const router = useRouter();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  const { tasks } = useTasksStore();
+
+  // Filter to active routine tasks
+  const routineTasks = useMemo(() => {
+    return tasks.filter(
+      (t): t is Task & { isRoutine: true } =>
+        t.isRoutine === true && (!!t.routineType || !!t.routineInterval) && !t.deletedAt
+    );
+  }, [tasks]);
+
+  const routinesCount = routineTasks.length;
+
+  // Stats
+  const dailyCount = routineTasks.filter(t => t.routineInterval === 'daily').length;
+  const weeklyCount = routineTasks.filter(t => t.routineInterval === 'weekly').length;
+  const monthlyCount = routineTasks.filter(t => t.routineInterval === 'monthly' || t.routineInterval === 'yearly').length;
+
+  // Routines due today
+  const today = new Date();
+  const dueTodayCount = routineTasks.filter(t => {
+    if (!t.dueAt || t.dueAt <= 0) return false;
+    return new Date(t.dueAt).toDateString() === today.toDateString();
+  }).length;
+
+  const textColor = Colors[theme].text;
+  const backgroundColor = Colors[theme].background;
+  const iconColor = routinesCount > 0 ? '#0A84FF' : '#9CA3AF';
+
+  const glassTint = withAlpha(backgroundColor, isDark ? 0.18 : 0.28);
+  const glassFallback = isDark ? '#1C1C1E' : '#F2F2F7';
 
   return (
-    <ScrollView contentContainerStyle={[styles.container, { backgroundColor: Colors[theme].background }]}>
-      <View style={styles.headerRow}>
-        <MaterialIcons name="loop" size={20} color={Colors[theme].text} />
-        <Text style={[styles.title, { color: Colors[theme].text }]}>Routinen</Text>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      {/* Hero Section */}
+      <View style={styles.hero}>
+        <View style={styles.iconContainer}>
+          <MaterialIcons name="loop" size={56} color={iconColor} />
+          {routinesCount > 0 && <View style={[styles.glow, { backgroundColor: iconColor }]} />}
+        </View>
+        <View>
+          <Text style={styles.bigNumber}>{routinesCount}</Text>
+          <Text style={styles.heroSubtitle}>
+            {routinesCount === 1 ? 'Routine' : 'Routinen'}
+          </Text>
+        </View>
       </View>
 
-      <Text style={[styles.subtitle, { color: Colors[theme].text }]}>{routinesCount} wiederkehrende Aufgaben</Text>
-
-      <View style={styles.card}>
-        <Text style={[styles.cardTitle, { color: Colors[theme].text }]}>Hinweis</Text>
-        <Text style={[styles.cardText, { color: Colors[theme].text }]}>Logik für Wiederholungen (daily/weekly, Ausnahmen, Snooze) baue ich als nächstes – hier vorerst nur Platzhalter.</Text>
+      {/* Stats Grid */}
+      <View style={styles.statsGrid}>
+        <StatTile
+          title="Heute fällig"
+          value={`${dueTodayCount} Tasks`}
+          icon="today"
+          iconColor="#10B981"
+          styles={styles}
+          glassTint={glassTint}
+          glassFallback={glassFallback}
+          isDark={isDark}
+        />
+        <StatTile
+          title="Täglich"
+          value={`${dailyCount} Routinen`}
+          icon="repeat"
+          iconColor="#0A84FF"
+          styles={styles}
+          glassTint={glassTint}
+          glassFallback={glassFallback}
+          isDark={isDark}
+        />
+        <StatTile
+          title="Wöchentlich"
+          value={`${weeklyCount} Routinen`}
+          icon="date-range"
+          iconColor="#8B5CF6"
+          styles={styles}
+          glassTint={glassTint}
+          glassFallback={glassFallback}
+          isDark={isDark}
+        />
+        <StatTile
+          title="Monatlich+"
+          value={`${monthlyCount} Routinen`}
+          icon="calendar-today"
+          iconColor="#F59E0B"
+          styles={styles}
+          glassTint={glassTint}
+          glassFallback={glassFallback}
+          isDark={isDark}
+        />
       </View>
 
-      <View style={styles.list}>
-        {['Workout', 'Meditation', 'Inbox Zero', 'Spaziergang'].map((label) => (
-          <View key={label} style={styles.row}>
-            <MaterialIcons name="repeat" size={18} color={Colors[theme].text} style={{ opacity: 0.8 }} />
-            <Text style={[styles.rowText, { color: Colors[theme].text }]}>{label}</Text>
+      {/* Routines List */}
+      <View>
+        <Text style={styles.sectionTitle}>Alle Routinen</Text>
+        {routineTasks.length === 0 ? (
+          <View style={styles.emptyState}>
+            <MaterialIcons name="loop" size={40} color={withAlpha(textColor, 0.25)} />
+            <Text style={styles.emptyText}>
+              Noch keine Routinen.{'\n'}Aktiviere eine Routine in den Task-Details.
+            </Text>
           </View>
-        ))}
+        ) : (
+          <View style={styles.routinesList}>
+            {routineTasks.map((routine) => {
+              const intervalLabel = getRoutineLabel(routine);
+              const type = routine.routineType || routine.routineInterval;
+              const intervalColor = type === 'daily' ? '#0A84FF' :
+                type === 'weekly' || type === 'weekday' ? '#8B5CF6' :
+                  type === 'monthly' || type === 'nth-weekday' || type === 'first-of-month' || type === 'last-of-month' ? '#F59E0B' : '#10B981';
+
+              return (
+                <Pressable
+                  key={routine.id}
+                  onPress={() => router.push(`/task/${routine.id}`)}
+                >
+                  <GlassSurface
+                    style={styles.routineCard}
+                    glassEffectStyle="regular"
+                    tintColor={glassTint}
+                    fallbackBackgroundColor={glassFallback}
+                  >
+                    <View style={styles.routineCardInner}>
+                      <Text style={styles.routineEmoji}>{routine.emoji}</Text>
+                      <View style={styles.routineBody}>
+                        <Text style={styles.routineTitle} numberOfLines={1}>{routine.title}</Text>
+                        <View style={styles.routineMeta}>
+                          <View style={[styles.intervalBadge, { backgroundColor: withAlpha(intervalColor, isDark ? 0.2 : 0.15) }]}>
+                            <Text style={[styles.intervalText, { color: intervalColor }]}>{intervalLabel}</Text>
+                          </View>
+                          <Text style={styles.nextDueText}>Nächst: {formatNextDue(routine.dueAt)}</Text>
+                        </View>
+                      </View>
+                      <MaterialIcons name="chevron-right" size={20} color={withAlpha(textColor, 0.4)} />
+                    </View>
+                  </GlassSurface>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
       </View>
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    padding: 16,
-    paddingBottom: 32,
-    gap: 10,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  subtitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    opacity: 0.7,
-  },
-  card: {
-    marginTop: 8,
-    borderRadius: 16,
-    padding: 14,
-    backgroundColor: 'rgba(0,0,0,0.06)',
-  },
-  cardTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    marginBottom: 6,
-  },
-  cardText: {
-    fontSize: 13,
-    fontWeight: '600',
-    opacity: 0.8,
-    lineHeight: 18,
-  },
-  list: {
-    marginTop: 6,
-    gap: 10,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 14,
-    backgroundColor: 'rgba(0,0,0,0.06)',
-  },
-  rowText: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-});

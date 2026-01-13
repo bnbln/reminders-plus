@@ -20,6 +20,15 @@ const createStyles = (theme: ThemeName) => {
   const subtitleColor = withAlpha(text, 0.62);
 
   return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: Colors[theme].background,
+    },
+    content: {
+      paddingHorizontal: 16,
+      paddingBottom: 32,
+      gap: 16,
+    },
     // Hero section
     hero: {
       flexDirection: 'row',
@@ -314,6 +323,8 @@ export default function StreaksScreen() {
 
   return (
     <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
       {/* Hero Streak Section */}
