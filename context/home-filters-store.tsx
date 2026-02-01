@@ -1,23 +1,36 @@
-import React from 'react';
-import { NativeModules, Platform } from 'react-native';
+import React from "react";
+import { NativeModules, Platform } from "react-native";
 
-import { requireOptionalNativeModule } from 'expo-modules-core';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-export type TagId = 'overdue' | 'datetime' | 'location' | 'project' | 'keywords';
+import { requireOptionalNativeModule } from "expo-modules-core";
 
-export const TAG_ORDER: TagId[] = ['overdue', 'datetime', 'location', 'project', 'keywords'];
+export type TagId =
+  | "overdue"
+  | "datetime"
+  | "location"
+  | "project"
+  | "keywords";
+
+export const TAG_ORDER: TagId[] = [
+  "overdue",
+  "datetime",
+  "location",
+  "project",
+  "keywords",
+];
 
 export const TAG_DEFS: Record<TagId, { title: string; iosSymbol: string }> = {
-  overdue: { title: 'Overdue', iosSymbol: 'exclamationmark.triangle.fill' },
-  datetime: { title: 'Date & Time', iosSymbol: 'calendar.badge.clock' },
-  location: { title: 'Location', iosSymbol: 'location.fill' },
-  project: { title: 'Project', iosSymbol: 'folder.fill' },
-  keywords: { title: 'Keywords', iosSymbol: 'tag.fill' },
+  overdue: { title: "Overdue", iosSymbol: "exclamationmark.triangle.fill" },
+  datetime: { title: "Date & Time", iosSymbol: "calendar.badge.clock" },
+  location: { title: "Location", iosSymbol: "location.fill" },
+  project: { title: "Project", iosSymbol: "folder.fill" },
+  keywords: { title: "Keywords", iosSymbol: "tag.fill" },
 };
 
 const STORAGE_KEYS = {
-  tags: 'reminds.homeFilters.tags',
-  tagIcons: 'reminds.homeFilters.tagIcons',
+  tags: "reminds.homeFilters.tags",
+  tagIcons: "reminds.homeFilters.tagIcons",
 } as const;
 
 type KeyValueBackend = {
@@ -32,27 +45,34 @@ const resolveBackend = (): Promise<KeyValueBackend> => {
   if (backendPromise) return backendPromise;
 
   backendPromise = (async () => {
-    if (Platform.OS === 'web') {
+    if (Platform.OS === "web") {
       return {
-        getItem: async (key) => (typeof localStorage === 'undefined' ? null : localStorage.getItem(key)),
+        getItem: async (key) =>
+          typeof localStorage === "undefined"
+            ? null
+            : localStorage.getItem(key),
         setItem: async (key, value) => {
-          if (typeof localStorage !== 'undefined') localStorage.setItem(key, value);
+          if (typeof localStorage !== "undefined")
+            localStorage.setItem(key, value);
         },
         removeItem: async (key) => {
-          if (typeof localStorage !== 'undefined') localStorage.removeItem(key);
+          if (typeof localStorage !== "undefined") localStorage.removeItem(key);
         },
       };
     }
 
-    // Prefer expo-secure-store when available.
-    if (requireOptionalNativeModule('ExpoSecureStore')) {
+    // Prefer AsyncStorage when linked (works in managed Expo, iOS/Android).
+    if ((NativeModules as any)?.RNCAsyncStorage) {
       try {
-        const SecureStore = await import('expo-secure-store');
-        if (SecureStore?.getItemAsync && SecureStore?.setItemAsync && SecureStore?.deleteItemAsync) {
+        if (
+          AsyncStorage?.getItem &&
+          AsyncStorage?.setItem &&
+          AsyncStorage?.removeItem
+        ) {
           return {
-            getItem: (key) => SecureStore.getItemAsync(key),
-            setItem: (key, value) => SecureStore.setItemAsync(key, value),
-            removeItem: (key) => SecureStore.deleteItemAsync(key),
+            getItem: (key) => AsyncStorage.getItem(key),
+            setItem: (key, value) => AsyncStorage.setItem(key, value),
+            removeItem: (key) => AsyncStorage.removeItem(key),
           };
         }
       } catch {
@@ -61,12 +81,18 @@ const resolveBackend = (): Promise<KeyValueBackend> => {
     }
 
     // Fallback: expo-file-system JSON store (works in many Expo Go versions).
-    if (requireOptionalNativeModule('FileSystem')) {
+    if (requireOptionalNativeModule("FileSystem")) {
       try {
-        const FileSystemMod = await import('expo-file-system');
-        const FileSystem: any = (FileSystemMod as any)?.default ?? FileSystemMod;
+        const FileSystemMod = await import("expo-file-system");
+        const FileSystem: any =
+          (FileSystemMod as any)?.default ?? FileSystemMod;
 
-        if (FileSystem?.documentDirectory && FileSystem?.readAsStringAsync && FileSystem?.writeAsStringAsync && FileSystem?.getInfoAsync) {
+        if (
+          FileSystem?.documentDirectory &&
+          FileSystem?.readAsStringAsync &&
+          FileSystem?.writeAsStringAsync &&
+          FileSystem?.getInfoAsync
+        ) {
           const fileUri = `${FileSystem.documentDirectory}reminds.homeFilters.json`;
           let cache: Record<string, string> | null = null;
           let writeChain: Promise<void> = Promise.resolve();
@@ -81,7 +107,10 @@ const resolveBackend = (): Promise<KeyValueBackend> => {
               }
               const raw = await FileSystem.readAsStringAsync(fileUri);
               const parsed = JSON.parse(raw);
-              cache = parsed && typeof parsed === 'object' ? (parsed as Record<string, string>) : {};
+              cache =
+                parsed && typeof parsed === "object"
+                  ? (parsed as Record<string, string>)
+                  : {};
               return cache;
             } catch {
               cache = {};
@@ -101,9 +130,13 @@ const resolveBackend = (): Promise<KeyValueBackend> => {
               return;
             }
             try {
-              await FileSystem.writeAsStringAsync(fileUri, JSON.stringify(next), {
-                encoding: FileSystem?.EncodingType?.UTF8,
-              });
+              await FileSystem.writeAsStringAsync(
+                fileUri,
+                JSON.stringify(next),
+                {
+                  encoding: FileSystem?.EncodingType?.UTF8,
+                },
+              );
             } catch {
               // ignore
             }
@@ -112,7 +145,9 @@ const resolveBackend = (): Promise<KeyValueBackend> => {
           return {
             getItem: async (key) => {
               const all = await readAll();
-              return Object.prototype.hasOwnProperty.call(all, key) ? all[key] : null;
+              return Object.prototype.hasOwnProperty.call(all, key)
+                ? all[key]
+                : null;
             },
             setItem: async (key, value) => {
               writeChain = writeChain.then(async () => {
@@ -129,24 +164,6 @@ const resolveBackend = (): Promise<KeyValueBackend> => {
               });
               await writeChain;
             },
-          };
-        }
-      } catch {
-        // ignore
-      }
-    }
-
-    // Fallback: AsyncStorage if linked (some dev clients / bare RN).
-    // IMPORTANT: Guard this import. Some runtimes will throw a loud red error even if we catch the promise rejection.
-    if ((NativeModules as any)?.RNCAsyncStorage) {
-      try {
-        const AsyncStorageMod = await import('@react-native-async-storage/async-storage');
-        const api: any = (AsyncStorageMod as any)?.default ?? (AsyncStorageMod as any);
-        if (api?.getItem && api?.setItem && api?.removeItem) {
-          return {
-            getItem: (key) => api.getItem(key),
-            setItem: (key, value) => api.setItem(key, value),
-            removeItem: (key) => api.removeItem(key),
           };
         }
       } catch {
@@ -192,11 +209,19 @@ type HomeFiltersContextValue = {
   setShowTagIcons: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
-const HomeFiltersContext = React.createContext<HomeFiltersContextValue | null>(null);
+const HomeFiltersContext = React.createContext<HomeFiltersContextValue | null>(
+  null,
+);
 
-export function HomeFiltersProvider({ children }: { children: React.ReactNode }) {
+export function HomeFiltersProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   // Default: all tags hidden, task-icons visible
-  const [enabledTags, setEnabledTags] = React.useState<Set<TagId>>(() => new Set());
+  const [enabledTags, setEnabledTags] = React.useState<Set<TagId>>(
+    () => new Set(),
+  );
   const [showTagIcons, setShowTagIcons] = React.useState<boolean>(true);
 
   const hydratedRef = React.useRef(false);
@@ -218,7 +243,11 @@ export function HomeFiltersProvider({ children }: { children: React.ReactNode })
           const nextEnabled = parseTagsParam(storedTags);
           setEnabledTags((prev) => {
             // Avoid replacing with an equal-but-different Set instance.
-            if (prev.size === nextEnabled.size && Array.from(prev).every((t) => nextEnabled.has(t))) return prev;
+            if (
+              prev.size === nextEnabled.size &&
+              Array.from(prev).every((t) => nextEnabled.has(t))
+            )
+              return prev;
             return nextEnabled;
           });
         }
@@ -247,7 +276,7 @@ export function HomeFiltersProvider({ children }: { children: React.ReactNode })
       if (tagsParam) await setStoredItem(STORAGE_KEYS.tags, tagsParam);
       else await removeStoredItem(STORAGE_KEYS.tags);
 
-      await setStoredItem(STORAGE_KEYS.tagIcons, showTagIcons ? '1' : '0');
+      await setStoredItem(STORAGE_KEYS.tagIcons, showTagIcons ? "1" : "0");
     };
 
     void run();
@@ -255,31 +284,44 @@ export function HomeFiltersProvider({ children }: { children: React.ReactNode })
 
   const value = React.useMemo(
     () => ({ enabledTags, setEnabledTags, showTagIcons, setShowTagIcons }),
-    [enabledTags, showTagIcons]
+    [enabledTags, showTagIcons],
   );
 
-  return <HomeFiltersContext.Provider value={value}>{children}</HomeFiltersContext.Provider>;
+  return (
+    <HomeFiltersContext.Provider value={value}>
+      {children}
+    </HomeFiltersContext.Provider>
+  );
 }
 
 export function useHomeFilters() {
   const ctx = React.useContext(HomeFiltersContext);
-  if (!ctx) throw new Error('useHomeFilters must be used within HomeFiltersProvider');
+  if (!ctx)
+    throw new Error("useHomeFilters must be used within HomeFiltersProvider");
   return ctx;
 }
 
 export function parseTagsParam(value: unknown): Set<TagId> {
-  if (value === 'all') return new Set(TAG_ORDER);
-  if (value === 'none') return new Set<TagId>();
-  if (typeof value !== 'string' || value.trim().length === 0) return new Set<TagId>();
+  if (value === "all") return new Set(TAG_ORDER);
+  if (value === "none") return new Set<TagId>();
+  if (typeof value !== "string" || value.trim().length === 0)
+    return new Set<TagId>();
 
   const parts = value
-    .split(',')
+    .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
 
   const enabled = new Set<TagId>();
   for (const p of parts) {
-    if (p === 'overdue' || p === 'datetime' || p === 'location' || p === 'project' || p === 'keywords') enabled.add(p);
+    if (
+      p === "overdue" ||
+      p === "datetime" ||
+      p === "location" ||
+      p === "project" ||
+      p === "keywords"
+    )
+      enabled.add(p);
   }
   return enabled;
 }
@@ -287,12 +329,12 @@ export function parseTagsParam(value: unknown): Set<TagId> {
 export function serializeTagsParam(enabled: Set<TagId>): string | undefined {
   if (enabled.size === 0) return undefined;
   const allEnabled = TAG_ORDER.every((t) => enabled.has(t));
-  if (allEnabled) return 'all';
-  return TAG_ORDER.filter((t) => enabled.has(t)).join(',');
+  if (allEnabled) return "all";
+  return TAG_ORDER.filter((t) => enabled.has(t)).join(",");
 }
 
 export function parseTagIconsParam(value: unknown): boolean {
-  if (value === '0') return false;
-  if (value === '1') return true;
+  if (value === "0") return false;
+  if (value === "1") return true;
   return true;
 }
