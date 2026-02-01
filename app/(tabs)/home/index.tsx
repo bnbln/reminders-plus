@@ -170,7 +170,7 @@ export default function HomeScreen() {
   });
   const listRef = React.useRef<TaskSwipeDraggableListHandle | null>(null);
 
-  const { isMinimized: isAddMinimized, reportScrollOffset, resetTracking, lastOffset, lastDy } = useTabBarMinimize();
+  const { isMinimized: isAddMinimized, reportScrollOffset, resetTracking } = useTabBarMinimize();
   const [showMinimizeDebug, setShowMinimizeDebug] = React.useState(false);
   const lastDebugAtRef = React.useRef(0);
   const isDraggingRef = React.useRef(false);
@@ -650,7 +650,7 @@ export default function HomeScreen() {
       {__DEV__ && showMinimizeDebug ? (
         <View pointerEvents="none" style={styles.debugOverlay}>
           <Text style={styles.debugText}>
-            y={lastOffset.toFixed(1)} dy={lastDy.toFixed(2)} minimized={String(isAddMinimized)}
+            minimized={String(isAddMinimized)}
           </Text>
         </View>
       ) : null}
