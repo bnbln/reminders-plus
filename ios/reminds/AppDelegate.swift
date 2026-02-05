@@ -383,7 +383,13 @@ private final class AddReminderAccessoryButton: UIControl {
   private let regularTitle = AddReminderAccessoryButton.localizedTitle()
   private let accentBlueTranslucent = UIColor(red: 10.0 / 255.0, green: 132.0 / 255.0, blue: 1.0, alpha: 0.72)
   private let iconSize: CGFloat = 16
+  private let expandedHorizontalInset: CGFloat = 16
+  private let inlineHorizontalInset: CGFloat = 10
+  private let expandedStackSpacing: CGFloat = 8
+  private let titleCollapseThreshold: CGFloat = 0.22
+  private let titleExpandThreshold: CGFloat = 0.30
   private var isInlinePlacement = false
+  private var isTitleCollapsed = false
 
   private lazy var iconView: UIImageView = {
     let config = UIImage.SymbolConfiguration(pointSize: 14, weight: .bold)
@@ -413,7 +419,7 @@ private final class AddReminderAccessoryButton: UIControl {
     stack.translatesAutoresizingMaskIntoConstraints = false
     stack.axis = .horizontal
     stack.alignment = .center
-    stack.spacing = 8
+    stack.spacing = expandedStackSpacing
     return stack
   }()
 
@@ -434,8 +440,8 @@ private final class AddReminderAccessoryButton: UIControl {
     clipsToBounds = true
 
     addSubview(contentStack)
-    leadingConstraint = contentStack.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 16)
-    trailingConstraint = contentStack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -16)
+    leadingConstraint = contentStack.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: expandedHorizontalInset)
+    trailingConstraint = contentStack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -expandedHorizontalInset)
     NSLayoutConstraint.activate([
       leadingConstraint!,
       trailingConstraint!,
@@ -466,6 +472,11 @@ private final class AddReminderAccessoryButton: UIControl {
     updateLayoutForAccessoryEnvironment()
   }
 
+  override func layoutSubviews() {
+    super.layoutSubviews()
+    syncTitleLayoutWithCurrentWidth()
+  }
+
   override var isHighlighted: Bool {
     didSet {
       alpha = isHighlighted ? 0.88 : 1
@@ -473,8 +484,8 @@ private final class AddReminderAccessoryButton: UIControl {
   }
 
   override var intrinsicContentSize: CGSize {
-    let horizontalPadding: CGFloat = isInlinePlacement ? 20 : 32
-    let spacing: CGFloat = isInlinePlacement ? 0 : contentStack.spacing
+    let horizontalPadding = isInlinePlacement ? (inlineHorizontalInset * 2) : (expandedHorizontalInset * 2)
+    let spacing: CGFloat = isInlinePlacement ? 0 : expandedStackSpacing
     let titleWidth: CGFloat = isInlinePlacement ? 0 : ceil(titleTextLabel.intrinsicContentSize.width)
     let width = max(44, horizontalPadding + iconSize + spacing + titleWidth)
     return CGSize(width: width, height: 36)
@@ -484,13 +495,35 @@ private final class AddReminderAccessoryButton: UIControl {
     let environment = traitCollection[UITraitTabAccessoryEnvironment.self]
     isInlinePlacement = environment == .inline
 
-    titleTextLabel.isHidden = isInlinePlacement
-    contentStack.spacing = isInlinePlacement ? 0 : 8
-    leadingConstraint?.constant = isInlinePlacement ? 10 : 16
-    trailingConstraint?.constant = isInlinePlacement ? -10 : -16
+    leadingConstraint?.constant = isInlinePlacement ? inlineHorizontalInset : expandedHorizontalInset
+    trailingConstraint?.constant = isInlinePlacement ? -inlineHorizontalInset : -expandedHorizontalInset
 
     invalidateIntrinsicContentSize()
+    syncTitleLayoutWithCurrentWidth()
     setNeedsLayout()
+  }
+
+  private func syncTitleLayoutWithCurrentWidth() {
+    let inlineWidth = (inlineHorizontalInset * 2) + iconSize
+    let expandedWidth = (expandedHorizontalInset * 2) + iconSize + expandedStackSpacing + ceil(titleTextLabel.intrinsicContentSize.width)
+    let widthRange = max(1, expandedWidth - inlineWidth)
+    let clampedWidth = min(max(bounds.width, inlineWidth), expandedWidth)
+    let progress = min(max((clampedWidth - inlineWidth) / widthRange, 0), 1)
+
+    let shouldCollapseTitle = isTitleCollapsed
+      ? (progress < titleExpandThreshold)
+      : (progress < titleCollapseThreshold)
+    isTitleCollapsed = shouldCollapseTitle
+
+    if titleTextLabel.isHidden != shouldCollapseTitle {
+      UIView.performWithoutAnimation {
+        titleTextLabel.isHidden = shouldCollapseTitle
+      }
+    }
+
+    titleTextLabel.alpha = 1
+    titleTextLabel.transform = .identity
+    contentStack.spacing = shouldCollapseTitle ? 0 : expandedStackSpacing
   }
 
   private static func localizedTitle() -> String {
