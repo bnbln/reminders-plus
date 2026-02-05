@@ -3,6 +3,7 @@ import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import type { Project, Task } from "@/context/tasks-store";
+import { t } from "@/i18n";
 
 const STORAGE_KEYS = {
   seeded: "reminds.tasks.onboardingSeeded.v1",
@@ -61,11 +62,11 @@ export function createOnboardingSeedData(): {
   const now = Date.now();
 
   const projects: Project[] = [
-    { id: "p-work", name: "Work", color: "#0A84FF", icon: "briefcase.fill" },
-    { id: "p-home", name: "Home", color: "#FF9500", icon: "house.fill" },
+    { id: "p-work", name: t("seed.project.work"), color: "#0A84FF", icon: "briefcase.fill" },
+    { id: "p-home", name: t("seed.project.home"), color: "#FF9500", icon: "house.fill" },
     {
       id: "p-selfcare",
-      name: "Selfcare",
+      name: t("seed.project.selfcare"),
       color: "#34C759",
       icon: "heart.fill",
     },
@@ -74,8 +75,8 @@ export function createOnboardingSeedData(): {
   const tasks: Task[] = [
     {
       id: `t-seed-${now}-swipe-left`,
-      title: "Nach links wischen",
-      subtitle: "Zum Löschen der Aufgabe",
+      title: t("seed.task.swipeLeft.title"),
+      subtitle: t("seed.task.swipeLeft.subtitle"),
       emoji: "👈",
       projectId: "p-home",
       dueAt: getTodayDueAt(),
@@ -90,8 +91,8 @@ export function createOnboardingSeedData(): {
     },
     {
       id: `t-seed-${now}-swipe-right`,
-      title: "Nach rechts wischen",
-      subtitle: "Zum Erledigen der Aufgabe",
+      title: t("seed.task.swipeRight.title"),
+      subtitle: t("seed.task.swipeRight.subtitle"),
       emoji: "👉",
       projectId: "p-home",
       dueAt: getTodayDueAt(),
@@ -106,8 +107,8 @@ export function createOnboardingSeedData(): {
     },
     {
       id: `t-seed-${now}-dragdrop`,
-      title: "Drag & Drop",
-      subtitle: "Halte gedrückt und ziehe mich",
+      title: t("seed.task.drag.title"),
+      subtitle: t("seed.task.drag.subtitle"),
       emoji: "↕️",
       projectId: "p-work",
       dueAt: 0,
@@ -122,8 +123,8 @@ export function createOnboardingSeedData(): {
     },
     {
       id: `t-seed-${now}-details`,
-      title: "Tippe für Details",
-      subtitle: "Öffnet die Detailansicht",
+      title: t("seed.task.details.title"),
+      subtitle: t("seed.task.details.subtitle"),
       emoji: "🔎",
       projectId: "p-selfcare",
       dueAt: getTomorrowDueAt(),

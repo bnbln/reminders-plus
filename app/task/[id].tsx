@@ -23,6 +23,7 @@ import { SFSymbol } from '@/components/ui/sfsymbol';
 import { Colors } from '@/constants/theme';
 import { getDueAtForSection, getNextRoutineDate, Project, Subtask, Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { getIntlLocale, t } from '@/i18n';
 
 
 
@@ -48,21 +49,21 @@ const PROJECT_ICON_SWATCHES = [
 
 const getRoutineLabel = (task: Task): string => {
   const type = task.routineType || task.routineInterval;
-  if (!type) return 'Nicht aktiv';
+  if (!type) return t('taskDetail.routine.inactive');
 
   switch (type) {
-    case 'hourly': return 'Stündlich';
-    case 'daily': return 'Täglich';
-    case 'weekdays': return 'An Wochentagen';
-    case 'weekends': return 'An Wochenenden';
-    case 'weekly': return 'Wöchentlich';
-    case 'biweekly': return 'Alle 2 Wochen';
-    case 'monthly': return 'Monatlich';
-    case 'quarterly': return 'Alle 3 Monate';
-    case 'biannually': return 'Alle 6 Monate';
-    case 'yearly': return 'Jährlich';
-    case 'custom': return 'Eigene';
-    default: return 'Routine';
+    case 'hourly': return t('taskDetail.routine.hourly');
+    case 'daily': return t('taskDetail.routine.daily');
+    case 'weekdays': return t('taskDetail.routine.weekdays');
+    case 'weekends': return t('taskDetail.routine.weekends');
+    case 'weekly': return t('taskDetail.routine.weekly');
+    case 'biweekly': return t('taskDetail.routine.biweekly');
+    case 'monthly': return t('taskDetail.routine.monthly');
+    case 'quarterly': return t('taskDetail.routine.quarterly');
+    case 'biannually': return t('taskDetail.routine.biannually');
+    case 'yearly': return t('taskDetail.routine.yearly');
+    case 'custom': return t('taskDetail.routine.custom');
+    default: return t('taskDetail.routine.default');
   }
 };
 
@@ -72,9 +73,9 @@ const COMPLETE_GREEN = '#34C759';
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
 const formatDueLabel = (ms: number, hasTime: boolean) => {
-  if (!Number.isFinite(ms) || ms <= 0) return 'Kein Datum';
+  if (!Number.isFinite(ms) || ms <= 0) return t('taskDetail.due.none');
   const d = new Date(ms);
-  const date = d.toLocaleDateString(undefined, { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+  const date = d.toLocaleDateString(getIntlLocale(), { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
   if (!hasTime) return date;
   return `${date} · ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 };
@@ -90,9 +91,9 @@ const normalizeDateWithTimeFlag = (date: Date, hasTime: boolean, previous: Date)
 };
 
 const sectionLabel = (section: Task['section']) => {
-  if (section === 'today') return 'Today';
-  if (section === 'upcoming') return 'Upcoming';
-  return 'Completed';
+  if (section === 'today') return t('common.today');
+  if (section === 'upcoming') return t('common.upcoming');
+  return t('common.completed');
 };
 
 const newId = (prefix: string) => `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
@@ -188,15 +189,15 @@ export default function TaskViewScreen() {
         Location = await import('expo-location');
       } catch {
         Alert.alert(
-          'Standort nicht verfügbar',
-          'ExpoLocation ist in deinem aktuellen Build nicht enthalten. Falls du einen Dev Client / expo run:* nutzt, bitte einmal neu bauen (z.B. `npx expo run:ios`).'
+          t('taskDetail.alert.locationUnavailableTitle'),
+          t('taskDetail.alert.locationUnavailableBody')
         );
         return;
       }
 
       const perm = await Location.requestForegroundPermissionsAsync();
       if (perm.status !== 'granted') {
-        Alert.alert('Kein Zugriff', 'Bitte Standortzugriff erlauben, um den aktuellen Ort zu verwenden.');
+        Alert.alert(t('taskDetail.alert.locationDeniedTitle'), t('taskDetail.alert.locationDeniedBody'));
         return;
       }
       const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
@@ -211,7 +212,7 @@ export default function TaskViewScreen() {
       const label = parts.slice(0, 2).join(' · ') || `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
       updateTask({ location: label });
     } catch {
-      Alert.alert('Fehler', 'Konnte den Standort nicht abrufen.');
+      Alert.alert(t('taskDetail.alert.locationErrorTitle'), t('taskDetail.alert.locationErrorBody'));
     } finally {
       setIsLocating(false);
     }
@@ -260,10 +261,10 @@ export default function TaskViewScreen() {
 
   const onDelete = React.useCallback(() => {
     if (!task) return;
-    Alert.alert('Task löschen?', 'Dieser Task wird in den Papierkorb verschoben.', [
-      { text: 'Abbrechen', style: 'cancel' },
+    Alert.alert(t('taskDetail.alert.deleteTitle'), t('taskDetail.alert.deleteBody'), [
+      { text: t('taskDetail.alert.cancel'), style: 'cancel' },
       {
-        text: 'Löschen',
+        text: t('taskDetail.alert.delete'),
         style: 'destructive',
         onPress: () => {
           setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, deletedAt: Date.now() } : t)));
@@ -371,9 +372,9 @@ export default function TaskViewScreen() {
     return (
       <View style={[styles.screen, { justifyContent: 'center', alignItems: 'center' }]}>
         <Stack.Screen options={{ title: '', headerTitle: '', headerBackButtonDisplayMode: 'minimal' } as any} />
-        <Text style={styles.notFoundTitle}>Task nicht gefunden</Text>
+        <Text style={styles.notFoundTitle}>{t('taskDetail.notFound')}</Text>
         <Pressable onPress={() => router.back()} style={styles.primaryButton}>
-          <Text style={styles.primaryButtonText}>Zurück</Text>
+          <Text style={styles.primaryButtonText}>{t('taskDetail.back')}</Text>
         </Pressable>
       </View>
     );
@@ -418,7 +419,7 @@ export default function TaskViewScreen() {
         <TextInput
           value={task.title}
           onChangeText={(v) => updateTask({ title: v })}
-          placeholder="Titel"
+          placeholder={t('taskDetail.placeholder.title')}
           placeholderTextColor={placeholder}
           multiline
           scrollEnabled={false}
@@ -433,7 +434,7 @@ export default function TaskViewScreen() {
         <TextInput
           value={task.subtitle ?? ''}
           onChangeText={(v) => updateTask({ subtitle: v.trim().length ? v : undefined })}
-          placeholder="Beschreibung…"
+          placeholder={t('taskDetail.placeholder.subtitle')}
           placeholderTextColor={placeholder}
           multiline
           scrollEnabled={false}
@@ -469,7 +470,7 @@ export default function TaskViewScreen() {
                   </Pressable>
                 )}
               </View>
-              <Text style={styles.propertyTileLabel}>Datum</Text>
+              <Text style={styles.propertyTileLabel}>{t('taskDetail.property.date')}</Text>
               <Text style={[styles.propertyTileValue, { color: hasDueDate ? Colors[theme].text : withAlpha(Colors[theme].text, 0.5) }]} numberOfLines={1}>
                 {formatDueLabel(task.dueAt, dueHasTime)}
               </Text>
@@ -497,9 +498,9 @@ export default function TaskViewScreen() {
                   </Pressable>
                 )}
               </View>
-              <Text style={styles.propertyTileLabel}>Routine</Text>
+              <Text style={styles.propertyTileLabel}>{t('taskDetail.property.routine')}</Text>
               <Text style={[styles.propertyTileValue, { color: task.isRoutine ? Colors[theme].text : withAlpha(Colors[theme].text, 0.5) }]} numberOfLines={1}>
-                {task.isRoutine ? getRoutineLabel(task) : 'Keine'}
+                {task.isRoutine ? getRoutineLabel(task) : t('taskDetail.property.none')}
               </Text>
             </View>
           </GlassSurface>
@@ -529,11 +530,11 @@ export default function TaskViewScreen() {
                   </Pressable>
                 )}
               </View>
-              <Text style={styles.propertyTileLabel}>Ort</Text>
+              <Text style={styles.propertyTileLabel}>{t('taskDetail.property.location')}</Text>
               <TextInput
                 value={task.location ?? ''}
                 onChangeText={(v) => updateTask({ location: v.trim().length ? v : undefined })}
-                placeholder="Hinzufügen…"
+                placeholder={t('taskDetail.placeholder.location')}
                 placeholderTextColor={withAlpha(Colors[theme].text, 0.4)}
                 style={[styles.propertyTileInput, { color: task.location ? Colors[theme].text : withAlpha(Colors[theme].text, 0.5) }]}
                 numberOfLines={1}
@@ -567,9 +568,9 @@ export default function TaskViewScreen() {
                   </Pressable>
                 )}
               </View>
-              <Text style={styles.propertyTileLabel}>Projekt</Text>
+              <Text style={styles.propertyTileLabel}>{t('taskDetail.property.project')}</Text>
               <Text style={[styles.propertyTileValue, { color: project ? Colors[theme].text : withAlpha(Colors[theme].text, 0.5) }]} numberOfLines={1}>
-                {project?.name ?? 'Keins'}
+                {project?.name ?? t('taskDetail.property.noneProject')}
               </Text>
             </View>
           </GlassSurface>
@@ -578,7 +579,7 @@ export default function TaskViewScreen() {
 
       {/* Subtasks Section */}
       <GlassSurface style={[styles.panel, { borderColor: hairline }]} glassEffectStyle="regular" tintColor={glassTint} fallbackBackgroundColor={glassFallback}>
-        <Text style={styles.panelTitle}>Tasks</Text>
+        <Text style={styles.panelTitle}>{t('taskDetail.panel.tasks')}</Text>
 
         {(task.subtasks ?? []).map((s, idx) => (
           <View key={s.id}>
@@ -590,7 +591,7 @@ export default function TaskViewScreen() {
               <TextInput
                 value={s.title}
                 onChangeText={(v) => updateSubtaskTitle(s.id, v)}
-                placeholder="Aufgabe"
+                placeholder={t('taskDetail.placeholder.subtask')}
                 placeholderTextColor={placeholder}
                 multiline
                 scrollEnabled={false}
@@ -614,7 +615,7 @@ export default function TaskViewScreen() {
           <TextInput
             value={newSubtaskTitle}
             onChangeText={setNewSubtaskTitle}
-            placeholder="Neue Aufgabe…"
+            placeholder={t('taskDetail.placeholder.newSubtask')}
             placeholderTextColor={placeholder}
             style={[styles.fieldInput, { color: Colors[theme].text, flex: 1 }]}
             onSubmitEditing={addSubtask}
@@ -627,11 +628,11 @@ export default function TaskViewScreen() {
       </GlassSurface>
 
       <GlassSurface style={[styles.panel, { borderColor: hairline }]} glassEffectStyle="regular" tintColor={glassTint} fallbackBackgroundColor={glassFallback}>
-        <Text style={styles.panelTitle}>Notes</Text>
+        <Text style={styles.panelTitle}>{t('taskDetail.panel.notes')}</Text>
         <TextInput
           value={task.notes ?? ''}
           onChangeText={(v) => updateTask({ notes: v.length ? v : undefined })}
-          placeholder="Notizen…"
+          placeholder={t('taskDetail.placeholder.notes')}
           placeholderTextColor={placeholder}
           multiline
           onFocus={scrollToBottom}
@@ -663,7 +664,7 @@ export default function TaskViewScreen() {
               >
                 <MaterialIcons name="check" size={18} color={withAlpha(Colors[theme].text, 0.95)} />
                 <Text style={[styles.primaryActionText, { color: withAlpha(Colors[theme].text, 0.95) }]}>
-                  Task erledigt
+                  {t('taskDetail.action.complete')}
                 </Text>
               </GlassSurface>
             </Animated.View>
@@ -678,7 +679,7 @@ export default function TaskViewScreen() {
               >
                 <MaterialIcons name="undo" size={18} color={withAlpha(Colors[theme].text, 0.95)} />
                 <Text style={[styles.primaryActionText, { color: withAlpha(Colors[theme].text, 0.95) }]}>
-                  Task wiederholen
+                  {t('taskDetail.action.repeat')}
                 </Text>
               </GlassSurface>
             </Animated.View>

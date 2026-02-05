@@ -5,6 +5,7 @@ import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import type { Project, Task } from "@/context/tasks-store";
+import { t } from "@/i18n";
 
 type TaskNotificationMapEntry = {
   notificationId: string;
@@ -159,7 +160,7 @@ export async function syncTaskDueNotifications(args: {
     const notificationId = await Notifications.scheduleNotificationAsync({
       content: {
         title: task.title,
-        body: bodyParts.length ? bodyParts.join(" · ") : "Fällig",
+        body: bodyParts.length ? bodyParts.join(" · ") : t("notification.due"),
         sound: true,
       },
       trigger: {

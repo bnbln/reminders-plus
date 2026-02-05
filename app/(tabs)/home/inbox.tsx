@@ -8,6 +8,7 @@ import { Colors } from '@/constants/theme';
 import { useHomeFilters } from '@/context/home-filters-store';
 import { type Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { t } from '@/i18n';
 
 function hasNoDueDate(task: Task) {
   // Robust gegen ältere/teilweise Daten (z.B. Persisted State), obwohl `Task.dueAt` im Typ required ist.
@@ -97,7 +98,7 @@ export default function InboxScreen() {
       contentContainerStyle={styles.content}
       empty={
         <View style={styles.empty}>
-          <Text style={[styles.emptyText, { color: Colors[theme].text }]}>Keine Tasks ohne Datum.</Text>
+          <Text style={[styles.emptyText, { color: Colors[theme].text }]}>{t('inbox.empty')}</Text>
         </View>
       }
       enabledTags={enabledTags}

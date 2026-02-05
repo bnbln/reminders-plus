@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/theme';
 import { useTasksStore, type SectionId } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { t } from '@/i18n';
 
 const createTaskId = () => `t-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
@@ -96,13 +97,13 @@ export default function CreateTaskModal() {
       try {
         Location = await import('expo-location');
       } catch {
-        Alert.alert('Standort nicht verfügbar', 'ExpoLocation fehlt.');
+        Alert.alert(t('taskCreate.locationUnavailableTitle'), t('taskCreate.locationUnavailableBody'));
         return;
       }
 
       const perm = await Location.requestForegroundPermissionsAsync();
       if (perm.status !== 'granted') {
-        Alert.alert('Kein Zugriff', 'Bitte Standortzugriff erlauben.');
+        Alert.alert(t('taskCreate.locationDeniedTitle'), t('taskCreate.locationDeniedBody'));
         return;
       }
 
@@ -119,7 +120,7 @@ export default function CreateTaskModal() {
 
       setTasks(prev => prev.map(t => t.id === id ? { ...t, location: label } : t));
     } catch {
-      Alert.alert('Fehler', 'Standort konnte nicht abgerufen werden.');
+      Alert.alert(t('taskCreate.locationErrorTitle'), t('taskCreate.locationErrorBody'));
     }
   }, [ensureDraftTask, setTasks]);
 
@@ -130,31 +131,31 @@ export default function CreateTaskModal() {
     return [
       {
         id: 'date',
-        title: 'Fälligkeit',
+        title: t('taskCreate.menu.date'),
         image: Platform.OS === 'ios' ? 'calendar' : 'event',
         imageColor: iconColor,
       },
       {
         id: 'style',
-        title: 'Styling',
+        title: t('taskCreate.menu.style'),
         image: Platform.OS === 'ios' ? 'paintbrush' : 'edit',
         imageColor: iconColor,
       },
       {
         id: 'location',
-        title: 'Standort',
+        title: t('taskCreate.menu.location'),
         image: Platform.OS === 'ios' ? 'location' : 'place',
         imageColor: iconColor,
       },
       {
         id: 'routine',
-        title: 'Routine',
+        title: t('taskCreate.menu.routine'),
         image: Platform.OS === 'ios' ? 'arrow.triangle.2.circlepath' : 'loop',
         imageColor: iconColor,
       },
       {
         id: 'project',
-        title: 'Projekt',
+        title: t('taskCreate.menu.project'),
         image: Platform.OS === 'ios' ? 'folder' : 'folder',
         imageColor: iconColor,
       }
@@ -190,7 +191,7 @@ export default function CreateTaskModal() {
 
   const onCreate = React.useCallback(() => {
     if (!canSubmit) {
-      Alert.alert('Titel fehlt', 'Bitte gib einen Task-Titel ein.');
+      Alert.alert(t('taskCreate.titleMissingTitle'), t('taskCreate.titleMissingBody'));
       return;
     }
 
@@ -283,7 +284,7 @@ export default function CreateTaskModal() {
       <Pressable
         style={styles.backdrop}
         accessibilityRole="button"
-        accessibilityLabel="Schließen"
+        accessibilityLabel={t('taskCreate.close')}
         onPress={close}
       />
 
@@ -308,7 +309,7 @@ export default function CreateTaskModal() {
             >
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Mehr"
+                accessibilityLabel={t('taskCreate.more')}
                 hitSlop={10}
                 style={({ pressed }) => [styles.plusButton, pressed && { opacity: 0.85 }]}
                 pointerEvents="none" // Let MenuView handle the touch
@@ -323,7 +324,7 @@ export default function CreateTaskModal() {
               }}
               value={title}
               onChangeText={setTitle}
-              placeholder="Neue Aufgabe"
+              placeholder={t('taskCreate.placeholder.title')}
               placeholderTextColor={styles.placeholder.color as any}
               returnKeyType="done"
               autoCapitalize="sentences"
@@ -338,7 +339,7 @@ export default function CreateTaskModal() {
               onPress={onCreate}
               disabled={!canSubmit}
               accessibilityRole="button"
-              accessibilityLabel={canSubmit ? 'Task erstellen' : 'Titel eingeben'}
+              accessibilityLabel={canSubmit ? t('taskCreate.accessibility.create') : t('taskCreate.accessibility.enterTitle')}
               hitSlop={10}
               style={({ pressed }) => [styles.sendButton, (!canSubmit || pressed) && { opacity: !canSubmit ? 0.35 : 0.85 }]}
             >

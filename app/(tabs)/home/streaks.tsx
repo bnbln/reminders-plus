@@ -7,6 +7,7 @@ import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ChartDataPoint, useStreaks } from '@/hooks/use-streaks';
+import { countLabel, t } from '@/i18n';
 
 type ThemeName = keyof typeof Colors;
 type RangeOption = '7d' | '14d' | '1m' | '1y' | 'max';
@@ -314,11 +315,11 @@ export default function StreaksScreen() {
   const chevronColor = withAlpha(textColor, 0.45);
 
   const ranges: { label: string; value: RangeOption }[] = [
-    { label: '7 T', value: '7d' },
-    { label: '14 T', value: '14d' },
-    { label: '1 M', value: '1m' },
-    { label: '1 J', value: '1y' },
-    { label: 'Max', value: 'max' },
+    { label: t('streaks.range.7d'), value: '7d' },
+    { label: t('streaks.range.14d'), value: '14d' },
+    { label: t('streaks.range.1m'), value: '1m' },
+    { label: t('streaks.range.1y'), value: '1y' },
+    { label: t('streaks.range.max'), value: 'max' },
   ];
 
   return (
@@ -336,7 +337,7 @@ export default function StreaksScreen() {
         <View>
           <Text style={styles.bigNumber}>{currentStreak}</Text>
           <Text style={styles.heroSubtitle}>
-            {currentStreak === 1 ? 'Tag Streak' : 'Tage Streak'}
+            {currentStreak === 1 ? t('streaks.hero.one') : t('streaks.hero.other')}
           </Text>
         </View>
       </View>
@@ -345,8 +346,8 @@ export default function StreaksScreen() {
       <View style={styles.quickGridWrap}>
         <View style={styles.quickGrid}>
           <StatTile
-            title="Heute"
-            value={`${todayCompletedCount} Tasks`}
+            title={t('streaks.stats.today')}
+            value={countLabel(todayCompletedCount, 'streaks.count.tasks.one', 'streaks.count.tasks.other')}
             icon="check-circle"
             iconColor="#10B981"
             styles={styles}
@@ -356,8 +357,8 @@ export default function StreaksScreen() {
             isDark={isDark}
           />
           <StatTile
-            title="Diese Woche"
-            value={`${last7DaysCount} Tasks`}
+            title={t('streaks.stats.thisWeek')}
+            value={countLabel(last7DaysCount, 'streaks.count.tasks.one', 'streaks.count.tasks.other')}
             icon="date-range"
             iconColor="#3B82F6"
             styles={styles}
@@ -367,8 +368,8 @@ export default function StreaksScreen() {
             isDark={isDark}
           />
           <StatTile
-            title="Rekord"
-            value={`${mostTasksInOneDay} an einem Tag`}
+            title={t('streaks.stats.record')}
+            value={t('streaks.count.inOneDay', { count: mostTasksInOneDay })}
             icon="emoji-events"
             iconColor="#F59E0B"
             styles={styles}
@@ -378,8 +379,8 @@ export default function StreaksScreen() {
             isDark={isDark}
           />
           <StatTile
-            title="Längster Streak"
-            value={`${longestStreak} Tage`}
+            title={t('streaks.stats.longest')}
+            value={countLabel(longestStreak, 'streaks.count.days.one', 'streaks.count.days.other')}
             icon="local-fire-department"
             iconColor="#EF4444"
             styles={styles}
@@ -399,7 +400,7 @@ export default function StreaksScreen() {
         fallbackBackgroundColor={glassFallback}
       >
         <View style={styles.chartHeader}>
-          <Text style={styles.cardTitle}>Aktivität</Text>
+          <Text style={styles.cardTitle}>{t('streaks.chart.activity')}</Text>
           {/* Segmented Control */}
           <View style={styles.segmentedControl}>
             {ranges.map((r) => {
@@ -434,7 +435,7 @@ export default function StreaksScreen() {
           ))}
           {chartData.length === 0 && (
             <View style={styles.emptyChart}>
-              <Text style={{ color: withAlpha(textColor, 0.5), fontSize: 12, fontWeight: '600' }}>Keine Daten</Text>
+              <Text style={{ color: withAlpha(textColor, 0.5), fontSize: 12, fontWeight: '600' }}>{t('streaks.chart.noData')}</Text>
             </View>
           )}
         </View>

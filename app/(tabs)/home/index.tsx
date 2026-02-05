@@ -2,7 +2,7 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import {
   TaskSwipeDraggableList,
@@ -145,13 +145,15 @@ export default function HomeScreen() {
   const router = useRouter();
   const theme = useColorScheme() ?? 'light';
   const isDark = theme === 'dark';
+  const usesNativeTabAccessory = Platform.OS === 'ios' && Number(Platform.Version) >= 26;
+  const { height: windowHeight } = useWindowDimensions();
   const params = useLocalSearchParams<{ sections?: string; withNotes?: string }>();
   const enabledSections = React.useMemo(() => parseSectionsParam(params.sections), [params.sections]);
   const withNotesEnabled = params.withNotes === '1';
 
   const { enabledTags, showTagIcons } = useHomeFilters();
 
-  const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const styles = React.useMemo(() => createStyles(theme, usesNativeTabAccessory), [theme, usesNativeTabAccessory]);
 
   const { tasks, setTasks, projects } = useTasksStore();
   const { currentStreak } = useStreaks();
@@ -618,7 +620,7 @@ export default function HomeScreen() {
             <Text style={styles.emptyText}>Keine Aufgaben</Text>
           </View>
         }
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { minHeight: windowHeight + 220 }]}
         onScrollOffsetChange={onScrollOffsetChange}
         onDragStateChange={(dragging) => {
           isDraggingRef.current = dragging;
@@ -630,24 +632,26 @@ export default function HomeScreen() {
         onReorderData={applyOrderFromSwipeListData}
       />
 
-      <FloatingAddPillButton
-        minimized={isAddMinimized}
-        label="Task hinzufügen"
-        accessibilityLabel="Task hinzufügen"
-        onPress={() => {
-          closeAnyOpen();
-          router.push('/task/create-modal');
-        }}
-        onLongPress={
-          __DEV__
-            ? () => {
-              setShowMinimizeDebug((prev) => !prev);
-            }
-            : undefined
-        }
-      />
+      {!usesNativeTabAccessory ? (
+        <FloatingAddPillButton
+          minimized={isAddMinimized}
+          label="Task hinzufügen"
+          accessibilityLabel="Task hinzufügen"
+          onPress={() => {
+            closeAnyOpen();
+            router.push('/task/create-modal');
+          }}
+          onLongPress={
+            __DEV__
+              ? () => {
+                setShowMinimizeDebug((prev) => !prev);
+              }
+              : undefined
+          }
+        />
+      ) : null}
 
-      {__DEV__ && showMinimizeDebug ? (
+      {__DEV__ && !usesNativeTabAccessory && showMinimizeDebug ? (
         <View pointerEvents="none" style={styles.debugOverlay}>
           <Text style={styles.debugText}>
             minimized={String(isAddMinimized)}
@@ -658,7 +662,7 @@ export default function HomeScreen() {
   );
 }
 
-const createStyles = (theme: ThemeName) => {
+const createStyles = (theme: ThemeName, usesNativeTabAccessory: boolean) => {
   const isDark = theme === 'dark';
   const text = Colors[theme].text;
 
@@ -676,7 +680,7 @@ const createStyles = (theme: ThemeName) => {
     content: {
       paddingHorizontal: 16,
       paddingTop: 0,
-      paddingBottom: 168,
+      paddingBottom: usesNativeTabAccessory ? 108 : 168,
     },
     sectionHeader: {
       flexDirection: 'row',

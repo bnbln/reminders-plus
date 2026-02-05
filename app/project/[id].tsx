@@ -24,6 +24,7 @@ import {
     useTasksStore,
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { t } from "@/i18n";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const COLUMN_WIDTH = SCREEN_WIDTH * 0.78; // Narrower to show peers
@@ -39,9 +40,9 @@ const SNAP_OFFSETS = [
 // Updated Order: Upcoming -> Today -> Completed
 const SECTIONS: SectionId[] = ["upcoming", "today", "completed"];
 const SECTION_TITLES: Record<SectionId, string> = {
-  today: "Heute",
-  upcoming: "Demnächst",
-  completed: "Abgeschlossen",
+  today: t("common.today"),
+  upcoming: t("common.upcoming"),
+  completed: t("common.completed"),
 };
 
 type ThemeName = keyof typeof Colors;
@@ -99,7 +100,7 @@ function KanbanColumn({
         contentInsetAdjustmentBehavior="never"
         empty={
           <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>Keine Tasks</Text>
+            <Text style={styles.emptyText}>{t("home.empty.noTasks")}</Text>
           </View>
         }
         onPressTask={onPressTask}
@@ -277,9 +278,7 @@ export default function ProjectDetailScreen() {
           { justifyContent: "center", alignItems: "center" },
         ]}
       >
-        <Text style={{ color: Colors[theme].text }}>
-          Projekt nicht gefunden
-        </Text>
+        <Text style={{ color: Colors[theme].text }}>{t("project.notFound")}</Text>
       </View>
     );
   }
@@ -294,7 +293,7 @@ export default function ProjectDetailScreen() {
             title: "",
             headerTransparent: true,
             headerShadowVisible: false,
-            headerBackTitle: "Projekte",
+            headerBackTitle: t("project.backProjects"),
             // headerBackButtonDisplayMode: 'minimal',
             headerTintColor: Colors[theme].tint,
             headerStyle: { backgroundColor: "transparent" },
@@ -335,7 +334,7 @@ export default function ProjectDetailScreen() {
                 </Text>
               ) : (
                 <Text style={[styles.headerDesc, { opacity: 0.5 }]}>
-                  Keine Beschreibung
+                  {t("common.noDescription")}
                 </Text>
               )}
             </View>

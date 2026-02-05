@@ -17,8 +17,9 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { GlassSurface } from '@/components/ui/glass-surface';
-import { TAG_DEFS, TAG_ORDER, type TagId } from '@/context/home-filters-store';
+import { getTagTitle, TAG_ORDER, type TagId } from '@/context/home-filters-store';
 import type { Project, Task } from '@/context/tasks-store';
+import { getIntlLocale, t } from '@/i18n';
 
 const SWIPE_STOP = 76;
 const SWIPE_OPEN_THRESHOLD = 22;
@@ -45,7 +46,7 @@ const extractHashtags = (value: string | undefined): string[] => {
 };
 
 const formatDueLabel = (dueAt: number, dueHasTime?: boolean) => {
-  if (!Number.isFinite(dueAt) || dueAt <= 0) return 'Kein Datum';
+  if (!Number.isFinite(dueAt) || dueAt <= 0) return t('taskDetail.due.none');
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const tomorrow = new Date(today);
@@ -56,14 +57,14 @@ const formatDueLabel = (dueAt: number, dueHasTime?: boolean) => {
 
   const dayLabel =
     dueDay.getTime() === today.getTime()
-      ? 'Heute'
+      ? t('taskDetail.relative.today')
       : dueDay.getTime() === tomorrow.getTime()
-        ? 'Morgen'
-        : new Intl.DateTimeFormat('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' }).format(due);
+        ? t('taskDetail.relative.tomorrow')
+        : new Intl.DateTimeFormat(getIntlLocale(), { weekday: 'short', day: '2-digit', month: '2-digit' }).format(due);
 
   if (!dueHasTime) return dayLabel;
 
-  const timeLabel = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit' }).format(due);
+  const timeLabel = new Intl.DateTimeFormat(getIntlLocale(), { hour: '2-digit', minute: '2-digit' }).format(due);
   return `${dayLabel} ${timeLabel}`;
 };
 
@@ -417,7 +418,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
 
       if (tagId === 'overdue') {
         if (!isOverdue) continue;
-        chips.push({ key: 'overdue', tagId, label: TAG_DEFS.overdue.title, tone: 'danger' });
+        chips.push({ key: 'overdue', tagId, label: getTagTitle('overdue'), tone: 'danger' });
         continue;
       }
 

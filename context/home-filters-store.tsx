@@ -4,6 +4,7 @@ import { NativeModules, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { requireOptionalNativeModule } from "expo-modules-core";
+import { t } from "@/i18n";
 
 export type TagId =
   | "overdue"
@@ -20,13 +21,17 @@ export const TAG_ORDER: TagId[] = [
   "keywords",
 ];
 
-export const TAG_DEFS: Record<TagId, { title: string; iosSymbol: string }> = {
-  overdue: { title: "Overdue", iosSymbol: "exclamationmark.triangle.fill" },
-  datetime: { title: "Date & Time", iosSymbol: "calendar.badge.clock" },
-  location: { title: "Location", iosSymbol: "location.fill" },
-  project: { title: "Project", iosSymbol: "folder.fill" },
-  keywords: { title: "Keywords", iosSymbol: "tag.fill" },
+export const TAG_DEFS: Record<TagId, { titleKey: string; iosSymbol: string }> = {
+  overdue: { titleKey: "tags.overdue", iosSymbol: "exclamationmark.triangle.fill" },
+  datetime: { titleKey: "tags.datetime", iosSymbol: "calendar.badge.clock" },
+  location: { titleKey: "tags.location", iosSymbol: "location.fill" },
+  project: { titleKey: "tags.project", iosSymbol: "folder.fill" },
+  keywords: { titleKey: "tags.keywords", iosSymbol: "tag.fill" },
 };
+
+export function getTagTitle(tagId: TagId): string {
+  return t(TAG_DEFS[tagId].titleKey);
+}
 
 const STORAGE_KEYS = {
   tags: "reminds.homeFilters.tags",

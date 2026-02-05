@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { t } from '@/i18n';
 
 export default function ExploreLayout() {
     const theme = useColorScheme() ?? 'light';
@@ -20,7 +21,7 @@ export default function ExploreLayout() {
             <Stack.Screen
                 name="index"
                 options={{
-                    title: 'Projects',
+                    title: t('tabs.projects'),
                     headerBackButtonDisplayMode: 'minimal',
                 }}
             />

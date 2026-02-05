@@ -8,26 +8,27 @@ import { withAlpha } from "@/components/ui/glass-surface";
 import { Colors } from "@/constants/theme";
 import { RoutineType, useTasksStore } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { t } from "@/i18n";
 
 type ThemeName = keyof typeof Colors;
 
 const ROUTINE_OPTIONS: {
   value: RoutineType | null;
-  label: string;
+  labelKey: string;
   icon: React.ComponentProps<typeof MaterialIcons>["name"];
 }[] = [
-  { value: null, label: "Nie", icon: "block" },
-  { value: "hourly", label: "Stündlich", icon: "schedule" },
-  { value: "daily", label: "Täglich", icon: "today" },
-  { value: "weekdays", label: "An Wochentagen", icon: "work" },
-  { value: "weekends", label: "An Wochenenden", icon: "weekend" },
-  { value: "weekly", label: "Wöchentlich", icon: "date-range" },
-  { value: "biweekly", label: "Alle 2 Wochen", icon: "event-repeat" },
-  { value: "monthly", label: "Monatlich", icon: "calendar-month" },
-  { value: "quarterly", label: "Alle 3 Monate", icon: "event-note" },
-  { value: "biannually", label: "Alle 6 Monate", icon: "event-available" },
-  { value: "yearly", label: "Jährlich", icon: "cake" },
-  { value: "custom", label: "Eigene", icon: "tune" },
+  { value: null, labelKey: "routineOption.never", icon: "block" },
+  { value: "hourly", labelKey: "taskDetail.routine.hourly", icon: "schedule" },
+  { value: "daily", labelKey: "taskDetail.routine.daily", icon: "today" },
+  { value: "weekdays", labelKey: "taskDetail.routine.weekdays", icon: "work" },
+  { value: "weekends", labelKey: "taskDetail.routine.weekends", icon: "weekend" },
+  { value: "weekly", labelKey: "taskDetail.routine.weekly", icon: "date-range" },
+  { value: "biweekly", labelKey: "taskDetail.routine.biweekly", icon: "event-repeat" },
+  { value: "monthly", labelKey: "taskDetail.routine.monthly", icon: "calendar-month" },
+  { value: "quarterly", labelKey: "taskDetail.routine.quarterly", icon: "event-note" },
+  { value: "biannually", labelKey: "taskDetail.routine.biannually", icon: "event-available" },
+  { value: "yearly", labelKey: "taskDetail.routine.yearly", icon: "cake" },
+  { value: "custom", labelKey: "taskDetail.routine.custom", icon: "tune" },
 ];
 
 export default function RoutinePickerScreen() {
@@ -111,7 +112,7 @@ export default function RoutinePickerScreen() {
             } as any
           }
         />
-        <Text style={styles.errorText}>Task nicht gefunden</Text>
+        <Text style={styles.errorText}>{t('routinePicker.notFound')}</Text>
       </View>
     );
   }
@@ -122,7 +123,7 @@ export default function RoutinePickerScreen() {
         options={
           {
             presentation: "formSheet",
-            headerTitle: "Wiederholung",
+            headerTitle: t('routinePicker.title'),
             headerLeft: () => (
               <View style={styles.iconButton}>
                 <Pressable
@@ -174,7 +175,7 @@ export default function RoutinePickerScreen() {
 
             return (
               <Pressable
-                key={option.label}
+                key={option.labelKey}
                 onPress={() => setSelectedType(option.value)}
                 style={[styles.optionRow, isActive && styles.optionRowActive]}
               >
@@ -198,7 +199,7 @@ export default function RoutinePickerScreen() {
                   />
                 </View>
                 <View style={styles.optionBody}>
-                  <Text style={styles.optionLabel}>{option.label}</Text>
+                  <Text style={styles.optionLabel}>{t(option.labelKey)}</Text>
                 </View>
                 {isActive && (
                   <MaterialIcons name="check" size={20} color="#0A84FF" />

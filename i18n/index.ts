@@ -1,0 +1,498 @@
+export type AppLocale = 'de' | 'en';
+
+type TranslationParams = Record<string, string | number>;
+
+type TranslationDict = Record<string, string>;
+
+const TRANSLATIONS: Record<AppLocale, TranslationDict> = {
+  de: {
+    'tabs.tasks': 'Aufgaben',
+    'tabs.search': 'Suche',
+    'tabs.projects': 'Projekte',
+
+    'common.task': 'Aufgabe',
+    'common.tasks': 'Aufgaben',
+    'common.project': 'Projekt',
+    'common.projects': 'Projekte',
+    'common.filter': 'Filter',
+    'common.today': 'Heute',
+    'common.upcoming': 'Demnächst',
+    'common.completed': 'Abgeschlossen',
+    'common.inbox': 'Inbox',
+    'common.archive': 'Archiv',
+    'common.search': 'Suche',
+    'common.notes': 'Notizen',
+    'common.noDescription': 'Keine Beschreibung',
+
+    'home.filter.showAllTags': 'Alle Tags anzeigen',
+    'home.filter.hideAllTags': 'Alle Tags ausblenden',
+    'home.filter.icons': 'Icons',
+    'home.filter.toggleSection': '{{section}} umschalten',
+    'home.openArchive': 'Archiv öffnen',
+    'home.empty.noTasks': 'Keine Aufgaben',
+    'home.addTask': 'Aufgabe hinzufügen',
+    'home.archivePill.completed': '{{count}} abgeschlossen',
+    'home.archivePill.trash': '{{count}} Papierkorb',
+    'home.archivePill.archive': 'Archiv',
+    'home.quick.streaks': 'Streaks',
+    'home.quick.day': 'Tag',
+    'home.quick.days': 'Tage',
+    'home.quick.withoutDate': '{{count}} ohne Datum',
+    'home.quick.routines': 'Routinen',
+    'home.quick.recurring': '{{count}} wiederkehrend',
+
+    'search.placeholder': 'Aufgaben durchsuchen',
+    'search.empty.hint': 'Tippe in die Suchleiste, um zu suchen.',
+    'search.empty.noResults': 'Keine Treffer für "{{query}}".',
+
+    'explore.newProject': 'Neues Projekt',
+    'explore.taskCount.one': '{{count}} Aufgabe',
+    'explore.taskCount.other': '{{count}} Aufgaben',
+    'explore.tileAccessibility': '{{project}}: {{count}} Aufgaben',
+
+    'project.notFound': 'Projekt nicht gefunden',
+    'project.backProjects': 'Projekte',
+
+    'projectEdit.newProject': 'Neues Projekt',
+    'projectEdit.editProject': 'Projekt bearbeiten',
+    'projectEdit.placeholder.projectName': 'Projektname',
+    'projectEdit.placeholder.description': 'Beschreibung (optional)',
+    'projectEdit.icon': 'Icon',
+    'projectEdit.color': 'Farbe',
+    'projectEdit.delete': 'Projekt löschen',
+
+    'taskCreate.locationUnavailableTitle': 'Standort nicht verfügbar',
+    'taskCreate.locationUnavailableBody': 'Expo Location fehlt.',
+    'taskCreate.locationDeniedTitle': 'Kein Zugriff',
+    'taskCreate.locationDeniedBody': 'Bitte Standortzugriff erlauben.',
+    'taskCreate.locationErrorTitle': 'Fehler',
+    'taskCreate.locationErrorBody': 'Standort konnte nicht abgerufen werden.',
+    'taskCreate.menu.date': 'Fälligkeit',
+    'taskCreate.menu.style': 'Styling',
+    'taskCreate.menu.location': 'Standort',
+    'taskCreate.menu.routine': 'Routine',
+    'taskCreate.menu.project': 'Projekt',
+    'taskCreate.titleMissingTitle': 'Titel fehlt',
+    'taskCreate.titleMissingBody': 'Bitte gib einen Aufgabentitel ein.',
+    'taskCreate.close': 'Schließen',
+    'taskCreate.more': 'Mehr',
+    'taskCreate.placeholder.title': 'Neue Aufgabe',
+    'taskCreate.accessibility.create': 'Aufgabe erstellen',
+    'taskCreate.accessibility.enterTitle': 'Titel eingeben',
+
+    'taskDetail.routine.inactive': 'Nicht aktiv',
+    'taskDetail.routine.hourly': 'Stündlich',
+    'taskDetail.routine.daily': 'Täglich',
+    'taskDetail.routine.weekdays': 'An Wochentagen',
+    'taskDetail.routine.weekends': 'An Wochenenden',
+    'taskDetail.routine.weekly': 'Wöchentlich',
+    'taskDetail.routine.biweekly': 'Alle 2 Wochen',
+    'taskDetail.routine.monthly': 'Monatlich',
+    'taskDetail.routine.quarterly': 'Alle 3 Monate',
+    'taskDetail.routine.biannually': 'Alle 6 Monate',
+    'taskDetail.routine.yearly': 'Jährlich',
+    'taskDetail.routine.custom': 'Eigene',
+    'taskDetail.routine.default': 'Routine',
+    'taskDetail.due.none': 'Kein Datum',
+    'taskDetail.notFound': 'Aufgabe nicht gefunden',
+    'taskDetail.back': 'Zurück',
+    'taskDetail.placeholder.title': 'Titel',
+    'taskDetail.placeholder.subtitle': 'Beschreibung…',
+    'taskDetail.property.date': 'Datum',
+    'taskDetail.property.routine': 'Routine',
+    'taskDetail.property.location': 'Ort',
+    'taskDetail.property.project': 'Projekt',
+    'taskDetail.property.none': 'Keine',
+    'taskDetail.property.noneProject': 'Keins',
+    'taskDetail.placeholder.location': 'Hinzufügen…',
+    'taskDetail.panel.tasks': 'Aufgaben',
+    'taskDetail.placeholder.subtask': 'Aufgabe',
+    'taskDetail.placeholder.newSubtask': 'Neue Aufgabe…',
+    'taskDetail.panel.notes': 'Notizen',
+    'taskDetail.placeholder.notes': 'Notizen…',
+    'taskDetail.action.complete': 'Aufgabe erledigt',
+    'taskDetail.action.repeat': 'Aufgabe wiederholen',
+    'taskDetail.alert.locationUnavailableTitle': 'Standort nicht verfügbar',
+    'taskDetail.alert.locationUnavailableBody': 'Expo Location ist im aktuellen Build nicht enthalten. Bitte den Dev-Client neu bauen (z. B. npx expo run:ios).',
+    'taskDetail.alert.locationDeniedTitle': 'Kein Zugriff',
+    'taskDetail.alert.locationDeniedBody': 'Bitte Standortzugriff erlauben, um den aktuellen Ort zu verwenden.',
+    'taskDetail.alert.locationErrorTitle': 'Fehler',
+    'taskDetail.alert.locationErrorBody': 'Konnte den Standort nicht abrufen.',
+    'taskDetail.alert.deleteTitle': 'Aufgabe löschen?',
+    'taskDetail.alert.deleteBody': 'Diese Aufgabe wird in den Papierkorb verschoben.',
+    'taskDetail.alert.cancel': 'Abbrechen',
+    'taskDetail.alert.delete': 'Löschen',
+    'taskDetail.relative.today': 'Heute',
+    'taskDetail.relative.tomorrow': 'Morgen',
+
+    'datePicker.title': 'Fälligkeit',
+    'datePicker.noDate': 'Kein Datum',
+    'datePicker.time': 'Zeit',
+
+    'routinePicker.title': 'Wiederholung',
+    'routinePicker.notFound': 'Aufgabe nicht gefunden',
+    'routineOption.never': 'Nie',
+
+    'projectPicker.title': 'Projekt',
+    'projectPicker.newProject': 'Neues Projekt',
+    'projectPicker.noProject': 'Kein Projekt',
+
+    'emojiPicker.title': 'Emoji & Farbe',
+    'emojiPicker.emoji': 'Emoji',
+    'emojiPicker.color': 'Farbe',
+    'emojiPicker.resetColor': 'Farbe zurücksetzen',
+
+    'inbox.empty': 'Keine Aufgaben ohne Datum.',
+    'today.empty': 'Keine Aufgaben für heute.',
+
+    'routines.stats.dueToday': 'Heute fällig',
+    'routines.stats.daily': 'Täglich',
+    'routines.stats.weekly': 'Wöchentlich',
+    'routines.stats.monthlyPlus': 'Monatlich+',
+    'routines.hero.one': 'Routine',
+    'routines.hero.other': 'Routinen',
+    'routines.count.tasks.one': '{{count}} Aufgabe',
+    'routines.count.tasks.other': '{{count}} Aufgaben',
+    'routines.count.routines.one': '{{count}} Routine',
+    'routines.count.routines.other': '{{count}} Routinen',
+    'routines.section.all': 'Alle Routinen',
+    'routines.empty.title': 'Noch keine Routinen.',
+    'routines.empty.subtitle': 'Aktiviere eine Routine in den Aufgabendetails.',
+    'routines.next': 'Nächst: {{value}}',
+    'routines.noDate': 'Kein Datum',
+    'routinesTest.title': 'Routinen-Test',
+    'routinesTest.subtitle': 'Saubere Scroll-Seite zum Prüfen der nativen Tab-Bar-Minimierung auf iOS 26.',
+    'routinesTest.rowTitle': 'Routinen-Testreihe {{row}}',
+    'routinesTest.rowSubtitle': 'Scroll nach unten, um die Tab-Bar-Minimierung zu prüfen.',
+
+    'streaks.hero.one': 'Tag Streak',
+    'streaks.hero.other': 'Tage Streak',
+    'streaks.stats.today': 'Heute',
+    'streaks.stats.thisWeek': 'Diese Woche',
+    'streaks.stats.record': 'Rekord',
+    'streaks.stats.longest': 'Längster Streak',
+    'streaks.count.tasks.one': '{{count}} Aufgabe',
+    'streaks.count.tasks.other': '{{count}} Aufgaben',
+    'streaks.count.inOneDay': '{{count}} an einem Tag',
+    'streaks.count.days.one': '{{count}} Tag',
+    'streaks.count.days.other': '{{count}} Tage',
+    'streaks.chart.activity': 'Aktivität',
+    'streaks.chart.noData': 'Keine Daten',
+    'streaks.range.7d': '7 T',
+    'streaks.range.14d': '14 T',
+    'streaks.range.1m': '1 M',
+    'streaks.range.1y': '1 J',
+    'streaks.range.max': 'Max',
+
+    'archive.title': 'Archiv',
+    'archive.tab.completed': 'Abgeschlossen',
+    'archive.tab.trash': 'Papierkorb',
+    'archive.count.one': '{{count}} Aufgabe',
+    'archive.count.other': '{{count}} Aufgaben',
+    'archive.empty.completedTitle': 'Nichts abgeschlossen',
+    'archive.empty.trashTitle': 'Papierkorb ist leer',
+    'archive.empty.completedBody': 'Erledigte Aufgaben erscheinen hier.',
+    'archive.empty.trashBody': 'Gelöschte Aufgaben erscheinen hier und können wiederhergestellt werden.',
+
+    'modal.newTask': 'Neue Aufgabe',
+    'modal.placeholder.title': 'Titel…',
+
+    'filters.all': 'Alle',
+    'filters.today': 'Heute',
+    'filters.todayOnly': 'Nur heute',
+    'filters.upcoming': 'Demnächst',
+    'filters.upcomingOnly': 'Nur demnächst',
+    'filters.completed': 'Abgeschlossen',
+    'filters.completedOnly': 'Nur abgeschlossen',
+    'filters.withNotes': 'Mit Notiz',
+    'filters.withNotesOnly': 'Nur Aufgaben mit Untertitel',
+
+    'tags.overdue': 'Überfällig',
+    'tags.datetime': 'Datum & Uhrzeit',
+    'tags.location': 'Ort',
+    'tags.project': 'Projekt',
+    'tags.keywords': 'Schlagwörter',
+
+    'notification.due': 'Fällig',
+
+    'seed.project.work': 'Arbeit',
+    'seed.project.home': 'Zuhause',
+    'seed.project.selfcare': 'Selbstfürsorge',
+    'seed.task.swipeLeft.title': 'Nach links wischen',
+    'seed.task.swipeLeft.subtitle': 'Zum Löschen der Aufgabe',
+    'seed.task.swipeRight.title': 'Nach rechts wischen',
+    'seed.task.swipeRight.subtitle': 'Zum Erledigen der Aufgabe',
+    'seed.task.drag.title': 'Drag & Drop',
+    'seed.task.drag.subtitle': 'Halte gedrückt und ziehe mich',
+    'seed.task.details.title': 'Tippe für Details',
+    'seed.task.details.subtitle': 'Öffnet die Detailansicht',
+  },
+  en: {
+    'tabs.tasks': 'Tasks',
+    'tabs.search': 'Search',
+    'tabs.projects': 'Projects',
+
+    'common.task': 'Task',
+    'common.tasks': 'Tasks',
+    'common.project': 'Project',
+    'common.projects': 'Projects',
+    'common.filter': 'Filter',
+    'common.today': 'Today',
+    'common.upcoming': 'Upcoming',
+    'common.completed': 'Completed',
+    'common.inbox': 'Inbox',
+    'common.archive': 'Archive',
+    'common.search': 'Search',
+    'common.notes': 'Notes',
+    'common.noDescription': 'No description',
+
+    'home.filter.showAllTags': 'Show all tags',
+    'home.filter.hideAllTags': 'Hide all tags',
+    'home.filter.icons': 'Icons',
+    'home.filter.toggleSection': 'Toggle {{section}}',
+    'home.openArchive': 'Open archive',
+    'home.empty.noTasks': 'No tasks',
+    'home.addTask': 'Add task',
+    'home.archivePill.completed': '{{count}} completed',
+    'home.archivePill.trash': '{{count}} in trash',
+    'home.archivePill.archive': 'Archive',
+    'home.quick.streaks': 'Streaks',
+    'home.quick.day': 'day',
+    'home.quick.days': 'days',
+    'home.quick.withoutDate': '{{count}} without date',
+    'home.quick.routines': 'Routines',
+    'home.quick.recurring': '{{count}} recurring',
+
+    'search.placeholder': 'Search tasks',
+    'search.empty.hint': 'Use the search bar to start searching.',
+    'search.empty.noResults': 'No results for "{{query}}".',
+
+    'explore.newProject': 'New project',
+    'explore.taskCount.one': '{{count}} task',
+    'explore.taskCount.other': '{{count}} tasks',
+    'explore.tileAccessibility': '{{project}}: {{count}} tasks',
+
+    'project.notFound': 'Project not found',
+    'project.backProjects': 'Projects',
+
+    'projectEdit.newProject': 'New project',
+    'projectEdit.editProject': 'Edit project',
+    'projectEdit.placeholder.projectName': 'Project name',
+    'projectEdit.placeholder.description': 'Description (optional)',
+    'projectEdit.icon': 'Icon',
+    'projectEdit.color': 'Color',
+    'projectEdit.delete': 'Delete project',
+
+    'taskCreate.locationUnavailableTitle': 'Location unavailable',
+    'taskCreate.locationUnavailableBody': 'Expo Location is missing.',
+    'taskCreate.locationDeniedTitle': 'Access denied',
+    'taskCreate.locationDeniedBody': 'Please allow location access.',
+    'taskCreate.locationErrorTitle': 'Error',
+    'taskCreate.locationErrorBody': 'Location could not be fetched.',
+    'taskCreate.menu.date': 'Due date',
+    'taskCreate.menu.style': 'Style',
+    'taskCreate.menu.location': 'Location',
+    'taskCreate.menu.routine': 'Routine',
+    'taskCreate.menu.project': 'Project',
+    'taskCreate.titleMissingTitle': 'Missing title',
+    'taskCreate.titleMissingBody': 'Please enter a task title.',
+    'taskCreate.close': 'Close',
+    'taskCreate.more': 'More',
+    'taskCreate.placeholder.title': 'New task',
+    'taskCreate.accessibility.create': 'Create task',
+    'taskCreate.accessibility.enterTitle': 'Enter a title',
+
+    'taskDetail.routine.inactive': 'Not active',
+    'taskDetail.routine.hourly': 'Hourly',
+    'taskDetail.routine.daily': 'Daily',
+    'taskDetail.routine.weekdays': 'Weekdays',
+    'taskDetail.routine.weekends': 'Weekends',
+    'taskDetail.routine.weekly': 'Weekly',
+    'taskDetail.routine.biweekly': 'Every 2 weeks',
+    'taskDetail.routine.monthly': 'Monthly',
+    'taskDetail.routine.quarterly': 'Every 3 months',
+    'taskDetail.routine.biannually': 'Every 6 months',
+    'taskDetail.routine.yearly': 'Yearly',
+    'taskDetail.routine.custom': 'Custom',
+    'taskDetail.routine.default': 'Routine',
+    'taskDetail.due.none': 'No date',
+    'taskDetail.notFound': 'Task not found',
+    'taskDetail.back': 'Back',
+    'taskDetail.placeholder.title': 'Title',
+    'taskDetail.placeholder.subtitle': 'Description…',
+    'taskDetail.property.date': 'Date',
+    'taskDetail.property.routine': 'Routine',
+    'taskDetail.property.location': 'Location',
+    'taskDetail.property.project': 'Project',
+    'taskDetail.property.none': 'None',
+    'taskDetail.property.noneProject': 'None',
+    'taskDetail.placeholder.location': 'Add…',
+    'taskDetail.panel.tasks': 'Tasks',
+    'taskDetail.placeholder.subtask': 'Task',
+    'taskDetail.placeholder.newSubtask': 'New task…',
+    'taskDetail.panel.notes': 'Notes',
+    'taskDetail.placeholder.notes': 'Notes…',
+    'taskDetail.action.complete': 'Complete task',
+    'taskDetail.action.repeat': 'Repeat task',
+    'taskDetail.alert.locationUnavailableTitle': 'Location unavailable',
+    'taskDetail.alert.locationUnavailableBody': 'Expo Location is not included in this build. Rebuild your dev client (for example: npx expo run:ios).',
+    'taskDetail.alert.locationDeniedTitle': 'Access denied',
+    'taskDetail.alert.locationDeniedBody': 'Allow location access to use your current place.',
+    'taskDetail.alert.locationErrorTitle': 'Error',
+    'taskDetail.alert.locationErrorBody': 'Could not fetch location.',
+    'taskDetail.alert.deleteTitle': 'Delete task?',
+    'taskDetail.alert.deleteBody': 'This task will be moved to trash.',
+    'taskDetail.alert.cancel': 'Cancel',
+    'taskDetail.alert.delete': 'Delete',
+    'taskDetail.relative.today': 'Today',
+    'taskDetail.relative.tomorrow': 'Tomorrow',
+
+    'datePicker.title': 'Due date',
+    'datePicker.noDate': 'No date',
+    'datePicker.time': 'Time',
+
+    'routinePicker.title': 'Repeat',
+    'routinePicker.notFound': 'Task not found',
+    'routineOption.never': 'Never',
+
+    'projectPicker.title': 'Project',
+    'projectPicker.newProject': 'New project',
+    'projectPicker.noProject': 'No project',
+
+    'emojiPicker.title': 'Emoji & color',
+    'emojiPicker.emoji': 'Emoji',
+    'emojiPicker.color': 'Color',
+    'emojiPicker.resetColor': 'Reset color',
+
+    'inbox.empty': 'No tasks without a date.',
+    'today.empty': 'No tasks for today.',
+
+    'routines.stats.dueToday': 'Due today',
+    'routines.stats.daily': 'Daily',
+    'routines.stats.weekly': 'Weekly',
+    'routines.stats.monthlyPlus': 'Monthly+',
+    'routines.hero.one': 'Routine',
+    'routines.hero.other': 'Routines',
+    'routines.count.tasks.one': '{{count}} task',
+    'routines.count.tasks.other': '{{count}} tasks',
+    'routines.count.routines.one': '{{count}} routine',
+    'routines.count.routines.other': '{{count}} routines',
+    'routines.section.all': 'All routines',
+    'routines.empty.title': 'No routines yet.',
+    'routines.empty.subtitle': 'Enable a routine in task details.',
+    'routines.next': 'Next: {{value}}',
+    'routines.noDate': 'No date',
+    'routinesTest.title': 'Routines test',
+    'routinesTest.subtitle': 'Clean scroll page to verify native tab bar minimization on iOS 26.',
+    'routinesTest.rowTitle': 'Routine test row {{row}}',
+    'routinesTest.rowSubtitle': 'Scroll down to validate tab bar minimization behavior.',
+
+    'streaks.hero.one': 'day streak',
+    'streaks.hero.other': 'day streak',
+    'streaks.stats.today': 'Today',
+    'streaks.stats.thisWeek': 'This week',
+    'streaks.stats.record': 'Record',
+    'streaks.stats.longest': 'Longest streak',
+    'streaks.count.tasks.one': '{{count}} task',
+    'streaks.count.tasks.other': '{{count}} tasks',
+    'streaks.count.inOneDay': '{{count}} in one day',
+    'streaks.count.days.one': '{{count}} day',
+    'streaks.count.days.other': '{{count}} days',
+    'streaks.chart.activity': 'Activity',
+    'streaks.chart.noData': 'No data',
+    'streaks.range.7d': '7D',
+    'streaks.range.14d': '14D',
+    'streaks.range.1m': '1M',
+    'streaks.range.1y': '1Y',
+    'streaks.range.max': 'Max',
+
+    'archive.title': 'Archive',
+    'archive.tab.completed': 'Completed',
+    'archive.tab.trash': 'Trash',
+    'archive.count.one': '{{count}} task',
+    'archive.count.other': '{{count}} tasks',
+    'archive.empty.completedTitle': 'Nothing completed',
+    'archive.empty.trashTitle': 'Trash is empty',
+    'archive.empty.completedBody': 'Completed tasks appear here.',
+    'archive.empty.trashBody': 'Deleted tasks appear here and can be restored.',
+
+    'modal.newTask': 'New task',
+    'modal.placeholder.title': 'Title…',
+
+    'filters.all': 'All',
+    'filters.today': 'Today',
+    'filters.todayOnly': 'Today only',
+    'filters.upcoming': 'Upcoming',
+    'filters.upcomingOnly': 'Upcoming only',
+    'filters.completed': 'Completed',
+    'filters.completedOnly': 'Completed only',
+    'filters.withNotes': 'With notes',
+    'filters.withNotesOnly': 'Tasks with subtitle only',
+
+    'tags.overdue': 'Overdue',
+    'tags.datetime': 'Date & Time',
+    'tags.location': 'Location',
+    'tags.project': 'Project',
+    'tags.keywords': 'Keywords',
+
+    'notification.due': 'Due',
+
+    'seed.project.work': 'Work',
+    'seed.project.home': 'Home',
+    'seed.project.selfcare': 'Self care',
+    'seed.task.swipeLeft.title': 'Swipe left',
+    'seed.task.swipeLeft.subtitle': 'to delete the task',
+    'seed.task.swipeRight.title': 'Swipe right',
+    'seed.task.swipeRight.subtitle': 'to complete the task',
+    'seed.task.drag.title': 'Drag & drop',
+    'seed.task.drag.subtitle': 'Press and hold to drag me',
+    'seed.task.details.title': 'Tap for details',
+    'seed.task.details.subtitle': 'Opens the detail view',
+  },
+};
+
+let localeOverride: AppLocale | null = null;
+
+function detectLocale(): AppLocale {
+  try {
+    const locale = Intl.DateTimeFormat().resolvedOptions().locale?.toLowerCase() ?? '';
+    return locale.startsWith('de') ? 'de' : 'en';
+  } catch {
+    return 'en';
+  }
+}
+
+export function getLocale(): AppLocale {
+  return localeOverride ?? detectLocale();
+}
+
+export function setLocale(locale: AppLocale | null) {
+  localeOverride = locale;
+}
+
+export function getIntlLocale(locale: AppLocale = getLocale()): string {
+  return locale === 'de' ? 'de-DE' : 'en-US';
+}
+
+function interpolate(template: string, params?: TranslationParams): string {
+  if (!params) return template;
+  return template.replace(/{{\s*([a-zA-Z0-9_]+)\s*}}/g, (_, key) => {
+    const value = params[key];
+    return value === undefined ? '' : String(value);
+  });
+}
+
+export function t(key: string, params?: TranslationParams): string {
+  const locale = getLocale();
+  const value = TRANSLATIONS[locale][key] ?? TRANSLATIONS.en[key] ?? key;
+  return interpolate(value, params);
+}
+
+export function formatDate(value: number | Date, options?: Intl.DateTimeFormatOptions): string {
+  const date = value instanceof Date ? value : new Date(value);
+  return new Intl.DateTimeFormat(getIntlLocale(), options).format(date);
+}
+
+export function countLabel(count: number, oneKey: string, otherKey: string): string {
+  return t(count === 1 ? oneKey : otherKey, { count });
+}

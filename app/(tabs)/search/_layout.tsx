@@ -1,6 +1,7 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 import { Platform } from 'react-native';
+import { t } from '@/i18n';
 
 export default function SearchLayout() {
   const router = useRouter();
@@ -21,10 +22,10 @@ export default function SearchLayout() {
       <Stack.Screen
         name="index"
         options={{
-          title: 'Search',
+          title: t('tabs.search'),
           headerSearchBarOptions: {
             placement: 'automatic',
-            placeholder: 'Tasks durchsuchen',
+            placeholder: t('search.placeholder'),
             autoFocus: true,
             ref: searchBarRef,
             //hideWhenScrolling: false,

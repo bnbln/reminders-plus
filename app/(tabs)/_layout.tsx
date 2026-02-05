@@ -10,10 +10,12 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { TabBarMinimizeProvider } from '@/context/tabbar-minimize-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { t } from '@/i18n';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const theme = colorScheme ?? 'light';
+  const isIOS26Plus = Platform.OS === 'ios' && Number(Platform.Version) >= 26;
 
   if (__DEV__ && Platform.OS === 'ios' && Number(Platform.Version) >= 26) {
     if (Constants.appOwnership === 'expo') {
@@ -46,21 +48,21 @@ export default function TabLayout() {
           <Tabs.Screen
             name="home"
             options={{
-              title: 'Tasks',
+              title: t('tabs.tasks'),
               tabBarIcon: ({ color }) => <IconSymbol size={28} name="checkmark.circle.fill" color={color} />,
             }}
           />
           <Tabs.Screen
             name="search"
             options={{
-              title: 'Search',
+              title: t('tabs.search'),
               tabBarIcon: ({ color }) => <MaterialIcons name="search" size={26} color={color} />,
             }}
           />
           <Tabs.Screen
             name="explore"
             options={{
-              title: 'Projects',
+              title: t('tabs.projects'),
               tabBarIcon: ({ color }) => <IconSymbol size={28} name="folder.fill" color={color} />,
             }}
           />
@@ -74,8 +76,8 @@ export default function TabLayout() {
       <TabBarMinimizeProvider behavior="onScrollDown">
         <NativeTabs
           minimizeBehavior="onScrollDown"
-        // Docs: can fix scroll edge detection issues which can also break scroll-based behaviors
-        disableTransparentOnScrollEdge
+          // Keep scroll-edge behavior native on iOS 26+ so tab minimization can react to content scrolling.
+          disableTransparentOnScrollEdge={!isIOS26Plus}
         labelStyle={
           Platform.OS === 'ios'
             ? {
@@ -95,7 +97,7 @@ export default function TabLayout() {
             : Colors[theme].tint
         }>
         <NativeTabs.Trigger name="home">
-          <Label>Tasks</Label>
+          <Label>{t('tabs.tasks')}</Label>
           {Platform.select({
             ios: <Icon sf={{ default: 'checkmark.circle', selected: 'checkmark.circle.fill' }} />,
             android: <Icon src={<VectorIcon family={MaterialIcons} name="check-circle" />} />,
@@ -103,7 +105,7 @@ export default function TabLayout() {
         </NativeTabs.Trigger>
 
         <NativeTabs.Trigger name="search" role="search">
-          <Label>Search</Label>
+          <Label>{t('tabs.search')}</Label>
           {Platform.select({
             ios: <Icon sf={{ default: 'magnifyingglass', selected: 'magnifyingglass' }} />,
             android: <Icon src={<VectorIcon family={MaterialIcons} name="search" />} />,
@@ -111,10 +113,18 @@ export default function TabLayout() {
         </NativeTabs.Trigger>
 
         <NativeTabs.Trigger name="explore">
-          <Label>Projects</Label>
+          <Label>{t('tabs.projects')}</Label>
           {Platform.select({
             ios: <Icon sf={{ default: 'folder', selected: 'folder.fill' }} />,
             android: <Icon src={<VectorIcon family={MaterialIcons} name="folder" />} />,
+          })}
+        </NativeTabs.Trigger>
+
+        <NativeTabs.Trigger name="routines">
+          <Label>Routines</Label>
+          {Platform.select({
+            ios: <Icon sf={{ default: 'repeat', selected: 'repeat' }} />,
+            android: <Icon src={<VectorIcon family={MaterialIcons} name="repeat" />} />,
           })}
         </NativeTabs.Trigger>
 

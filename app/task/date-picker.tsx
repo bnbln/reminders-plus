@@ -9,6 +9,7 @@ import { withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { t } from '@/i18n';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
@@ -120,7 +121,7 @@ export default function DatePickerScreen() {
         <View style={styles.container}>
             <Stack.Screen
                 options={{
-                    title: 'Fälligkeit',
+                    title: t('datePicker.title'),
                     headerLeft: () => (
                         <View style={styles.iconButton}>
                             <Pressable onPress={handleCancel} hitSlop={10} style={styles.pressableIcon}>
@@ -158,7 +159,7 @@ export default function DatePickerScreen() {
                             <MaterialIcons name="event-busy" size={20} color={withAlpha(Colors[theme].text, 0.6)} />
                         </View>
                         <View style={styles.optionBody}>
-                            <Text style={styles.optionLabel}>Kein Datum</Text>
+                            <Text style={styles.optionLabel}>{t('datePicker.noDate')}</Text>
                         </View>
                         {isCleared && <MaterialIcons name="check" size={20} color={Colors[theme].tint} />}
                     </Pressable>
@@ -180,7 +181,7 @@ export default function DatePickerScreen() {
 
                     {/* Time Switch */}
                     <View style={[styles.optionRow, { justifyContent: 'space-between' }]}>
-                        <Text style={styles.optionLabel}>Zeit</Text>
+                        <Text style={styles.optionLabel}>{t('datePicker.time')}</Text>
                         <Switch
                             value={dueHasTimeDraft}
                             onValueChange={(v) => {

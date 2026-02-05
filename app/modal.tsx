@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { t } from '@/i18n';
 
 export default function ModalScreen() {
   const theme = useColorScheme() ?? 'light';
@@ -28,7 +29,7 @@ export default function ModalScreen() {
     <ThemedView style={[styles.container, { backgroundColor: theme === 'dark' ? '#000000' : '#F2F2F7' }]}>
       <Stack.Screen
         options={{
-          title: 'Neue Aufgabe',
+          title: t('modal.newTask'),
           headerLeft: () => (
             <Pressable onPress={handleCancel} hitSlop={10} style={styles.iconButton}>
               <MaterialIcons name="close" size={24} color={Colors[theme].text} />
@@ -52,7 +53,7 @@ export default function ModalScreen() {
         <TextInput
           value={title}
           onChangeText={setTitle}
-          placeholder="Titel…"
+          placeholder={t('modal.placeholder.title')}
           placeholderTextColor={theme === 'dark' ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.45)'}
           autoFocus={true}
           style={[

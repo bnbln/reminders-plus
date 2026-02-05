@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { t } from '@/i18n';
 import { GlassSurface, withAlpha } from './glass-surface';
 
 type Props = {
@@ -47,7 +48,7 @@ export function FloatingAddButton({
       onPress={onPress}
       hitSlop={12}
       accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel ?? 'Hinzufügen'}
+      accessibilityLabel={accessibilityLabel ?? t('home.addTask')}
       style={[
         styles.position,
         {
@@ -82,7 +83,7 @@ type PillProps = {
 export function FloatingAddPillButton({
   onPress,
   onLongPress,
-  label = 'Task hinzufügen',
+  label = t('home.addTask'),
   minimized = false,
   style,
   accessibilityLabel,

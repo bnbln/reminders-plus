@@ -1,6 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
+import { Platform, ScrollView, View } from 'react-native';
 import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist';
 
 import type { SwipeTaskRowStyles } from '@/components/tasks/swipe-task-row';
@@ -251,6 +252,97 @@ ref
   const resolvedContainerStyle: StyleProp<ViewStyle> = React.useMemo(() => {
     return [{ flex: 1, backgroundColor: Colors[theme].background }, containerStyle];
   }, [containerStyle, theme]);
+
+  // Native tab-bar minimize-on-scroll currently tracks ScrollView reliably on iOS 26,
+  // but not DraggableFlatList. Keep a ScrollView path for iOS 26 to preserve native minimize behavior.
+  const useScrollViewCompatibilityMode = Platform.OS === 'ios' && Number(Platform.Version) >= 26;
+
+  const renderCompatItem = React.useCallback(
+    (item: TaskSwipeDraggableListItem) => {
+      if (item.kind === 'header') {
+        return renderHeaderRow ? renderHeaderRow(item.sectionId) : null;
+      }
+
+      const task = tasksById.get(item.taskId);
+      if (!task) return null;
+
+      return (
+        <SwipeTaskRow
+          task={task}
+          project={projectsById?.get(task.projectId)}
+          drag={() => {}}
+          isActive={false}
+          styles={rowStyles}
+          glassDragTint={glassDragTint}
+          glassDragFallback={glassDragFallback}
+          emojiTint={emojiTint}
+          emojiFallback={emojiFallback}
+          swipeCompleteBg={swipeCompleteBg}
+          swipeDeleteBg={swipeDeleteBg}
+          enabledTags={enabledTagsResolved}
+          showTaskIcons={showTaskIconsResolved}
+          beginSwipe={beginSwipe}
+          endSwipe={endSwipe}
+          registerClose={registerClose}
+          unregisterClose={unregisterClose}
+          closeAnyOpen={closeAnyOpen}
+          onPressTask={handlePressTask}
+          toggleComplete={toggleComplete}
+          deleteTask={deleteTask}
+        />
+      );
+    },
+    [
+      beginSwipe,
+      closeAnyOpen,
+      deleteTask,
+      enabledTagsResolved,
+      emojiFallback,
+      emojiTint,
+      endSwipe,
+      glassDragFallback,
+      glassDragTint,
+      handlePressTask,
+      projectsById,
+      registerClose,
+      renderHeaderRow,
+      rowStyles,
+      showTaskIconsResolved,
+      swipeCompleteBg,
+      swipeDeleteBg,
+      tasksById,
+      toggleComplete,
+      unregisterClose,
+    ]
+  );
+
+  if (useScrollViewCompatibilityMode) {
+    return (
+      <View style={resolvedContainerStyle}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={contentContainerStyle}
+          contentInsetAdjustmentBehavior={contentInsetAdjustmentBehavior ?? 'automatic'}
+          alwaysBounceVertical
+          onScroll={(event) => {
+            onScrollOffsetChange?.(event.nativeEvent.contentOffset.y);
+          }}
+          scrollEventThrottle={16}
+          showsVerticalScrollIndicator={false}
+        >
+          {header ?? null}
+
+          {flatListData.length === 0 ? (
+            empty ?? null
+          ) : (
+            flatListData.map((item) => <React.Fragment key={item.key}>{renderCompatItem(item)}</React.Fragment>)
+          )}
+
+          {footer ?? null}
+        </ScrollView>
+      </View>
+    );
+  }
 
   return (
     <DraggableFlatList

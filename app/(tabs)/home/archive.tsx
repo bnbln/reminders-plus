@@ -8,11 +8,12 @@ import { Colors } from '@/constants/theme';
 import { useHomeFilters } from '@/context/home-filters-store';
 import { getDueAtForSection, type Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { t } from '@/i18n';
 
 type TabId = 'completed' | 'trash';
 
-function formatCountLabel(count: number, singular: string, plural: string) {
-  return count === 1 ? `${count} ${singular}` : `${count} ${plural}`;
+function formatCountLabel(count: number) {
+  return count === 1 ? t('archive.count.one', { count }) : t('archive.count.other', { count });
 }
 
 export default function ArchiveScreen() {
@@ -168,11 +169,11 @@ export default function ArchiveScreen() {
 
   const data = tab === 'completed' ? completed : trashed;
 
-  const title = tab === 'completed' ? 'Abgeschlossen' : 'Papierkorb';
+  const title = tab === 'completed' ? t('archive.tab.completed') : t('archive.tab.trash');
   const subtitle =
     tab === 'completed'
-      ? formatCountLabel(completed.length, 'Aufgabe', 'Aufgaben')
-      : formatCountLabel(trashed.length, 'Aufgabe', 'Aufgaben');
+      ? formatCountLabel(completed.length)
+      : formatCountLabel(trashed.length);
 
   const headerEmoji = tab === 'completed' ? '✅' : '🧹';
 
@@ -203,26 +204,26 @@ export default function ArchiveScreen() {
           style={styles.segmentWrap}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Abgeschlossen"
+            accessibilityLabel={t('archive.tab.completed')}
             onPress={() => {
               closeAnyOpen();
               setTab('completed');
             }}
             style={({ pressed }) => [styles.segment, tab === 'completed' && styles.segmentActive, pressed && { opacity: 0.9 }]}>
             <Text style={[styles.segmentText, tab === 'completed' && styles.segmentTextActive]}>
-              {`Abgeschlossen (${completed.length})`}
+              {`${t('archive.tab.completed')} (${completed.length})`}
             </Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Papierkorb"
+            accessibilityLabel={t('archive.tab.trash')}
             onPress={() => {
               closeAnyOpen();
               setTab('trash');
             }}
             style={({ pressed }) => [styles.segment, tab === 'trash' && styles.segmentActive, pressed && { opacity: 0.9 }]}>
             <Text style={[styles.segmentText, tab === 'trash' && styles.segmentTextActive]}>
-              {`Papierkorb (${trashed.length})`}
+              {`${t('archive.tab.trash')} (${trashed.length})`}
             </Text>
           </Pressable>
         </GlassSurface>
@@ -319,8 +320,8 @@ export default function ArchiveScreen() {
     <View style={styles.screen}>
       <Stack.Screen
         options={{
-          title: 'Archiv',
-          headerTitle: 'Archiv',
+          title: t('archive.title'),
+          headerTitle: t('archive.title'),
           //headerBackTitle: ' ',
           headerBackButtonDisplayMode: 'minimal',
           //headerTransparent: true,
@@ -340,11 +341,11 @@ export default function ArchiveScreen() {
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>{tab === 'completed' ? 'Nichts abgeschlossen' : 'Papierkorb ist leer'}</Text>
+            <Text style={styles.emptyTitle}>{tab === 'completed' ? t('archive.empty.completedTitle') : t('archive.empty.trashTitle')}</Text>
             <Text style={styles.emptySubtitle}>
               {tab === 'completed'
-                ? 'Erledigte Tasks erscheinen hier.'
-                : 'Gelöschte Tasks erscheinen hier und können wiederhergestellt werden.'}
+                ? t('archive.empty.completedBody')
+                : t('archive.empty.trashBody')}
             </Text>
           </View>
         }

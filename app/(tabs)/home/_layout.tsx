@@ -10,12 +10,14 @@ import {
     parseTagIconsParam,
     parseTagsParam,
     serializeTagsParam,
+    getTagTitle,
     TAG_DEFS,
     TAG_ORDER,
     useHomeFilters,
     type TagId,
 } from '@/context/home-filters-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { t } from '@/i18n';
 
 function setsEqual<T>(a: Set<T>, b: Set<T>) {
   if (a.size !== b.size) return false;
@@ -68,14 +70,14 @@ function FilterMenuButton({ theme }: { theme: keyof typeof Colors }) {
 
     const showAll: MenuAction = {
       id: 'showAllTags',
-      title: 'Show All Tags',
+      title: t('home.filter.showAllTags'),
       image: Platform.OS === 'ios' ? 'eye' : undefined,
       imageColor: Platform.OS === 'ios' ? iconColor : undefined,
     };
 
     const hideAll: MenuAction = {
       id: 'hideAllTags',
-      title: 'Hide All Tags',
+      title: t('home.filter.hideAllTags'),
       image: Platform.OS === 'ios' ? 'eye.slash' : undefined,
       imageColor: Platform.OS === 'ios' ? iconColor : undefined,
     };
@@ -83,7 +85,7 @@ function FilterMenuButton({ theme }: { theme: keyof typeof Colors }) {
     const toggles: MenuAction[] = [
       {
         id: 'toggleTagIcons',
-        title: 'Icons',
+        title: t('home.filter.icons'),
         image: Platform.OS === 'ios' ? 'app.dashed' : undefined,
         imageColor: Platform.OS === 'ios' ? iconColor : undefined,
         state: Platform.OS === 'ios' ? (showTagIcons ? 'on' : 'off') : undefined,
@@ -92,7 +94,7 @@ function FilterMenuButton({ theme }: { theme: keyof typeof Colors }) {
         const on = enabledTags.has(tag);
         return {
           id: tag,
-          title: TAG_DEFS[tag].title,
+          title: getTagTitle(tag),
           image: Platform.OS === 'ios' ? TAG_DEFS[tag].iosSymbol : undefined,
           imageColor: Platform.OS === 'ios' ? iconColor : undefined,
           state: Platform.OS === 'ios' ? (on ? 'on' : 'off') : undefined,
@@ -172,7 +174,7 @@ function FilterMenuButton({ theme }: { theme: keyof typeof Colors }) {
       {Platform.OS === 'android' ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Filter"
+          accessibilityLabel={t('common.filter')}
           style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
           onPress={() => menuRef.current?.show?.()}>
           <FilterIcon theme={theme} />
@@ -199,28 +201,28 @@ export default function HomeLayout() {
       <Stack.Screen
         name="index"
         options={{
-          title: 'Tasks',
+          title: t('tabs.tasks'),
           headerRight: () => <FilterMenuButton theme={theme} />,
         }}
       />
       <Stack.Screen
         name="archive"
         options={{
-          title: 'Archiv',
+          title: t('archive.title'),
         }}
       />
 
       <Stack.Screen
         name="streaks"
         options={{
-          title: 'Streaks',
+          title: t('home.quick.streaks'),
           headerBackButtonDisplayMode: 'minimal',
         }}
       />
       <Stack.Screen
         name="inbox"
         options={{
-          title: 'Inbox',
+          title: t('common.inbox'),
           headerBackButtonDisplayMode: 'minimal',
           headerRight: () => <FilterMenuButton theme={theme} />,
         }}
@@ -228,14 +230,14 @@ export default function HomeLayout() {
       <Stack.Screen
         name="routines"
         options={{
-          title: 'Routinen',
+          title: t('home.quick.routines'),
           headerBackButtonDisplayMode: 'minimal',
         }}
       />
       <Stack.Screen
         name="today"
         options={{
-          title: 'Heute',
+          title: t('common.today'),
           headerBackButtonDisplayMode: 'minimal',
           headerRight: () => <FilterMenuButton theme={theme} />,
         }}

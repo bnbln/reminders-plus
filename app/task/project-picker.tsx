@@ -9,6 +9,7 @@ import { SFSymbol } from '@/components/ui/sfsymbol';
 import { Colors } from '@/constants/theme';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { t } from '@/i18n';
 
 export default function ProjectPickerScreen() {
     const router = useRouter();
@@ -57,7 +58,7 @@ export default function ProjectPickerScreen() {
         <View style={styles.container}>
             <Stack.Screen
                 options={{
-                    title: 'Projekt',
+                    title: t('projectPicker.title'),
                     headerLeft: () => (
                         <View style={styles.iconButton}>
                             <Pressable onPress={handleCancel} hitSlop={10} style={styles.pressableIcon}>
@@ -92,7 +93,7 @@ export default function ProjectPickerScreen() {
                         style={[styles.optionRow, { marginBottom: 24, justifyContent: 'center' }]}
                     >
                         <MaterialIcons name="add" size={20} color={Colors[theme].tint} style={{ marginRight: 8 }} />
-                        <Text style={[styles.optionLabel, { color: Colors[theme].tint }]}>Neues Projekt</Text>
+                        <Text style={[styles.optionLabel, { color: Colors[theme].tint }]}>{t('projectPicker.newProject')}</Text>
                     </Pressable>
 
                     {/* No Project Option */}
@@ -104,7 +105,7 @@ export default function ProjectPickerScreen() {
                             <MaterialIcons name="folder-off" size={20} color={withAlpha(Colors[theme].text, 0.6)} />
                         </View>
                         <View style={styles.optionBody}>
-                            <Text style={styles.optionLabel}>Kein Projekt</Text>
+                            <Text style={styles.optionLabel}>{t('projectPicker.noProject')}</Text>
                         </View>
                         {selectedProjectId === null && <MaterialIcons name="check" size={20} color={Colors[theme].tint} />}
                     </Pressable>
@@ -125,7 +126,7 @@ export default function ProjectPickerScreen() {
                                 </View>
                                 <View style={styles.optionBody}>
                                     <Text style={styles.optionLabel}>{p.name}</Text>
-                                    <Text style={styles.optionSubLabel} numberOfLines={1}>{p.description || 'Keine Beschreibung'}</Text>
+                                    <Text style={styles.optionSubLabel} numberOfLines={1}>{p.description || t('common.noDescription')}</Text>
                                 </View>
                                 {isActive && <MaterialIcons name="check" size={20} color={Colors[theme].tint} />}
                             </Pressable>

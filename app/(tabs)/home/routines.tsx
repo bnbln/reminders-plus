@@ -7,6 +7,7 @@ import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
 import { Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { countLabel, getIntlLocale, t } from '@/i18n';
 
 type ThemeName = keyof typeof Colors;
 
@@ -15,35 +16,35 @@ const NTH_LABELS = ['1.', '2.', '3.', '4.'];
 
 const getRoutineLabel = (task: Task): string => {
   const type = task.routineType || task.routineInterval;
-  if (!type) return 'Routine';
+  if (!type) return t('taskDetail.routine.default');
 
   switch (type) {
-    case 'hourly': return 'Stündlich';
-    case 'daily': return 'Täglich';
-    case 'weekdays': return 'An Wochentagen';
-    case 'weekends': return 'An Wochenenden';
-    case 'weekly': return 'Wöchentlich';
-    case 'biweekly': return 'Alle 2 Wochen';
-    case 'monthly': return 'Monatlich';
-    case 'quarterly': return 'Alle 3 Monate';
-    case 'biannually': return 'Alle 6 Monate';
-    case 'yearly': return 'Jährlich';
-    case 'custom': return 'Eigene';
-    default: return 'Routine';
+    case 'hourly': return t('taskDetail.routine.hourly');
+    case 'daily': return t('taskDetail.routine.daily');
+    case 'weekdays': return t('taskDetail.routine.weekdays');
+    case 'weekends': return t('taskDetail.routine.weekends');
+    case 'weekly': return t('taskDetail.routine.weekly');
+    case 'biweekly': return t('taskDetail.routine.biweekly');
+    case 'monthly': return t('taskDetail.routine.monthly');
+    case 'quarterly': return t('taskDetail.routine.quarterly');
+    case 'biannually': return t('taskDetail.routine.biannually');
+    case 'yearly': return t('taskDetail.routine.yearly');
+    case 'custom': return t('taskDetail.routine.custom');
+    default: return t('taskDetail.routine.default');
   }
 };
 
 const formatNextDue = (ms: number) => {
-  if (!Number.isFinite(ms) || ms <= 0) return 'Kein Datum';
+  if (!Number.isFinite(ms) || ms <= 0) return t('routines.noDate');
   const d = new Date(ms);
   const today = new Date();
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
-  if (d.toDateString() === today.toDateString()) return 'Heute';
-  if (d.toDateString() === tomorrow.toDateString()) return 'Morgen';
+  if (d.toDateString() === today.toDateString()) return t('taskDetail.relative.today');
+  if (d.toDateString() === tomorrow.toDateString()) return t('taskDetail.relative.tomorrow');
 
-  return d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: 'short' });
+  return d.toLocaleDateString(getIntlLocale(), { weekday: 'short', day: '2-digit', month: 'short' });
 };
 
 const createStyles = (theme: ThemeName) => {
@@ -298,7 +299,7 @@ export default function RoutinesScreen() {
         <View>
           <Text style={styles.bigNumber}>{routinesCount}</Text>
           <Text style={styles.heroSubtitle}>
-            {routinesCount === 1 ? 'Routine' : 'Routinen'}
+            {routinesCount === 1 ? t('routines.hero.one') : t('routines.hero.other')}
           </Text>
         </View>
       </View>
@@ -306,8 +307,8 @@ export default function RoutinesScreen() {
       {/* Stats Grid */}
       <View style={styles.statsGrid}>
         <StatTile
-          title="Heute fällig"
-          value={`${dueTodayCount} Tasks`}
+          title={t('routines.stats.dueToday')}
+          value={countLabel(dueTodayCount, 'routines.count.tasks.one', 'routines.count.tasks.other')}
           icon="today"
           iconColor="#10B981"
           styles={styles}
@@ -316,8 +317,8 @@ export default function RoutinesScreen() {
           isDark={isDark}
         />
         <StatTile
-          title="Täglich"
-          value={`${dailyCount} Routinen`}
+          title={t('routines.stats.daily')}
+          value={countLabel(dailyCount, 'routines.count.routines.one', 'routines.count.routines.other')}
           icon="repeat"
           iconColor="#0A84FF"
           styles={styles}
@@ -326,8 +327,8 @@ export default function RoutinesScreen() {
           isDark={isDark}
         />
         <StatTile
-          title="Wöchentlich"
-          value={`${weeklyCount} Routinen`}
+          title={t('routines.stats.weekly')}
+          value={countLabel(weeklyCount, 'routines.count.routines.one', 'routines.count.routines.other')}
           icon="date-range"
           iconColor="#8B5CF6"
           styles={styles}
@@ -336,8 +337,8 @@ export default function RoutinesScreen() {
           isDark={isDark}
         />
         <StatTile
-          title="Monatlich+"
-          value={`${monthlyCount} Routinen`}
+          title={t('routines.stats.monthlyPlus')}
+          value={countLabel(monthlyCount, 'routines.count.routines.one', 'routines.count.routines.other')}
           icon="calendar-today"
           iconColor="#F59E0B"
           styles={styles}
@@ -349,12 +350,12 @@ export default function RoutinesScreen() {
 
       {/* Routines List */}
       <View>
-        <Text style={styles.sectionTitle}>Alle Routinen</Text>
+        <Text style={styles.sectionTitle}>{t('routines.section.all')}</Text>
         {routineTasks.length === 0 ? (
           <View style={styles.emptyState}>
             <MaterialIcons name="loop" size={40} color={withAlpha(textColor, 0.25)} />
             <Text style={styles.emptyText}>
-              Noch keine Routinen.{'\n'}Aktiviere eine Routine in den Task-Details.
+              {t('routines.empty.title')}{'\n'}{t('routines.empty.subtitle')}
             </Text>
           </View>
         ) : (
@@ -385,7 +386,7 @@ export default function RoutinesScreen() {
                           <View style={[styles.intervalBadge, { backgroundColor: withAlpha(intervalColor, isDark ? 0.2 : 0.15) }]}>
                             <Text style={[styles.intervalText, { color: intervalColor }]}>{intervalLabel}</Text>
                           </View>
-                          <Text style={styles.nextDueText}>Nächst: {formatNextDue(routine.dueAt)}</Text>
+                          <Text style={styles.nextDueText}>{t('routines.next', { value: formatNextDue(routine.dueAt) })}</Text>
                         </View>
                       </View>
                       <MaterialIcons name="chevron-right" size={20} color={withAlpha(textColor, 0.4)} />

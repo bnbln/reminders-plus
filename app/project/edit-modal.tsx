@@ -9,6 +9,7 @@ import { SFSymbol } from '@/components/ui/sfsymbol';
 import { Colors } from '@/constants/theme';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { t } from '@/i18n';
 
 const ICON_PRESETS = [
     'folder.fill',
@@ -112,7 +113,7 @@ export default function ProjectEditScreen() {
         router.navigate('/(tabs)/explore');
     }, [id, setProjects, setTasks, router]);
 
-    const headerTitle = isCreate ? 'Neues Projekt' : 'Projekt bearbeiten';
+    const headerTitle = isCreate ? t('projectEdit.newProject') : t('projectEdit.editProject');
 
     const insets = useSafeAreaInsets();
 
@@ -155,7 +156,7 @@ export default function ProjectEditScreen() {
                             style={styles.nameInput}
                             value={name}
                             onChangeText={setName}
-                            placeholder="Projektname"
+                            placeholder={t('projectEdit.placeholder.projectName')}
                             placeholderTextColor={Colors[theme].text + '40'}
                             autoFocus
                         />
@@ -167,14 +168,14 @@ export default function ProjectEditScreen() {
                             style={[styles.nameInput, { fontSize: 15, height: 60 }]}
                             value={description}
                             onChangeText={setDescription}
-                            placeholder="Beschreibung (optional)"
+                            placeholder={t('projectEdit.placeholder.description')}
                             placeholderTextColor={Colors[theme].text + '40'}
                             multiline
                         />
                     </View>
 
                     <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Icon</Text>
+                        <Text style={styles.sectionTitle}>{t('projectEdit.icon')}</Text>
                         <View style={styles.grid}>
                             {ICON_PRESETS.map(c => (
                                 <Pressable
@@ -192,7 +193,7 @@ export default function ProjectEditScreen() {
                     </View>
 
                     <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Farbe</Text>
+                        <Text style={styles.sectionTitle}>{t('projectEdit.color')}</Text>
                         <View style={styles.grid}>
                             {COLOR_PRESETS.map(c => (
                                 <Pressable
@@ -211,7 +212,7 @@ export default function ProjectEditScreen() {
                     {!isCreate ? (
                         <Pressable onPress={onDelete} style={styles.deleteButton}>
                             <MaterialIcons name="delete-outline" size={20} color="#FF3B30" />
-                            <Text style={styles.deleteText}>Projekt löschen</Text>
+                            <Text style={styles.deleteText}>{t('projectEdit.delete')}</Text>
                         </Pressable>
                     ) : null}
 

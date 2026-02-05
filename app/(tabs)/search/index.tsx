@@ -8,6 +8,7 @@ import { Colors } from '@/constants/theme';
 import { useHomeFilters } from '@/context/home-filters-store';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { t } from '@/i18n';
 
 export default function SearchIndex() {
   const router = useRouter();
@@ -77,11 +78,11 @@ export default function SearchIndex() {
         <View style={styles.empty}>
           {!query ? (
             <Text style={[styles.emptyText, { color: Colors[theme].text }]}>
-              Tippe unten in die Suchleiste, um zu suchen.
+              {t('search.empty.hint')}
             </Text>
           ) : (
             <Text style={[styles.emptyText, { color: Colors[theme].text }]}>
-              Keine Treffer für „{q}“.
+              {t('search.empty.noResults', { query: q ?? '' })}
             </Text>
           )}
         </View>

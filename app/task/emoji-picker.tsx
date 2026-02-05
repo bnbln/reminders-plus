@@ -8,6 +8,7 @@ import { withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { t } from '@/i18n';
 
 const COLOR_SWATCHES = [
     '#34C759',
@@ -100,7 +101,7 @@ export default function EmojiPickerScreen() {
         <View style={styles.container}>
             <Stack.Screen
                 options={{
-                    title: 'Emoji & Farbe',
+                    title: t('emojiPicker.title'),
                     headerLeft: () => (
                         <View style={styles.iconButton}>
                             <Pressable onPress={handleCancel} hitSlop={10} style={styles.pressableIcon}>
@@ -129,7 +130,7 @@ export default function EmojiPickerScreen() {
                     contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
                     showsVerticalScrollIndicator={false}
                 >
-                    <Text style={styles.sectionTitle}>Emoji</Text>
+                    <Text style={styles.sectionTitle}>{t('emojiPicker.emoji')}</Text>
                     <View style={styles.grid}>
                         {EMOJI_SWATCHES.map((e) => (
                             <Pressable
@@ -145,7 +146,7 @@ export default function EmojiPickerScreen() {
                         ))}
                     </View>
 
-                    <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Farbe</Text>
+                    <Text style={[styles.sectionTitle, { marginTop: 24 }]}>{t('emojiPicker.color')}</Text>
                     <View style={styles.grid}>
                         {COLOR_SWATCHES.map((c) => (
                             <Pressable
@@ -165,7 +166,7 @@ export default function EmojiPickerScreen() {
                             onPress={() => setColor(undefined)}
                             style={styles.resetButton}
                         >
-                            <Text style={styles.resetText}>Farbe zurücksetzen</Text>
+                            <Text style={styles.resetText}>{t('emojiPicker.resetColor')}</Text>
                         </Pressable>
                     )}
                 </ScrollView>

@@ -8,6 +8,7 @@ import 'react-native-reanimated';
 import { HomeFiltersProvider } from '@/context/home-filters-store';
 import { TasksProvider } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { t } from '@/i18n';
 import { initTaskNotifications } from '@/notifications/tasks-notifications';
 
 export const unstable_settings = {
@@ -66,8 +67,8 @@ export default function RootLayout() {
                   contentStyle: { backgroundColor: 'transparent' },
                 }}
               />
-              <Stack.Screen name="task/[id]" options={{ title: 'Task' }} />
-              <Stack.Screen name="project/[id]" options={{ title: 'Projekt' }} />
+              <Stack.Screen name="task/[id]" options={{ title: t('common.task') }} />
+              <Stack.Screen name="project/[id]" options={{ title: t('common.project') }} />
               <Stack.Screen
                 name="project/edit-modal"
                 options={{
@@ -80,7 +81,7 @@ export default function RootLayout() {
                 options={{
                   presentation: 'formSheet',
                   contentStyle: { backgroundColor: 'transparent' },
-                  title: 'Modal'
+                  title: t('modal.newTask')
                 }}
               />
             </Stack>
