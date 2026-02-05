@@ -379,25 +379,75 @@ private final class TabBarAccessoryCoordinator: NSObject {
 }
 
 @available(iOS 26.0, *)
-private final class AddReminderAccessoryButton: UIButton {
+private final class AddReminderAccessoryButton: UIControl {
   private let regularTitle = AddReminderAccessoryButton.localizedTitle()
   private let accentBlueTranslucent = UIColor(red: 10.0 / 255.0, green: 132.0 / 255.0, blue: 1.0, alpha: 0.72)
+  private let iconSize: CGFloat = 16
+  private var isInlinePlacement = false
+
+  private lazy var iconView: UIImageView = {
+    let config = UIImage.SymbolConfiguration(pointSize: 14, weight: .bold)
+    let view = UIImageView(image: UIImage(systemName: "plus", withConfiguration: config))
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.contentMode = .scaleAspectFit
+    view.tintColor = .white
+    return view
+  }()
+
+  private lazy var titleTextLabel: UILabel = {
+    let label = UILabel()
+    label.translatesAutoresizingMaskIntoConstraints = false
+    label.text = regularTitle
+    label.textColor = .white
+    label.font = .preferredFont(forTextStyle: .subheadline)
+    label.adjustsFontForContentSizeCategory = true
+    label.lineBreakMode = .byTruncatingTail
+    label.numberOfLines = 1
+    label.setContentCompressionResistancePriority(.required, for: .horizontal)
+    label.setContentHuggingPriority(.required, for: .horizontal)
+    return label
+  }()
+
+  private lazy var contentStack: UIStackView = {
+    let stack = UIStackView(arrangedSubviews: [iconView, titleTextLabel])
+    stack.translatesAutoresizingMaskIntoConstraints = false
+    stack.axis = .horizontal
+    stack.alignment = .center
+    stack.spacing = 8
+    return stack
+  }()
+
+  private var leadingConstraint: NSLayoutConstraint?
+  private var trailingConstraint: NSLayoutConstraint?
 
   init(target: Any?, action: Selector) {
     super.init(frame: .zero)
 
-    titleLabel?.adjustsFontForContentSizeCategory = true
-    titleLabel?.font = .preferredFont(forTextStyle: .subheadline)
-    titleLabel?.lineBreakMode = .byTruncatingTail
-    titleLabel?.adjustsFontSizeToFitWidth = true
-    titleLabel?.minimumScaleFactor = 0.9
-    titleLabel?.numberOfLines = 1
-    setContentCompressionResistancePriority(.required, for: .horizontal)
-    setContentHuggingPriority(.required, for: .horizontal)
-    contentHorizontalAlignment = .center
-
+    isAccessibilityElement = true
+    accessibilityTraits = [.button]
     accessibilityLabel = regularTitle
-    accessibilityTraits.insert(.button)
+    semanticContentAttribute = .forceLeftToRight
+
+    backgroundColor = accentBlueTranslucent
+    layer.cornerCurve = .continuous
+    layer.cornerRadius = 18
+    clipsToBounds = true
+
+    addSubview(contentStack)
+    leadingConstraint = contentStack.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 16)
+    trailingConstraint = contentStack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -16)
+    NSLayoutConstraint.activate([
+      leadingConstraint!,
+      trailingConstraint!,
+      contentStack.centerXAnchor.constraint(equalTo: centerXAnchor),
+      contentStack.centerYAnchor.constraint(equalTo: centerYAnchor),
+      contentStack.topAnchor.constraint(greaterThanOrEqualTo: topAnchor, constant: 6),
+      contentStack.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -6),
+      heightAnchor.constraint(greaterThanOrEqualToConstant: 36),
+      iconView.widthAnchor.constraint(equalToConstant: iconSize),
+      iconView.heightAnchor.constraint(equalToConstant: iconSize),
+    ])
+
     addTarget(target, action: action, for: .touchUpInside)
     updateLayoutForAccessoryEnvironment()
   }
@@ -411,35 +461,36 @@ private final class AddReminderAccessoryButton: UIButton {
     updateLayoutForAccessoryEnvironment()
   }
 
+  override func didMoveToWindow() {
+    super.didMoveToWindow()
+    updateLayoutForAccessoryEnvironment()
+  }
+
+  override var isHighlighted: Bool {
+    didSet {
+      alpha = isHighlighted ? 0.88 : 1
+    }
+  }
+
   override var intrinsicContentSize: CGSize {
-    var size = super.intrinsicContentSize
-    if size.width < 44 {
-      size.width = 44
-    }
-    if size.height < 36 {
-      size.height = 36
-    }
-    return size
+    let horizontalPadding: CGFloat = isInlinePlacement ? 20 : 32
+    let spacing: CGFloat = isInlinePlacement ? 0 : contentStack.spacing
+    let titleWidth: CGFloat = isInlinePlacement ? 0 : ceil(titleTextLabel.intrinsicContentSize.width)
+    let width = max(44, horizontalPadding + iconSize + spacing + titleWidth)
+    return CGSize(width: width, height: 36)
   }
 
   private func updateLayoutForAccessoryEnvironment() {
     let environment = traitCollection[UITraitTabAccessoryEnvironment.self]
-    let isInline = environment == .inline
+    isInlinePlacement = environment == .inline
 
-    var config = UIButton.Configuration.filled()
-    config.baseBackgroundColor = accentBlueTranslucent
-    config.baseForegroundColor = .white
-    config.cornerStyle = .capsule
-    config.image = UIImage(systemName: "plus")
-    config.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 13, weight: .bold)
-    config.imagePlacement = .leading
-    config.imagePadding = isInline ? 0 : 8
-    config.title = isInline ? nil : regularTitle
-    config.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: isInline ? 10 : 16, bottom: 8, trailing: isInline ? 10 : 16)
+    titleTextLabel.isHidden = isInlinePlacement
+    contentStack.spacing = isInlinePlacement ? 0 : 8
+    leadingConstraint?.constant = isInlinePlacement ? 10 : 16
+    trailingConstraint?.constant = isInlinePlacement ? -10 : -16
 
-    configuration = config
-    tintColor = .white
     invalidateIntrinsicContentSize()
+    setNeedsLayout()
   }
 
   private static func localizedTitle() -> String {

@@ -1,23 +1,22 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
-import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import {
   TaskSwipeDraggableList,
   type TaskSwipeDraggableListHandle,
   type TaskSwipeDraggableListItem,
 } from '@/components/tasks/task-swipe-draggable-list';
-import { FloatingAddPillButton } from '@/components/ui/floating-add-button';
+import { FloatingAddButton } from '@/components/ui/floating-add-button';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
 import { useHomeFilters } from '@/context/home-filters-store';
-import { useTabBarMinimize } from '@/context/tabbar-minimize-store';
 import { getDueAtForSection, SectionId, Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useStreaks } from '@/hooks/use-streaks';
 import { getIntlLocale, t } from '@/i18n';
+import { isIOS26OrNewer } from '@/utils/ios-version';
 
 // filter params are parsed locally in this file
 const SECTION_ORDER: SectionId[] = ['today', 'upcoming', 'completed'];
@@ -146,7 +145,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const theme = useColorScheme() ?? 'light';
   const isDark = theme === 'dark';
-  const usesNativeTabAccessory = Platform.OS === 'ios' && Number(Platform.Version) >= 26;
+  const usesNativeTabAccessory = isIOS26OrNewer();
   const { height: windowHeight } = useWindowDimensions();
   const params = useLocalSearchParams<{ sections?: string; withNotes?: string }>();
   const enabledSections = React.useMemo(() => parseSectionsParam(params.sections), [params.sections]);
@@ -173,47 +172,9 @@ export default function HomeScreen() {
   });
   const listRef = React.useRef<TaskSwipeDraggableListHandle | null>(null);
 
-  const { isMinimized: isAddMinimized, reportScrollOffset, resetTracking } = useTabBarMinimize();
-  const [showMinimizeDebug, setShowMinimizeDebug] = React.useState(false);
-  const lastDebugAtRef = React.useRef(0);
-  const isDraggingRef = React.useRef(false);
-  const navigation = useNavigation();
-
   const closeAnyOpen = React.useCallback(() => {
     listRef.current?.closeAnyOpen();
   }, []);
-
-  // Expand accessory when the Tasks tab becomes active or is tapped.
-  useFocusEffect(
-    React.useCallback(() => {
-      resetTracking(300);
-    }, [resetTracking])
-  );
-
-  React.useEffect(() => {
-    const parent = navigation.getParent?.();
-    if (!parent?.addListener) return;
-    const unsub = parent.addListener('tabPress' as any, () => {
-      resetTracking(350);
-    });
-    return unsub;
-  }, [navigation, resetTracking]);
-
-  const onScrollOffsetChange = React.useCallback(
-    (y: number) => {
-      if (isDraggingRef.current) return;
-      reportScrollOffset(y);
-
-      if (__DEV__ && showMinimizeDebug) {
-        const now = Date.now();
-        if (now - lastDebugAtRef.current > 80) {
-          lastDebugAtRef.current = now;
-          // state is tracked centrally; nothing to set here.
-        }
-      }
-    },
-    [reportScrollOffset, showMinimizeDebug]
-  );
 
   const onPressTask = React.useCallback(
     (taskId: string) => {
@@ -622,11 +583,6 @@ export default function HomeScreen() {
           </View>
         }
         contentContainerStyle={[styles.content, { minHeight: windowHeight + 220 }]}
-        onScrollOffsetChange={onScrollOffsetChange}
-        onDragStateChange={(dragging) => {
-          isDraggingRef.current = dragging;
-          if (dragging) resetTracking(600);
-        }}
         onPressTask={onPressTask}
         toggleComplete={toggleComplete}
         deleteTask={deleteTask}
@@ -634,30 +590,14 @@ export default function HomeScreen() {
       />
 
       {!usesNativeTabAccessory ? (
-        <FloatingAddPillButton
-          minimized={isAddMinimized}
-          label={t('home.addTask')}
+        <FloatingAddButton
+          placement="overlay"
           accessibilityLabel={t('home.addTask')}
           onPress={() => {
             closeAnyOpen();
             router.push('/task/create-modal');
           }}
-          onLongPress={
-            __DEV__
-              ? () => {
-                setShowMinimizeDebug((prev) => !prev);
-              }
-              : undefined
-          }
         />
-      ) : null}
-
-      {__DEV__ && !usesNativeTabAccessory && showMinimizeDebug ? (
-        <View pointerEvents="none" style={styles.debugOverlay}>
-          <Text style={styles.debugText}>
-            minimized={String(isAddMinimized)}
-          </Text>
-        </View>
       ) : null}
     </>
   );

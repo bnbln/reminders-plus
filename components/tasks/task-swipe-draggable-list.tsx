@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { Platform, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist';
 
 import type { SwipeTaskRowStyles } from '@/components/tasks/swipe-task-row';
@@ -10,6 +10,7 @@ import { withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
 import type { TagId } from '@/context/home-filters-store';
 import type { Project, Task } from '@/context/tasks-store';
+import { isIOS26OrNewer } from '@/utils/ios-version';
 
 type ThemeName = keyof typeof Colors;
 
@@ -255,7 +256,7 @@ ref
 
   // Native tab-bar minimize-on-scroll currently tracks ScrollView reliably on iOS 26,
   // but not DraggableFlatList. Keep a ScrollView path for iOS 26 to preserve native minimize behavior.
-  const useScrollViewCompatibilityMode = Platform.OS === 'ios' && Number(Platform.Version) >= 26;
+  const useScrollViewCompatibilityMode = isIOS26OrNewer();
 
   const renderCompatItem = React.useCallback(
     (item: TaskSwipeDraggableListItem) => {

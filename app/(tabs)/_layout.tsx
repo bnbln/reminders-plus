@@ -11,13 +11,14 @@ import { Colors } from '@/constants/theme';
 import { TabBarMinimizeProvider } from '@/context/tabbar-minimize-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
+import { isIOS26OrNewer } from '@/utils/ios-version';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const theme = colorScheme ?? 'light';
-  const isIOS26Plus = Platform.OS === 'ios' && Number(Platform.Version) >= 26;
+  const isIOS26Plus = isIOS26OrNewer();
 
-  if (__DEV__ && Platform.OS === 'ios' && Number(Platform.Version) >= 26) {
+  if (__DEV__ && isIOS26Plus) {
     if (Constants.appOwnership === 'expo') {
       console.warn(
         '[NativeTabs] Running in Expo Go. Some iOS 26 behaviors may not match docs unless using a custom native build compiled with Xcode 26+.'
