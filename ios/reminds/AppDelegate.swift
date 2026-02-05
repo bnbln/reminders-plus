@@ -380,7 +380,7 @@ private final class TabBarAccessoryCoordinator: NSObject {
 
 @available(iOS 26.0, *)
 private final class AddReminderAccessoryButton: UIButton {
-  private let regularTitle = "Task hinzufügen"
+  private let regularTitle = AddReminderAccessoryButton.localizedTitle()
   private let accentBlueTranslucent = UIColor(red: 10.0 / 255.0, green: 132.0 / 255.0, blue: 1.0, alpha: 0.72)
 
   init(target: Any?, action: Selector) {
@@ -440,6 +440,20 @@ private final class AddReminderAccessoryButton: UIButton {
     configuration = config
     tintColor = .white
     invalidateIntrinsicContentSize()
+  }
+
+  private static func localizedTitle() -> String {
+    let localeTag = (Locale.preferredLanguages.first ?? Locale.current.identifier).lowercased()
+
+    if localeTag.hasPrefix("de") { return "Aufgabe hinzufügen" }
+    if localeTag.hasPrefix("es") { return "Añadir tarea" }
+    if localeTag.hasPrefix("fr") { return "Ajouter une tâche" }
+    if localeTag.hasPrefix("pt") { return "Adicionar tarefa" }
+    if localeTag.hasPrefix("hi") { return "कार्य जोड़ें" }
+    if localeTag.hasPrefix("zh") { return "添加任务" }
+    if localeTag.hasPrefix("ja") { return "タスクを追加" }
+
+    return "Add task"
   }
 }
 

@@ -1,12 +1,13 @@
 {
   "name": "reminds",
   "main": "expo-router/entry",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
     "ios": "expo run:ios",
+    "phone": "npx expo run:ios --device",
     "web": "expo start --web",
     "lint": "expo lint",
     "postinstall": "patch-package"

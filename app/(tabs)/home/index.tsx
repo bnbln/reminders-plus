@@ -17,6 +17,7 @@ import { useTabBarMinimize } from '@/context/tabbar-minimize-store';
 import { getDueAtForSection, SectionId, Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useStreaks } from '@/hooks/use-streaks';
+import { getIntlLocale, t } from '@/i18n';
 
 // filter params are parsed locally in this file
 const SECTION_ORDER: SectionId[] = ['today', 'upcoming', 'completed'];
@@ -31,10 +32,10 @@ const parseSectionsParam = (value: unknown): SectionId[] => {
   return enabled.length ? Array.from(new Set(enabled)) : SECTION_ORDER;
 };
 
-const SECTION_TITLES: Record<SectionId, string> = {
-  today: 'Heute',
-  upcoming: 'Demnächst',
-  completed: 'Abgeschlossen',
+const SECTION_TITLE_KEYS: Record<SectionId, string> = {
+  today: 'common.today',
+  upcoming: 'common.upcoming',
+  completed: 'common.completed',
 };
 
 const getStartOfToday = () => {
@@ -248,7 +249,7 @@ export default function HomeScreen() {
 
   const todayLabel = React.useMemo(() => {
     const now = new Date();
-    return new Intl.DateTimeFormat('de-DE', { weekday: 'short', day: '2-digit', month: 'short' }).format(now);
+    return new Intl.DateTimeFormat(getIntlLocale(), { weekday: 'short', day: '2-digit', month: 'short' }).format(now);
   }, []);
 
   const routineTasksCount = React.useMemo(() => {
@@ -259,28 +260,28 @@ export default function HomeScreen() {
     return [
       {
         key: 'streaks',
-        title: 'Streaks',
-        subtitle: `${currentStreak} ${currentStreak === 1 ? 'Tag' : 'Tage'}`,
+        title: t('home.quick.streaks'),
+        subtitle: `${currentStreak} ${currentStreak === 1 ? t('home.quick.day') : t('home.quick.days')}`,
         icon: 'local-fire-department',
         onPress: () => router.push('/home/streaks'),
       },
       {
         key: 'inbox',
-        title: 'Inbox',
-        subtitle: `${inboxTasks.length} ohne Datum`,
+        title: t('common.inbox'),
+        subtitle: t('home.quick.withoutDate', { count: inboxTasks.length }),
         icon: 'inbox',
         onPress: () => router.push('/home/inbox'),
       },
       {
         key: 'routines',
-        title: 'Routinen',
-        subtitle: `${routineTasksCount} wiederkehrend`,
+        title: t('home.quick.routines'),
+        subtitle: t('home.quick.recurring', { count: routineTasksCount }),
         icon: 'loop',
         onPress: () => router.push('/home/routines'),
       },
       {
         key: 'today',
-        title: 'Heute',
+        title: t('common.today'),
         subtitle: todayLabel,
         icon: 'today',
         onPress: () => router.push('/home/today'),
@@ -503,7 +504,7 @@ export default function HomeScreen() {
           <View style={styles.sectionLine} />
           <Pressable
             accessibilityRole={isCollapsible ? 'button' : undefined}
-            accessibilityLabel={isCollapsible ? `${SECTION_TITLES[id]} umschalten` : undefined}
+            accessibilityLabel={isCollapsible ? t('home.filter.toggleSection', { section: t(SECTION_TITLE_KEYS[id]) }) : undefined}
             onPress={onToggle}
             hitSlop={10}
             style={styles.sectionHeaderButton}
@@ -516,7 +517,7 @@ export default function HomeScreen() {
                 style={{ transform: [{ rotate: isCollapsed ? '0deg' : '90deg' }] }}
               />
             ) : null}
-            <Text style={styles.sectionTitle}>{SECTION_TITLES[id]}</Text>
+            <Text style={styles.sectionTitle}>{t(SECTION_TITLE_KEYS[id])}</Text>
           </Pressable>
           <View style={styles.sectionLine} />
         </View>
@@ -533,10 +534,10 @@ export default function HomeScreen() {
 
     const label =
       completedCount > 0
-        ? `${completedCount} Abgeschlossen`
+        ? t('home.archivePill.completed', { count: completedCount })
         : trashedCount > 0
-          ? `${trashedCount} Papierkorb`
-          : 'Archiv';
+          ? t('home.archivePill.trash', { count: trashedCount })
+          : t('home.archivePill.archive');
 
     const iconKind: 'completed' | 'trash' = completedCount > 0 ? 'completed' : 'trash';
 
@@ -544,7 +545,7 @@ export default function HomeScreen() {
       <View style={styles.archivePillFooter}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Archiv öffnen"
+          accessibilityLabel={t('home.openArchive')}
           onPress={() => router.push('/home/archive')}
           style={({ pressed }) => [pressed && { opacity: 0.92 }]}>
           <GlassSurface
@@ -580,7 +581,7 @@ export default function HomeScreen() {
           <View style={styles.sectionLine} />
           <Pressable
             accessibilityRole={isCollapsible ? 'button' : undefined}
-            accessibilityLabel={isCollapsible ? `${SECTION_TITLES[sectionId]} umschalten` : undefined}
+            accessibilityLabel={isCollapsible ? t('home.filter.toggleSection', { section: t(SECTION_TITLE_KEYS[sectionId]) }) : undefined}
             onPress={onToggle}
             hitSlop={10}
             style={styles.sectionHeaderButton}
@@ -593,7 +594,7 @@ export default function HomeScreen() {
                 style={{ transform: [{ rotate: isCollapsed ? '0deg' : '90deg' }] }}
               />
             ) : null}
-            <Text style={styles.sectionTitle}>{SECTION_TITLES[sectionId]}</Text>
+            <Text style={styles.sectionTitle}>{t(SECTION_TITLE_KEYS[sectionId])}</Text>
           </Pressable>
           <View style={styles.sectionLine} />
         </View>
@@ -617,7 +618,7 @@ export default function HomeScreen() {
         footer={archivePill}
         empty={
           <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>Keine Aufgaben</Text>
+            <Text style={styles.emptyText}>{t('home.empty.noTasks')}</Text>
           </View>
         }
         contentContainerStyle={[styles.content, { minHeight: windowHeight + 220 }]}
@@ -635,8 +636,8 @@ export default function HomeScreen() {
       {!usesNativeTabAccessory ? (
         <FloatingAddPillButton
           minimized={isAddMinimized}
-          label="Task hinzufügen"
-          accessibilityLabel="Task hinzufügen"
+          label={t('home.addTask')}
+          accessibilityLabel={t('home.addTask')}
           onPress={() => {
             closeAnyOpen();
             router.push('/task/create-modal');

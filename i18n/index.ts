@@ -1,11 +1,12 @@
-export type AppLocale = 'de' | 'en';
+import { NativeModules, Settings } from 'react-native';
+
+export type AppLocale = 'de' | 'en' | 'es' | 'fr' | 'pt' | 'hi' | 'zh' | 'ja';
 
 type TranslationParams = Record<string, string | number>;
 
 type TranslationDict = Record<string, string>;
 
-const TRANSLATIONS: Record<AppLocale, TranslationDict> = {
-  de: {
+const DE_TRANSLATIONS: TranslationDict = {
     'tabs.tasks': 'Aufgaben',
     'tabs.search': 'Suche',
     'tabs.projects': 'Projekte',
@@ -226,8 +227,9 @@ const TRANSLATIONS: Record<AppLocale, TranslationDict> = {
     'seed.task.drag.subtitle': 'Halte gedrückt und ziehe mich',
     'seed.task.details.title': 'Tippe für Details',
     'seed.task.details.subtitle': 'Öffnet die Detailansicht',
-  },
-  en: {
+};
+
+const EN_TRANSLATIONS: TranslationDict = {
     'tabs.tasks': 'Tasks',
     'tabs.search': 'Search',
     'tabs.projects': 'Projects',
@@ -448,18 +450,808 @@ const TRANSLATIONS: Record<AppLocale, TranslationDict> = {
     'seed.task.drag.subtitle': 'Press and hold to drag me',
     'seed.task.details.title': 'Tap for details',
     'seed.task.details.subtitle': 'Opens the detail view',
-  },
+};
+
+const ES_TRANSLATIONS: TranslationDict = {
+  ...EN_TRANSLATIONS,
+  'tabs.tasks': "Tareas",
+  'tabs.search': "Buscar",
+  'tabs.projects': "Proyectos",
+  'common.task': "Tarea",
+  'common.tasks': "Tareas",
+  'common.project': "Proyecto",
+  'common.projects': "Proyectos",
+  'common.filter': "Filtro",
+  'common.today': "Hoy",
+  'common.upcoming': "Próximas",
+  'common.completed': "Completadas",
+  'common.inbox': "Bandeja",
+  'common.archive': "Archivo",
+  'common.search': "Buscar",
+  'common.notes': "Notas",
+  'common.noDescription': "Sin descripción",
+  'home.openArchive': "Abrir archivo",
+  'home.empty.noTasks': "Sin tareas",
+  'home.addTask': "Añadir tarea",
+  'home.quick.day': "día",
+  'home.quick.days': "días",
+  'home.quick.withoutDate': "{{count}} sin fecha",
+  'home.quick.routines': "Rutinas",
+  'home.quick.recurring': "{{count}} recurrentes",
+  'search.placeholder': "Buscar tareas",
+  'search.empty.hint': "Usa la barra para empezar a buscar.",
+  'search.empty.noResults': "Sin resultados para \"{{query}}\".",
+  'explore.newProject': "Nuevo proyecto",
+  'explore.taskCount.one': "{{count}} tarea",
+  'explore.taskCount.other': "{{count}} tareas",
+  'project.notFound': "Proyecto no encontrado",
+  'project.backProjects': "Proyectos",
+  'projectEdit.newProject': "Nuevo proyecto",
+  'projectEdit.editProject': "Editar proyecto",
+  'projectEdit.placeholder.projectName': "Nombre del proyecto",
+  'projectEdit.placeholder.description': "Descripción (opcional)",
+  'projectEdit.icon': "Icono",
+  'projectEdit.color': "Color",
+  'projectEdit.delete': "Eliminar proyecto",
+  'taskCreate.menu.date': "Fecha de vencimiento",
+  'taskCreate.menu.style': "Estilo",
+  'taskCreate.menu.location': "Ubicación",
+  'taskCreate.menu.routine': "Rutina",
+  'taskCreate.menu.project': "Proyecto",
+  'taskCreate.titleMissingTitle': "Falta el título",
+  'taskCreate.titleMissingBody': "Introduce un título para la tarea.",
+  'taskCreate.close': "Cerrar",
+  'taskCreate.more': "Más",
+  'taskCreate.placeholder.title': "Nueva tarea",
+  'taskDetail.notFound': "Tarea no encontrada",
+  'taskDetail.back': "Volver",
+  'taskDetail.property.date': "Fecha",
+  'taskDetail.property.location': "Ubicación",
+  'taskDetail.property.project': "Proyecto",
+  'taskDetail.panel.tasks': "Tareas",
+  'taskDetail.panel.notes': "Notas",
+  'taskDetail.action.complete': "Completar tarea",
+  'taskDetail.action.repeat': "Repetir tarea",
+  'taskDetail.alert.deleteTitle': "¿Eliminar tarea?",
+  'taskDetail.alert.deleteBody': "Esta tarea se moverá a la papelera.",
+  'taskDetail.alert.cancel': "Cancelar",
+  'taskDetail.alert.delete': "Eliminar",
+  'taskDetail.relative.today': "Hoy",
+  'taskDetail.relative.tomorrow': "Mañana",
+  'datePicker.title': "Fecha de vencimiento",
+  'datePicker.noDate': "Sin fecha",
+  'datePicker.time': "Hora",
+  'routinePicker.title': "Repetición",
+  'routineOption.never': "Nunca",
+  'projectPicker.title': "Proyecto",
+  'projectPicker.newProject': "Nuevo proyecto",
+  'projectPicker.noProject': "Sin proyecto",
+  'emojiPicker.title': "Emoji y color",
+  'emojiPicker.color': "Color",
+  'emojiPicker.resetColor': "Restablecer color",
+  'inbox.empty': "No hay tareas sin fecha.",
+  'today.empty': "No hay tareas para hoy.",
+  'routines.stats.dueToday': "Vencen hoy",
+  'routines.stats.daily': "Diarias",
+  'routines.stats.weekly': "Semanales",
+  'routines.section.all': "Todas las rutinas",
+  'routines.empty.title': "Aún no hay rutinas.",
+  'routines.empty.subtitle': "Activa una rutina en los detalles de la tarea.",
+  'routines.next': "Siguiente: {{value}}",
+  'routines.noDate': "Sin fecha",
+  'streaks.stats.thisWeek': "Esta semana",
+  'streaks.stats.longest': "Racha más larga",
+  'streaks.chart.activity': "Actividad",
+  'streaks.chart.noData': "Sin datos",
+  'archive.title': "Archivo",
+  'archive.tab.completed': "Completadas",
+  'archive.tab.trash': "Papelera",
+  'archive.empty.completedTitle': "Nada completado",
+  'archive.empty.trashTitle': "La papelera está vacía",
+  'modal.newTask': "Nueva tarea",
+  'filters.all': "Todas",
+  'filters.todayOnly': "Solo hoy",
+  'filters.upcoming': "Próximas",
+  'filters.upcomingOnly': "Solo próximas",
+  'filters.completedOnly': "Solo completadas",
+  'filters.withNotesOnly': "Solo tareas con subtítulo",
+  'tags.overdue': "Atrasadas",
+  'tags.datetime': "Fecha y hora",
+  'tags.location': "Ubicación",
+  'tags.project': "Proyecto",
+  'tags.keywords': "Palabras clave",
+  'notification.due': "Vence",
+  'seed.project.work': "Trabajo",
+  'seed.project.home': "Casa",
+  'seed.project.selfcare': "Autocuidado",
+};
+
+const FR_TRANSLATIONS: TranslationDict = {
+  ...EN_TRANSLATIONS,
+  'tabs.tasks': "Tâches",
+  'tabs.search': "Recherche",
+  'tabs.projects': "Projets",
+  'common.task': "Tâche",
+  'common.tasks': "Tâches",
+  'common.project': "Projet",
+  'common.projects': "Projets",
+  'common.filter': "Filtre",
+  'common.today': "Aujourd'hui",
+  'common.upcoming': "À venir",
+  'common.completed': "Terminées",
+  'common.inbox': "Boîte de réception",
+  'common.archive': "Archive",
+  'common.search': "Recherche",
+  'common.notes': "Notes",
+  'common.noDescription': "Aucune description",
+  'home.openArchive': "Ouvrir l'archive",
+  'home.empty.noTasks': "Aucune tâche",
+  'home.addTask': "Ajouter une tâche",
+  'home.quick.day': "jour",
+  'home.quick.days': "jours",
+  'home.quick.withoutDate': "{{count}} sans date",
+  'home.quick.routines': "Routines",
+  'home.quick.recurring': "{{count}} récurrentes",
+  'search.placeholder': "Rechercher des tâches",
+  'search.empty.hint': "Utilise la barre de recherche pour commencer.",
+  'search.empty.noResults': "Aucun résultat pour \"{{query}}\".",
+  'explore.newProject': "Nouveau projet",
+  'explore.taskCount.one': "{{count}} tâche",
+  'explore.taskCount.other': "{{count}} tâches",
+  'project.notFound': "Projet introuvable",
+  'project.backProjects': "Projets",
+  'projectEdit.newProject': "Nouveau projet",
+  'projectEdit.editProject': "Modifier le projet",
+  'projectEdit.placeholder.projectName': "Nom du projet",
+  'projectEdit.placeholder.description': "Description (facultatif)",
+  'projectEdit.icon': "Icône",
+  'projectEdit.color': "Couleur",
+  'projectEdit.delete': "Supprimer le projet",
+  'taskCreate.menu.date': "Date d'échéance",
+  'taskCreate.menu.style': "Style",
+  'taskCreate.menu.location': "Position",
+  'taskCreate.menu.routine': "Routine",
+  'taskCreate.menu.project': "Projet",
+  'taskCreate.titleMissingTitle': "Titre manquant",
+  'taskCreate.titleMissingBody': "Saisis un titre de tâche.",
+  'taskCreate.close': "Fermer",
+  'taskCreate.more': "Plus",
+  'taskCreate.placeholder.title': "Nouvelle tâche",
+  'taskDetail.notFound': "Tâche introuvable",
+  'taskDetail.back': "Retour",
+  'taskDetail.property.date': "Date",
+  'taskDetail.property.location': "Position",
+  'taskDetail.property.project': "Projet",
+  'taskDetail.panel.tasks': "Tâches",
+  'taskDetail.panel.notes': "Notes",
+  'taskDetail.action.complete': "Terminer la tâche",
+  'taskDetail.action.repeat': "Répéter la tâche",
+  'taskDetail.alert.deleteTitle': "Supprimer la tâche ?",
+  'taskDetail.alert.deleteBody': "Cette tâche sera déplacée dans la corbeille.",
+  'taskDetail.alert.cancel': "Annuler",
+  'taskDetail.alert.delete': "Supprimer",
+  'taskDetail.relative.today': "Aujourd'hui",
+  'taskDetail.relative.tomorrow': "Demain",
+  'datePicker.title': "Date d'échéance",
+  'datePicker.noDate': "Aucune date",
+  'datePicker.time': "Heure",
+  'routinePicker.title': "Répétition",
+  'routineOption.never': "Jamais",
+  'projectPicker.title': "Projet",
+  'projectPicker.newProject': "Nouveau projet",
+  'projectPicker.noProject': "Aucun projet",
+  'emojiPicker.title': "Emoji et couleur",
+  'emojiPicker.color': "Couleur",
+  'emojiPicker.resetColor': "Réinitialiser la couleur",
+  'inbox.empty': "Aucune tâche sans date.",
+  'today.empty': "Aucune tâche pour aujourd'hui.",
+  'routines.stats.dueToday': "À faire aujourd'hui",
+  'routines.stats.daily': "Quotidiennes",
+  'routines.stats.weekly': "Hebdomadaires",
+  'routines.section.all': "Toutes les routines",
+  'routines.empty.title': "Aucune routine pour le moment.",
+  'routines.empty.subtitle': "Active une routine dans les détails de la tâche.",
+  'routines.next': "Prochaine : {{value}}",
+  'routines.noDate': "Aucune date",
+  'streaks.stats.thisWeek': "Cette semaine",
+  'streaks.stats.longest': "Plus longue série",
+  'streaks.chart.activity': "Activité",
+  'streaks.chart.noData': "Aucune donnée",
+  'archive.title': "Archive",
+  'archive.tab.completed': "Terminées",
+  'archive.tab.trash': "Corbeille",
+  'archive.empty.completedTitle': "Rien de terminé",
+  'archive.empty.trashTitle': "La corbeille est vide",
+  'modal.newTask': "Nouvelle tâche",
+  'filters.all': "Toutes",
+  'filters.todayOnly': "Aujourd'hui uniquement",
+  'filters.upcoming': "À venir",
+  'filters.upcomingOnly': "À venir uniquement",
+  'filters.completedOnly': "Terminées uniquement",
+  'filters.withNotesOnly': "Tâches avec sous-titre uniquement",
+  'tags.overdue': "En retard",
+  'tags.datetime': "Date et heure",
+  'tags.location': "Position",
+  'tags.project': "Projet",
+  'tags.keywords': "Mots-clés",
+  'notification.due': "Échéance",
+  'seed.project.work': "Travail",
+  'seed.project.home': "Maison",
+  'seed.project.selfcare': "Bien-être",
+};
+
+const PT_TRANSLATIONS: TranslationDict = {
+  ...EN_TRANSLATIONS,
+  'tabs.tasks': "Tarefas",
+  'tabs.search': "Pesquisar",
+  'tabs.projects': "Projetos",
+  'common.task': "Tarefa",
+  'common.tasks': "Tarefas",
+  'common.project': "Projeto",
+  'common.projects': "Projetos",
+  'common.filter': "Filtro",
+  'common.today': "Hoje",
+  'common.upcoming': "Próximas",
+  'common.completed': "Concluídas",
+  'common.inbox': "Caixa de entrada",
+  'common.archive': "Arquivo",
+  'common.search': "Pesquisar",
+  'common.notes': "Notas",
+  'common.noDescription': "Sem descrição",
+  'home.openArchive': "Abrir arquivo",
+  'home.empty.noTasks': "Nenhuma tarefa",
+  'home.addTask': "Adicionar tarefa",
+  'home.quick.day': "dia",
+  'home.quick.days': "dias",
+  'home.quick.withoutDate': "{{count}} sem data",
+  'home.quick.routines': "Rotinas",
+  'home.quick.recurring': "{{count}} recorrentes",
+  'search.placeholder': "Pesquisar tarefas",
+  'search.empty.hint': "Use a barra de pesquisa para começar.",
+  'search.empty.noResults': "Nenhum resultado para \"{{query}}\".",
+  'explore.newProject': "Novo projeto",
+  'explore.taskCount.one': "{{count}} tarefa",
+  'explore.taskCount.other': "{{count}} tarefas",
+  'project.notFound': "Projeto não encontrado",
+  'project.backProjects': "Projetos",
+  'projectEdit.newProject': "Novo projeto",
+  'projectEdit.editProject': "Editar projeto",
+  'projectEdit.placeholder.projectName': "Nome do projeto",
+  'projectEdit.placeholder.description': "Descrição (opcional)",
+  'projectEdit.icon': "Ícone",
+  'projectEdit.color': "Cor",
+  'projectEdit.delete': "Excluir projeto",
+  'taskCreate.menu.date': "Data de vencimento",
+  'taskCreate.menu.style': "Estilo",
+  'taskCreate.menu.location': "Localização",
+  'taskCreate.menu.routine': "Rotina",
+  'taskCreate.menu.project': "Projeto",
+  'taskCreate.titleMissingTitle': "Título ausente",
+  'taskCreate.titleMissingBody': "Digite um título para a tarefa.",
+  'taskCreate.close': "Fechar",
+  'taskCreate.more': "Mais",
+  'taskCreate.placeholder.title': "Nova tarefa",
+  'taskDetail.notFound': "Tarefa não encontrada",
+  'taskDetail.back': "Voltar",
+  'taskDetail.property.date': "Data",
+  'taskDetail.property.location': "Localização",
+  'taskDetail.property.project': "Projeto",
+  'taskDetail.panel.tasks': "Tarefas",
+  'taskDetail.panel.notes': "Notas",
+  'taskDetail.action.complete': "Concluir tarefa",
+  'taskDetail.action.repeat': "Repetir tarefa",
+  'taskDetail.alert.deleteTitle': "Excluir tarefa?",
+  'taskDetail.alert.deleteBody': "Esta tarefa será movida para a lixeira.",
+  'taskDetail.alert.cancel': "Cancelar",
+  'taskDetail.alert.delete': "Excluir",
+  'taskDetail.relative.today': "Hoje",
+  'taskDetail.relative.tomorrow': "Amanhã",
+  'datePicker.title': "Data de vencimento",
+  'datePicker.noDate': "Sem data",
+  'datePicker.time': "Hora",
+  'routinePicker.title': "Repetição",
+  'routineOption.never': "Nunca",
+  'projectPicker.title': "Projeto",
+  'projectPicker.newProject': "Novo projeto",
+  'projectPicker.noProject': "Sem projeto",
+  'emojiPicker.title': "Emoji e cor",
+  'emojiPicker.color': "Cor",
+  'emojiPicker.resetColor': "Redefinir cor",
+  'inbox.empty': "Nenhuma tarefa sem data.",
+  'today.empty': "Nenhuma tarefa para hoje.",
+  'routines.stats.dueToday': "Vencem hoje",
+  'routines.stats.daily': "Diárias",
+  'routines.stats.weekly': "Semanais",
+  'routines.section.all': "Todas as rotinas",
+  'routines.empty.title': "Ainda não há rotinas.",
+  'routines.empty.subtitle': "Ative uma rotina nos detalhes da tarefa.",
+  'routines.next': "Próxima: {{value}}",
+  'routines.noDate': "Sem data",
+  'streaks.stats.thisWeek': "Esta semana",
+  'streaks.stats.longest': "Maior sequência",
+  'streaks.chart.activity': "Atividade",
+  'streaks.chart.noData': "Sem dados",
+  'archive.title': "Arquivo",
+  'archive.tab.completed': "Concluídas",
+  'archive.tab.trash': "Lixeira",
+  'archive.empty.completedTitle': "Nada concluído",
+  'archive.empty.trashTitle': "A lixeira está vazia",
+  'modal.newTask': "Nova tarefa",
+  'filters.all': "Todas",
+  'filters.todayOnly': "Somente hoje",
+  'filters.upcoming': "Próximas",
+  'filters.upcomingOnly': "Somente próximas",
+  'filters.completedOnly': "Somente concluídas",
+  'filters.withNotesOnly': "Somente tarefas com subtítulo",
+  'tags.overdue': "Atrasadas",
+  'tags.datetime': "Data e hora",
+  'tags.location': "Localização",
+  'tags.project': "Projeto",
+  'tags.keywords': "Palavras-chave",
+  'notification.due': "Vence",
+  'seed.project.work': "Trabalho",
+  'seed.project.home': "Casa",
+  'seed.project.selfcare': "Autocuidado",
+};
+
+const HI_TRANSLATIONS: TranslationDict = {
+  ...EN_TRANSLATIONS,
+  'tabs.tasks': "कार्य",
+  'tabs.search': "खोज",
+  'tabs.projects': "प्रोजेक्ट",
+  'common.task': "कार्य",
+  'common.tasks': "कार्य",
+  'common.project': "प्रोजेक्ट",
+  'common.projects': "प्रोजेक्ट",
+  'common.filter': "फ़िल्टर",
+  'common.today': "आज",
+  'common.upcoming': "आगामी",
+  'common.completed': "पूर्ण",
+  'common.inbox': "इनबॉक्स",
+  'common.archive': "आर्काइव",
+  'common.search': "खोज",
+  'common.notes': "नोट्स",
+  'common.noDescription': "कोई विवरण नहीं",
+  'home.openArchive': "आर्काइव खोलें",
+  'home.empty.noTasks': "कोई कार्य नहीं",
+  'home.addTask': "कार्य जोड़ें",
+  'home.quick.day': "दिन",
+  'home.quick.days': "दिन",
+  'home.quick.withoutDate': "{{count}} बिना तारीख",
+  'home.quick.routines': "रूटीन",
+  'home.quick.recurring': "{{count}} आवर्ती",
+  'search.placeholder': "कार्य खोजें",
+  'search.empty.hint': "खोज शुरू करने के लिए सर्च बार का उपयोग करें।",
+  'search.empty.noResults': "\"{{query}}\" के लिए कोई परिणाम नहीं।",
+  'explore.newProject': "नया प्रोजेक्ट",
+  'explore.taskCount.one': "{{count}} कार्य",
+  'explore.taskCount.other': "{{count}} कार्य",
+  'project.notFound': "प्रोजेक्ट नहीं मिला",
+  'project.backProjects': "प्रोजेक्ट",
+  'projectEdit.newProject': "नया प्रोजेक्ट",
+  'projectEdit.editProject': "प्रोजेक्ट संपादित करें",
+  'projectEdit.placeholder.projectName': "प्रोजेक्ट का नाम",
+  'projectEdit.placeholder.description': "विवरण (वैकल्पिक)",
+  'projectEdit.icon': "आइकन",
+  'projectEdit.color': "रंग",
+  'projectEdit.delete': "प्रोजेक्ट हटाएँ",
+  'taskCreate.menu.date': "नियत तारीख",
+  'taskCreate.menu.style': "स्टाइल",
+  'taskCreate.menu.location': "स्थान",
+  'taskCreate.menu.routine': "रूटीन",
+  'taskCreate.menu.project': "प्रोजेक्ट",
+  'taskCreate.titleMissingTitle': "शीर्षक नहीं है",
+  'taskCreate.titleMissingBody': "कृपया कार्य का शीर्षक दर्ज करें।",
+  'taskCreate.close': "बंद करें",
+  'taskCreate.more': "और",
+  'taskCreate.placeholder.title': "नया कार्य",
+  'taskDetail.notFound': "कार्य नहीं मिला",
+  'taskDetail.back': "वापस",
+  'taskDetail.property.date': "तारीख",
+  'taskDetail.property.location': "स्थान",
+  'taskDetail.property.project': "प्रोजेक्ट",
+  'taskDetail.panel.tasks': "कार्य",
+  'taskDetail.panel.notes': "नोट्स",
+  'taskDetail.action.complete': "कार्य पूर्ण करें",
+  'taskDetail.action.repeat': "कार्य दोहराएँ",
+  'taskDetail.alert.deleteTitle': "कार्य हटाएँ?",
+  'taskDetail.alert.deleteBody': "यह कार्य ट्रैश में भेज दिया जाएगा।",
+  'taskDetail.alert.cancel': "रद्द करें",
+  'taskDetail.alert.delete': "हटाएँ",
+  'taskDetail.relative.today': "आज",
+  'taskDetail.relative.tomorrow': "कल",
+  'datePicker.title': "नियत तारीख",
+  'datePicker.noDate': "कोई तारीख नहीं",
+  'datePicker.time': "समय",
+  'routinePicker.title': "दोहराव",
+  'routineOption.never': "कभी नहीं",
+  'projectPicker.title': "प्रोजेक्ट",
+  'projectPicker.newProject': "नया प्रोजेक्ट",
+  'projectPicker.noProject': "कोई प्रोजेक्ट नहीं",
+  'emojiPicker.title': "इमोजी और रंग",
+  'emojiPicker.color': "रंग",
+  'emojiPicker.resetColor': "रंग रीसेट करें",
+  'inbox.empty': "बिना तारीख के कोई कार्य नहीं।",
+  'today.empty': "आज के लिए कोई कार्य नहीं।",
+  'routines.stats.dueToday': "आज देय",
+  'routines.stats.daily': "दैनिक",
+  'routines.stats.weekly': "साप्ताहिक",
+  'routines.section.all': "सभी रूटीन",
+  'routines.empty.title': "अभी कोई रूटीन नहीं।",
+  'routines.empty.subtitle': "कार्य विवरण में रूटीन सक्षम करें।",
+  'routines.next': "अगला: {{value}}",
+  'routines.noDate': "कोई तारीख नहीं",
+  'streaks.stats.thisWeek': "इस सप्ताह",
+  'streaks.stats.longest': "सबसे लंबी श्रृंखला",
+  'streaks.chart.activity': "गतिविधि",
+  'streaks.chart.noData': "कोई डेटा नहीं",
+  'archive.title': "आर्काइव",
+  'archive.tab.completed': "पूर्ण",
+  'archive.tab.trash': "कचरा",
+  'archive.empty.completedTitle': "कुछ भी पूर्ण नहीं",
+  'archive.empty.trashTitle': "कचरा खाली है",
+  'modal.newTask': "नया कार्य",
+  'filters.all': "सभी",
+  'filters.todayOnly': "सिर्फ आज",
+  'filters.upcoming': "आगामी",
+  'filters.upcomingOnly': "सिर्फ आगामी",
+  'filters.completedOnly': "सिर्फ पूर्ण",
+  'filters.withNotesOnly': "केवल उपशीर्षक वाले कार्य",
+  'tags.overdue': "अतिदेय",
+  'tags.datetime': "तारीख और समय",
+  'tags.location': "स्थान",
+  'tags.project': "प्रोजेक्ट",
+  'tags.keywords': "कीवर्ड",
+  'notification.due': "देय",
+  'seed.project.work': "काम",
+  'seed.project.home': "घर",
+  'seed.project.selfcare': "स्व-देखभाल",
+};
+
+const ZH_TRANSLATIONS: TranslationDict = {
+  ...EN_TRANSLATIONS,
+  'tabs.tasks': "任务",
+  'tabs.search': "搜索",
+  'tabs.projects': "项目",
+  'common.task': "任务",
+  'common.tasks': "任务",
+  'common.project': "项目",
+  'common.projects': "项目",
+  'common.filter': "筛选",
+  'common.today': "今天",
+  'common.upcoming': "即将到来",
+  'common.completed': "已完成",
+  'common.inbox': "收件箱",
+  'common.archive': "归档",
+  'common.search': "搜索",
+  'common.notes': "备注",
+  'common.noDescription': "无描述",
+  'home.openArchive': "打开归档",
+  'home.empty.noTasks': "暂无任务",
+  'home.addTask': "添加任务",
+  'home.quick.day': "天",
+  'home.quick.days': "天",
+  'home.quick.withoutDate': "{{count}} 个无日期",
+  'home.quick.routines': "例行任务",
+  'home.quick.recurring': "{{count}} 个重复",
+  'search.placeholder': "搜索任务",
+  'search.empty.hint': "使用搜索栏开始搜索。",
+  'search.empty.noResults': "未找到 “{{query}}” 的结果。",
+  'explore.newProject': "新建项目",
+  'explore.taskCount.one': "{{count}} 个任务",
+  'explore.taskCount.other': "{{count}} 个任务",
+  'project.notFound': "未找到项目",
+  'project.backProjects': "项目",
+  'projectEdit.newProject': "新建项目",
+  'projectEdit.editProject': "编辑项目",
+  'projectEdit.placeholder.projectName': "项目名称",
+  'projectEdit.placeholder.description': "描述（可选）",
+  'projectEdit.icon': "图标",
+  'projectEdit.color': "颜色",
+  'projectEdit.delete': "删除项目",
+  'taskCreate.menu.date': "截止日期",
+  'taskCreate.menu.style': "样式",
+  'taskCreate.menu.location': "位置",
+  'taskCreate.menu.routine': "重复",
+  'taskCreate.menu.project': "项目",
+  'taskCreate.titleMissingTitle': "缺少标题",
+  'taskCreate.titleMissingBody': "请输入任务标题。",
+  'taskCreate.close': "关闭",
+  'taskCreate.more': "更多",
+  'taskCreate.placeholder.title': "新任务",
+  'taskDetail.notFound': "未找到任务",
+  'taskDetail.back': "返回",
+  'taskDetail.property.date': "日期",
+  'taskDetail.property.location': "位置",
+  'taskDetail.property.project': "项目",
+  'taskDetail.panel.tasks': "任务",
+  'taskDetail.panel.notes': "备注",
+  'taskDetail.action.complete': "完成任务",
+  'taskDetail.action.repeat': "重复任务",
+  'taskDetail.alert.deleteTitle': "删除任务？",
+  'taskDetail.alert.deleteBody': "该任务将移至回收站。",
+  'taskDetail.alert.cancel': "取消",
+  'taskDetail.alert.delete': "删除",
+  'taskDetail.relative.today': "今天",
+  'taskDetail.relative.tomorrow': "明天",
+  'datePicker.title': "截止日期",
+  'datePicker.noDate': "无日期",
+  'datePicker.time': "时间",
+  'routinePicker.title': "重复",
+  'routineOption.never': "从不",
+  'projectPicker.title': "项目",
+  'projectPicker.newProject': "新建项目",
+  'projectPicker.noProject': "无项目",
+  'emojiPicker.title': "表情与颜色",
+  'emojiPicker.color': "颜色",
+  'emojiPicker.resetColor': "重置颜色",
+  'inbox.empty': "没有无日期任务。",
+  'today.empty': "今天没有任务。",
+  'routines.stats.dueToday': "今日到期",
+  'routines.stats.daily': "每日",
+  'routines.stats.weekly': "每周",
+  'routines.section.all': "全部例行任务",
+  'routines.empty.title': "还没有例行任务。",
+  'routines.empty.subtitle': "在任务详情中启用重复。",
+  'routines.next': "下次：{{value}}",
+  'routines.noDate': "无日期",
+  'streaks.stats.thisWeek': "本周",
+  'streaks.stats.longest': "最长连续",
+  'streaks.chart.activity': "活动",
+  'streaks.chart.noData': "无数据",
+  'archive.title': "归档",
+  'archive.tab.completed': "已完成",
+  'archive.tab.trash': "回收站",
+  'archive.empty.completedTitle': "暂无已完成",
+  'archive.empty.trashTitle': "回收站为空",
+  'modal.newTask': "新任务",
+  'filters.all': "全部",
+  'filters.todayOnly': "仅今天",
+  'filters.upcoming': "即将到来",
+  'filters.upcomingOnly': "仅即将到来",
+  'filters.completedOnly': "仅已完成",
+  'filters.withNotesOnly': "仅有副标题的任务",
+  'tags.overdue': "逾期",
+  'tags.datetime': "日期和时间",
+  'tags.location': "位置",
+  'tags.project': "项目",
+  'tags.keywords': "关键词",
+  'notification.due': "到期",
+  'seed.project.work': "工作",
+  'seed.project.home': "家庭",
+  'seed.project.selfcare': "自我关怀",
+};
+
+const JA_TRANSLATIONS: TranslationDict = {
+  ...EN_TRANSLATIONS,
+  'tabs.tasks': "タスク",
+  'tabs.search': "検索",
+  'tabs.projects': "プロジェクト",
+  'common.task': "タスク",
+  'common.tasks': "タスク",
+  'common.project': "プロジェクト",
+  'common.projects': "プロジェクト",
+  'common.filter': "フィルター",
+  'common.today': "今日",
+  'common.upcoming': "近日中",
+  'common.completed': "完了",
+  'common.inbox': "受信トレイ",
+  'common.archive': "アーカイブ",
+  'common.search': "検索",
+  'common.notes': "メモ",
+  'common.noDescription': "説明なし",
+  'home.openArchive': "アーカイブを開く",
+  'home.empty.noTasks': "タスクはありません",
+  'home.addTask': "タスクを追加",
+  'home.quick.day': "日",
+  'home.quick.days': "日",
+  'home.quick.withoutDate': "{{count}} 件（期日なし）",
+  'home.quick.routines': "ルーチン",
+  'home.quick.recurring': "{{count}} 件の繰り返し",
+  'search.placeholder': "タスクを検索",
+  'search.empty.hint': "検索バーで検索を開始してください。",
+  'search.empty.noResults': "「{{query}}」の検索結果はありません。",
+  'explore.newProject': "新しいプロジェクト",
+  'explore.taskCount.one': "{{count}} 件のタスク",
+  'explore.taskCount.other': "{{count}} 件のタスク",
+  'project.notFound': "プロジェクトが見つかりません",
+  'project.backProjects': "プロジェクト",
+  'projectEdit.newProject': "新しいプロジェクト",
+  'projectEdit.editProject': "プロジェクトを編集",
+  'projectEdit.placeholder.projectName': "プロジェクト名",
+  'projectEdit.placeholder.description': "説明（任意）",
+  'projectEdit.icon': "アイコン",
+  'projectEdit.color': "色",
+  'projectEdit.delete': "プロジェクトを削除",
+  'taskCreate.menu.date': "期限",
+  'taskCreate.menu.style': "スタイル",
+  'taskCreate.menu.location': "場所",
+  'taskCreate.menu.routine': "繰り返し",
+  'taskCreate.menu.project': "プロジェクト",
+  'taskCreate.titleMissingTitle': "タイトルが必要です",
+  'taskCreate.titleMissingBody': "タスクのタイトルを入力してください。",
+  'taskCreate.close': "閉じる",
+  'taskCreate.more': "その他",
+  'taskCreate.placeholder.title': "新しいタスク",
+  'taskDetail.notFound': "タスクが見つかりません",
+  'taskDetail.back': "戻る",
+  'taskDetail.property.date': "日付",
+  'taskDetail.property.location': "場所",
+  'taskDetail.property.project': "プロジェクト",
+  'taskDetail.panel.tasks': "タスク",
+  'taskDetail.panel.notes': "メモ",
+  'taskDetail.action.complete': "タスクを完了",
+  'taskDetail.action.repeat': "タスクを繰り返す",
+  'taskDetail.alert.deleteTitle': "タスクを削除しますか？",
+  'taskDetail.alert.deleteBody': "このタスクはゴミ箱に移動されます。",
+  'taskDetail.alert.cancel': "キャンセル",
+  'taskDetail.alert.delete': "削除",
+  'taskDetail.relative.today': "今日",
+  'taskDetail.relative.tomorrow': "明日",
+  'datePicker.title': "期限",
+  'datePicker.noDate': "日付なし",
+  'datePicker.time': "時間",
+  'routinePicker.title': "繰り返し",
+  'routineOption.never': "しない",
+  'projectPicker.title': "プロジェクト",
+  'projectPicker.newProject': "新しいプロジェクト",
+  'projectPicker.noProject': "プロジェクトなし",
+  'emojiPicker.title': "絵文字と色",
+  'emojiPicker.color': "色",
+  'emojiPicker.resetColor': "色をリセット",
+  'inbox.empty': "期日なしのタスクはありません。",
+  'today.empty': "今日のタスクはありません。",
+  'routines.stats.dueToday': "今日の期限",
+  'routines.stats.daily': "毎日",
+  'routines.stats.weekly': "毎週",
+  'routines.section.all': "すべてのルーチン",
+  'routines.empty.title': "ルーチンはまだありません。",
+  'routines.empty.subtitle': "タスク詳細で繰り返しを有効にしてください。",
+  'routines.next': "次回: {{value}}",
+  'routines.noDate': "日付なし",
+  'streaks.stats.thisWeek': "今週",
+  'streaks.stats.longest': "最長ストリーク",
+  'streaks.chart.activity': "アクティビティ",
+  'streaks.chart.noData': "データなし",
+  'archive.title': "アーカイブ",
+  'archive.tab.completed': "完了",
+  'archive.tab.trash': "ゴミ箱",
+  'archive.empty.completedTitle': "完了済みはありません",
+  'archive.empty.trashTitle': "ゴミ箱は空です",
+  'modal.newTask': "新しいタスク",
+  'filters.all': "すべて",
+  'filters.todayOnly': "今日のみ",
+  'filters.upcoming': "近日中",
+  'filters.upcomingOnly': "近日中のみ",
+  'filters.completedOnly': "完了のみ",
+  'filters.withNotesOnly': "サブタイトル付きタスクのみ",
+  'tags.overdue': "期限切れ",
+  'tags.datetime': "日時",
+  'tags.location': "場所",
+  'tags.project': "プロジェクト",
+  'tags.keywords': "キーワード",
+  'notification.due': "期限",
+  'seed.project.work': "仕事",
+  'seed.project.home': "家庭",
+  'seed.project.selfcare': "セルフケア",
+};
+
+const TRANSLATIONS: Record<AppLocale, TranslationDict> = {
+  de: DE_TRANSLATIONS,
+  en: EN_TRANSLATIONS,
+  es: ES_TRANSLATIONS,
+  fr: FR_TRANSLATIONS,
+  pt: PT_TRANSLATIONS,
+  hi: HI_TRANSLATIONS,
+  zh: ZH_TRANSLATIONS,
+  ja: JA_TRANSLATIONS,
 };
 
 let localeOverride: AppLocale | null = null;
 
-function detectLocale(): AppLocale {
+function normalizeLocaleTag(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return trimmed.replace(/_/g, '-').toLowerCase();
+}
+
+type ExpoLocale = {
+  languageTag?: string;
+  languageCode?: string;
+  regionCode?: string;
+};
+
+function localeFromNativeModules(): string | null {
   try {
-    const locale = Intl.DateTimeFormat().resolvedOptions().locale?.toLowerCase() ?? '';
-    return locale.startsWith('de') ? 'de' : 'en';
+    const settings = (NativeModules as any)?.SettingsManager?.settings ?? {};
+    const iosLocale =
+      settings.AppleLocale ??
+      (Array.isArray(settings.AppleLanguages) ? settings.AppleLanguages[0] : undefined);
+    const androidLocale =
+      (NativeModules as any)?.I18nManager?.localeIdentifier ??
+      settings.localeIdentifier;
+    return normalizeLocaleTag(iosLocale ?? androidLocale);
   } catch {
-    return 'en';
+    return null;
   }
+}
+
+function localeFromSettingsApi(): string | null {
+  try {
+    const fromAppleLocale = normalizeLocaleTag(Settings?.get?.('AppleLocale'));
+    if (fromAppleLocale) return fromAppleLocale;
+    const appleLanguages = Settings?.get?.('AppleLanguages');
+    if (Array.isArray(appleLanguages) && appleLanguages.length > 0) {
+      const fromLanguages = normalizeLocaleTag(appleLanguages[0]);
+      if (fromLanguages) return fromLanguages;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function localeFromPlatformConstants(): string | null {
+  try {
+    const platformConstants = (NativeModules as any)?.PlatformConstants ?? {};
+    const direct = normalizeLocaleTag(
+      platformConstants?.localeIdentifier ??
+      platformConstants?.locale ??
+      platformConstants?.languageTag
+    );
+    if (direct) return direct;
+
+    const locales = platformConstants?.locales;
+    if (Array.isArray(locales) && locales.length > 0) {
+      const first = locales[0];
+      if (typeof first === 'string') return normalizeLocaleTag(first);
+      return normalizeLocaleTag(first?.languageTag ?? first?.languageCode);
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function localeFromNavigator(): string | null {
+  try {
+    const nav = (globalThis as any)?.navigator;
+    const first = Array.isArray(nav?.languages) && nav.languages.length > 0 ? nav.languages[0] : nav?.language;
+    return normalizeLocaleTag(first);
+  } catch {
+    return null;
+  }
+}
+
+function localeFromIntl(): string | null {
+  try {
+    return normalizeLocaleTag(Intl.DateTimeFormat().resolvedOptions().locale);
+  } catch {
+    return null;
+  }
+}
+
+function mapLocaleTagToAppLocale(localeTag: string): AppLocale {
+  if (localeTag.startsWith('de')) return 'de';
+  if (localeTag.startsWith('es')) return 'es';
+  if (localeTag.startsWith('fr')) return 'fr';
+  if (localeTag.startsWith('pt')) return 'pt';
+  if (localeTag.startsWith('hi')) return 'hi';
+  if (localeTag.startsWith('zh')) return 'zh';
+  if (localeTag.startsWith('ja')) return 'ja';
+  return 'en';
+}
+
+function detectLocale(): AppLocale {
+  const localeTag =
+    localeFromNativeModules() ??
+    localeFromSettingsApi() ??
+    localeFromPlatformConstants() ??
+    localeFromNavigator() ??
+    localeFromIntl() ??
+    'en';
+  return mapLocaleTagToAppLocale(localeTag);
 }
 
 export function getLocale(): AppLocale {
@@ -471,7 +1263,24 @@ export function setLocale(locale: AppLocale | null) {
 }
 
 export function getIntlLocale(locale: AppLocale = getLocale()): string {
-  return locale === 'de' ? 'de-DE' : 'en-US';
+  switch (locale) {
+    case 'de':
+      return 'de-DE';
+    case 'es':
+      return 'es-ES';
+    case 'fr':
+      return 'fr-FR';
+    case 'pt':
+      return 'pt-BR';
+    case 'hi':
+      return 'hi-IN';
+    case 'zh':
+      return 'zh-CN';
+    case 'ja':
+      return 'ja-JP';
+    default:
+      return 'en-US';
+  }
 }
 
 function interpolate(template: string, params?: TranslationParams): string {

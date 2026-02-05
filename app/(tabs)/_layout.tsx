@@ -121,7 +121,7 @@ export default function TabLayout() {
         </NativeTabs.Trigger>
 
         <NativeTabs.Trigger name="routines">
-          <Label>Routines</Label>
+          <Label>{t('home.quick.routines')}</Label>
           {Platform.select({
             ios: <Icon sf={{ default: 'repeat', selected: 'repeat' }} />,
             android: <Icon src={<VectorIcon family={MaterialIcons} name="repeat" />} />,
