@@ -381,7 +381,7 @@ private final class TabBarAccessoryCoordinator: NSObject {
 @available(iOS 26.0, *)
 private final class AddReminderAccessoryButton: UIControl {
   private let regularTitle = AddReminderAccessoryButton.localizedTitle()
-  private let accentBlueTranslucent = UIColor(red: 10.0 / 255.0, green: 132.0 / 255.0, blue: 1.0, alpha: 0.72)
+  private let accentBlueTranslucent = UIColor(red: 10.0 / 255.0, green: 132.0 / 255.0, blue: 1.0, alpha: 0.46)
   private let iconSize: CGFloat = 16
   private let expandedHorizontalInset: CGFloat = 16
   private let inlineHorizontalInset: CGFloat = 10
@@ -397,6 +397,7 @@ private final class AddReminderAccessoryButton: UIControl {
     view.translatesAutoresizingMaskIntoConstraints = false
     view.contentMode = .scaleAspectFit
     view.tintColor = .white
+    view.isUserInteractionEnabled = false
     return view
   }()
 
@@ -411,7 +412,18 @@ private final class AddReminderAccessoryButton: UIControl {
     label.numberOfLines = 1
     label.setContentCompressionResistancePriority(.required, for: .horizontal)
     label.setContentHuggingPriority(.required, for: .horizontal)
+    label.isUserInteractionEnabled = false
     return label
+  }()
+
+  private lazy var tintOverlayView: UIView = {
+    let view = UIView()
+    view.translatesAutoresizingMaskIntoConstraints = false
+    view.backgroundColor = accentBlueTranslucent
+    view.layer.cornerCurve = .continuous
+    view.layer.cornerRadius = 18
+    view.isUserInteractionEnabled = false
+    return view
   }()
 
   private lazy var contentStack: UIStackView = {
@@ -420,6 +432,7 @@ private final class AddReminderAccessoryButton: UIControl {
     stack.axis = .horizontal
     stack.alignment = .center
     stack.spacing = expandedStackSpacing
+    stack.isUserInteractionEnabled = false
     return stack
   }()
 
@@ -434,15 +447,19 @@ private final class AddReminderAccessoryButton: UIControl {
     accessibilityLabel = regularTitle
     semanticContentAttribute = .forceLeftToRight
 
-    backgroundColor = accentBlueTranslucent
-    layer.cornerCurve = .continuous
-    layer.cornerRadius = 18
-    clipsToBounds = true
+    backgroundColor = .clear
+    isOpaque = false
+    clipsToBounds = false
 
+    addSubview(tintOverlayView)
     addSubview(contentStack)
     leadingConstraint = contentStack.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: expandedHorizontalInset)
     trailingConstraint = contentStack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -expandedHorizontalInset)
     NSLayoutConstraint.activate([
+      tintOverlayView.topAnchor.constraint(equalTo: topAnchor),
+      tintOverlayView.leadingAnchor.constraint(equalTo: leadingAnchor),
+      tintOverlayView.trailingAnchor.constraint(equalTo: trailingAnchor),
+      tintOverlayView.bottomAnchor.constraint(equalTo: bottomAnchor),
       leadingConstraint!,
       trailingConstraint!,
       contentStack.centerXAnchor.constraint(equalTo: centerXAnchor),
@@ -479,7 +496,7 @@ private final class AddReminderAccessoryButton: UIControl {
 
   override var isHighlighted: Bool {
     didSet {
-      alpha = isHighlighted ? 0.88 : 1
+      tintOverlayView.alpha = isHighlighted ? 0.9 : 1
     }
   }
 
