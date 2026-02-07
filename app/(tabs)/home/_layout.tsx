@@ -216,6 +216,7 @@ export default function HomeLayout() {
         name="streaks"
         options={{
           title: t('home.quick.streaks'),
+          headerLargeTitle: false,
           headerBackButtonDisplayMode: 'minimal',
         }}
       />
@@ -223,6 +224,7 @@ export default function HomeLayout() {
         name="inbox"
         options={{
           title: t('common.inbox'),
+          headerLargeTitle: false,
           headerBackButtonDisplayMode: 'minimal',
           headerRight: () => <FilterMenuButton theme={theme} />,
         }}
@@ -231,6 +233,7 @@ export default function HomeLayout() {
         name="routines"
         options={{
           title: t('home.quick.routines'),
+          headerLargeTitle: false,
           headerBackButtonDisplayMode: 'minimal',
         }}
       />
@@ -238,6 +241,7 @@ export default function HomeLayout() {
         name="today"
         options={{
           title: t('common.today'),
+          headerLargeTitle: false,
           headerBackButtonDisplayMode: 'minimal',
           headerRight: () => <FilterMenuButton theme={theme} />,
         }}

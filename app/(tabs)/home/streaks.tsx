@@ -1,5 +1,4 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useHeaderHeight } from '@react-navigation/elements';
 import React, { useMemo, useState } from 'react';
 import { LayoutAnimation, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -296,7 +295,6 @@ function StatTile({
 export default function StreaksScreen() {
   const theme = useColorScheme() ?? 'light';
   const isDark = theme === 'dark';
-  const headerHeight = useHeaderHeight();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const {
@@ -333,6 +331,8 @@ export default function StreaksScreen() {
   return (
     <ScrollView
       style={styles.container}
+      contentInsetAdjustmentBehavior="automatic"
+      alwaysBounceVertical
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
