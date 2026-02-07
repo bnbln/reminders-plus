@@ -61,6 +61,32 @@ public class AppDelegate: ExpoAppDelegate {
   }
 }
 
+private extension Notification.Name {
+  static let taskAccessoryContextDidChange = Notification.Name("TaskAccessoryContextDidChange")
+}
+
+@objc(TaskAccessoryContextBridge)
+final class TaskAccessoryContextBridge: NSObject {
+  @objc static func requiresMainQueueSetup() -> Bool {
+    true
+  }
+
+  @objc(setContext:projectId:projectLabel:)
+  func setContext(_ mode: String, projectId: String?, projectLabel: String?) {
+    DispatchQueue.main.async {
+      NotificationCenter.default.post(
+        name: .taskAccessoryContextDidChange,
+        object: nil,
+        userInfo: [
+          "mode": mode,
+          "projectId": projectId ?? "",
+          "projectLabel": projectLabel ?? "",
+        ]
+      )
+    }
+  }
+}
+
 @available(iOS 26.0, *)
 private final class TabBarAccessoryCoordinator: NSObject {
   private let windowProvider: () -> UIWindow?
@@ -70,6 +96,9 @@ private final class TabBarAccessoryCoordinator: NSObject {
   private weak var observedScrollHostViewController: UIViewController?
   private weak var observedScrollView: UIScrollView?
   private lazy var addButton = AddReminderAccessoryButton(target: self, action: #selector(handleAddReminderTap))
+  private var accessoryMode: AddReminderAccessoryButton.Mode = .task
+  private var accessoryProjectId: String?
+  private var accessoryProjectLabel: String?
 
   init(windowProvider: @escaping () -> UIWindow?) {
     self.windowProvider = windowProvider
@@ -87,6 +116,12 @@ private final class TabBarAccessoryCoordinator: NSObject {
       self,
       selector: #selector(handleWindowDidBecomeVisible),
       name: UIWindow.didBecomeVisibleNotification,
+      object: nil
+    )
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(handleAccessoryContextDidChange(_:)),
+      name: .taskAccessoryContextDidChange,
       object: nil
     )
 
@@ -143,8 +178,35 @@ private final class TabBarAccessoryCoordinator: NSObject {
       tabBarController.setBottomAccessory(accessory, animated: true)
       attachedTabBarController = tabBarController
     }
+    addButton.setContext(
+      mode: accessoryMode,
+      projectLabel: accessoryProjectLabel,
+      animated: false
+    )
 
     return true
+  }
+
+  @objc private func handleAccessoryContextDidChange(_ notification: Notification) {
+    guard let userInfo = notification.userInfo else {
+      return
+    }
+
+    let rawMode = (userInfo["mode"] as? String) ?? ""
+    let mode = AddReminderAccessoryButton.Mode(rawValue: rawMode) ?? .task
+
+    let rawProjectId = (userInfo["projectId"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+    let rawProjectLabel = (userInfo["projectLabel"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    accessoryMode = mode
+    accessoryProjectId = (rawProjectId?.isEmpty == false) ? rawProjectId : nil
+    accessoryProjectLabel = (rawProjectLabel?.isEmpty == false) ? rawProjectLabel : nil
+
+    addButton.setContext(
+      mode: accessoryMode,
+      projectLabel: accessoryProjectLabel,
+      animated: true
+    )
   }
 
   private func bindObservedScrollViewIfNeeded(for tabBarController: UITabBarController) {
@@ -246,10 +308,26 @@ private final class TabBarAccessoryCoordinator: NSObject {
 
   @objc private func handleAddReminderTap() {
     UIImpactFeedbackGenerator(style: .light).impactOccurred()
-    guard let url = URL(string: "reminds:///task/create-modal") else {
+    guard let url = resolvedAddActionURL() else {
       return
     }
     UIApplication.shared.open(url, options: [:], completionHandler: nil)
+  }
+
+  private func resolvedAddActionURL() -> URL? {
+    switch accessoryMode {
+    case .project:
+      return URL(string: "reminds:///project/edit-modal")
+    case .inProject:
+      guard let projectId = accessoryProjectId,
+            !projectId.isEmpty else {
+        return URL(string: "reminds:///task/create-modal")
+      }
+      let encodedProjectId = projectId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? projectId
+      return URL(string: "reminds:///task/create-modal?projectId=\(encodedProjectId)")
+    case .task:
+      return URL(string: "reminds:///task/create-modal")
+    }
   }
 
   private static func findTabBarControllers(in viewController: UIViewController) -> [UITabBarController] {
@@ -380,7 +458,14 @@ private final class TabBarAccessoryCoordinator: NSObject {
 
 @available(iOS 26.0, *)
 private final class AddReminderAccessoryButton: UIControl {
-  private let regularTitle = AddReminderAccessoryButton.localizedTitle()
+  enum Mode: String {
+    case task
+    case project
+    case inProject
+  }
+
+  private var currentMode: Mode = .task
+  private var currentTitle = AddReminderAccessoryButton.localizedTaskTitle()
   private let accentBlue = UIColor(red: 10.0 / 255.0, green: 132.0 / 255.0, blue: 1.0, alpha: 1)
   private let accentBlueTranslucent = UIColor(red: 10.0 / 255.0, green: 132.0 / 255.0, blue: 1.0, alpha: 0.46)
   private let iconSize: CGFloat = 16
@@ -405,7 +490,7 @@ private final class AddReminderAccessoryButton: UIControl {
   private lazy var titleTextLabel: UILabel = {
     let label = UILabel()
     label.translatesAutoresizingMaskIntoConstraints = false
-    label.text = regularTitle
+    label.text = currentTitle
     label.textColor = accentBlue
     let baseFont = UIFont.preferredFont(forTextStyle: .subheadline)
     let semiboldFont = UIFont.systemFont(ofSize: baseFont.pointSize, weight: .semibold)
@@ -447,7 +532,7 @@ private final class AddReminderAccessoryButton: UIControl {
 
     isAccessibilityElement = true
     accessibilityTraits = [.button]
-    accessibilityLabel = regularTitle
+    accessibilityLabel = currentTitle
     semanticContentAttribute = .forceLeftToRight
 
     backgroundColor = .clear
@@ -517,6 +602,12 @@ private final class AddReminderAccessoryButton: UIControl {
     return CGSize(width: width, height: 36)
   }
 
+  func setContext(mode: Mode, projectLabel: String?, animated: Bool) {
+    currentMode = mode
+    let resolvedTitle = resolveTitle(for: mode, projectLabel: projectLabel)
+    setTitle(resolvedTitle, animated: animated)
+  }
+
   private func updateLayoutForAccessoryEnvironment() {
     let environment = traitCollection[UITraitTabAccessoryEnvironment.self]
     isInlinePlacement = environment == .inline
@@ -560,12 +651,70 @@ private final class AddReminderAccessoryButton: UIControl {
       }
     }
 
-    titleTextLabel.alpha = 1
-    titleTextLabel.transform = .identity
     contentStack.spacing = shouldCollapseTitle ? 0 : expandedStackSpacing
   }
 
-  private static func localizedTitle() -> String {
+  private func resolveTitle(for mode: Mode, projectLabel: String?) -> String {
+    switch mode {
+    case .task:
+      return Self.localizedTaskTitle()
+    case .project:
+      return Self.localizedProjectTitle()
+    case .inProject:
+      let fallbackLabel = Self.localizedProjectNoun()
+      let normalizedLabel = projectLabel?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+      let resolvedLabel = normalizedLabel.isEmpty ? fallbackLabel : normalizedLabel
+      return Self.localizedInProjectTitle(resolvedLabel)
+    }
+  }
+
+  private func setTitle(_ nextTitle: String, animated: Bool) {
+    guard currentTitle != nextTitle else {
+      return
+    }
+    currentTitle = nextTitle
+    accessibilityLabel = nextTitle
+
+    let applyTitle: () -> Void = { [self] in
+      titleTextLabel.text = nextTitle
+      invalidateIntrinsicContentSize()
+      setNeedsLayout()
+      layoutIfNeeded()
+    }
+
+    guard animated, window != nil else {
+      applyTitle()
+      titleTextLabel.alpha = 1
+      titleTextLabel.transform = .identity
+      return
+    }
+
+    UIView.animate(
+      withDuration: 0.12,
+      delay: 0,
+      options: [.curveEaseIn, .beginFromCurrentState],
+      animations: {
+        self.titleTextLabel.alpha = 0
+        self.titleTextLabel.transform = CGAffineTransform(translationX: 0, y: -3)
+      },
+      completion: { _ in
+        applyTitle()
+        self.titleTextLabel.transform = CGAffineTransform(translationX: 0, y: 3)
+        UIView.animate(
+          withDuration: 0.18,
+          delay: 0,
+          options: [.curveEaseOut, .beginFromCurrentState],
+          animations: {
+            self.titleTextLabel.alpha = 1
+            self.titleTextLabel.transform = .identity
+          },
+          completion: nil
+        )
+      }
+    )
+  }
+
+  private static func localizedTaskTitle() -> String {
     let localeTag = (Locale.preferredLanguages.first ?? Locale.current.identifier).lowercased()
 
     if localeTag.hasPrefix("de") { return "Aufgabe hinzufügen" }
@@ -577,6 +726,48 @@ private final class AddReminderAccessoryButton: UIControl {
     if localeTag.hasPrefix("ja") { return "タスクを追加" }
 
     return "Add task"
+  }
+
+  private static func localizedProjectTitle() -> String {
+    let localeTag = (Locale.preferredLanguages.first ?? Locale.current.identifier).lowercased()
+
+    if localeTag.hasPrefix("de") { return "Projekt hinzufügen" }
+    if localeTag.hasPrefix("es") { return "Añadir proyecto" }
+    if localeTag.hasPrefix("fr") { return "Ajouter un projet" }
+    if localeTag.hasPrefix("pt") { return "Adicionar projeto" }
+    if localeTag.hasPrefix("hi") { return "प्रोजेक्ट जोड़ें" }
+    if localeTag.hasPrefix("zh") { return "添加项目" }
+    if localeTag.hasPrefix("ja") { return "プロジェクトを追加" }
+
+    return "Add project"
+  }
+
+  private static func localizedProjectNoun() -> String {
+    let localeTag = (Locale.preferredLanguages.first ?? Locale.current.identifier).lowercased()
+
+    if localeTag.hasPrefix("de") { return "Projekt" }
+    if localeTag.hasPrefix("es") { return "Proyecto" }
+    if localeTag.hasPrefix("fr") { return "Projet" }
+    if localeTag.hasPrefix("pt") { return "Projeto" }
+    if localeTag.hasPrefix("hi") { return "प्रोजेक्ट" }
+    if localeTag.hasPrefix("zh") { return "项目" }
+    if localeTag.hasPrefix("ja") { return "プロジェクト" }
+
+    return "Project"
+  }
+
+  private static func localizedInProjectTitle(_ label: String) -> String {
+    let localeTag = (Locale.preferredLanguages.first ?? Locale.current.identifier).lowercased()
+
+    if localeTag.hasPrefix("de") { return "In \(label) hinzufügen" }
+    if localeTag.hasPrefix("es") { return "Añadir en \(label)" }
+    if localeTag.hasPrefix("fr") { return "Ajouter dans \(label)" }
+    if localeTag.hasPrefix("pt") { return "Adicionar em \(label)" }
+    if localeTag.hasPrefix("hi") { return "\(label) में जोड़ें" }
+    if localeTag.hasPrefix("zh") { return "添加到\(label)" }
+    if localeTag.hasPrefix("ja") { return "\(label)に追加" }
+
+    return "Add in \(label)"
   }
 }
 

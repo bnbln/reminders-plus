@@ -219,7 +219,7 @@ const DE_TRANSLATIONS: TranslationDict = {
 
     'seed.project.work': 'Arbeit',
     'seed.project.home': 'Zuhause',
-    'seed.project.selfcare': 'Selbstfürsorge',
+    'seed.project.selfcare': 'Selfcare',
     'seed.task.swipeLeft.title': 'Nach links wischen',
     'seed.task.swipeLeft.subtitle': 'Zum Löschen der Aufgabe',
     'seed.task.swipeRight.title': 'Nach rechts wischen',

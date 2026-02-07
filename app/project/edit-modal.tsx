@@ -110,7 +110,9 @@ export default function ProjectEditScreen() {
             t.projectId === id && !t.deletedAt ? { ...t, deletedAt: Date.now() } : t
         ));
         router.dismissAll();
-        router.navigate('/(tabs)/explore');
+        requestAnimationFrame(() => {
+            router.replace('/(tabs)/explore');
+        });
     }, [id, setProjects, setTasks, router]);
 
     const headerTitle = isCreate ? t('projectEdit.newProject') : t('projectEdit.editProject');

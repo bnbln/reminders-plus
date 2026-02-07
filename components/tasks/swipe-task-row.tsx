@@ -122,6 +122,7 @@ export type SwipeTaskRowProps = {
   drag: () => void;
   isActive: boolean;
   styles: SwipeTaskRowStyles;
+  itemSpacing?: number;
   glassDragTint: string;
   glassDragFallback: string;
   emojiTint: string;
@@ -160,6 +161,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   drag,
   isActive,
   styles,
+  itemSpacing = 12,
   glassDragTint,
   glassDragFallback,
   emojiTint,
@@ -508,10 +510,10 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     if (rowHeight.value <= 0) return {};
     return {
       height: rowHeight.value * p,
-      marginBottom: 12 * p,
+      marginBottom: itemSpacing * p,
       overflow: "hidden",
     };
-  });
+  }, [itemSpacing]);
 
   const clipStyle = React.useMemo(() => styles.swipeClip, [styles.swipeClip]);
 

@@ -12,6 +12,7 @@
 		596203B40946393D7935C6E7 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 1660418779FD940D3BD93FD1 /* PrivacyInfo.xcprivacy */; };
 		596603A2CB76D2EF4605D8C1 /* libPods-reminds.a in Frameworks */ = {isa = PBXBuildFile; fileRef = E6E8431D6D8830E317786991 /* libPods-reminds.a */; };
 		635FC3FFBED398C1BED46896 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A32C005EE9E571843F57141 /* ExpoModulesProvider.swift */; };
+		A1C7F2D53D9A4B1E8C7F2301 /* TaskAccessoryContextBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = A1C7F2D43D9A4B1E8C7F2301 /* TaskAccessoryContextBridge.m */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		D99E3C4D2F2FA60F00FEE8C2 /* Reminder+.icon in Resources */ = {isa = PBXBuildFile; fileRef = D99E3C4C2F2FA60F00FEE8C2 /* Reminder+.icon */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
@@ -25,6 +26,7 @@
 		1660418779FD940D3BD93FD1 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = reminds/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		5C28F2545EF8A9827A419742 /* Pods-reminds.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-reminds.debug.xcconfig"; path = "Target Support Files/Pods-reminds/Pods-reminds.debug.xcconfig"; sourceTree = "<group>"; };
 		7DA988DA3A88D52552BA36CC /* Pods-reminds.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-reminds.release.xcconfig"; path = "Target Support Files/Pods-reminds/Pods-reminds.release.xcconfig"; sourceTree = "<group>"; };
+		A1C7F2D43D9A4B1E8C7F2301 /* TaskAccessoryContextBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = TaskAccessoryContextBridge.m; path = reminds/TaskAccessoryContextBridge.m; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = reminds/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
 		D99E3C4C2F2FA60F00FEE8C2 /* Reminder+.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = "Reminder+.icon"; sourceTree = "<group>"; };
@@ -50,6 +52,7 @@
 			isa = PBXGroup;
 			children = (
 				F11748412D0307B40044C1D9 /* AppDelegate.swift */,
+				A1C7F2D43D9A4B1E8C7F2301 /* TaskAccessoryContextBridge.m */,
 				F11748442D0722820044C1D9 /* reminds-Bridging-Header.h */,
 				BB2F792B24A3F905000567C9 /* Supporting */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
@@ -338,6 +341,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
+				A1C7F2D53D9A4B1E8C7F2301 /* TaskAccessoryContextBridge.m in Sources */,
 				635FC3FFBED398C1BED46896 /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

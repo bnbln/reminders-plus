@@ -1,13 +1,15 @@
 
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { FloatingAddButton } from '@/components/ui/floating-add-button';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { SFSymbol } from '@/components/ui/sfsymbol';
 import { Colors } from '@/constants/theme';
 import { Project, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { isIOS26OrNewer } from '@/utils/ios-version';
 
 type ThemeName = keyof typeof Colors;
 
@@ -36,7 +38,7 @@ const createStyles = (theme: ThemeName) => {
     },
     tilePressable: {
       width: '48%', // Approx half with gap
-      flexGrow: 1,
+      flexGrow: 0,
     },
     tile: {
       borderRadius: 16,
@@ -144,6 +146,7 @@ export default function ExploreScreen() {
   const router = useRouter();
   const theme = useColorScheme() ?? 'light';
   const isDark = theme === 'dark';
+  const showFloatingAddButton = Platform.OS === 'ios' && !isIOS26OrNewer();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
 
   const { projects, tasks } = useTasksStore();
@@ -195,32 +198,9 @@ export default function ExploreScreen() {
               isDark={isDark}
             />
           ))}
-          {/* Add Button Tile */}
-          <Pressable
-            onPress={onCreateProject}
-            style={({ pressed }) => [
-              styles.tilePressable,
-              pressed && { opacity: 0.9 },
-              { transform: [{ scale: pressed ? 0.98 : 1 }] }
-            ]}
-          >
-            <GlassSurface
-              style={[styles.tile, { borderStyle: 'dashed' }]}
-              glassEffectStyle="regular"
-              tintColor={withAlpha(Colors[theme].background, isDark ? 0.1 : 0.2)}
-              fallbackBackgroundColor={'transparent'}
-              isInteractive
-            >
-              <View style={[styles.tileInner, { alignItems: 'center', justifyContent: 'center', gap: 12 }]}>
-                <View style={[styles.tileIconBadge, { backgroundColor: withAlpha(Colors[theme].text, 0.05), width: 44, height: 44, borderRadius: 22 }]}>
-                  <SFSymbol name="plus" size={20} color={Colors[theme].tint} weight="bold" />
-                </View>
-                <Text style={[styles.tileTitle, { marginTop: 0, color: Colors[theme].tint }]}>Neues Projekt</Text>
-              </View>
-            </GlassSurface>
-          </Pressable>
         </View>
       </ScrollView>
+      {showFloatingAddButton ? <FloatingAddButton onPress={onCreateProject} /> : null}
     </View>
   );
 }

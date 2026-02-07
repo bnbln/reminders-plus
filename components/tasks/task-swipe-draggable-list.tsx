@@ -31,6 +31,7 @@ export type TaskSwipeDraggableListProps = {
   tasks: Task[];
   projectsById?: Map<string, Project>;
   rowStyles: SwipeTaskRowStyles;
+  itemSpacing?: number;
   /**
    * Optional scroll ref for coordinating gestures with an outer scroll container.
    */
@@ -79,6 +80,12 @@ export type TaskSwipeDraggableListProps = {
 
   onReorder?: (orderedTaskIds: string[]) => void;
   onReorderData?: (data: TaskSwipeDraggableListItem[]) => void;
+  onDragBeginTask?: (taskId: string) => void;
+  onDragEndMeta?: (params: {
+    data: TaskSwipeDraggableListItem[];
+    from: number;
+    to: number;
+  }) => void;
 
   keyForTask?: (task: Task) => string;
   sortByOrderRank?: boolean;
@@ -90,6 +97,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   tasks,
   projectsById,
   rowStyles,
+  itemSpacing,
   scrollRef,
   renderMode = 'auto',
   data,
@@ -110,6 +118,8 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   deleteTask,
   onReorder,
   onReorderData,
+  onDragBeginTask,
+  onDragEndMeta,
   keyForTask,
   sortByOrderRank,
 },
@@ -271,6 +281,7 @@ ref
           drag={drag}
           isActive={isActive}
           styles={rowStyles}
+          itemSpacing={itemSpacing}
           glassDragTint={glassDragTint}
           glassDragFallback={glassDragFallback}
           emojiTint={emojiTint}
@@ -303,6 +314,7 @@ ref
       glassDragFallback,
       glassDragTint,
       handlePressTask,
+      itemSpacing,
       rowScrollGestureRef,
       renderHeaderRow,
       projectsById,
@@ -334,6 +346,7 @@ ref
           drag={() => {}}
           isActive={false}
           styles={rowStyles}
+          itemSpacing={itemSpacing}
           glassDragTint={glassDragTint}
           glassDragFallback={glassDragFallback}
           emojiTint={emojiTint}
@@ -366,6 +379,7 @@ ref
       glassDragFallback,
       glassDragTint,
       handlePressTask,
+      itemSpacing,
       projectsById,
       registerClose,
       rowScrollGestureRef,
@@ -421,6 +435,10 @@ ref
       placeholderIndexRef.current = fromIndex;
       closeAnyOpen();
       setFlatListData(resolvedData);
+      const sourceItem = resolvedData[fromIndex];
+      if (sourceItem?.kind === 'task') {
+        onDragBeginTask?.(sourceItem.taskId);
+      }
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
     },
     onPlaceholderIndexChange: (index: number) => {
@@ -440,11 +458,12 @@ ref
       }
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
     },
-    onDragEnd: ({ data }: { data: TaskSwipeDraggableListItem[] }) => {
+    onDragEnd: ({ data, from, to }: { data: TaskSwipeDraggableListItem[]; from: number; to: number }) => {
       setFlatListData(data);
       isDraggingRef.current = false;
       onDragStateChange?.(false);
       onReorderData?.(data);
+      onDragEndMeta?.({ data, from, to });
       onReorder?.(data.filter((d) => d.kind === 'task').map((d) => d.taskId));
     },
   };
@@ -497,6 +516,10 @@ ref
         placeholderIndexRef.current = fromIndex;
         closeAnyOpen();
         setFlatListData(resolvedData);
+        const sourceItem = resolvedData[fromIndex];
+        if (sourceItem?.kind === 'task') {
+          onDragBeginTask?.(sourceItem.taskId);
+        }
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
       }}
       onPlaceholderIndexChange={(index) => {
@@ -516,11 +539,12 @@ ref
         }
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
       }}
-      onDragEnd={({ data }) => {
+      onDragEnd={({ data, from, to }) => {
         setFlatListData(data);
         isDraggingRef.current = false;
         onDragStateChange?.(false);
         onReorderData?.(data);
+        onDragEndMeta?.({ data, from, to });
         onReorder?.(data.filter((d) => d.kind === 'task').map((d) => d.taskId));
       }}
     />

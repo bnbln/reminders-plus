@@ -8,16 +8,25 @@ import {
   VectorIcon,
 } from "expo-router/unstable-native-tabs";
 import React from "react";
-import { DynamicColorIOS, Platform, StyleSheet, View } from "react-native";
+import { DynamicColorIOS, NativeModules, Platform, StyleSheet, View } from "react-native";
 
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Colors } from "@/constants/theme";
 import { useTaskCreateContext } from "@/context/task-create-context";
 import { TabBarMinimizeProvider } from "@/context/tabbar-minimize-store";
+import { useTasksStore } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
 import { isIOS26OrNewer } from "@/utils/ios-version";
+
+type TaskAccessoryContextBridge = {
+  setContext?: (
+    mode: "task" | "project" | "inProject",
+    projectId?: string | null,
+    projectLabel?: string | null,
+  ) => void;
+};
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -27,14 +36,35 @@ export default function TabLayout() {
   const segments = useSegments();
   const { id: routeIdParam } = useGlobalSearchParams<{ id?: string | string[] }>();
   const { setProjectId, clearProjectId } = useTaskCreateContext();
+  const { projects } = useTasksStore();
+  const accessoryBridge = NativeModules
+    .TaskAccessoryContextBridge as TaskAccessoryContextBridge | undefined;
+
+  const routeProjectId = React.useMemo(() => {
+    const rawRouteId = Array.isArray(routeIdParam) ? routeIdParam[0] : routeIdParam;
+    return typeof rawRouteId === "string" ? rawRouteId.trim() : "";
+  }, [routeIdParam]);
+
+  const routeProjectName = React.useMemo(() => {
+    if (!routeProjectId) return "";
+    const project = projects.find(
+      (candidate) => candidate.id === routeProjectId && !candidate.deletedAt,
+    );
+    return project?.name?.trim() ?? "";
+  }, [projects, routeProjectId]);
+  const routeProjectExists = routeProjectName.length > 0;
 
   React.useEffect(() => {
     const [first, second, third] = segments;
-    const rawRouteId = Array.isArray(routeIdParam) ? routeIdParam[0] : routeIdParam;
-    const routeProjectId = typeof rawRouteId === "string" ? rawRouteId.trim() : "";
 
     // Keep project context only for the in-tab project detail route.
-    if (first === "(tabs)" && second === "explore" && third === "[id]" && routeProjectId.length > 0) {
+    if (
+      first === "(tabs)" &&
+      second === "explore" &&
+      third === "[id]" &&
+      routeProjectId.length > 0 &&
+      routeProjectExists
+    ) {
       setProjectId(routeProjectId);
       return;
     }
@@ -45,7 +75,39 @@ export default function TabLayout() {
     if (first === "(tabs)") {
       clearProjectId();
     }
-  }, [clearProjectId, routeIdParam, segments, setProjectId]);
+  }, [clearProjectId, routeProjectExists, routeProjectId, segments, setProjectId]);
+
+  React.useEffect(() => {
+    if (Platform.OS !== "ios" || !isIOS26Plus) return;
+
+    const [first, second, third] = segments;
+    if (first === "(tabs)" && second === "explore" && third === undefined) {
+      accessoryBridge?.setContext?.("project", null, null);
+      return;
+    }
+
+    if (
+      first === "(tabs)" &&
+      second === "explore" &&
+      third === "[id]" &&
+      routeProjectId.length > 0 &&
+      routeProjectExists
+    ) {
+      accessoryBridge?.setContext?.(
+        "inProject",
+        routeProjectId,
+        routeProjectName || routeProjectId,
+      );
+      return;
+    }
+
+    if (first === "(tabs)" && second === "explore") {
+      accessoryBridge?.setContext?.("project", null, null);
+      return;
+    }
+
+    accessoryBridge?.setContext?.("task", null, null);
+  }, [accessoryBridge, isIOS26Plus, routeProjectExists, routeProjectId, routeProjectName, segments]);
 
   if (__DEV__ && isIOS26Plus) {
     if (Constants.appOwnership === "expo") {

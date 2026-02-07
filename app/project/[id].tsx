@@ -2,13 +2,13 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import {
-    Dimensions,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  Dimensions,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
@@ -16,14 +16,13 @@ import type { SwipeTaskRowStyles } from "@/components/tasks/swipe-task-row";
 import { TaskSwipeDraggableList } from "@/components/tasks/task-swipe-draggable-list";
 import { FloatingAddButton } from "@/components/ui/floating-add-button";
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
-import { SFSymbol } from "@/components/ui/sfsymbol";
 import { Colors } from "@/constants/theme";
 import {
-    getDueAtForSection,
-    Project,
-    SectionId,
-    Task,
-    useTasksStore,
+  getDueAtForSection,
+  Project,
+  SectionId,
+  Task,
+  useTasksStore,
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
@@ -32,7 +31,6 @@ import { isIOS26OrNewer } from "@/utils/ios-version";
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const COLUMN_WIDTH = SCREEN_WIDTH * 0.78; // Narrower to show peers
 const COLUMN_GAP = 12; // Slightly smaller gap
-const HEADER_HEIGHT = 140;
 
 const SNAP_OFFSETS = [
   0,
@@ -55,30 +53,36 @@ type ThemeName = keyof typeof Colors;
 function KanbanColumn({
   section,
   tasks,
+  columnBackgroundColor,
+  columnBottomPadding,
+  boardScrollRef,
   onPressTask,
   theme,
-  isDark,
   styles,
   rowStyles,
   projectsById,
   toggleComplete,
   deleteTask,
   onReorderSection,
+  onDragBeginTask,
 }: {
   section: SectionId;
   tasks: Task[];
+  columnBackgroundColor: string;
+  columnBottomPadding: number;
+  boardScrollRef: React.RefObject<ScrollView | null>;
   onPressTask: (id: string) => void;
   theme: ThemeName;
-  isDark: boolean;
   styles: ReturnType<typeof createStyles>;
   rowStyles: SwipeTaskRowStyles;
   projectsById: Map<string, Project>;
   toggleComplete: (taskId: string) => void;
   deleteTask: (taskId: string) => void;
   onReorderSection: (sectionId: SectionId, orderedTaskIds: string[]) => void;
+  onDragBeginTask: (taskId: string) => void;
 }) {
   return (
-    <View style={styles.column}>
+    <View style={[styles.column, { backgroundColor: columnBackgroundColor }]}>
       <View style={styles.columnHeader}>
         <Text style={styles.columnTitle}>{SECTION_TITLES[section]}</Text>
         <GlassSurface
@@ -96,9 +100,11 @@ function KanbanColumn({
         tasks={tasks}
         projectsById={projectsById}
         rowStyles={rowStyles}
+        itemSpacing={8}
+        scrollRef={boardScrollRef}
         enabledTags={new Set()}
         showTaskIcons={true}
-        contentContainerStyle={styles.columnContent}
+        contentContainerStyle={[styles.columnContent, { paddingBottom: columnBottomPadding }]}
         containerStyle={{ backgroundColor: "transparent" }}
         contentInsetAdjustmentBehavior="never"
         empty={
@@ -112,6 +118,7 @@ function KanbanColumn({
         onReorder={(orderedTaskIds) =>
           onReorderSection(section, orderedTaskIds)
         }
+        onDragBeginTask={onDragBeginTask}
       />
     </View>
   );
@@ -122,10 +129,17 @@ export default function ProjectDetailScreen() {
   const router = useRouter();
   const theme = (useColorScheme() ?? "light") as ThemeName;
   const isDark = theme === "dark";
-  const showFloatingAddButton = Platform.OS === "ios" && !isIOS26OrNewer();
+  const isIOS26Plus = Platform.OS === "ios" && isIOS26OrNewer();
+  const showFloatingAddButton = Platform.OS === "ios" && !isIOS26Plus;
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const rowStyles = React.useMemo(() => createRowStyles(theme), [theme]);
   const { projects, tasks, setTasks } = useTasksStore();
+  const boardScrollRef = React.useRef<ScrollView | null>(null);
+  const boardOffsetXRef = React.useRef<number>(SNAP_OFFSETS[1] ?? 0);
+  const previousProjectIdRef = React.useRef<string | undefined>(undefined);
+  const previousProjectTaskIdsRef = React.useRef<Set<string>>(new Set());
+  const pendingAddTaskScrollRef = React.useRef(false);
+  const dragContextRef = React.useRef<{ taskId: string; sourceSection: SectionId } | null>(null);
 
   const projectsById = React.useMemo(
     () => new Map(projects.map((p) => [p.id, p] as const)),
@@ -173,18 +187,114 @@ export default function ProjectDetailScreen() {
 
   const onReorderSection = React.useCallback(
     (section: SectionId, orderedTaskIds: string[]) => {
-      const orderIndex = new Map(
-        orderedTaskIds.map((taskId, i) => [taskId, i] as const),
-      );
-      setTasks((prev) =>
-        prev.map((t) => {
-          const idx = orderIndex.get(t.id);
-          if (idx === undefined) return t;
-          return { ...t, orderRank: (idx + 1) * 1000 };
-        }),
-      );
+      const currentOffset = boardOffsetXRef.current;
+      const nearestSection = SECTIONS.reduce(
+        (best, candidate, candidateIndex) => {
+          const candidateOffset = SNAP_OFFSETS[candidateIndex] ?? 0;
+          const distance = Math.abs(candidateOffset - currentOffset);
+          if (distance < best.distance) {
+            return { section: candidate, distance };
+          }
+          return best;
+        },
+        { section, distance: Number.POSITIVE_INFINITY } as {
+          section: SectionId;
+          distance: number;
+        },
+      ).section;
+
+      const dragContext = dragContextRef.current;
+      const draggedTaskId =
+        dragContext?.sourceSection === section ? dragContext.taskId : null;
+
+      if (nearestSection === section || !draggedTaskId) {
+        const orderIndex = new Map(
+          orderedTaskIds.map((taskId, i) => [taskId, i] as const),
+        );
+        setTasks((prev) =>
+          prev.map((t) => {
+            const idx = orderIndex.get(t.id);
+            if (idx === undefined) return t;
+            return { ...t, orderRank: (idx + 1) * 1000 };
+          }),
+        );
+        dragContextRef.current = null;
+        return;
+      }
+
+      setTasks((prev) => {
+        const movedTask = prev.find(
+          (candidate) =>
+            candidate.id === draggedTaskId &&
+            candidate.projectId === id &&
+            !candidate.deletedAt,
+        );
+        if (!movedTask) {
+          return prev;
+        }
+
+        const sourceIds = orderedTaskIds.filter((taskId) => taskId !== draggedTaskId);
+        const targetIds = prev
+          .filter(
+            (candidate) =>
+              candidate.projectId === id &&
+              !candidate.deletedAt &&
+              candidate.section === nearestSection &&
+              candidate.id !== draggedTaskId,
+          )
+          .sort((a, b) => (a.orderRank ?? 0) - (b.orderRank ?? 0))
+          .map((candidate) => candidate.id);
+
+        const sourceOrderIndex = new Map(sourceIds.map((taskId, idx) => [taskId, idx] as const));
+        const targetOrderIndex = new Map(
+          [draggedTaskId, ...targetIds].map((taskId, idx) => [taskId, idx] as const),
+        );
+
+        return prev.map((task) => {
+          if (task.id === draggedTaskId) {
+            const needsDueAt =
+              (nearestSection === "today" || nearestSection === "upcoming") &&
+              (!Number.isFinite(task.dueAt) || task.dueAt <= 0);
+            return {
+              ...task,
+              section: nearestSection,
+              completedAt:
+                nearestSection === "completed"
+                  ? Date.now()
+                  : undefined,
+              ...(needsDueAt
+                ? {
+                    dueAt: getDueAtForSection(nearestSection),
+                    dueHasTime: nearestSection === "today",
+                  }
+                : {}),
+              orderRank:
+                ((targetOrderIndex.get(task.id) ?? 0) + 1) * 1000,
+            };
+          }
+
+          if (task.projectId !== id || task.deletedAt) {
+            return task;
+          }
+
+          if (task.section === section) {
+            const sourceIdx = sourceOrderIndex.get(task.id);
+            if (sourceIdx === undefined) return task;
+            return { ...task, orderRank: (sourceIdx + 1) * 1000 };
+          }
+
+          if (task.section === nearestSection) {
+            const targetIdx = targetOrderIndex.get(task.id);
+            if (targetIdx === undefined) return task;
+            return { ...task, orderRank: (targetIdx + 1) * 1000 };
+          }
+
+          return task;
+        });
+      });
+      dragContextRef.current = null;
     },
-    [setTasks],
+    [id, setTasks],
   );
 
   const toggleComplete = React.useCallback(
@@ -275,36 +385,84 @@ export default function ProjectDetailScreen() {
   );
 
   const handleAddTask = React.useCallback(() => {
+    pendingAddTaskScrollRef.current = true;
     router.push({ pathname: "/task/create-modal", params: { projectId: id } });
   }, [id, router]);
 
+  React.useEffect(() => {
+    const currentIds = new Set(projectTasks.map((task) => task.id));
+
+    if (previousProjectIdRef.current !== id) {
+      previousProjectIdRef.current = id;
+      previousProjectTaskIdsRef.current = currentIds;
+      return;
+    }
+
+    const previousIds = previousProjectTaskIdsRef.current;
+    const addedIds: string[] = [];
+    currentIds.forEach((taskId) => {
+      if (!previousIds.has(taskId)) {
+        addedIds.push(taskId);
+      }
+    });
+    previousProjectTaskIdsRef.current = currentIds;
+
+    if (!pendingAddTaskScrollRef.current || addedIds.length === 0) {
+      return;
+    }
+    pendingAddTaskScrollRef.current = false;
+
+    const addedIdSet = new Set(addedIds);
+    let targetSection: SectionId = "today";
+    for (let index = tasks.length - 1; index >= 0; index -= 1) {
+      const candidate = tasks[index];
+      if (
+        candidate.projectId === id &&
+        !candidate.deletedAt &&
+        addedIdSet.has(candidate.id)
+      ) {
+        targetSection = candidate.section;
+        break;
+      }
+    }
+
+    const sectionIndex = SECTIONS.indexOf(targetSection);
+    if (sectionIndex < 0) {
+      return;
+    }
+    const targetOffsetX = SNAP_OFFSETS[sectionIndex] ?? 0;
+    requestAnimationFrame(() => {
+      boardScrollRef.current?.scrollTo({ x: targetOffsetX, animated: true });
+    });
+  }, [id, projectTasks, tasks]);
+
+  React.useEffect(() => {
+    if (project) return;
+    router.replace("/(tabs)/explore");
+  }, [project, router]);
+
   if (!project) {
-    return (
-      <View
-        style={[
-          styles.container,
-          { justifyContent: "center", alignItems: "center" },
-        ]}
-      >
-        <Text style={{ color: Colors[theme].text }}>{t("project.notFound")}</Text>
-      </View>
-    );
+    return null;
   }
 
-  const headerCardBg = withAlpha(project.color, isDark ? 0.2 : 0.15);
+  const projectDescription = project.description?.trim();
+  const columnBackgroundColor = withAlpha(project.color, isDark ? 0.2 : 0.14);
+  const boardBottomPadding = showFloatingAddButton ? 96 : 40;
+  const columnBottomPadding = isIOS26Plus ? 96 : 20;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={styles.container}>
         <Stack.Screen
           options={{
-            title: "",
-            headerTransparent: true,
+            title: project.name,
+            headerLargeTitle: false,
             headerShadowVisible: false,
+            headerBackButtonDisplayMode: "minimal",
             headerBackTitle: t("project.backProjects"),
-            // headerBackButtonDisplayMode: 'minimal',
-            headerTintColor: Colors[theme].tint,
-            headerStyle: { backgroundColor: "transparent" },
+            headerTintColor: Colors[theme].text,
+            headerTitleStyle: { color: Colors[theme].text },
+            headerStyle: { backgroundColor: Colors[theme].background },
             headerRight: () => (
               <Pressable
                 onPress={onEditProject}
@@ -326,58 +484,52 @@ export default function ProjectDetailScreen() {
           }}
         />
 
-        {/* Header Card */}
-        <View
-          style={{ paddingTop: 120, paddingHorizontal: 16, paddingBottom: 16 }}
-        >
-          <View style={[styles.headerCard, { backgroundColor: headerCardBg }]}>
-            <View style={styles.headerIconContainer}>
-              <SFSymbol name={project.icon} size={32} color={project.color} />
-            </View>
-            <View style={{ flex: 1, gap: 4 }}>
-              <Text style={styles.headerTitle}>{project.name}</Text>
-              {project.description ? (
-                <Text style={styles.headerDesc} numberOfLines={2}>
-                  {project.description}
-                </Text>
-              ) : (
-                <Text style={[styles.headerDesc, { opacity: 0.5 }]}>
-                  {t("common.noDescription")}
-                </Text>
-              )}
-            </View>
+        {projectDescription ? (
+          <View style={styles.descriptionWrap}>
+            <Text style={styles.descriptionText} numberOfLines={2}>
+              {projectDescription}
+            </Text>
           </View>
-        </View>
+        ) : null}
 
         {/* Main Board */}
         <ScrollView
+          ref={boardScrollRef}
           horizontal
           pagingEnabled={false}
           snapToOffsets={SNAP_OFFSETS}
           decelerationRate="fast"
           contentContainerStyle={[
             styles.boardContent,
-            showFloatingAddButton ? styles.boardContentWithFab : null,
-            { paddingHorizontal: 16 },
+            { paddingHorizontal: 16, paddingBottom: boardBottomPadding },
           ]}
           showsHorizontalScrollIndicator={false}
           contentInsetAdjustmentBehavior="never"
           contentOffset={{ x: SNAP_OFFSETS[1], y: 0 }} // Start focused on Today
+          onScroll={(event) => {
+            boardOffsetXRef.current = event.nativeEvent.contentOffset.x;
+          }}
+          scrollEventThrottle={16}
         >
           {SECTIONS.map((section) => (
             <KanbanColumn
               key={section}
               section={section}
               tasks={tasksBySection[section]}
+              columnBackgroundColor={columnBackgroundColor}
+              columnBottomPadding={columnBottomPadding}
+              boardScrollRef={boardScrollRef}
               onPressTask={onPressTask}
               theme={theme}
-              isDark={isDark}
               styles={styles}
               rowStyles={rowStyles}
               projectsById={projectsById}
               toggleComplete={toggleComplete}
               deleteTask={deleteTask}
               onReorderSection={onReorderSection}
+              onDragBeginTask={(taskId) => {
+                dragContextRef.current = { taskId, sourceSection: section };
+              }}
             />
           ))}
         </ScrollView>
@@ -393,44 +545,23 @@ const createStyles = (theme: ThemeName) =>
       flex: 1,
       backgroundColor: Colors[theme].background,
     },
-    headerCard: {
-      flexDirection: "row",
-      alignItems: "center",
-      padding: 16,
-      borderRadius: 20,
-      gap: 16,
+    descriptionWrap: {
+      paddingHorizontal: 20,
+      paddingTop: 8,
+      paddingBottom: 2,
     },
-    headerIconContainer: {
-      width: 56,
-      height: 56,
-      borderRadius: 16,
-      backgroundColor: withAlpha(Colors[theme].background, 0.5), // Slight contrast
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    headerTitle: {
-      fontSize: 22,
-      fontWeight: "700",
-      color: Colors[theme].text,
-      letterSpacing: 0.3,
-    },
-    headerDesc: {
-      fontSize: 15,
-      color: withAlpha(Colors[theme].text, 0.7),
+    descriptionText: {
+      fontSize: 14,
       lineHeight: 20,
+      color: withAlpha(Colors[theme].text, 0.65),
     },
     boardContent: {
-      paddingTop: 10,
-      paddingBottom: 40,
+      paddingTop: 8,
       gap: COLUMN_GAP,
       // paddingHorizontal is handled dynamically in style prop
     },
-    boardContentWithFab: {
-      paddingBottom: 168,
-    },
     column: {
       width: COLUMN_WIDTH,
-      backgroundColor: theme === "dark" ? "#2C2C2E" : "#F2F2F7",
       borderRadius: 16,
       padding: 12,
       maxHeight: "100%",
@@ -459,8 +590,7 @@ const createStyles = (theme: ThemeName) =>
       color: withAlpha(Colors[theme].text, 0.6),
     },
     columnContent: {
-      gap: 12,
-      paddingBottom: 20,
+      gap: 0,
     },
     card: {
       borderRadius: 12,
@@ -517,7 +647,7 @@ const createRowStyles = (theme: ThemeName): SwipeTaskRowStyles => {
   const isDark = theme === "dark";
   const text = Colors[theme].text;
   const hairline = isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.12)";
-  const cardBg = isDark ? "#1C1C1E" : "#F2F2F7";
+  const cardBg = isDark ? "#1C1C1E" : "#FFFFFF";
   const tagBg = withAlpha(text, isDark ? 0.1 : 0.08);
   const tagText = withAlpha(text, 0.78);
   const dangerBg = isDark ? "rgba(255,69,58,0.18)" : "rgba(255,59,48,0.14)";
@@ -525,7 +655,7 @@ const createRowStyles = (theme: ThemeName): SwipeTaskRowStyles => {
 
   return StyleSheet.create({
     itemSpacer: {
-      marginBottom: 12,
+      marginBottom: 0,
     },
     swipeClip: {
       borderRadius: 12,
@@ -563,7 +693,7 @@ const createRowStyles = (theme: ThemeName): SwipeTaskRowStyles => {
       justifyContent: "center",
       paddingHorizontal: 12,
       paddingVertical: 10,
-      gap: 4,
+      gap: 0,
     },
     dragRow: {
       borderWidth: StyleSheet.hairlineWidth,
