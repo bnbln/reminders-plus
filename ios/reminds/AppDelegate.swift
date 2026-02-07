@@ -381,6 +381,7 @@ private final class TabBarAccessoryCoordinator: NSObject {
 @available(iOS 26.0, *)
 private final class AddReminderAccessoryButton: UIControl {
   private let regularTitle = AddReminderAccessoryButton.localizedTitle()
+  private let accentBlue = UIColor(red: 10.0 / 255.0, green: 132.0 / 255.0, blue: 1.0, alpha: 1)
   private let accentBlueTranslucent = UIColor(red: 10.0 / 255.0, green: 132.0 / 255.0, blue: 1.0, alpha: 0.46)
   private let iconSize: CGFloat = 16
   private let expandedHorizontalInset: CGFloat = 16
@@ -396,7 +397,7 @@ private final class AddReminderAccessoryButton: UIControl {
     let view = UIImageView(image: UIImage(systemName: "plus", withConfiguration: config))
     view.translatesAutoresizingMaskIntoConstraints = false
     view.contentMode = .scaleAspectFit
-    view.tintColor = .white
+    view.tintColor = accentBlue
     view.isUserInteractionEnabled = false
     return view
   }()
@@ -405,8 +406,10 @@ private final class AddReminderAccessoryButton: UIControl {
     let label = UILabel()
     label.translatesAutoresizingMaskIntoConstraints = false
     label.text = regularTitle
-    label.textColor = .white
-    label.font = .preferredFont(forTextStyle: .subheadline)
+    label.textColor = accentBlue
+    let baseFont = UIFont.preferredFont(forTextStyle: .subheadline)
+    let semiboldFont = UIFont.systemFont(ofSize: baseFont.pointSize, weight: .semibold)
+    label.font = UIFontMetrics(forTextStyle: .subheadline).scaledFont(for: semiboldFont)
     label.adjustsFontForContentSizeCategory = true
     label.lineBreakMode = .byTruncatingTail
     label.numberOfLines = 1
@@ -419,7 +422,7 @@ private final class AddReminderAccessoryButton: UIControl {
   private lazy var tintOverlayView: UIView = {
     let view = UIView()
     view.translatesAutoresizingMaskIntoConstraints = false
-    view.backgroundColor = accentBlueTranslucent
+    view.backgroundColor = .clear
     view.layer.cornerCurve = .continuous
     view.layer.cornerRadius = 18
     view.isUserInteractionEnabled = false
@@ -496,7 +499,13 @@ private final class AddReminderAccessoryButton: UIControl {
 
   override var isHighlighted: Bool {
     didSet {
-      tintOverlayView.alpha = isHighlighted ? 0.9 : 1
+      if traitCollection.userInterfaceStyle == .dark {
+        tintOverlayView.alpha = isHighlighted ? 0.9 : 1
+        contentStack.alpha = 1
+      } else {
+        tintOverlayView.alpha = 1
+        contentStack.alpha = isHighlighted ? 0.7 : 1
+      }
     }
   }
 
@@ -515,9 +524,22 @@ private final class AddReminderAccessoryButton: UIControl {
     leadingConstraint?.constant = isInlinePlacement ? inlineHorizontalInset : expandedHorizontalInset
     trailingConstraint?.constant = isInlinePlacement ? -inlineHorizontalInset : -expandedHorizontalInset
 
+    updateAppearanceForColorScheme()
     invalidateIntrinsicContentSize()
     syncTitleLayoutWithCurrentWidth()
     setNeedsLayout()
+  }
+
+  private func updateAppearanceForColorScheme() {
+    let isDark = traitCollection.userInterfaceStyle == .dark
+    let contentColor = isDark ? UIColor.white : accentBlue
+    iconView.tintColor = contentColor
+    titleTextLabel.textColor = contentColor
+    tintOverlayView.backgroundColor = isDark ? accentBlueTranslucent : .clear
+    if !isHighlighted {
+      contentStack.alpha = 1
+      tintOverlayView.alpha = 1
+    }
   }
 
   private func syncTitleLayoutWithCurrentWidth() {

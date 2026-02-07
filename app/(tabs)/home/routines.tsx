@@ -123,9 +123,11 @@ const createStyles = (theme: ThemeName) => {
       justifyContent: 'space-between',
     },
     statIconBadge: {
-      width: 30,
-      height: 30,
-      borderRadius: 10,
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      padding: 8,
+      overflow: 'hidden',
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -228,7 +230,8 @@ function StatTile({
   glassFallback: string;
   isDark: boolean;
 }) {
-  const badgeBg = withAlpha(iconColor, isDark ? 0.15 : 0.12);
+  const badgeTint = withAlpha(iconColor, isDark ? 0.22 : 0.18);
+  const badgeFallback = withAlpha(iconColor, isDark ? 0.26 : 0.18);
 
   return (
     <View style={styles.statTile}>
@@ -240,9 +243,14 @@ function StatTile({
       >
         <View style={styles.statCardInner}>
           <View style={styles.statIconRow}>
-            <View style={[styles.statIconBadge, { backgroundColor: badgeBg }]}>
+            <GlassSurface
+              style={styles.statIconBadge}
+              glassEffectStyle="regular"
+              tintColor={badgeTint}
+              fallbackBackgroundColor={badgeFallback}
+            >
               <MaterialIcons name={icon} size={18} color={iconColor} />
-            </View>
+            </GlassSurface>
           </View>
           <Text style={styles.statTitle}>{title}</Text>
           <Text style={styles.statSubtitle}>{value}</Text>

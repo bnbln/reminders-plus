@@ -427,7 +427,7 @@ export default function HomeScreen() {
   const { enabledTags, showTagIcons } = useHomeFilters();
   const { currentStreak } = useStreaks();
   const minimizeProbeRows = React.useMemo(
-    () => Array.from({ length: 5 }, (_, index) => index),
+    () => Array.from({ length: 6 }, (_, index) => index),
     [],
   );
 
@@ -517,9 +517,14 @@ export default function HomeScreen() {
 
   const scrollRef = React.useRef<any>(null);
   const listRef = React.useRef<TaskSwipeDraggableListHandle | null>(null);
+  const [isSwipeGestureActive, setIsSwipeGestureActive] = React.useState(false);
 
   const closeAnyOpen = React.useCallback(() => {
     listRef.current?.closeAnyOpen();
+  }, []);
+
+  const handleSwipeStateChange = React.useCallback((isSwiping: boolean) => {
+    setIsSwipeGestureActive(isSwiping);
   }, []);
 
   const projectsById = React.useMemo(
@@ -952,6 +957,7 @@ export default function HomeScreen() {
     <View style={styles.container}>
       <NestableScrollContainer
         ref={scrollRef}
+        scrollEnabled={!isSwipeGestureActive}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={[styles.content]}
         scrollEventThrottle={16}
@@ -978,6 +984,7 @@ export default function HomeScreen() {
           toggleComplete={handleToggleComplete}
           deleteTask={handleDeleteTask}
           onReorderData={applyOrderFromSwipeListData}
+          onSwipeStateChange={handleSwipeStateChange}
           renderMode="nestable"
           scrollRef={scrollRef}
         />

@@ -1,42 +1,56 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import * as Haptics from 'expo-haptics';
-import React from 'react';
-import { Pressable, Text, View } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import * as Haptics from "expo-haptics";
+import React from "react";
+import { Pressable, Text, View } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
-    Easing,
-    Extrapolation,
-    interpolate,
-    runOnJS,
-    runOnUI,
-    useAnimatedStyle,
-    useSharedValue,
-    withDelay,
-    withSpring,
-    withTiming,
-} from 'react-native-reanimated';
+  Easing,
+  Extrapolation,
+  interpolate,
+  runOnJS,
+  runOnUI,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 
-import { GlassSurface } from '@/components/ui/glass-surface';
-import { getTagTitle, TAG_ORDER, type TagId } from '@/context/home-filters-store';
-import type { Project, Task } from '@/context/tasks-store';
-import { getIntlLocale, t } from '@/i18n';
+import { GlassSurface } from "@/components/ui/glass-surface";
+import {
+  getTagTitle,
+  TAG_ORDER,
+  type TagId,
+} from "@/context/home-filters-store";
+import type { Project, Task } from "@/context/tasks-store";
+import { getIntlLocale, t } from "@/i18n";
 
 const SWIPE_STOP = 76;
 const SWIPE_OPEN_THRESHOLD = 22;
 // Trigger should require a deliberate, stronger swipe.
 const SWIPE_TRIGGER = 132;
 const SWIPE_ELASTIC = 0.55;
-const SWIPE_ACTIVE_OFFSET_X = 12;
-const SWIPE_FAIL_OFFSET_Y = 6;
-const AXIS_LOCK_THRESHOLD = 2;
-const MIN_SWIPE_X = 12;
-const MIN_SCROLL_Y = 2;
+const SWIPE_HAPTIC_EARLY_RATIO = 0;
+const SWIPE_TRIGGER_FINGER =
+  SWIPE_STOP + (SWIPE_TRIGGER - SWIPE_STOP) / SWIPE_ELASTIC;
+const SWIPE_HAPTIC_AND_ACTION_RATIO = Math.max(
+  0,
+  Math.min(1, SWIPE_HAPTIC_EARLY_RATIO),
+);
+const SWIPE_HAPTIC_AND_ACTION_FINGER =
+  SWIPE_STOP +
+  (SWIPE_TRIGGER_FINGER - SWIPE_STOP) * SWIPE_HAPTIC_AND_ACTION_RATIO;
+const SWIPE_ACTIVE_OFFSET_X = 10;
+const SWIPE_FAIL_OFFSET_Y = 18;
+const AXIS_LOCK_THRESHOLD = 4;
+const MIN_SWIPE_X = 10;
+const MIN_SCROLL_Y = 10;
 
 type TagChipModel = {
   key: string;
   tagId: TagId;
   label: string;
-  tone?: 'neutral' | 'danger';
+  tone?: "neutral" | "danger";
 };
 
 const extractHashtags = (value: string | undefined): string[] => {
@@ -51,7 +65,7 @@ const extractHashtags = (value: string | undefined): string[] => {
 };
 
 const formatDueLabel = (dueAt: number, dueHasTime?: boolean) => {
-  if (!Number.isFinite(dueAt) || dueAt <= 0) return t('taskDetail.due.none');
+  if (!Number.isFinite(dueAt) || dueAt <= 0) return t("taskDetail.due.none");
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const tomorrow = new Date(today);
@@ -62,14 +76,21 @@ const formatDueLabel = (dueAt: number, dueHasTime?: boolean) => {
 
   const dayLabel =
     dueDay.getTime() === today.getTime()
-      ? t('taskDetail.relative.today')
+      ? t("taskDetail.relative.today")
       : dueDay.getTime() === tomorrow.getTime()
-        ? t('taskDetail.relative.tomorrow')
-        : new Intl.DateTimeFormat(getIntlLocale(), { weekday: 'short', day: '2-digit', month: '2-digit' }).format(due);
+        ? t("taskDetail.relative.tomorrow")
+        : new Intl.DateTimeFormat(getIntlLocale(), {
+            weekday: "short",
+            day: "2-digit",
+            month: "2-digit",
+          }).format(due);
 
   if (!dueHasTime) return dayLabel;
 
-  const timeLabel = new Intl.DateTimeFormat(getIntlLocale(), { hour: '2-digit', minute: '2-digit' }).format(due);
+  const timeLabel = new Intl.DateTimeFormat(getIntlLocale(), {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(due);
   return `${dayLabel} ${timeLabel}`;
 };
 
@@ -109,13 +130,13 @@ export type SwipeTaskRowProps = {
   swipeDeleteBg: string;
   externalScrollRef?: React.RefObject<any>;
   leftAction?: {
-    icon?: React.ComponentProps<typeof MaterialIcons>['name'];
+    icon?: React.ComponentProps<typeof MaterialIcons>["name"];
     backgroundColor?: string;
     onTrigger: (taskId: string) => void;
     haptic?: Haptics.NotificationFeedbackType;
   };
   rightAction?: {
-    icon?: React.ComponentProps<typeof MaterialIcons>['name'];
+    icon?: React.ComponentProps<typeof MaterialIcons>["name"];
     backgroundColor?: string;
     onTrigger: (taskId: string) => void;
     haptic?: Haptics.NotificationFeedbackType;
@@ -130,6 +151,7 @@ export type SwipeTaskRowProps = {
   onPressTask: (taskId: string) => void;
   toggleComplete: (taskId: string) => void;
   deleteTask: (taskId: string) => void;
+  onSwipeGestureActiveChange?: (taskId: string, active: boolean) => void;
 };
 
 export const SwipeTaskRow = React.memo(function SwipeTaskRow({
@@ -157,6 +179,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   onPressTask,
   toggleComplete,
   deleteTask,
+  onSwipeGestureActiveChange,
 }: SwipeTaskRowProps) {
   const translateX = useSharedValue(0);
   const direction = useSharedValue<-1 | 0 | 1>(0);
@@ -170,6 +193,15 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   const touchStartX = useSharedValue(0);
   const touchStartY = useSharedValue(0);
   const axisDecision = useSharedValue<0 | 1>(0);
+  const swipeGestureActive = useSharedValue(0);
+  const thresholdHapticSent = useSharedValue(0);
+
+  const reportSwipeGestureActive = React.useCallback(
+    (active: boolean) => {
+      onSwipeGestureActiveChange?.(task.id, active);
+    },
+    [onSwipeGestureActiveChange, task.id],
+  );
 
   const closeSelf = React.useCallback(() => {
     translateX.value = withSpring(0, {
@@ -191,47 +223,88 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   const commitLeft = React.useCallback(() => {
     if (leftAction) {
       leftAction.onTrigger(task.id);
-      void Haptics.notificationAsync(leftAction.haptic ?? Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+      void Haptics.notificationAsync(
+        leftAction.haptic ?? Haptics.NotificationFeedbackType.Success,
+      ).catch(() => undefined);
       return;
     }
     toggleComplete(task.id);
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+    void Haptics.notificationAsync(
+      Haptics.NotificationFeedbackType.Success,
+    ).catch(() => undefined);
   }, [leftAction, task.id, toggleComplete]);
 
   const commitRight = React.useCallback(() => {
     if (rightAction) {
       rightAction.onTrigger(task.id);
-      void Haptics.notificationAsync(rightAction.haptic ?? Haptics.NotificationFeedbackType.Warning).catch(() => undefined);
+      void Haptics.notificationAsync(
+        rightAction.haptic ?? Haptics.NotificationFeedbackType.Warning,
+      ).catch(() => undefined);
       return;
     }
     deleteTask(task.id);
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => undefined);
+    void Haptics.notificationAsync(
+      Haptics.NotificationFeedbackType.Warning,
+    ).catch(() => undefined);
   }, [deleteTask, rightAction, task.id]);
+
+  const emitThresholdHaptic = React.useCallback(() => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(
+      () => undefined,
+    );
+  }, []);
 
   const dismiss = React.useCallback(
     (sign: -1 | 1) => {
-      'worklet';
+      "worklet";
       const width = rowWidth.value > 0 ? rowWidth.value : 420;
       const target = (width + 96) * sign;
 
-      swipeVisualAlpha.value = withTiming(0, { duration: 140, easing: Easing.out(Easing.cubic) });
-      rowOpacity.value = withTiming(0, { duration: 170, easing: Easing.out(Easing.cubic) });
-      rowScale.value = withTiming(0.985, { duration: 220, easing: Easing.out(Easing.cubic) });
-      translateX.value = withTiming(target, { duration: 240, easing: Easing.out(Easing.cubic) });
+      swipeVisualAlpha.value = withTiming(0, {
+        duration: 140,
+        easing: Easing.out(Easing.cubic),
+      });
+      rowOpacity.value = withTiming(0, {
+        duration: 170,
+        easing: Easing.out(Easing.cubic),
+      });
+      rowScale.value = withTiming(0.985, {
+        duration: 220,
+        easing: Easing.out(Easing.cubic),
+      });
+      translateX.value = withTiming(target, {
+        duration: 240,
+        easing: Easing.out(Easing.cubic),
+      });
       collapse.value = withDelay(
         40,
-        withTiming(1, { duration: 220, easing: Easing.out(Easing.cubic) }, (finished) => {
-          if (!finished) return;
-          if (sign > 0) {
-            runOnJS(commitLeft)();
-          } else {
-            runOnJS(commitRight)();
-          }
-          runOnJS(endSwipe)(task.id);
-        })
+        withTiming(
+          1,
+          { duration: 220, easing: Easing.out(Easing.cubic) },
+          (finished) => {
+            if (!finished) return;
+            if (sign > 0) {
+              runOnJS(commitLeft)();
+            } else {
+              runOnJS(commitRight)();
+            }
+            runOnJS(endSwipe)(task.id);
+          },
+        ),
       );
     },
-    [collapse, commitLeft, commitRight, endSwipe, rowOpacity, rowScale, rowWidth, swipeVisualAlpha, task.id, translateX]
+    [
+      collapse,
+      commitLeft,
+      commitRight,
+      endSwipe,
+      rowOpacity,
+      rowScale,
+      rowWidth,
+      swipeVisualAlpha,
+      task.id,
+      translateX,
+    ],
   );
 
   const onPressComplete = React.useCallback(() => {
@@ -255,16 +328,18 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       .failOffsetY([-SWIPE_FAIL_OFFSET_Y, SWIPE_FAIL_OFFSET_Y]);
 
     pan = pan.onTouchesDown((event) => {
-      'worklet';
+      "worklet";
       const touch = event.allTouches[0];
       if (!touch) return;
       touchStartX.value = touch.x;
       touchStartY.value = touch.y;
       axisDecision.value = 0;
+      swipeGestureActive.value = 0;
+      thresholdHapticSent.value = 0;
     });
 
     pan = pan.onTouchesMove((event, state) => {
-      'worklet';
+      "worklet";
       if (axisDecision.value === 1) return;
       const touch = event.allTouches[0];
       if (!touch) return;
@@ -273,20 +348,34 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       const absX = Math.abs(dx);
       const absY = Math.abs(dy);
 
-      if (absY > absX + AXIS_LOCK_THRESHOLD && absY > MIN_SCROLL_Y) {
+      const horizontalIntent =
+        absX > MIN_SWIPE_X && absX > absY * 1.15 + AXIS_LOCK_THRESHOLD;
+      const verticalIntent =
+        absY > MIN_SCROLL_Y && absY > absX * 1.1 + AXIS_LOCK_THRESHOLD;
+
+      if (verticalIntent) {
         axisDecision.value = 1;
         state.fail();
         return;
       }
 
-      if (absX > absY + AXIS_LOCK_THRESHOLD && absX > MIN_SWIPE_X) {
+      if (horizontalIntent) {
         axisDecision.value = 1;
+        if (swipeGestureActive.value === 0) {
+          swipeGestureActive.value = 1;
+          runOnJS(reportSwipeGestureActive)(true);
+        }
         state.activate();
       }
     });
 
     pan = pan.onStart(() => {
-      'worklet';
+      "worklet";
+      thresholdHapticSent.value = 0;
+      if (swipeGestureActive.value === 0) {
+        swipeGestureActive.value = 1;
+        runOnJS(reportSwipeGestureActive)(true);
+      }
       startOffsetX.value = translateX.value;
       // If we previously dismissed and the key was reused, ensure we're back to a clean state.
       rowOpacity.value = 1;
@@ -297,7 +386,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     });
 
     pan = pan.onUpdate((event) => {
-      'worklet';
+      "worklet";
       let raw = startOffsetX.value + event.translationX;
       // Safety: if we're closing an already-open side, don't allow crossing through
       // to the opposite side in the same gesture.
@@ -314,10 +403,19 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       // Slight smoothing for a softer feel.
       const target = nextAbs * sign;
       translateX.value = translateX.value + (target - translateX.value) * 0.55;
+
+      if (
+        thresholdHapticSent.value === 0 &&
+        sign !== 0 &&
+        Math.abs(raw) >= SWIPE_HAPTIC_AND_ACTION_FINGER
+      ) {
+        thresholdHapticSent.value = 1;
+        runOnJS(emitThresholdHaptic)();
+      }
     });
 
     pan = pan.onEnd((event) => {
-      'worklet';
+      "worklet";
       let raw = startOffsetX.value + event.translationX;
       if (startOffsetX.value > 0) raw = Math.max(0, raw);
       if (startOffsetX.value < 0) raw = Math.min(0, raw);
@@ -337,8 +435,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
 
       // Also allow triggering based on finger travel to make "through the stop" easier,
       // even with resistance/smoothing.
-      const triggerFinger = SWIPE_STOP + (SWIPE_TRIGGER - SWIPE_STOP) / SWIPE_ELASTIC;
-      if (abs >= SWIPE_TRIGGER || absFinger >= triggerFinger) {
+      if (abs >= SWIPE_TRIGGER || absFinger >= SWIPE_HAPTIC_AND_ACTION_FINGER) {
         // Trigger action, animate row off before committing.
         direction.value = 0;
         if (sign !== 0) dismiss(sign as -1 | 1);
@@ -364,14 +461,22 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     });
 
     pan = pan.onFinalize(() => {
-      'worklet';
+      "worklet";
+      thresholdHapticSent.value = 0;
+      if (swipeGestureActive.value === 1) {
+        swipeGestureActive.value = 0;
+        runOnJS(reportSwipeGestureActive)(false);
+      }
       runOnJS(endSwipe)(task.id);
     });
 
     // Keep native scroll and row pan simultaneous, then let offsets decide intent.
-    if (typeof (pan as any).simultaneousWithExternalGesture === 'function') {
+    if (typeof (pan as any).simultaneousWithExternalGesture === "function") {
       return externalScrollRef
-        ? (pan as any).simultaneousWithExternalGesture(nativeScroll, externalScrollRef)
+        ? (pan as any).simultaneousWithExternalGesture(
+            nativeScroll,
+            externalScrollRef,
+          )
         : (pan as any).simultaneousWithExternalGesture(nativeScroll);
     }
     return Gesture.Simultaneous(nativeScroll, pan);
@@ -386,12 +491,16 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     isActive,
     rowOpacity,
     rowScale,
+    reportSwipeGestureActive,
     startOffsetX,
+    swipeGestureActive,
     swipeVisualAlpha,
     task.id,
+    thresholdHapticSent,
     touchStartX,
     touchStartY,
     translateX,
+    emitThresholdHaptic,
   ]);
 
   const spacerAnimatedStyle = useAnimatedStyle(() => {
@@ -400,7 +509,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     return {
       height: rowHeight.value * p,
       marginBottom: 12 * p,
-      overflow: 'hidden',
+      overflow: "hidden",
     };
   });
 
@@ -409,7 +518,10 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   const underlayGreenStyle = useAnimatedStyle(() => {
     const tx = translateX.value;
     const visible = tx > 0 ? Math.min(1, tx / SWIPE_STOP) : 0;
-    const boost = tx > SWIPE_STOP ? Math.min(1, (tx - SWIPE_STOP) / (SWIPE_TRIGGER - SWIPE_STOP)) : 0;
+    const boost =
+      tx > SWIPE_STOP
+        ? Math.min(1, (tx - SWIPE_STOP) / (SWIPE_TRIGGER - SWIPE_STOP))
+        : 0;
     return {
       opacity: visible * swipeVisualAlpha.value,
       backgroundColor: leftAction?.backgroundColor ?? swipeCompleteBg,
@@ -420,7 +532,10 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   const underlayRedStyle = useAnimatedStyle(() => {
     const tx = translateX.value;
     const visible = tx < 0 ? Math.min(1, -tx / SWIPE_STOP) : 0;
-    const boost = tx < -SWIPE_STOP ? Math.min(1, (-tx - SWIPE_STOP) / (SWIPE_TRIGGER - SWIPE_STOP)) : 0;
+    const boost =
+      tx < -SWIPE_STOP
+        ? Math.min(1, (-tx - SWIPE_STOP) / (SWIPE_TRIGGER - SWIPE_STOP))
+        : 0;
     return {
       opacity: visible * swipeVisualAlpha.value,
       backgroundColor: rightAction?.backgroundColor ?? swipeDeleteBg,
@@ -432,11 +547,16 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     const tx = translateX.value;
     if (tx <= 0) return { opacity: 0 };
     const p = Math.min(1, tx / SWIPE_STOP);
-    const armed = tx >= SWIPE_TRIGGER ? 1 : Math.max(0, (tx - SWIPE_STOP) / (SWIPE_TRIGGER - SWIPE_STOP));
+    const armed =
+      tx >= SWIPE_TRIGGER
+        ? 1
+        : Math.max(0, (tx - SWIPE_STOP) / (SWIPE_TRIGGER - SWIPE_STOP));
     const scale = interpolate(p, [0, 1], [0.92, 1], Extrapolation.CLAMP);
     const bump = interpolate(armed, [0, 1], [0, 0.08], Extrapolation.CLAMP);
     return {
-      opacity: interpolate(p, [0, 0.12, 1], [0, 1, 1], Extrapolation.CLAMP) * swipeVisualAlpha.value,
+      opacity:
+        interpolate(p, [0, 0.12, 1], [0, 1, 1], Extrapolation.CLAMP) *
+        swipeVisualAlpha.value,
       transform: [{ scale: scale + bump }],
     };
   });
@@ -445,11 +565,16 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     const tx = translateX.value;
     if (tx >= 0) return { opacity: 0 };
     const abs = Math.min(1, -tx / SWIPE_STOP);
-    const armed = -tx >= SWIPE_TRIGGER ? 1 : Math.max(0, (-tx - SWIPE_STOP) / (SWIPE_TRIGGER - SWIPE_STOP));
+    const armed =
+      -tx >= SWIPE_TRIGGER
+        ? 1
+        : Math.max(0, (-tx - SWIPE_STOP) / (SWIPE_TRIGGER - SWIPE_STOP));
     const scale = interpolate(abs, [0, 1], [0.92, 1], Extrapolation.CLAMP);
     const bump = interpolate(armed, [0, 1], [0, 0.08], Extrapolation.CLAMP);
     return {
-      opacity: interpolate(abs, [0, 0.12, 1], [0, 1, 1], Extrapolation.CLAMP) * swipeVisualAlpha.value,
+      opacity:
+        interpolate(abs, [0, 0.12, 1], [0, 1, 1], Extrapolation.CLAMP) *
+        swipeVisualAlpha.value,
       transform: [{ scale: scale + bump }],
     };
   });
@@ -466,49 +591,72 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
 
     const now = Date.now();
     const isOverdue = (() => {
-      if (task.section === 'completed') return false;
+      if (task.section === "completed") return false;
       if (!Number.isFinite(task.dueAt) || task.dueAt <= 0) return false;
 
       // If the task has no explicit time, treat it as due "by end of day".
       if (task.dueHasTime === false) {
         const due = new Date(task.dueAt);
-        const startOfNextDay = new Date(due.getFullYear(), due.getMonth(), due.getDate() + 1, 0, 0, 0, 0).getTime();
+        const startOfNextDay = new Date(
+          due.getFullYear(),
+          due.getMonth(),
+          due.getDate() + 1,
+          0,
+          0,
+          0,
+          0,
+        ).getTime();
         return now >= startOfNextDay;
       }
 
       // Has time (or unknown): overdue once the timestamp passed.
       return task.dueAt < now;
     })();
-    const hashtags = extractHashtags([task.title, task.subtitle, task.notes].filter(Boolean).join(' '));
+    const hashtags = extractHashtags(
+      [task.title, task.subtitle, task.notes].filter(Boolean).join(" "),
+    );
 
     for (const tagId of TAG_ORDER) {
       if (!enabledTags.has(tagId)) continue;
 
-      if (tagId === 'overdue') {
+      if (tagId === "overdue") {
         if (!isOverdue) continue;
-        chips.push({ key: 'overdue', tagId, label: getTagTitle('overdue'), tone: 'danger' });
+        chips.push({
+          key: "overdue",
+          tagId,
+          label: getTagTitle("overdue"),
+          tone: "danger",
+        });
         continue;
       }
 
-      if (tagId === 'datetime') {
+      if (tagId === "datetime") {
         if (!Number.isFinite(task.dueAt) || task.dueAt <= 0) continue;
-        chips.push({ key: `dt-${task.dueAt}`, tagId, label: formatDueLabel(task.dueAt, task.dueHasTime) });
+        chips.push({
+          key: `dt-${task.dueAt}`,
+          tagId,
+          label: formatDueLabel(task.dueAt, task.dueHasTime),
+        });
         continue;
       }
 
-      if (tagId === 'location') {
+      if (tagId === "location") {
         if (!task.location) continue;
-        chips.push({ key: `loc-${task.location}`, tagId, label: task.location });
+        chips.push({
+          key: `loc-${task.location}`,
+          tagId,
+          label: task.location,
+        });
         continue;
       }
 
-      if (tagId === 'project') {
+      if (tagId === "project") {
         if (!project) continue;
         chips.push({ key: `proj-${project.id}`, tagId, label: project.name });
         continue;
       }
 
-      if (tagId === 'keywords') {
+      if (tagId === "keywords") {
         if (hashtags.length === 0) continue;
         for (const h of hashtags.slice(0, 3)) {
           chips.push({ key: `kw-${h}`, tagId, label: h });
@@ -517,12 +665,28 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     }
 
     return chips;
-  }, [enabledTags, project, task.dueAt, task.dueHasTime, task.location, task.notes, task.section, task.subtitle, task.title]);
+  }, [
+    enabledTags,
+    project,
+    task.dueAt,
+    task.dueHasTime,
+    task.location,
+    task.notes,
+    task.section,
+    task.subtitle,
+    task.title,
+  ]);
 
   const tagsView = tagChips.length ? (
     <View style={styles.tagRow}>
       {tagChips.map((chip) => (
-        <View key={chip.key} style={[styles.tagChip, chip.tone === 'danger' ? styles.tagChipDanger : undefined]}>
+        <View
+          key={chip.key}
+          style={[
+            styles.tagChip,
+            chip.tone === "danger" ? styles.tagChipDanger : undefined,
+          ]}
+        >
           <Text style={styles.tagChipText} numberOfLines={1}>
             {chip.label}
           </Text>
@@ -532,7 +696,12 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   ) : null;
 
   const emojiTileView = showTaskIcons ? (
-    <GlassSurface style={styles.emojiTile} glassEffectStyle="regular" tintColor={emojiTint} fallbackBackgroundColor={emojiFallback}>
+    <GlassSurface
+      style={styles.emojiTile}
+      glassEffectStyle="regular"
+      tintColor={emojiTint}
+      fallbackBackgroundColor={emojiFallback}
+    >
       <Text style={styles.emojiText}>{task.emoji}</Text>
     </GlassSurface>
   ) : null;
@@ -543,14 +712,41 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
         <Animated.View style={[styles.underlay, underlayGreenStyle]} />
         <Animated.View style={[styles.underlay, underlayRedStyle]} />
 
-        <Pressable style={[styles.actionSlot, styles.actionSlotLeft, { width: SWIPE_STOP }]} onPress={onPressComplete} hitSlop={10}>
+        <Pressable
+          style={[
+            styles.actionSlot,
+            styles.actionSlotLeft,
+            { width: SWIPE_STOP },
+          ]}
+          onPress={onPressComplete}
+          hitSlop={10}
+        >
           <Animated.View style={[styles.actionSlotInner, leftIconStyle]}>
-            <MaterialIcons name={leftAction?.icon ?? (task.section === 'completed' ? 'undo' : 'check')} size={22} color="white" />
+            <MaterialIcons
+              name={
+                leftAction?.icon ??
+                (task.section === "completed" ? "undo" : "check")
+              }
+              size={22}
+              color="white"
+            />
           </Animated.View>
         </Pressable>
-        <Pressable style={[styles.actionSlot, styles.actionSlotRight, { width: SWIPE_STOP }]} onPress={onPressDelete} hitSlop={10}>
+        <Pressable
+          style={[
+            styles.actionSlot,
+            styles.actionSlotRight,
+            { width: SWIPE_STOP },
+          ]}
+          onPress={onPressDelete}
+          hitSlop={10}
+        >
           <Animated.View style={[styles.actionSlotInner, rightIconStyle]}>
-            <MaterialIcons name={rightAction?.icon ?? 'delete'} size={22} color="white" />
+            <MaterialIcons
+              name={rightAction?.icon ?? "delete"}
+              size={22}
+              color="white"
+            />
           </Animated.View>
         </Pressable>
 
@@ -579,7 +775,9 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
                     {emojiTileView}
                     <View style={styles.textStack}>
                       <Text style={styles.rowTitle}>{task.title}</Text>
-                      {task.subtitle ? <Text style={styles.rowSubtitle}>{task.subtitle}</Text> : null}
+                      {task.subtitle ? (
+                        <Text style={styles.rowSubtitle}>{task.subtitle}</Text>
+                      ) : null}
                       {tagsView}
                     </View>
                   </View>
@@ -590,7 +788,9 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
                     {emojiTileView}
                     <View style={styles.textStack}>
                       <Text style={styles.rowTitle}>{task.title}</Text>
-                      {task.subtitle ? <Text style={styles.rowSubtitle}>{task.subtitle}</Text> : null}
+                      {task.subtitle ? (
+                        <Text style={styles.rowSubtitle}>{task.subtitle}</Text>
+                      ) : null}
                       {tagsView}
                     </View>
                   </View>

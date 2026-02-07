@@ -95,9 +95,11 @@ const createStyles = (theme: ThemeName) => {
       justifyContent: 'space-between',
     },
     quickTileIconBadge: {
-      width: 30,
-      height: 30,
-      borderRadius: 10,
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      padding: 8,
+      overflow: 'hidden',
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -260,7 +262,8 @@ function StatTile({
   chevronColor: string;
   isDark: boolean;
 }) {
-  const badgeBg = withAlpha(iconColor, isDark ? 0.15 : 0.12);
+  const badgeTint = withAlpha(iconColor, isDark ? 0.22 : 0.18);
+  const badgeFallback = withAlpha(iconColor, isDark ? 0.26 : 0.18);
 
   return (
     <View style={styles.quickTilePressable}>
@@ -272,9 +275,14 @@ function StatTile({
       >
         <View style={styles.quickTileInner}>
           <View style={styles.quickTileIconRow}>
-            <View style={[styles.quickTileIconBadge, { backgroundColor: badgeBg }]}>
+            <GlassSurface
+              style={styles.quickTileIconBadge}
+              glassEffectStyle="regular"
+              tintColor={badgeTint}
+              fallbackBackgroundColor={badgeFallback}
+            >
               <MaterialIcons name={icon} size={18} color={iconColor} />
-            </View>
+            </GlassSurface>
             <MaterialIcons name="chevron-right" size={18} color={chevronColor} />
           </View>
           <Text style={styles.quickTileTitle}>{title}</Text>

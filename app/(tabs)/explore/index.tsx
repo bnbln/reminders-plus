@@ -1,7 +1,7 @@
 
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { SFSymbol } from '@/components/ui/sfsymbol';
@@ -145,7 +145,6 @@ export default function ExploreScreen() {
   const theme = useColorScheme() ?? 'light';
   const isDark = theme === 'dark';
   const styles = React.useMemo(() => createStyles(theme), [theme]);
-  const { height: windowHeight } = useWindowDimensions();
 
   const { projects, tasks } = useTasksStore();
 
@@ -179,7 +178,7 @@ export default function ExploreScreen() {
 
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={[styles.content, { minHeight: windowHeight + 220 }]}
+        contentContainerStyle={styles.content}
         alwaysBounceVertical
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}

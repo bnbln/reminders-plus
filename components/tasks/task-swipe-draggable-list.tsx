@@ -64,6 +64,7 @@ export type TaskSwipeDraggableListProps = {
    * Reports drag state changes so callers can avoid treating drag as scroll.
    */
   onDragStateChange?: (isDragging: boolean) => void;
+  onSwipeStateChange?: (isSwiping: boolean) => void;
 
   header?: React.ReactElement | null;
   footer?: React.ReactElement | null;
@@ -98,6 +99,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   contentInsetAdjustmentBehavior,
   onScrollOffsetChange,
   onDragStateChange,
+  onSwipeStateChange,
   header,
   footer,
   empty,
@@ -137,6 +139,7 @@ ref
   const placeholderIndexRef = React.useRef<number>(-1);
   const openSwipeIdRef = React.useRef<string | null>(null);
   const closeByIdRef = React.useRef(new Map<string, () => void>());
+  const swipingTaskIdsRef = React.useRef(new Set<string>());
   const internalScrollRef = React.useRef<any>(null);
 
   const registerClose = React.useCallback((taskId: string, close: () => void) => {
@@ -146,7 +149,31 @@ ref
   const unregisterClose = React.useCallback((taskId: string) => {
     closeByIdRef.current.delete(taskId);
     if (openSwipeIdRef.current === taskId) openSwipeIdRef.current = null;
-  }, []);
+    const hadAnyBefore = swipingTaskIdsRef.current.size > 0;
+    swipingTaskIdsRef.current.delete(taskId);
+    if (hadAnyBefore && swipingTaskIdsRef.current.size === 0) onSwipeStateChange?.(false);
+  }, [onSwipeStateChange]);
+
+  const reportSwipeGestureActive = React.useCallback(
+    (taskId: string, isActive: boolean) => {
+      const wasActive = swipingTaskIdsRef.current.size > 0;
+      if (isActive) {
+        swipingTaskIdsRef.current.add(taskId);
+      } else {
+        swipingTaskIdsRef.current.delete(taskId);
+      }
+      const isNowActive = swipingTaskIdsRef.current.size > 0;
+      if (wasActive !== isNowActive) onSwipeStateChange?.(isNowActive);
+    },
+    [onSwipeStateChange]
+  );
+
+  React.useEffect(() => {
+    const swipingTaskIds = swipingTaskIdsRef.current;
+    return () => {
+      if (swipingTaskIds.size > 0) onSwipeStateChange?.(false);
+    };
+  }, [onSwipeStateChange]);
 
   const closeAnyOpen = React.useCallback(() => {
     const openId = openSwipeIdRef.current;
@@ -261,6 +288,7 @@ ref
           toggleComplete={toggleComplete}
           deleteTask={deleteTask}
           externalScrollRef={rowScrollGestureRef}
+          onSwipeGestureActiveChange={reportSwipeGestureActive}
         />
       );
     },
@@ -286,6 +314,7 @@ ref
       tasksById,
       toggleComplete,
       unregisterClose,
+      reportSwipeGestureActive,
     ]
   );
 
@@ -322,6 +351,7 @@ ref
           toggleComplete={toggleComplete}
           deleteTask={deleteTask}
           externalScrollRef={rowScrollGestureRef}
+          onSwipeGestureActiveChange={reportSwipeGestureActive}
         />
       );
     },
@@ -347,6 +377,7 @@ ref
       tasksById,
       toggleComplete,
       unregisterClose,
+      reportSwipeGestureActive,
     ]
   );
 

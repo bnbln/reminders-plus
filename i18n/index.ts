@@ -566,6 +566,14 @@ const ES_TRANSLATIONS: TranslationDict = {
   'seed.project.work': "Trabajo",
   'seed.project.home': "Casa",
   'seed.project.selfcare': "Autocuidado",
+  'seed.task.swipeLeft.title': "Desliza a la izquierda",
+  'seed.task.swipeLeft.subtitle': "para eliminar la tarea",
+  'seed.task.swipeRight.title': "Desliza a la derecha",
+  'seed.task.swipeRight.subtitle': "para completar la tarea",
+  'seed.task.drag.title': "Arrastrar y soltar",
+  'seed.task.drag.subtitle': "Mantén pulsado para arrastrarme",
+  'seed.task.details.title': "Toca para ver detalles",
+  'seed.task.details.subtitle': "Abre la vista de detalles",
 };
 
 const FR_TRANSLATIONS: TranslationDict = {
@@ -680,6 +688,14 @@ const FR_TRANSLATIONS: TranslationDict = {
   'seed.project.work': "Travail",
   'seed.project.home': "Maison",
   'seed.project.selfcare': "Bien-être",
+  'seed.task.swipeLeft.title': "Glisser à gauche",
+  'seed.task.swipeLeft.subtitle': "pour supprimer la tâche",
+  'seed.task.swipeRight.title': "Glisser à droite",
+  'seed.task.swipeRight.subtitle': "pour terminer la tâche",
+  'seed.task.drag.title': "Glisser-déposer",
+  'seed.task.drag.subtitle': "Maintiens appuyé pour me déplacer",
+  'seed.task.details.title': "Touchez pour voir les détails",
+  'seed.task.details.subtitle': "Ouvre la vue détaillée",
 };
 
 const PT_TRANSLATIONS: TranslationDict = {
@@ -794,6 +810,14 @@ const PT_TRANSLATIONS: TranslationDict = {
   'seed.project.work': "Trabalho",
   'seed.project.home': "Casa",
   'seed.project.selfcare': "Autocuidado",
+  'seed.task.swipeLeft.title': "Deslize para a esquerda",
+  'seed.task.swipeLeft.subtitle': "para excluir a tarefa",
+  'seed.task.swipeRight.title': "Deslize para a direita",
+  'seed.task.swipeRight.subtitle': "para concluir a tarefa",
+  'seed.task.drag.title': "Arrastar e soltar",
+  'seed.task.drag.subtitle': "Pressione e segure para me arrastar",
+  'seed.task.details.title': "Toque para detalhes",
+  'seed.task.details.subtitle': "Abre a visualização de detalhes",
 };
 
 const HI_TRANSLATIONS: TranslationDict = {
@@ -908,6 +932,14 @@ const HI_TRANSLATIONS: TranslationDict = {
   'seed.project.work': "काम",
   'seed.project.home': "घर",
   'seed.project.selfcare': "स्व-देखभाल",
+  'seed.task.swipeLeft.title': "बाएँ स्वाइप करें",
+  'seed.task.swipeLeft.subtitle': "कार्य हटाने के लिए",
+  'seed.task.swipeRight.title': "दाएँ स्वाइप करें",
+  'seed.task.swipeRight.subtitle': "कार्य पूर्ण करने के लिए",
+  'seed.task.drag.title': "खींचें और छोड़ें",
+  'seed.task.drag.subtitle': "मुझे खींचने के लिए दबाकर रखें",
+  'seed.task.details.title': "विवरण के लिए टैप करें",
+  'seed.task.details.subtitle': "विस्तृत दृश्य खोलता है",
 };
 
 const ZH_TRANSLATIONS: TranslationDict = {
@@ -1022,6 +1054,14 @@ const ZH_TRANSLATIONS: TranslationDict = {
   'seed.project.work': "工作",
   'seed.project.home': "家庭",
   'seed.project.selfcare': "自我关怀",
+  'seed.task.swipeLeft.title': "向左滑动",
+  'seed.task.swipeLeft.subtitle': "删除任务",
+  'seed.task.swipeRight.title': "向右滑动",
+  'seed.task.swipeRight.subtitle': "完成任务",
+  'seed.task.drag.title': "拖放",
+  'seed.task.drag.subtitle': "长按并拖动我",
+  'seed.task.details.title': "点按查看详情",
+  'seed.task.details.subtitle': "打开详情视图",
 };
 
 const JA_TRANSLATIONS: TranslationDict = {
@@ -1136,6 +1176,14 @@ const JA_TRANSLATIONS: TranslationDict = {
   'seed.project.work': "仕事",
   'seed.project.home': "家庭",
   'seed.project.selfcare': "セルフケア",
+  'seed.task.swipeLeft.title': "左にスワイプ",
+  'seed.task.swipeLeft.subtitle': "タスクを削除",
+  'seed.task.swipeRight.title': "右にスワイプ",
+  'seed.task.swipeRight.subtitle': "タスクを完了",
+  'seed.task.drag.title': "ドラッグ＆ドロップ",
+  'seed.task.drag.subtitle': "長押ししてドラッグ",
+  'seed.task.details.title': "タップして詳細",
+  'seed.task.details.subtitle': "詳細画面を開く",
 };
 
 const TRANSLATIONS: Record<AppLocale, TranslationDict> = {
