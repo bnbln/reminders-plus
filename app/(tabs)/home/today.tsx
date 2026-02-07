@@ -1,14 +1,16 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 
 import { TaskSwipeDraggableList } from '@/components/tasks/task-swipe-draggable-list';
+import { FloatingAddButton } from '@/components/ui/floating-add-button';
 import { withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
 import { useHomeFilters } from '@/context/home-filters-store';
 import { type Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
+import { isIOS26OrNewer } from '@/utils/ios-version';
 
 function hasValidDueDate(task: Task) {
   // Robust gegen ältere/teilweise Daten (z.B. Persisted State), obwohl `Task.dueAt` im Typ required ist.
@@ -24,6 +26,7 @@ function isDueToday(task: Task, startOfDayMs: number, endOfDayMs: number) {
 export default function TodayScreen() {
   const router = useRouter();
   const theme = useColorScheme() ?? 'light';
+  const showFloatingAddButton = Platform.OS === 'ios' && !isIOS26OrNewer();
   const params = useLocalSearchParams<{ withNotes?: string }>();
   const withNotesEnabled = params.withNotes === '1';
 
@@ -96,25 +99,33 @@ export default function TodayScreen() {
     [setTasks]
   );
 
+  const handleAddTask = React.useCallback(() => {
+    router.push('/task/create-modal');
+  }, [router]);
+
   return (
-    <TaskSwipeDraggableList
-      theme={theme}
-      tasks={todayTasks}
-      projectsById={projectsById}
-      rowStyles={styles}
-      contentContainerStyle={styles.content}
-      empty={
-        <View style={styles.empty}>
-          <Text style={[styles.emptyText, { color: Colors[theme].text }]}>{t('today.empty')}</Text>
-        </View>
-      }
-      enabledTags={enabledTags}
-      showTaskIcons={showTagIcons}
-      onPressTask={onPressTask}
-      toggleComplete={toggleComplete}
-      deleteTask={deleteTask}
-      onReorder={applyOrderFromListData}
-    />
+    <View style={styles.container}>
+      <TaskSwipeDraggableList
+        theme={theme}
+        tasks={todayTasks}
+        projectsById={projectsById}
+        rowStyles={styles}
+        contentContainerStyle={styles.content}
+        empty={
+          <View style={styles.empty}>
+            <Text style={[styles.emptyText, { color: Colors[theme].text }]}>{t('today.empty')}</Text>
+          </View>
+        }
+        enabledTags={enabledTags}
+        showTaskIcons={showTagIcons}
+        onPressTask={onPressTask}
+        toggleComplete={toggleComplete}
+        deleteTask={deleteTask}
+        onReorder={applyOrderFromListData}
+      />
+
+      {showFloatingAddButton ? <FloatingAddButton onPress={handleAddTask} /> : null}
+    </View>
   );
 }
 
@@ -129,6 +140,10 @@ const createStyles = (theme: keyof typeof Colors) => {
   const dangerBorder = isDark ? 'rgba(255,69,58,0.32)' : 'rgba(255,59,48,0.26)';
 
   return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: Colors[theme].background,
+    },
     content: {
       paddingHorizontal: 16,
       paddingTop: 0,

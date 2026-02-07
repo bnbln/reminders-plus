@@ -144,24 +144,45 @@ export default function TabLayout() {
             })}
           </NativeTabs.Trigger>
 
-          <NativeTabs.Trigger name="search" role="search">
-            <Label>{t("tabs.search")}</Label>
-            {Platform.select({
-              ios: (
-                <Icon
-                  sf={{
-                    default: "magnifyingglass",
-                    selected: "magnifyingglass",
-                  }}
-                />
-              ),
-              android: (
-                <Icon
-                  src={<VectorIcon family={MaterialIcons} name="search" />}
-                />
-              ),
-            })}
-          </NativeTabs.Trigger>
+          {isIOS26Plus ? (
+            <NativeTabs.Trigger name="search" role="search">
+              <Label>{t("tabs.search")}</Label>
+              {Platform.select({
+                ios: (
+                  <Icon
+                    sf={{
+                      default: "magnifyingglass",
+                      selected: "magnifyingglass",
+                    }}
+                  />
+                ),
+                android: (
+                  <Icon
+                    src={<VectorIcon family={MaterialIcons} name="search" />}
+                  />
+                ),
+              })}
+            </NativeTabs.Trigger>
+          ) : (
+            <NativeTabs.Trigger name="search">
+              <Label>{t("tabs.search")}</Label>
+              {Platform.select({
+                ios: (
+                  <Icon
+                    sf={{
+                      default: "magnifyingglass",
+                      selected: "magnifyingglass",
+                    }}
+                  />
+                ),
+                android: (
+                  <Icon
+                    src={<VectorIcon family={MaterialIcons} name="search" />}
+                  />
+                ),
+              })}
+            </NativeTabs.Trigger>
+          )}
 
           <NativeTabs.Trigger name="explore">
             <Label>{t("tabs.projects")}</Label>

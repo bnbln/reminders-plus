@@ -1,7 +1,7 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { NestableScrollContainer } from "react-native-draggable-flatlist";
 
 import {
@@ -9,6 +9,7 @@ import {
   type TaskSwipeDraggableListHandle,
   type TaskSwipeDraggableListItem,
 } from "@/components/tasks/task-swipe-draggable-list";
+import { FloatingAddButton } from "@/components/ui/floating-add-button";
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { Colors } from "@/constants/theme";
 import { useHomeFilters } from "@/context/home-filters-store";
@@ -21,6 +22,7 @@ import {
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useStreaks } from "@/hooks/use-streaks";
 import { getIntlLocale, t } from "@/i18n";
+import { isIOS26OrNewer } from "@/utils/ios-version";
 
 type ThemeName = keyof typeof Colors;
 
@@ -413,6 +415,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const theme = useColorScheme() ?? "light";
   const isDark = theme === "dark";
+  const showFloatingAddButton = Platform.OS === "ios" && !isIOS26OrNewer();
   const params = useLocalSearchParams<{
     sections?: string;
     withNotes?: string;
@@ -777,6 +780,10 @@ export default function HomeScreen() {
     [setTasks],
   );
 
+  const handleAddTask = React.useCallback(() => {
+    router.push("/task/create-modal");
+  }, [router]);
+
   const renderSectionHeaderRow = React.useCallback(
     (sectionId: string) => {
       const id = sectionId as SectionId;
@@ -1000,6 +1007,8 @@ export default function HomeScreen() {
           ))}
         </View>
       </NestableScrollContainer>
+
+      {showFloatingAddButton ? <FloatingAddButton onPress={handleAddTask} /> : null}
     </View>
   );
 }

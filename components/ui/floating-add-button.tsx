@@ -40,8 +40,7 @@ export function FloatingAddButton({
       ? Math.max(0, insets.bottom - 8)
       : Math.max(0, insets.bottom + resolvedTabBarHeight + 12);
 
-  // iOS system blue-ish tint for the glass.
-  const blue = '#0A84FF';
+  const primaryBlue = Colors.light.tint;
 
   return (
     <Pressable
@@ -61,10 +60,10 @@ export function FloatingAddButton({
       <GlassSurface
         style={styles.glass}
         glassEffectStyle="regular"
-        tintColor={withAlpha(blue, theme === 'dark' ? 0.28 : 0.22)}
-        fallbackBackgroundColor={withAlpha(Colors[theme].background, theme === 'dark' ? 0.72 : 0.9)}
+        tintColor={withAlpha(primaryBlue, theme === 'dark' ? 0.44 : 0.32)}
+        fallbackBackgroundColor={primaryBlue}
       >
-        <MaterialIcons name="add" size={28} color={theme === 'dark' ? 'white' : 'black'} />
+        <MaterialIcons name="add" size={28} color="white" />
       </GlassSurface>
     </Pressable>
   );
@@ -144,8 +143,8 @@ export function FloatingAddPillButton({
   }, []);
 
   const isDark = theme === 'dark';
-  const blue = '#0A84FF';
-  const onBlueText = isDark ? 'white' : 'black';
+  const primaryBlue = Colors.light.tint;
+  const onPrimaryText = 'white';
 
   return (
     <Animated.View
@@ -175,13 +174,13 @@ export function FloatingAddPillButton({
             <GlassSurface
               style={stylesPill.glass}
               glassEffectStyle="regular"
-              tintColor={withAlpha(blue, isDark ? 0.34 : 0.22)}
-              fallbackBackgroundColor={isDark ? withAlpha(blue, 0.94) : withAlpha(Colors.light.background, 0.96)}
+              tintColor={withAlpha(primaryBlue, isDark ? 0.44 : 0.32)}
+              fallbackBackgroundColor={withAlpha(primaryBlue, 0.94)}
               isInteractive
             >
               <Animated.View style={[stylesPill.inner, animInnerPaddingStyle, animContentStyle]}>
-                <MaterialIcons name="add" size={20} color={onBlueText} />
-                <Text style={[stylesPill.label, { color: onBlueText }]} numberOfLines={1}>
+                <MaterialIcons name="add" size={20} color={onPrimaryText} />
+                <Text style={[stylesPill.label, { color: onPrimaryText }]} numberOfLines={1}>
                   {label}
                 </Text>
               </Animated.View>

@@ -1,18 +1,17 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { FloatingAddButton } from '@/components/ui/floating-add-button';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
 import { Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { countLabel, getIntlLocale, t } from '@/i18n';
+import { isIOS26OrNewer } from '@/utils/ios-version';
 
 type ThemeName = keyof typeof Colors;
-
-const WEEKDAY_NAMES = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
-const NTH_LABELS = ['1.', '2.', '3.', '4.'];
 
 const getRoutineLabel = (task: Task): string => {
   const type = task.routineType || task.routineInterval;
@@ -63,6 +62,9 @@ const createStyles = (theme: ThemeName) => {
       paddingHorizontal: 16,
       paddingBottom: 32,
       gap: 16,
+    },
+    contentWithFab: {
+      paddingBottom: 168,
     },
     hero: {
       flexDirection: 'row',
@@ -264,6 +266,7 @@ export default function RoutinesScreen() {
   const theme = useColorScheme() ?? 'light';
   const isDark = theme === 'dark';
   const router = useRouter();
+  const showFloatingAddButton = Platform.OS === 'ios' && !isIOS26OrNewer();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { tasks } = useTasksStore();
 
@@ -296,116 +299,128 @@ export default function RoutinesScreen() {
   const glassTint = withAlpha(backgroundColor, isDark ? 0.18 : 0.28);
   const glassFallback = isDark ? '#1C1C1E' : '#F2F2F7';
 
+  const handleAddTask = React.useCallback(() => {
+    router.push('/task/create-modal');
+  }, [router]);
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      {/* Hero Section */}
-      <View style={styles.hero}>
-        <View style={styles.iconContainer}>
-          <MaterialIcons name="loop" size={56} color={iconColor} />
-          {routinesCount > 0 && <View style={[styles.glow, { backgroundColor: iconColor }]} />}
-        </View>
-        <View>
-          <Text style={styles.bigNumber}>{routinesCount}</Text>
-          <Text style={styles.heroSubtitle}>
-            {routinesCount === 1 ? t('routines.hero.one') : t('routines.hero.other')}
-          </Text>
-        </View>
-      </View>
-
-      {/* Stats Grid */}
-      <View style={styles.statsGrid}>
-        <StatTile
-          title={t('routines.stats.dueToday')}
-          value={countLabel(dueTodayCount, 'routines.count.tasks.one', 'routines.count.tasks.other')}
-          icon="today"
-          iconColor="#10B981"
-          styles={styles}
-          glassTint={glassTint}
-          glassFallback={glassFallback}
-          isDark={isDark}
-        />
-        <StatTile
-          title={t('routines.stats.daily')}
-          value={countLabel(dailyCount, 'routines.count.routines.one', 'routines.count.routines.other')}
-          icon="repeat"
-          iconColor="#0A84FF"
-          styles={styles}
-          glassTint={glassTint}
-          glassFallback={glassFallback}
-          isDark={isDark}
-        />
-        <StatTile
-          title={t('routines.stats.weekly')}
-          value={countLabel(weeklyCount, 'routines.count.routines.one', 'routines.count.routines.other')}
-          icon="date-range"
-          iconColor="#8B5CF6"
-          styles={styles}
-          glassTint={glassTint}
-          glassFallback={glassFallback}
-          isDark={isDark}
-        />
-        <StatTile
-          title={t('routines.stats.monthlyPlus')}
-          value={countLabel(monthlyCount, 'routines.count.routines.one', 'routines.count.routines.other')}
-          icon="calendar-today"
-          iconColor="#F59E0B"
-          styles={styles}
-          glassTint={glassTint}
-          glassFallback={glassFallback}
-          isDark={isDark}
-        />
-      </View>
-
-      {/* Routines List */}
-      <View>
-        <Text style={styles.sectionTitle}>{t('routines.section.all')}</Text>
-        {routineTasks.length === 0 ? (
-          <View style={styles.emptyState}>
-            <MaterialIcons name="loop" size={40} color={withAlpha(textColor, 0.25)} />
-            <Text style={styles.emptyText}>
-              {t('routines.empty.title')}{'\n'}{t('routines.empty.subtitle')}
+    <View style={styles.container}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[styles.content, showFloatingAddButton ? styles.contentWithFab : null]}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Hero Section */}
+        <View style={styles.hero}>
+          <View style={styles.iconContainer}>
+            <MaterialIcons name="loop" size={56} color={iconColor} />
+            {routinesCount > 0 && <View style={[styles.glow, { backgroundColor: iconColor }]} />}
+          </View>
+          <View>
+            <Text style={styles.bigNumber}>{routinesCount}</Text>
+            <Text style={styles.heroSubtitle}>
+              {routinesCount === 1 ? t('routines.hero.one') : t('routines.hero.other')}
             </Text>
           </View>
-        ) : (
-          <View style={styles.routinesList}>
-            {routineTasks.map((routine) => {
-              const intervalLabel = getRoutineLabel(routine);
-              const type = routine.routineType || routine.routineInterval;
-              const intervalColor = (type === 'daily' || type === 'hourly') ? '#0A84FF' :
-                (type === 'weekly' || type === 'weekdays' || type === 'weekends' || type === 'biweekly') ? '#8B5CF6' :
-                  (type === 'monthly' || type === 'quarterly' || type === 'biannually') ? '#F59E0B' : '#10B981';
+        </View>
 
-              return (
-                <Pressable
-                  key={routine.id}
-                  onPress={() => router.push(`/task/${routine.id}`)}
-                >
-                  <GlassSurface
-                    style={styles.routineCard}
-                    glassEffectStyle="regular"
-                    tintColor={glassTint}
-                    fallbackBackgroundColor={glassFallback}
+        {/* Stats Grid */}
+        <View style={styles.statsGrid}>
+          <StatTile
+            title={t('routines.stats.dueToday')}
+            value={countLabel(dueTodayCount, 'routines.count.tasks.one', 'routines.count.tasks.other')}
+            icon="today"
+            iconColor="#10B981"
+            styles={styles}
+            glassTint={glassTint}
+            glassFallback={glassFallback}
+            isDark={isDark}
+          />
+          <StatTile
+            title={t('routines.stats.daily')}
+            value={countLabel(dailyCount, 'routines.count.routines.one', 'routines.count.routines.other')}
+            icon="repeat"
+            iconColor="#0A84FF"
+            styles={styles}
+            glassTint={glassTint}
+            glassFallback={glassFallback}
+            isDark={isDark}
+          />
+          <StatTile
+            title={t('routines.stats.weekly')}
+            value={countLabel(weeklyCount, 'routines.count.routines.one', 'routines.count.routines.other')}
+            icon="date-range"
+            iconColor="#8B5CF6"
+            styles={styles}
+            glassTint={glassTint}
+            glassFallback={glassFallback}
+            isDark={isDark}
+          />
+          <StatTile
+            title={t('routines.stats.monthlyPlus')}
+            value={countLabel(monthlyCount, 'routines.count.routines.one', 'routines.count.routines.other')}
+            icon="calendar-today"
+            iconColor="#F59E0B"
+            styles={styles}
+            glassTint={glassTint}
+            glassFallback={glassFallback}
+            isDark={isDark}
+          />
+        </View>
+
+        {/* Routines List */}
+        <View>
+          <Text style={styles.sectionTitle}>{t('routines.section.all')}</Text>
+          {routineTasks.length === 0 ? (
+            <View style={styles.emptyState}>
+              <MaterialIcons name="loop" size={40} color={withAlpha(textColor, 0.25)} />
+              <Text style={styles.emptyText}>
+                {t('routines.empty.title')}{'\n'}{t('routines.empty.subtitle')}
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.routinesList}>
+              {routineTasks.map((routine) => {
+                const intervalLabel = getRoutineLabel(routine);
+                const type = routine.routineType || routine.routineInterval;
+                const intervalColor = (type === 'daily' || type === 'hourly') ? '#0A84FF' :
+                  (type === 'weekly' || type === 'weekdays' || type === 'weekends' || type === 'biweekly') ? '#8B5CF6' :
+                    (type === 'monthly' || type === 'quarterly' || type === 'biannually') ? '#F59E0B' : '#10B981';
+
+                return (
+                  <Pressable
+                    key={routine.id}
+                    onPress={() => router.push(`/task/${routine.id}`)}
                   >
-                    <View style={styles.routineCardInner}>
-                      <Text style={styles.routineEmoji}>{routine.emoji}</Text>
-                      <View style={styles.routineBody}>
-                        <Text style={styles.routineTitle} numberOfLines={1}>{routine.title}</Text>
-                        <View style={styles.routineMeta}>
-                          <View style={[styles.intervalBadge, { backgroundColor: withAlpha(intervalColor, isDark ? 0.2 : 0.15) }]}>
-                            <Text style={[styles.intervalText, { color: intervalColor }]}>{intervalLabel}</Text>
+                    <GlassSurface
+                      style={styles.routineCard}
+                      glassEffectStyle="regular"
+                      tintColor={glassTint}
+                      fallbackBackgroundColor={glassFallback}
+                    >
+                      <View style={styles.routineCardInner}>
+                        <Text style={styles.routineEmoji}>{routine.emoji}</Text>
+                        <View style={styles.routineBody}>
+                          <Text style={styles.routineTitle} numberOfLines={1}>{routine.title}</Text>
+                          <View style={styles.routineMeta}>
+                            <View style={[styles.intervalBadge, { backgroundColor: withAlpha(intervalColor, isDark ? 0.2 : 0.15) }]}>
+                              <Text style={[styles.intervalText, { color: intervalColor }]}>{intervalLabel}</Text>
+                            </View>
+                            <Text style={styles.nextDueText}>{t('routines.next', { value: formatNextDue(routine.dueAt) })}</Text>
                           </View>
-                          <Text style={styles.nextDueText}>{t('routines.next', { value: formatNextDue(routine.dueAt) })}</Text>
                         </View>
+                        <MaterialIcons name="chevron-right" size={20} color={withAlpha(textColor, 0.4)} />
                       </View>
-                      <MaterialIcons name="chevron-right" size={20} color={withAlpha(textColor, 0.4)} />
-                    </View>
-                  </GlassSurface>
-                </Pressable>
-              );
-            })}
-          </View>
-        )}
-      </View>
-    </ScrollView>
+                    </GlassSurface>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
+        </View>
+      </ScrollView>
+
+      {showFloatingAddButton ? <FloatingAddButton onPress={handleAddTask} /> : null}
+    </View>
   );
 }
