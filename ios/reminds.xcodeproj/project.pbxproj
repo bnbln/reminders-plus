@@ -363,6 +363,7 @@
 					"FB_SONARKIT_ENABLED=1",
 				);
 				INFOPLIST_FILE = reminds/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Reminders+";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -399,6 +400,7 @@
 				DEVELOPMENT_TEAM = C4VHG63LL9;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				INFOPLIST_FILE = reminds/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Reminders+";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (

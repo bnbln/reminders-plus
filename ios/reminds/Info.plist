@@ -47,6 +47,8 @@
     </dict>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
     <string>Wir verwenden deinen Standort, um den aktuellen Ort für den Task vorzuschlagen.</string>
+    <key>NSLocationAlwaysUsageDescription</key>
+    <string>Allow $(PRODUCT_NAME) to access your location</string>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>Wir verwenden deinen Standort, um den aktuellen Ort für den Task vorzuschlagen.</string>
     <key>NSUserActivityTypes</key>
