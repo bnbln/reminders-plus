@@ -1,17 +1,19 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import Constants from "expo-constants";
-import { Tabs } from "expo-router";
+import { Tabs, useGlobalSearchParams, useSegments } from "expo-router";
 import {
   Icon,
   Label,
   NativeTabs,
   VectorIcon,
 } from "expo-router/unstable-native-tabs";
+import React from "react";
 import { DynamicColorIOS, Platform, StyleSheet, View } from "react-native";
 
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Colors } from "@/constants/theme";
+import { useTaskCreateContext } from "@/context/task-create-context";
 import { TabBarMinimizeProvider } from "@/context/tabbar-minimize-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
@@ -22,6 +24,28 @@ export default function TabLayout() {
   const theme = colorScheme ?? "light";
   const isIOS26Plus = isIOS26OrNewer();
   const showRoutinesTab = false;
+  const segments = useSegments();
+  const { id: routeIdParam } = useGlobalSearchParams<{ id?: string | string[] }>();
+  const { setProjectId, clearProjectId } = useTaskCreateContext();
+
+  React.useEffect(() => {
+    const [first, second, third] = segments;
+    const rawRouteId = Array.isArray(routeIdParam) ? routeIdParam[0] : routeIdParam;
+    const routeProjectId = typeof rawRouteId === "string" ? rawRouteId.trim() : "";
+
+    // Keep project context only for the in-tab project detail route.
+    if (first === "(tabs)" && second === "explore" && third === "[id]" && routeProjectId.length > 0) {
+      setProjectId(routeProjectId);
+      return;
+    }
+
+    // When we are in tabs but not in a project detail, clear context.
+    // If a root modal is on top (e.g. create modal), segments won't start with "(tabs)",
+    // so we intentionally keep the last focused project context for that flow.
+    if (first === "(tabs)") {
+      clearProjectId();
+    }
+  }, [clearProjectId, routeIdParam, segments, setProjectId]);
 
   if (__DEV__ && isIOS26Plus) {
     if (Constants.appOwnership === "expo") {

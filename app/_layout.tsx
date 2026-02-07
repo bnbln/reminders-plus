@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { HomeFiltersProvider } from '@/context/home-filters-store';
+import { TaskCreateProvider } from '@/context/task-create-context';
 import { TasksProvider } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
@@ -25,69 +26,71 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <TasksProvider>
-        <HomeFiltersProvider>
-          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-            <Stack>
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen
-                name="task/create-modal"
-                options={{
-                  // Zurück zum alten Styling: transparentes Overlay ohne Header
-                  presentation: 'transparentModal',
-                  headerShown: false,
-                  contentStyle: { backgroundColor: 'transparent' },
-                  animation: 'fade',
-                }}
-              />
-              <Stack.Screen
-                name="task/routine-picker"
-                options={{
-                  presentation: 'formSheet',
-                  contentStyle: { backgroundColor: 'transparent' },
-                } as any}
-              />
-              <Stack.Screen
-                name="task/date-picker"
-                options={{
-                  presentation: 'formSheet',
-                  contentStyle: { backgroundColor: 'transparent' },
-                }}
-              />
-              <Stack.Screen
-                name="task/project-picker"
-                options={{
-                  presentation: 'formSheet',
-                  contentStyle: { backgroundColor: 'transparent' },
-                }}
-              />
-              <Stack.Screen
-                name="task/emoji-picker"
-                options={{
-                  presentation: 'formSheet',
-                  contentStyle: { backgroundColor: 'transparent' },
-                }}
-              />
-              <Stack.Screen name="task/[id]" options={{ title: t('common.task') }} />
-              <Stack.Screen name="project/[id]" options={{ title: t('common.project') }} />
-              <Stack.Screen
-                name="project/edit-modal"
-                options={{
-                  presentation: 'formSheet',
-                  contentStyle: { backgroundColor: 'transparent' },
-                }}
-              />
-              <Stack.Screen
-                name="modal"
-                options={{
-                  presentation: 'formSheet',
-                  contentStyle: { backgroundColor: 'transparent' },
-                  title: t('modal.newTask')
-                }}
-              />
-            </Stack>
-            <StatusBar style="auto" />
-          </ThemeProvider>
-        </HomeFiltersProvider>
+        <TaskCreateProvider>
+          <HomeFiltersProvider>
+            <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+              <Stack>
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen
+                  name="task/create-modal"
+                  options={{
+                    // Zurück zum alten Styling: transparentes Overlay ohne Header
+                    presentation: 'transparentModal',
+                    headerShown: false,
+                    contentStyle: { backgroundColor: 'transparent' },
+                    animation: 'fade',
+                  }}
+                />
+                <Stack.Screen
+                  name="task/routine-picker"
+                  options={{
+                    presentation: 'formSheet',
+                    contentStyle: { backgroundColor: 'transparent' },
+                  } as any}
+                />
+                <Stack.Screen
+                  name="task/date-picker"
+                  options={{
+                    presentation: 'formSheet',
+                    contentStyle: { backgroundColor: 'transparent' },
+                  }}
+                />
+                <Stack.Screen
+                  name="task/project-picker"
+                  options={{
+                    presentation: 'formSheet',
+                    contentStyle: { backgroundColor: 'transparent' },
+                  }}
+                />
+                <Stack.Screen
+                  name="task/emoji-picker"
+                  options={{
+                    presentation: 'formSheet',
+                    contentStyle: { backgroundColor: 'transparent' },
+                  }}
+                />
+                <Stack.Screen name="task/[id]" options={{ title: t('common.task') }} />
+                <Stack.Screen name="project/[id]" options={{ title: t('common.project') }} />
+                <Stack.Screen
+                  name="project/edit-modal"
+                  options={{
+                    presentation: 'formSheet',
+                    contentStyle: { backgroundColor: 'transparent' },
+                  }}
+                />
+                <Stack.Screen
+                  name="modal"
+                  options={{
+                    presentation: 'formSheet',
+                    contentStyle: { backgroundColor: 'transparent' },
+                    title: t('modal.newTask')
+                  }}
+                />
+              </Stack>
+              <StatusBar style="auto" />
+            </ThemeProvider>
+          </HomeFiltersProvider>
+        </TaskCreateProvider>
       </TasksProvider>
     </GestureHandlerRootView>
   );

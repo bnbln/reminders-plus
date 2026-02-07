@@ -1,11 +1,12 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { MenuView, type MenuAction, type NativeActionEvent } from '@react-native-menu/menu';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Colors } from '@/constants/theme';
+import { useTaskCreateContext } from '@/context/task-create-context';
 import { useTasksStore, type SectionId } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
@@ -14,11 +15,24 @@ const createTaskId = () => `t-${Date.now()}-${Math.random().toString(16).slice(2
 
 export default function CreateTaskModal() {
   const router = useRouter();
+  const { projectId: projectIdParam } = useLocalSearchParams<{ projectId?: string | string[] }>();
   const theme = useColorScheme() ?? 'light';
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
+  const { projectId: focusedProjectId } = useTaskCreateContext();
 
-  const { setTasks, tasks } = useTasksStore();
+  const { projects, setTasks } = useTasksStore();
+  const initialProjectId = React.useMemo(() => {
+    const routeProjectId = Array.isArray(projectIdParam) ? projectIdParam[0] : projectIdParam;
+    const rawProjectId = routeProjectId ?? focusedProjectId;
+    if (typeof rawProjectId !== 'string') return '';
+
+    const normalizedProjectId = rawProjectId.trim();
+    if (!normalizedProjectId) return '';
+
+    const projectExists = projects.some((project) => project.id === normalizedProjectId && !project.deletedAt);
+    return projectExists ? normalizedProjectId : '';
+  }, [focusedProjectId, projectIdParam, projects]);
 
   const [title, setTitle] = React.useState('');
   const trimmed = title.trim();
@@ -60,7 +74,7 @@ export default function CreateTaskModal() {
         id: nextId,
         title: title || '',
         emoji: '📝',
-        projectId: '',
+        projectId: initialProjectId,
         dueAt: 0,
         dueHasTime: false,
         section: 'upcoming',
@@ -71,7 +85,7 @@ export default function CreateTaskModal() {
     ]);
 
     return nextId;
-  }, [setTasks, title]);
+  }, [initialProjectId, setTasks, title]);
 
   // Keep draft title in sync so if we navigate away and back, we don't lose it
   // (Optional, but good if we want "Draft" persistence while modal is open to sub-screens)
@@ -255,7 +269,7 @@ export default function CreateTaskModal() {
             title: trimmed,
             subtitle: undefined,
             emoji: '📝',
-            projectId: '',
+            projectId: initialProjectId,
             dueAt: 0,
             dueHasTime: false,
             section,
@@ -272,7 +286,7 @@ export default function CreateTaskModal() {
     }
 
     router.back();
-  }, [canSubmit, router, setTasks, trimmed]);
+  }, [canSubmit, initialProjectId, router, setTasks, trimmed]);
 
   const close = React.useCallback(() => {
     router.back();

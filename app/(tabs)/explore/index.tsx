@@ -168,7 +168,7 @@ export default function ExploreScreen() {
 
   const onPressProject = React.useCallback(
     (id: string) => {
-      router.push(`/project/${id}`);
+      router.push({ pathname: '/explore/[id]', params: { id } });
     },
     [router]
   );

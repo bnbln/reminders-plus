@@ -3,6 +3,7 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import {
     Dimensions,
+    Platform,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -13,6 +14,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import type { SwipeTaskRowStyles } from "@/components/tasks/swipe-task-row";
 import { TaskSwipeDraggableList } from "@/components/tasks/task-swipe-draggable-list";
+import { FloatingAddButton } from "@/components/ui/floating-add-button";
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { SFSymbol } from "@/components/ui/sfsymbol";
 import { Colors } from "@/constants/theme";
@@ -25,6 +27,7 @@ import {
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
+import { isIOS26OrNewer } from "@/utils/ios-version";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const COLUMN_WIDTH = SCREEN_WIDTH * 0.78; // Narrower to show peers
@@ -119,6 +122,7 @@ export default function ProjectDetailScreen() {
   const router = useRouter();
   const theme = (useColorScheme() ?? "light") as ThemeName;
   const isDark = theme === "dark";
+  const showFloatingAddButton = Platform.OS === "ios" && !isIOS26OrNewer();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const rowStyles = React.useMemo(() => createRowStyles(theme), [theme]);
   const { projects, tasks, setTasks } = useTasksStore();
@@ -270,6 +274,10 @@ export default function ProjectDetailScreen() {
     [setTasks],
   );
 
+  const handleAddTask = React.useCallback(() => {
+    router.push({ pathname: "/task/create-modal", params: { projectId: id } });
+  }, [id, router]);
+
   if (!project) {
     return (
       <View
@@ -349,6 +357,7 @@ export default function ProjectDetailScreen() {
           decelerationRate="fast"
           contentContainerStyle={[
             styles.boardContent,
+            showFloatingAddButton ? styles.boardContentWithFab : null,
             { paddingHorizontal: 16 },
           ]}
           showsHorizontalScrollIndicator={false}
@@ -372,6 +381,7 @@ export default function ProjectDetailScreen() {
             />
           ))}
         </ScrollView>
+        {showFloatingAddButton ? <FloatingAddButton onPress={handleAddTask} /> : null}
       </View>
     </GestureHandlerRootView>
   );
@@ -414,6 +424,9 @@ const createStyles = (theme: ThemeName) =>
       paddingBottom: 40,
       gap: COLUMN_GAP,
       // paddingHorizontal is handled dynamically in style prop
+    },
+    boardContentWithFab: {
+      paddingBottom: 168,
     },
     column: {
       width: COLUMN_WIDTH,
