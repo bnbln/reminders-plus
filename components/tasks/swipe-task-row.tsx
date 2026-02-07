@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import * as Haptics from 'expo-haptics';
 import React from 'react';
-import { Platform, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
     Easing,
@@ -26,6 +26,11 @@ const SWIPE_OPEN_THRESHOLD = 22;
 // Trigger should require a deliberate, stronger swipe.
 const SWIPE_TRIGGER = 132;
 const SWIPE_ELASTIC = 0.55;
+const SWIPE_ACTIVE_OFFSET_X = 12;
+const SWIPE_FAIL_OFFSET_Y = 6;
+const AXIS_LOCK_THRESHOLD = 2;
+const MIN_SWIPE_X = 12;
+const MIN_SCROLL_Y = 2;
 
 type TagChipModel = {
   key: string;
@@ -102,6 +107,7 @@ export type SwipeTaskRowProps = {
   emojiFallback: string;
   swipeCompleteBg: string;
   swipeDeleteBg: string;
+  externalScrollRef?: React.RefObject<any>;
   leftAction?: {
     icon?: React.ComponentProps<typeof MaterialIcons>['name'];
     backgroundColor?: string;
@@ -138,6 +144,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   emojiFallback,
   swipeCompleteBg,
   swipeDeleteBg,
+  externalScrollRef,
   leftAction,
   rightAction,
   enabledTags,
@@ -160,6 +167,9 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   const rowScale = useSharedValue(1);
   const swipeVisualAlpha = useSharedValue(1);
   const collapse = useSharedValue(0);
+  const touchStartX = useSharedValue(0);
+  const touchStartY = useSharedValue(0);
+  const axisDecision = useSharedValue<0 | 1>(0);
 
   const closeSelf = React.useCallback(() => {
     translateX.value = withSpring(0, {
@@ -236,95 +246,153 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   }, [beginSwipe, dismiss, task.id]);
 
   const gesture = React.useMemo(() => {
-    const pan = Gesture.Pan()
+    const nativeScroll = Gesture.Native();
+
+    let pan = Gesture.Pan()
       .enabled(!isActive)
-      .activeOffsetX([-6, 6])
-      .failOffsetY([-12, 12])
-      .onStart(() => {
-        startOffsetX.value = translateX.value;
-        // If we previously dismissed and the key was reused, ensure we're back to a clean state.
-        rowOpacity.value = 1;
-        rowScale.value = 1;
-        swipeVisualAlpha.value = 1;
-        collapse.value = 0;
-        runOnJS(beginSwipe)(task.id);
-      })
-      .onUpdate((event) => {
-        let raw = startOffsetX.value + event.translationX;
-        // Safety: if we're closing an already-open side, don't allow crossing through
-        // to the opposite side in the same gesture.
-        if (startOffsetX.value > 0) raw = Math.max(0, raw);
-        if (startOffsetX.value < 0) raw = Math.min(0, raw);
-        const sign: -1 | 0 | 1 = raw > 0 ? 1 : raw < 0 ? -1 : 0;
-        direction.value = sign;
+      .manualActivation(true)
+      .activeOffsetX([-SWIPE_ACTIVE_OFFSET_X, SWIPE_ACTIVE_OFFSET_X])
+      .failOffsetY([-SWIPE_FAIL_OFFSET_Y, SWIPE_FAIL_OFFSET_Y]);
 
-        const abs = Math.abs(raw);
-        const beyond = Math.max(0, abs - SWIPE_STOP);
-        // Gentle resistance to avoid wobble.
-        const resisted = SWIPE_STOP + beyond * SWIPE_ELASTIC;
-        const nextAbs = abs <= SWIPE_STOP ? abs : resisted;
-        // Slight smoothing for a softer feel.
-        const target = nextAbs * sign;
-        translateX.value = translateX.value + (target - translateX.value) * 0.55;
-      })
-      .onEnd((event) => {
-        let raw = startOffsetX.value + event.translationX;
-        if (startOffsetX.value > 0) raw = Math.max(0, raw);
-        if (startOffsetX.value < 0) raw = Math.min(0, raw);
+    pan = pan.onTouchesDown((event) => {
+      'worklet';
+      const touch = event.allTouches[0];
+      if (!touch) return;
+      touchStartX.value = touch.x;
+      touchStartY.value = touch.y;
+      axisDecision.value = 0;
+    });
 
-        const sign: -1 | 0 | 1 = raw > 0 ? 1 : raw < 0 ? -1 : 0;
-        const abs = Math.abs(translateX.value);
-        const absFinger = Math.abs(raw);
-        const v = Math.max(-1200, Math.min(1200, event.velocityX));
+    pan = pan.onTouchesMove((event, state) => {
+      'worklet';
+      if (axisDecision.value === 1) return;
+      const touch = event.allTouches[0];
+      if (!touch) return;
+      const dx = touch.x - touchStartX.value;
+      const dy = touch.y - touchStartY.value;
+      const absX = Math.abs(dx);
+      const absY = Math.abs(dy);
 
-        const springCfg = {
-          damping: 34,
-          stiffness: 420,
-          mass: 0.9,
-          overshootClamping: true,
-          velocity: v,
-        };
+      if (absY > absX + AXIS_LOCK_THRESHOLD && absY > MIN_SCROLL_Y) {
+        axisDecision.value = 1;
+        state.fail();
+        return;
+      }
 
-        // Also allow triggering based on finger travel to make "through the stop" easier,
-        // even with resistance/smoothing.
-        const triggerFinger = SWIPE_STOP + (SWIPE_TRIGGER - SWIPE_STOP) / SWIPE_ELASTIC;
-        if (abs >= SWIPE_TRIGGER || absFinger >= triggerFinger) {
-          // Trigger action, animate row off before committing.
-          direction.value = 0;
-          if (sign !== 0) dismiss(sign as -1 | 1);
-          return;
-        }
+      if (absX > absY + AXIS_LOCK_THRESHOLD && absX > MIN_SWIPE_X) {
+        axisDecision.value = 1;
+        state.activate();
+      }
+    });
 
-        // Snap logic tuned to make returning to "closed" easy from the stop state.
-        const CLOSE_SNAP = SWIPE_STOP * 0.72;
-        if (abs < CLOSE_SNAP) {
-          translateX.value = withSpring(0, springCfg);
-          direction.value = 0;
-          return;
-        }
+    pan = pan.onStart(() => {
+      'worklet';
+      startOffsetX.value = translateX.value;
+      // If we previously dismissed and the key was reused, ensure we're back to a clean state.
+      rowOpacity.value = 1;
+      rowScale.value = 1;
+      swipeVisualAlpha.value = 1;
+      collapse.value = 0;
+      runOnJS(beginSwipe)(task.id);
+    });
 
-        if (abs >= SWIPE_OPEN_THRESHOLD) {
-          translateX.value = withSpring(SWIPE_STOP * sign, springCfg);
-          direction.value = sign;
-          return;
-        }
+    pan = pan.onUpdate((event) => {
+      'worklet';
+      let raw = startOffsetX.value + event.translationX;
+      // Safety: if we're closing an already-open side, don't allow crossing through
+      // to the opposite side in the same gesture.
+      if (startOffsetX.value > 0) raw = Math.max(0, raw);
+      if (startOffsetX.value < 0) raw = Math.min(0, raw);
+      const sign: -1 | 0 | 1 = raw > 0 ? 1 : raw < 0 ? -1 : 0;
+      direction.value = sign;
 
+      const abs = Math.abs(raw);
+      const beyond = Math.max(0, abs - SWIPE_STOP);
+      // Gentle resistance to avoid wobble.
+      const resisted = SWIPE_STOP + beyond * SWIPE_ELASTIC;
+      const nextAbs = abs <= SWIPE_STOP ? abs : resisted;
+      // Slight smoothing for a softer feel.
+      const target = nextAbs * sign;
+      translateX.value = translateX.value + (target - translateX.value) * 0.55;
+    });
+
+    pan = pan.onEnd((event) => {
+      'worklet';
+      let raw = startOffsetX.value + event.translationX;
+      if (startOffsetX.value > 0) raw = Math.max(0, raw);
+      if (startOffsetX.value < 0) raw = Math.min(0, raw);
+
+      const sign: -1 | 0 | 1 = raw > 0 ? 1 : raw < 0 ? -1 : 0;
+      const abs = Math.abs(translateX.value);
+      const absFinger = Math.abs(raw);
+      const v = Math.max(-1200, Math.min(1200, event.velocityX));
+
+      const springCfg = {
+        damping: 34,
+        stiffness: 420,
+        mass: 0.9,
+        overshootClamping: true,
+        velocity: v,
+      };
+
+      // Also allow triggering based on finger travel to make "through the stop" easier,
+      // even with resistance/smoothing.
+      const triggerFinger = SWIPE_STOP + (SWIPE_TRIGGER - SWIPE_STOP) / SWIPE_ELASTIC;
+      if (abs >= SWIPE_TRIGGER || absFinger >= triggerFinger) {
+        // Trigger action, animate row off before committing.
+        direction.value = 0;
+        if (sign !== 0) dismiss(sign as -1 | 1);
+        return;
+      }
+
+      // Snap logic tuned to make returning to "closed" easy from the stop state.
+      const CLOSE_SNAP = SWIPE_STOP * 0.72;
+      if (abs < CLOSE_SNAP) {
         translateX.value = withSpring(0, springCfg);
         direction.value = 0;
-      })
-      .onFinalize(() => {
-        runOnJS(endSwipe)(task.id);
-      });
+        return;
+      }
 
-    const tap = Gesture.Tap()
-      .enabled(Platform.OS === 'ios' && !isActive)
-      .maxDistance(8)
-      .onEnd(() => {
-        runOnJS(onPressTask)(task.id);
-      });
+      if (abs >= SWIPE_OPEN_THRESHOLD) {
+        translateX.value = withSpring(SWIPE_STOP * sign, springCfg);
+        direction.value = sign;
+        return;
+      }
 
-    return Gesture.Race(pan, tap);
-  }, [beginSwipe, collapse, dismiss, direction, endSwipe, isActive, onPressTask, rowOpacity, rowScale, startOffsetX, swipeVisualAlpha, task.id, translateX]);
+      translateX.value = withSpring(0, springCfg);
+      direction.value = 0;
+    });
+
+    pan = pan.onFinalize(() => {
+      'worklet';
+      runOnJS(endSwipe)(task.id);
+    });
+
+    // Keep native scroll and row pan simultaneous, then let offsets decide intent.
+    if (typeof (pan as any).simultaneousWithExternalGesture === 'function') {
+      return externalScrollRef
+        ? (pan as any).simultaneousWithExternalGesture(nativeScroll, externalScrollRef)
+        : (pan as any).simultaneousWithExternalGesture(nativeScroll);
+    }
+    return Gesture.Simultaneous(nativeScroll, pan);
+  }, [
+    axisDecision,
+    beginSwipe,
+    collapse,
+    dismiss,
+    direction,
+    endSwipe,
+    externalScrollRef,
+    isActive,
+    rowOpacity,
+    rowScale,
+    startOffsetX,
+    swipeVisualAlpha,
+    task.id,
+    touchStartX,
+    touchStartY,
+    translateX,
+  ]);
 
   const spacerAnimatedStyle = useAnimatedStyle(() => {
     const p = 1 - collapse.value;
@@ -490,13 +558,14 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
           <Animated.View style={rowAnimatedStyle}>
             <Pressable
               onLongPress={drag}
-              delayLongPress={220}
+              delayLongPress={300}
+              pressRetentionOffset={{ top: 8, bottom: 8, left: 10, right: 10 }}
               onLayout={(e) => {
                 rowWidth.value = e.nativeEvent.layout.width;
                 rowHeight.value = e.nativeEvent.layout.height;
               }}
               onPress={() => {
-                if (Platform.OS !== 'ios') onPressTask(task.id);
+                onPressTask(task.id);
               }}
             >
               {isActive ? (

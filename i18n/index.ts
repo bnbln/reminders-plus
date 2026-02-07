@@ -10,6 +10,7 @@ const DE_TRANSLATIONS: TranslationDict = {
     'tabs.tasks': 'Aufgaben',
     'tabs.search': 'Suche',
     'tabs.projects': 'Projekte',
+    'tabs.test': 'Test',
 
     'common.task': 'Aufgabe',
     'common.tasks': 'Aufgaben',
@@ -233,6 +234,7 @@ const EN_TRANSLATIONS: TranslationDict = {
     'tabs.tasks': 'Tasks',
     'tabs.search': 'Search',
     'tabs.projects': 'Projects',
+    'tabs.test': 'Test',
 
     'common.task': 'Task',
     'common.tasks': 'Tasks',

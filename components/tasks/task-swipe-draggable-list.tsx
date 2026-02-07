@@ -1,8 +1,12 @@
 import * as Haptics from 'expo-haptics';
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { ScrollView, View } from 'react-native';
-import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist';
+import { View } from 'react-native';
+import DraggableFlatList, {
+  NestableDraggableFlatList,
+  NestableScrollContainer,
+  RenderItemParams,
+} from 'react-native-draggable-flatlist';
 
 import type { SwipeTaskRowStyles } from '@/components/tasks/swipe-task-row';
 import { SwipeTaskRow } from '@/components/tasks/swipe-task-row';
@@ -27,6 +31,17 @@ export type TaskSwipeDraggableListProps = {
   tasks: Task[];
   projectsById?: Map<string, Project>;
   rowStyles: SwipeTaskRowStyles;
+  /**
+   * Optional scroll ref for coordinating gestures with an outer scroll container.
+   */
+  scrollRef?: React.RefObject<any>;
+  /**
+   * Rendering mode for the list.
+   * - `auto` (default): DraggableFlatList on most platforms, ScrollView on iOS 26+.
+   * - `static`: Render list content only; caller owns the scroll container.
+   * - `nestable`: Render a NestableDraggableFlatList for use inside a NestableScrollContainer.
+   */
+  renderMode?: 'auto' | 'static' | 'nestable';
 
   /**
    * Optional custom list data.
@@ -74,6 +89,8 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   tasks,
   projectsById,
   rowStyles,
+  scrollRef,
+  renderMode = 'auto',
   data,
   renderHeaderRow,
   contentContainerStyle,
@@ -120,6 +137,7 @@ ref
   const placeholderIndexRef = React.useRef<number>(-1);
   const openSwipeIdRef = React.useRef<string | null>(null);
   const closeByIdRef = React.useRef(new Map<string, () => void>());
+  const internalScrollRef = React.useRef<any>(null);
 
   const registerClose = React.useCallback((taskId: string, close: () => void) => {
     closeByIdRef.current.set(taskId, close);
@@ -191,6 +209,25 @@ ref
     if (!isDraggingRef.current) setFlatListData(resolvedData);
   }, [resolvedData]);
 
+  // Native tab-bar minimize-on-scroll currently tracks ScrollView reliably on iOS 26,
+  // but not DraggableFlatList. Keep a ScrollView path for iOS 26 to preserve native minimize behavior.
+  const useScrollViewCompatibilityMode = isIOS26OrNewer();
+  const rowScrollGestureRef = React.useMemo(() => {
+    if (scrollRef) return scrollRef;
+    if (useScrollViewCompatibilityMode) return internalScrollRef;
+    return undefined;
+  }, [scrollRef, useScrollViewCompatibilityMode]);
+  const simultaneousHandlers = React.useMemo(() => {
+    if (scrollRef) return scrollRef;
+    if (useScrollViewCompatibilityMode) return internalScrollRef;
+    return undefined;
+  }, [scrollRef, useScrollViewCompatibilityMode]);
+  const usesNestedScrollGestures = renderMode === 'nestable' || useScrollViewCompatibilityMode;
+  const listActivationDistance = usesNestedScrollGestures ? 22 : 12;
+  const resolvedContainerStyle: StyleProp<ViewStyle> = React.useMemo(() => {
+    return [{ flex: 1, backgroundColor: Colors[theme].background }, containerStyle];
+  }, [containerStyle, theme]);
+
   const renderItem = React.useCallback(
     ({ item, drag, isActive }: RenderItemParams<TaskSwipeDraggableListItem>) => {
       if (item.kind === 'header') {
@@ -223,6 +260,7 @@ ref
           onPressTask={handlePressTask}
           toggleComplete={toggleComplete}
           deleteTask={deleteTask}
+          externalScrollRef={rowScrollGestureRef}
         />
       );
     },
@@ -237,6 +275,7 @@ ref
       glassDragFallback,
       glassDragTint,
       handlePressTask,
+      rowScrollGestureRef,
       renderHeaderRow,
       projectsById,
       rowStyles,
@@ -249,14 +288,6 @@ ref
       unregisterClose,
     ]
   );
-
-  const resolvedContainerStyle: StyleProp<ViewStyle> = React.useMemo(() => {
-    return [{ flex: 1, backgroundColor: Colors[theme].background }, containerStyle];
-  }, [containerStyle, theme]);
-
-  // Native tab-bar minimize-on-scroll currently tracks ScrollView reliably on iOS 26,
-  // but not DraggableFlatList. Keep a ScrollView path for iOS 26 to preserve native minimize behavior.
-  const useScrollViewCompatibilityMode = isIOS26OrNewer();
 
   const renderCompatItem = React.useCallback(
     (item: TaskSwipeDraggableListItem) => {
@@ -290,6 +321,7 @@ ref
           onPressTask={handlePressTask}
           toggleComplete={toggleComplete}
           deleteTask={deleteTask}
+          externalScrollRef={rowScrollGestureRef}
         />
       );
     },
@@ -306,6 +338,7 @@ ref
       handlePressTask,
       projectsById,
       registerClose,
+      rowScrollGestureRef,
       renderHeaderRow,
       rowStyles,
       showTaskIconsResolved,
@@ -317,49 +350,108 @@ ref
     ]
   );
 
+  const renderListContent = React.useCallback(() => {
+    return (
+      <>
+        {header ?? null}
+
+        {flatListData.length === 0 ? (
+          empty ?? null
+        ) : (
+          flatListData.map((item) => <React.Fragment key={item.key}>{renderCompatItem(item)}</React.Fragment>)
+        )}
+
+        {footer ?? null}
+      </>
+    );
+  }, [empty, flatListData, footer, header, renderCompatItem]);
+
+  const dragListProps = {
+    data: flatListData,
+    keyExtractor: (item: TaskSwipeDraggableListItem) => item.key,
+    renderItem,
+    ListHeaderComponent: header ?? null,
+    ListFooterComponent: footer ?? null,
+    ListEmptyComponent: empty ?? null,
+    contentContainerStyle,
+    simultaneousHandlers,
+    activationDistance: listActivationDistance,
+    autoscrollSpeed: 22,
+    animationConfig: {
+      damping: 32,
+      stiffness: 420,
+      mass: 0.22,
+      overshootClamping: true,
+    },
+    dragItemOverflow: true,
+    onDragBegin: (fromIndex: number) => {
+      isDraggingRef.current = true;
+      onDragStateChange?.(true);
+      placeholderIndexRef.current = fromIndex;
+      closeAnyOpen();
+      setFlatListData(resolvedData);
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+    },
+    onPlaceholderIndexChange: (index: number) => {
+      placeholderIndexRef.current = index;
+    },
+    onRelease: (fromIndex: number) => {
+      const toIndex = placeholderIndexRef.current;
+      if (toIndex >= 0 && fromIndex >= 0 && toIndex !== fromIndex) {
+        setFlatListData((prev) => {
+          if (fromIndex >= prev.length || toIndex >= prev.length) return prev;
+          const next = [...prev];
+          const [moved] = next.splice(fromIndex, 1);
+          if (!moved) return prev;
+          next.splice(toIndex, 0, moved);
+          return next;
+        });
+      }
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    },
+    onDragEnd: ({ data }: { data: TaskSwipeDraggableListItem[] }) => {
+      setFlatListData(data);
+      isDraggingRef.current = false;
+      onDragStateChange?.(false);
+      onReorderData?.(data);
+      onReorder?.(data.filter((d) => d.kind === 'task').map((d) => d.taskId));
+    },
+  };
+
+  if (renderMode === 'static') {
+    return renderListContent();
+  }
+
+  if (renderMode === 'nestable') {
+    return <NestableDraggableFlatList {...dragListProps} />;
+  }
+
   if (useScrollViewCompatibilityMode) {
     return (
       <View style={resolvedContainerStyle}>
-        <ScrollView
+        <NestableScrollContainer
+          ref={internalScrollRef}
           style={{ flex: 1 }}
-          contentContainerStyle={contentContainerStyle}
           contentInsetAdjustmentBehavior={contentInsetAdjustmentBehavior ?? 'automatic'}
           alwaysBounceVertical
-          onScroll={(event) => {
-            onScrollOffsetChange?.(event.nativeEvent.contentOffset.y);
-          }}
-          scrollEventThrottle={16}
           showsVerticalScrollIndicator={false}
         >
-          {header ?? null}
-
-          {flatListData.length === 0 ? (
-            empty ?? null
-          ) : (
-            flatListData.map((item) => <React.Fragment key={item.key}>{renderCompatItem(item)}</React.Fragment>)
-          )}
-
-          {footer ?? null}
-        </ScrollView>
+          <NestableDraggableFlatList {...dragListProps} />
+        </NestableScrollContainer>
       </View>
     );
   }
 
   return (
     <DraggableFlatList
-      data={flatListData}
-      keyExtractor={(item) => item.key}
-      renderItem={renderItem}
-      ListHeaderComponent={header ?? null}
-      ListFooterComponent={footer ?? null}
-      ListEmptyComponent={empty ?? null}
+      {...dragListProps}
       style={{ flex: 1 }}
       containerStyle={resolvedContainerStyle}
       contentContainerStyle={contentContainerStyle}
       contentInsetAdjustmentBehavior={contentInsetAdjustmentBehavior ?? 'automatic'}
       onScrollOffsetChange={onScrollOffsetChange}
       showsVerticalScrollIndicator={false}
-      activationDistance={12}
+      activationDistance={listActivationDistance}
       autoscrollSpeed={22}
       animationConfig={{
         damping: 32,

@@ -67,6 +67,13 @@ export default function TabLayout() {
               tabBarIcon: ({ color }) => <IconSymbol size={28} name="folder.fill" color={color} />,
             }}
           />
+          <Tabs.Screen
+            name="test"
+            options={{
+              title: t('tabs.test'),
+              tabBarIcon: ({ color }) => <MaterialIcons name="science" size={26} color={color} />,
+            }}
+          />
         </Tabs>
       </View>
     );
@@ -126,6 +133,14 @@ export default function TabLayout() {
           {Platform.select({
             ios: <Icon sf={{ default: 'repeat', selected: 'repeat' }} />,
             android: <Icon src={<VectorIcon family={MaterialIcons} name="repeat" />} />,
+          })}
+        </NativeTabs.Trigger>
+
+        <NativeTabs.Trigger name="test">
+          <Label>{t('tabs.test')}</Label>
+          {Platform.select({
+            ios: <Icon sf={{ default: 'testtube.2', selected: 'testtube.2' }} />,
+            android: <Icon src={<VectorIcon family={MaterialIcons} name="science" />} />,
           })}
         </NativeTabs.Trigger>
 
