@@ -26,6 +26,7 @@ const createStyles = (theme: ThemeName) => {
     },
     content: {
       paddingHorizontal: 16,
+      paddingTop: 8,
       paddingBottom: 32,
       gap: 16,
     },
@@ -34,8 +35,8 @@ const createStyles = (theme: ThemeName) => {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 16,
-      paddingVertical: 20,
+      gap: 12,
+      paddingVertical: 16,
       marginBottom: 8,
     },
     fireContainer: {
@@ -43,14 +44,16 @@ const createStyles = (theme: ThemeName) => {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    glow: {
-      position: 'absolute',
-      width: 30,
-      height: 30,
-      borderRadius: 15,
-      opacity: 0.4,
-      transform: [{ scale: 1.8 }],
-      zIndex: -1,
+    fireBadge: {
+      width: 68,
+      height: 68,
+      borderRadius: 34,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    heroTextWrap: {
+      alignItems: 'flex-start',
+      gap: 0,
     },
     bigNumber: {
       fontSize: 48,
@@ -60,8 +63,9 @@ const createStyles = (theme: ThemeName) => {
       color: text,
     },
     heroSubtitle: {
-      fontSize: 16,
+      fontSize: 15,
       fontWeight: '600',
+      lineHeight: 19,
       color: subtitleColor,
     },
     // QuickTile grid (exact copy from home/index.tsx)
@@ -314,6 +318,7 @@ export default function StreaksScreen() {
   const textColor = Colors[theme].text;
   const backgroundColor = Colors[theme].background;
   const fireColor = currentStreak > 0 ? '#F59E0B' : '#9CA3AF';
+  const fireBadgeColor = withAlpha(fireColor, isDark ? 0.24 : 0.2);
 
   // Match home/index.tsx QuickNavTheme exactly
   const glassTint = withAlpha(backgroundColor, isDark ? 0.18 : 0.28);
@@ -339,10 +344,18 @@ export default function StreaksScreen() {
       {/* Hero Streak Section */}
       <View style={styles.hero}>
         <View style={styles.fireContainer}>
-          <MaterialIcons name="local-fire-department" size={56} color={fireColor} />
-          {currentStreak > 0 && <View style={[styles.glow, { backgroundColor: fireColor }]} />}
+          <View
+            style={[
+              styles.fireBadge,
+              {
+                backgroundColor: fireBadgeColor,
+              }
+            ]}
+          >
+            <MaterialIcons name="local-fire-department" size={42} color={fireColor} />
+          </View>
         </View>
-        <View>
+        <View style={styles.heroTextWrap}>
           <Text style={styles.bigNumber}>{currentStreak}</Text>
           <Text style={styles.heroSubtitle}>
             {currentStreak === 1 ? t('streaks.hero.one') : t('streaks.hero.other')}

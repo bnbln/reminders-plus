@@ -405,15 +405,16 @@ export default function TaskViewScreen() {
       {/* Hero Section */}
       <View style={styles.heroSection}>
         <Pressable onPress={() => router.push(`/task/emoji-picker?taskId=${task.id}`)} style={styles.heroEmojiWrap}>
-          <View style={[styles.heroGlow, { backgroundColor: accent }]} />
-          <GlassSurface
-            style={styles.heroEmojiBg}
-            glassEffectStyle="regular"
-            tintColor={withAlpha(accent, isDark ? 0.25 : 0.18)}
-            fallbackBackgroundColor={withAlpha(accent, isDark ? 0.22 : 0.14)}
+          <View
+            style={[
+              styles.heroEmojiBg,
+              {
+                backgroundColor: withAlpha(accent, isDark ? 0.22 : 0.16),
+              },
+            ]}
           >
             <Text style={styles.heroEmojiText}>{task.emoji}</Text>
-          </GlassSurface>
+          </View>
         </Pressable>
 
         <TextInput
@@ -791,15 +792,6 @@ const createStyles = (theme: keyof typeof Colors) => {
       position: 'relative',
       alignItems: 'center',
       justifyContent: 'center',
-    },
-    heroGlow: {
-      position: 'absolute',
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      opacity: 0.35,
-      transform: [{ scale: 2 }],
-      zIndex: -1,
     },
     heroEmojiBg: {
       width: 72,

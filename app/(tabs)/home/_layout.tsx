@@ -209,6 +209,7 @@ export default function HomeLayout() {
         name="archive"
         options={{
           title: t('archive.title'),
+          headerTransparent: Platform.OS === 'ios',
         }}
       />
 
@@ -218,6 +219,7 @@ export default function HomeLayout() {
           title: t('home.quick.streaks'),
           headerLargeTitle: false,
           headerBackButtonDisplayMode: 'minimal',
+          headerTransparent: Platform.OS === 'ios',
         }}
       />
       <Stack.Screen
@@ -226,6 +228,7 @@ export default function HomeLayout() {
           title: t('common.inbox'),
           headerLargeTitle: false,
           headerBackButtonDisplayMode: 'minimal',
+          headerTransparent: Platform.OS === 'ios',
           headerRight: () => <FilterMenuButton theme={theme} />,
         }}
       />
@@ -235,6 +238,7 @@ export default function HomeLayout() {
           title: t('home.quick.routines'),
           headerLargeTitle: false,
           headerBackButtonDisplayMode: 'minimal',
+          headerTransparent: Platform.OS === 'ios',
         }}
       />
       <Stack.Screen
@@ -243,6 +247,7 @@ export default function HomeLayout() {
           title: t('common.today'),
           headerLargeTitle: false,
           headerBackButtonDisplayMode: 'minimal',
+          headerTransparent: Platform.OS === 'ios',
           headerRight: () => <FilterMenuButton theme={theme} />,
         }}
       />

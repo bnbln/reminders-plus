@@ -78,14 +78,12 @@ const createStyles = (theme: ThemeName) => {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    glow: {
-      position: 'absolute',
-      width: 30,
-      height: 30,
-      borderRadius: 15,
-      opacity: 0.4,
-      transform: [{ scale: 1.8 }],
-      zIndex: -1,
+    iconBadge: {
+      width: 68,
+      height: 68,
+      borderRadius: 34,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     bigNumber: {
       fontSize: 48,
@@ -234,6 +232,7 @@ function StatTile({
 }) {
   const badgeTint = withAlpha(iconColor, isDark ? 0.22 : 0.18);
   const badgeFallback = withAlpha(iconColor, isDark ? 0.26 : 0.18);
+  const iconSize = icon === 'repeat' ? 15 : 18;
 
   return (
     <View style={styles.statTile}>
@@ -251,7 +250,7 @@ function StatTile({
               tintColor={badgeTint}
               fallbackBackgroundColor={badgeFallback}
             >
-              <MaterialIcons name={icon} size={18} color={iconColor} />
+              <MaterialIcons name={icon} size={iconSize} color={iconColor} />
             </GlassSurface>
           </View>
           <Text style={styles.statTitle}>{title}</Text>
@@ -296,6 +295,7 @@ export default function RoutinesScreen() {
   const textColor = Colors[theme].text;
   const backgroundColor = Colors[theme].background;
   const iconColor = routinesCount > 0 ? '#0A84FF' : '#9CA3AF';
+  const iconBadgeColor = withAlpha(iconColor, isDark ? 0.24 : 0.2);
 
   const glassTint = withAlpha(backgroundColor, isDark ? 0.18 : 0.28);
   const glassFallback = isDark ? '#1C1C1E' : '#F2F2F7';
@@ -326,8 +326,9 @@ export default function RoutinesScreen() {
         {/* Hero Section */}
         <View style={styles.hero}>
           <View style={styles.iconContainer}>
-            <MaterialIcons name="loop" size={56} color={iconColor} />
-            {routinesCount > 0 && <View style={[styles.glow, { backgroundColor: iconColor }]} />}
+            <View style={[styles.iconBadge, { backgroundColor: iconBadgeColor }]}>
+              <MaterialIcons name="loop" size={40} color={iconColor} />
+            </View>
           </View>
           <View>
             <Text style={styles.bigNumber}>{routinesCount}</Text>

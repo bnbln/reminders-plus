@@ -12,6 +12,7 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withDelay,
+  withSequence,
   withSpring,
   withTiming,
 } from "react-native-reanimated";
@@ -153,6 +154,8 @@ export type SwipeTaskRowProps = {
   toggleComplete: (taskId: string) => void;
   deleteTask: (taskId: string) => void;
   onSwipeGestureActiveChange?: (taskId: string, active: boolean) => void;
+  shouldPopIn?: boolean;
+  onPopInAnimationEnd?: (taskId: string) => void;
 };
 
 export const SwipeTaskRow = React.memo(function SwipeTaskRow({
@@ -182,6 +185,8 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   toggleComplete,
   deleteTask,
   onSwipeGestureActiveChange,
+  shouldPopIn = false,
+  onPopInAnimationEnd,
 }: SwipeTaskRowProps) {
   const translateX = useSharedValue(0);
   const direction = useSharedValue<-1 | 0 | 1>(0);
@@ -190,6 +195,8 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   const rowHeight = useSharedValue(0);
   const rowOpacity = useSharedValue(1);
   const rowScale = useSharedValue(1);
+  const entryOpacity = useSharedValue(1);
+  const entryScale = useSharedValue(1);
   const swipeVisualAlpha = useSharedValue(1);
   const collapse = useSharedValue(0);
   const touchStartX = useSharedValue(0);
@@ -221,6 +228,38 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       unregisterClose(task.id);
     };
   }, [closeSelf, registerClose, task.id, unregisterClose]);
+
+  React.useEffect(() => {
+    if (!shouldPopIn) return;
+
+    entryOpacity.value = 0.78;
+    entryScale.value = 1.22;
+
+    entryOpacity.value = withTiming(1, {
+      duration: 230,
+      easing: Easing.inOut(Easing.exp),
+    });
+
+    entryScale.value = withSequence(
+      withTiming(0.94, {
+        duration: 220,
+        easing: Easing.inOut(Easing.exp),
+      }),
+      withSpring(
+        1,
+        {
+          damping: 5.8,
+          stiffness: 260,
+          mass: 0.52,
+          overshootClamping: false,
+        },
+        (finished) => {
+          if (!finished) return;
+          if (onPopInAnimationEnd) runOnJS(onPopInAnimationEnd)(task.id);
+        },
+      ),
+    );
+  }, [entryOpacity, entryScale, onPopInAnimationEnd, shouldPopIn, task.id]);
 
   const commitLeft = React.useCallback(() => {
     if (leftAction) {
@@ -582,8 +621,11 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   });
 
   const rowAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: rowOpacity.value,
-    transform: [{ translateX: translateX.value }, { scale: rowScale.value }],
+    opacity: rowOpacity.value * entryOpacity.value,
+    transform: [
+      { translateX: translateX.value },
+      { scale: rowScale.value * entryScale.value },
+    ],
   }));
 
   const tagChips = React.useMemo<TagChipModel[]>(() => {

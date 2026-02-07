@@ -1,4 +1,5 @@
 import * as Haptics from 'expo-haptics';
+import { useIsFocused } from '@react-navigation/native';
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { View } from 'react-native';
@@ -13,6 +14,7 @@ import { SwipeTaskRow } from '@/components/tasks/swipe-task-row';
 import { withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
 import type { TagId } from '@/context/home-filters-store';
+import { useTaskCreateContext } from '@/context/task-create-context';
 import type { Project, Task } from '@/context/tasks-store';
 import { isIOS26OrNewer } from '@/utils/ios-version';
 
@@ -126,6 +128,8 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
 ref
 ) {
   const isDark = theme === 'dark';
+  const isFocused = useIsFocused();
+  const { popInTaskIds, consumeTaskPopIn } = useTaskCreateContext();
 
   const glassDragTint = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.18 : 0.28), [isDark, theme]);
   const glassDragFallback = React.useMemo(
@@ -144,6 +148,7 @@ ref
 
   const enabledTagsResolved = React.useMemo(() => enabledTags ?? new Set<TagId>(), [enabledTags]);
   const showTaskIconsResolved = React.useMemo(() => showTaskIcons ?? true, [showTaskIcons]);
+  const popInTaskIdSet = React.useMemo(() => new Set(popInTaskIds), [popInTaskIds]);
 
   const isDraggingRef = React.useRef(false);
   const placeholderIndexRef = React.useRef<number>(-1);
@@ -210,6 +215,13 @@ ref
       onPressTask(taskId);
     },
     [closeAnyOpen, onPressTask]
+  );
+
+  const handlePopInAnimationEnd = React.useCallback(
+    (taskId: string) => {
+      consumeTaskPopIn(taskId);
+    },
+    [consumeTaskPopIn]
   );
 
   const beginSwipe = React.useCallback((taskId: string) => {
@@ -300,6 +312,8 @@ ref
           deleteTask={deleteTask}
           externalScrollRef={rowScrollGestureRef}
           onSwipeGestureActiveChange={reportSwipeGestureActive}
+          shouldPopIn={isFocused && popInTaskIdSet.has(task.id)}
+          onPopInAnimationEnd={handlePopInAnimationEnd}
         />
       );
     },
@@ -314,7 +328,10 @@ ref
       glassDragFallback,
       glassDragTint,
       handlePressTask,
+      handlePopInAnimationEnd,
+      isFocused,
       itemSpacing,
+      popInTaskIdSet,
       rowScrollGestureRef,
       renderHeaderRow,
       projectsById,
@@ -365,6 +382,8 @@ ref
           deleteTask={deleteTask}
           externalScrollRef={rowScrollGestureRef}
           onSwipeGestureActiveChange={reportSwipeGestureActive}
+          shouldPopIn={isFocused && popInTaskIdSet.has(task.id)}
+          onPopInAnimationEnd={handlePopInAnimationEnd}
         />
       );
     },
@@ -379,7 +398,10 @@ ref
       glassDragFallback,
       glassDragTint,
       handlePressTask,
+      handlePopInAnimationEnd,
+      isFocused,
       itemSpacing,
+      popInTaskIdSet,
       projectsById,
       registerClose,
       rowScrollGestureRef,

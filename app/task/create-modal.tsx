@@ -4,6 +4,7 @@ import {
   GlassView,
   isLiquidGlassAvailable,
 } from 'expo-glass-effect';
+import { useIsFocused } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 import {
@@ -22,9 +23,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
 import { useTaskCreateContext } from '@/context/task-create-context';
-import { useTasksStore, type SectionId } from '@/context/tasks-store';
+import { useTasksStore, type RoutineType, type SectionId, type Task } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { t } from '@/i18n';
+import { formatDate, t } from '@/i18n';
 
 const createTaskId = () => `t-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
@@ -37,26 +38,85 @@ type ComposerAction = {
   accentColor: string;
 };
 
+type ComposerSelectionTag = {
+  key: string;
+  actionId: ComposerActionId;
+  label: string;
+  icon: MaterialIconName;
+  accentColor: string;
+  removable: boolean;
+};
+
+const ROUTINE_LABEL_KEY_BY_TYPE: Record<RoutineType, string> = {
+  hourly: 'taskDetail.routine.hourly',
+  daily: 'taskDetail.routine.daily',
+  weekdays: 'taskDetail.routine.weekdays',
+  weekends: 'taskDetail.routine.weekends',
+  weekly: 'taskDetail.routine.weekly',
+  biweekly: 'taskDetail.routine.biweekly',
+  monthly: 'taskDetail.routine.monthly',
+  quarterly: 'taskDetail.routine.quarterly',
+  biannually: 'taskDetail.routine.biannually',
+  yearly: 'taskDetail.routine.yearly',
+  custom: 'taskDetail.routine.custom',
+};
+
+const STYLE_COLOR_LABEL_KEY_BY_HEX: Record<string, string> = {
+  '#34C759': 'taskCreate.color.green',
+  '#0A84FF': 'taskCreate.color.blue',
+  '#FF9500': 'taskCreate.color.orange',
+  '#FF3B30': 'taskCreate.color.red',
+  '#AF52DE': 'taskCreate.color.purple',
+  '#5E5CE6': 'taskCreate.color.indigo',
+  '#32D74B': 'taskCreate.color.mint',
+  '#FFD60A': 'taskCreate.color.yellow',
+  '#64D2FF': 'taskCreate.color.cyan',
+  '#FF2D55': 'taskCreate.color.pink',
+  '#8E8E93': 'taskCreate.color.gray',
+  '#1C1C1E': 'taskCreate.color.black',
+};
+
 export default function CreateTaskModal() {
   const router = useRouter();
-  const { projectId: projectIdParam } = useLocalSearchParams<{ projectId?: string | string[] }>();
+  const {
+    projectId: projectIdParam,
+    draftId: draftIdParam,
+  } = useLocalSearchParams<{ projectId?: string | string[]; draftId?: string | string[] }>();
   const theme = useColorScheme() ?? 'light';
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
-  const { projectId: focusedProjectId } = useTaskCreateContext();
+  const isFocused = useIsFocused();
+  const { projectId: focusedProjectId, queueTaskPopIn } = useTaskCreateContext();
 
-  const { projects, setTasks } = useTasksStore();
+  const { tasks, projects, setTasks } = useTasksStore();
+  const routeDraftId = React.useMemo(() => {
+    const rawDraftId = Array.isArray(draftIdParam) ? draftIdParam[0] : draftIdParam;
+    if (typeof rawDraftId !== 'string') return '';
+    return rawDraftId.trim();
+  }, [draftIdParam]);
+  const routeProjectId = React.useMemo(() => {
+    const rawRouteProjectId = Array.isArray(projectIdParam) ? projectIdParam[0] : projectIdParam;
+    if (typeof rawRouteProjectId !== 'string') return '';
+    return rawRouteProjectId.trim();
+  }, [projectIdParam]);
+  const routeProjectIdIsValid = React.useMemo(
+    () =>
+      routeProjectId.length > 0 &&
+      projects.some((project) => project.id === routeProjectId && !project.deletedAt),
+    [projects, routeProjectId]
+  );
   const initialProjectId = React.useMemo(() => {
-    const routeProjectId = Array.isArray(projectIdParam) ? projectIdParam[0] : projectIdParam;
-    const rawProjectId = routeProjectId ?? focusedProjectId;
-    if (typeof rawProjectId !== 'string') return '';
+    if (routeProjectIdIsValid) return routeProjectId;
 
-    const normalizedProjectId = rawProjectId.trim();
-    if (!normalizedProjectId) return '';
+    const normalizedFocusedProjectId =
+      typeof focusedProjectId === 'string' ? focusedProjectId.trim() : '';
+    if (!normalizedFocusedProjectId) return '';
 
-    const projectExists = projects.some((project) => project.id === normalizedProjectId && !project.deletedAt);
-    return projectExists ? normalizedProjectId : '';
-  }, [focusedProjectId, projectIdParam, projects]);
+    const focusedProjectExists = projects.some(
+      (project) => project.id === normalizedFocusedProjectId && !project.deletedAt
+    );
+    return focusedProjectExists ? normalizedFocusedProjectId : '';
+  }, [focusedProjectId, projects, routeProjectId, routeProjectIdIsValid]);
 
   const [title, setTitle] = React.useState('');
   const [isMenuExpanded, setMenuExpanded] = React.useState(false);
@@ -69,6 +129,25 @@ export default function CreateTaskModal() {
   // Draft management
   const draftIdRef = React.useRef<string | null>(null);
   const isCreatedRef = React.useRef(false);
+  const isNavigatingToChildModalRef = React.useRef(false);
+  const draftTask = React.useMemo<Task | undefined>(() => {
+    const draftId = draftIdRef.current ?? routeDraftId;
+    if (!draftId) return undefined;
+    return tasks.find((task) => task.id === draftId);
+  }, [routeDraftId, tasks]);
+
+  React.useEffect(() => {
+    if (draftIdRef.current || !routeDraftId) return;
+    const draftFromRoute = tasks.find((task) => task.id === routeDraftId);
+    if (!draftFromRoute) return;
+    draftIdRef.current = routeDraftId;
+  }, [routeDraftId, tasks]);
+
+  React.useEffect(() => {
+    if (isFocused) {
+      isNavigatingToChildModalRef.current = false;
+    }
+  }, [isFocused]);
 
   // Focus input on mount
   React.useEffect(() => {
@@ -79,20 +158,21 @@ export default function CreateTaskModal() {
   // Cleanup draft on unmount if not created
   React.useEffect(() => {
     return () => {
-      if (!isCreatedRef.current && draftIdRef.current) {
-        const idToDelete = draftIdRef.current;
+      const idToDelete = draftIdRef.current ?? routeDraftId;
+      if (!isCreatedRef.current && idToDelete && !isNavigatingToChildModalRef.current) {
         // Use functional update to avoid stale closure if we depended on 'tasks' directly,
         // though setStates are stable.
         setTasks((prev) => prev.filter((t) => t.id !== idToDelete));
       }
     };
-  }, [setTasks]);
+  }, [routeDraftId, setTasks]);
 
   const ensureDraftTask = React.useCallback(() => {
     if (draftIdRef.current) return draftIdRef.current;
 
     const nextId = createTaskId();
     draftIdRef.current = nextId;
+    router.setParams({ draftId: nextId });
 
     // Create a hidden draft task (deletedAt set)
     setTasks((prev) => [
@@ -111,7 +191,7 @@ export default function CreateTaskModal() {
     ]);
 
     return nextId;
-  }, [initialProjectId, setTasks, title]);
+  }, [initialProjectId, router, setTasks, title]);
 
   // Keep draft title in sync so if we navigate away and back, we don't lose it
   // (Optional, but good if we want "Draft" persistence while modal is open to sub-screens)
@@ -215,18 +295,22 @@ export default function CreateTaskModal() {
 
     switch (actionId) {
       case 'date':
+        isNavigatingToChildModalRef.current = true;
         router.push({ pathname: '/task/date-picker', params: { taskId: id } });
         break;
       case 'style':
+        isNavigatingToChildModalRef.current = true;
         router.push({ pathname: '/task/emoji-picker', params: { taskId: id } });
         break;
       case 'location':
         onUseCurrentLocation();
         break;
       case 'routine':
+        isNavigatingToChildModalRef.current = true;
         router.push({ pathname: '/task/routine-picker', params: { taskId: id } });
         break;
       case 'project':
+        isNavigatingToChildModalRef.current = true;
         router.push({ pathname: '/task/project-picker', params: { taskId: id } });
         break;
     }
@@ -236,6 +320,150 @@ export default function CreateTaskModal() {
     setMenuExpanded(false);
     runAction(actionId);
   }, [runAction]);
+
+  const selectedTags = React.useMemo<ComposerSelectionTag[]>(() => {
+    const tags: ComposerSelectionTag[] = [];
+
+    if (draftTask) {
+      if (draftTask.dueAt > 0) {
+        const dueLabel = draftTask.dueHasTime
+          ? formatDate(draftTask.dueAt, {
+            day: '2-digit',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+          : formatDate(draftTask.dueAt, {
+            day: '2-digit',
+            month: 'short',
+          });
+
+        tags.push({
+          key: 'date',
+          actionId: 'date',
+          label: dueLabel,
+          icon: 'event',
+          accentColor: '#4D7CFF',
+          removable: true,
+        });
+      }
+
+      if (draftTask.emoji && (draftTask.emoji !== '📝' || !!draftTask.color)) {
+        const styleAccentColor = draftTask.color ? draftTask.color.toUpperCase() : '#B56CFF';
+        const colorLabelKey = draftTask.color
+          ? STYLE_COLOR_LABEL_KEY_BY_HEX[draftTask.color.toUpperCase()]
+          : undefined;
+        const styleParts = [
+          draftTask.emoji !== '📝' ? draftTask.emoji : '',
+          draftTask.color ? t(colorLabelKey ?? 'taskCreate.color.custom') : '',
+        ].filter(Boolean);
+
+        tags.push({
+          key: 'style',
+          actionId: 'style',
+          label: styleParts.join(' · '),
+          icon: 'palette',
+          accentColor: styleAccentColor,
+          removable: true,
+        });
+      }
+
+      if (draftTask.location?.trim()) {
+        tags.push({
+          key: 'location',
+          actionId: 'location',
+          label: draftTask.location.trim(),
+          icon: 'location-on',
+          accentColor: '#34C759',
+          removable: true,
+        });
+      }
+
+      const routineType = draftTask.isRoutine
+        ? (draftTask.routineType ?? draftTask.routineInterval)
+        : undefined;
+      if (routineType) {
+        const key = ROUTINE_LABEL_KEY_BY_TYPE[routineType as RoutineType];
+        tags.push({
+          key: 'routine',
+          actionId: 'routine',
+          label: t(key),
+          icon: 'autorenew',
+          accentColor: '#FF9F0A',
+          removable: true,
+        });
+      }
+    }
+
+    const selectedProjectId = draftTask ? draftTask.projectId : initialProjectId;
+    const isProjectPinnedByRoute = routeProjectIdIsValid;
+    if (selectedProjectId) {
+      const project = projects.find((candidate) => candidate.id === selectedProjectId);
+      tags.push({
+        key: 'project',
+        actionId: 'project',
+        label: project?.name?.trim() || t('taskCreate.menu.project'),
+        icon: 'folder',
+        accentColor: project?.color ?? '#5AC8FA',
+        removable: !isProjectPinnedByRoute,
+      });
+    }
+
+    return tags;
+  }, [draftTask, initialProjectId, projects, routeProjectIdIsValid]);
+
+  const onTagPress = React.useCallback((actionId: ComposerActionId) => {
+    setMenuExpanded(false);
+    runAction(actionId);
+  }, [runAction]);
+
+  const onTagRemove = React.useCallback((actionId: ComposerActionId) => {
+    const draftId = draftIdRef.current;
+    if (!draftId) return;
+
+    setMenuExpanded(false);
+    setTasks((prev) =>
+      prev.map((task) => {
+        if (task.id !== draftId) return task;
+
+        switch (actionId) {
+          case 'date':
+            return {
+              ...task,
+              dueAt: 0,
+              dueHasTime: false,
+            };
+          case 'style':
+            return {
+              ...task,
+              emoji: '📝',
+              color: undefined,
+            };
+          case 'location':
+            return {
+              ...task,
+              location: undefined,
+            };
+          case 'routine':
+            return {
+              ...task,
+              isRoutine: false,
+              routineType: undefined,
+              routineInterval: undefined,
+              routineWeekday: undefined,
+              routineNthWeek: undefined,
+              routineMonthDay: undefined,
+              routineMonth: undefined,
+            };
+          case 'project':
+            return {
+              ...task,
+              projectId: '',
+            };
+        }
+      })
+    );
+  }, [setTasks]);
 
 
   const onCreate = React.useCallback(() => {
@@ -249,6 +477,7 @@ export default function CreateTaskModal() {
     isCreatedRef.current = true;
 
     const id = draftIdRef.current;
+    let createdTaskId = id ?? '';
 
     if (id) {
       // Update existing draft
@@ -291,6 +520,7 @@ export default function CreateTaskModal() {
     } else {
       // No draft exists, create fresh
       const nextId = createTaskId();
+      createdTaskId = nextId;
       const section: SectionId = 'upcoming';
 
       setTasks((prev) => {
@@ -321,8 +551,11 @@ export default function CreateTaskModal() {
       });
     }
 
+    if (createdTaskId) {
+      queueTaskPopIn(createdTaskId);
+    }
     router.back();
-  }, [canSubmit, initialProjectId, router, setTasks, trimmed]);
+  }, [canSubmit, initialProjectId, queueTaskPopIn, router, setTasks, trimmed]);
 
   const close = React.useCallback(() => {
     setMenuExpanded(false);
@@ -480,6 +713,82 @@ export default function CreateTaskModal() {
                 </View>
               )}
             </Animated.View>
+          ) : null}
+
+          {selectedTags.length > 0 ? (
+            <View style={styles.selectedTagsWrap}>
+              {selectedTags.map((tag) =>
+                <Pressable
+                  key={tag.key}
+                  accessibilityRole="button"
+                  accessibilityLabel={tag.label}
+                  onPress={() => onTagPress(tag.actionId)}
+                  style={({ pressed }) => [styles.selectedTagPressable, pressed && styles.selectedTagPressed]}
+                >
+                  {canUseNativeGlass ? (
+                    <GlassView
+                      style={styles.selectedTagChip}
+                      glassEffectStyle="regular"
+                      tintColor={withAlpha(tag.accentColor, isDark ? 0.22 : 0.12)}
+                      isInteractive
+                    >
+                      <MaterialIcons name={tag.icon} size={14} color={tag.accentColor} />
+                      <Text style={styles.selectedTagText} numberOfLines={1}>
+                        {tag.label}
+                      </Text>
+                      {tag.removable ? (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`${tag.label} entfernen`}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            onTagRemove(tag.actionId);
+                          }}
+                          hitSlop={8}
+                          style={({ pressed }) => [styles.selectedTagRemoveButton, pressed && styles.selectedTagPressed]}
+                        >
+                          <MaterialIcons
+                            name="close"
+                            size={12}
+                            color={isDark ? 'rgba(255,255,255,0.86)' : 'rgba(28,28,30,0.72)'}
+                          />
+                        </Pressable>
+                      ) : null}
+                    </GlassView>
+                  ) : (
+                    <View
+                      style={[
+                        styles.selectedTagChip,
+                        { backgroundColor: withAlpha(tag.accentColor, isDark ? 0.22 : 0.12) },
+                      ]}
+                    >
+                      <MaterialIcons name={tag.icon} size={14} color={tag.accentColor} />
+                      <Text style={styles.selectedTagText} numberOfLines={1}>
+                        {tag.label}
+                      </Text>
+                      {tag.removable ? (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`${tag.label} entfernen`}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            onTagRemove(tag.actionId);
+                          }}
+                          hitSlop={8}
+                          style={({ pressed }) => [styles.selectedTagRemoveButton, pressed && styles.selectedTagPressed]}
+                        >
+                          <MaterialIcons
+                            name="close"
+                            size={12}
+                            color={isDark ? 'rgba(255,255,255,0.86)' : 'rgba(28,28,30,0.72)'}
+                          />
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  )}
+                </Pressable>
+              )}
+            </View>
           ) : null}
 
           <View style={styles.composerStack}>
@@ -697,6 +1006,48 @@ const createStyles = (theme: keyof typeof Colors) => {
       lineHeight: 26,
       fontWeight: '500',
       color: text,
+    },
+    selectedTagsWrap: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      paddingLeft: 56,
+      paddingRight: 56,
+      marginBottom: 8,
+    },
+    selectedTagChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      maxWidth: '100%',
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 14,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+      overflow: 'hidden',
+    },
+    selectedTagPressable: {
+      maxWidth: '100%',
+      borderRadius: 14,
+    },
+    selectedTagPressed: {
+      opacity: 0.85,
+    },
+    selectedTagText: {
+      flexShrink: 1,
+      fontSize: 13,
+      fontWeight: '600',
+      color: text,
+    },
+    selectedTagRemoveButton: {
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      marginLeft: 2,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.68)',
     },
     composerStack: {
       width: '100%',

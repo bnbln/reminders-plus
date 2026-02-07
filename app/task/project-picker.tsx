@@ -13,7 +13,12 @@ import { t } from '@/i18n';
 
 export default function ProjectPickerScreen() {
     const router = useRouter();
-    const { taskId } = useLocalSearchParams<{ taskId: string }>();
+    const { taskId: taskIdParam } = useLocalSearchParams<{ taskId?: string | string[] }>();
+    const taskId = React.useMemo(() => {
+        const rawTaskId = Array.isArray(taskIdParam) ? taskIdParam[0] : taskIdParam;
+        if (typeof rawTaskId !== 'string') return '';
+        return rawTaskId.trim();
+    }, [taskIdParam]);
     const theme = useColorScheme() ?? 'light';
     const isDark = theme === 'dark';
     const styles = React.useMemo(() => createStyles(theme), [theme]);
@@ -21,27 +26,29 @@ export default function ProjectPickerScreen() {
 
     const { tasks, setTasks, projects } = useTasksStore();
     const task = React.useMemo(() => tasks.find((t) => t.id === taskId), [tasks, taskId]);
+    const visibleProjects = React.useMemo(() => projects.filter((project) => !project.deletedAt), [projects]);
 
     // Local state
-    const [selectedProjectId, setSelectedProjectId] = React.useState<string | null>(
-        task?.projectId || null
-    );
+    const [selectedProjectId, setSelectedProjectId] = React.useState<string | null | undefined>(undefined);
 
     // Initialize state
     React.useEffect(() => {
-        if (task && selectedProjectId === undefined) {
-            setSelectedProjectId(task.projectId || null);
-        }
-    }, [task]);
+        if (selectedProjectId !== undefined) return;
+        if (!task) return;
+        setSelectedProjectId(task.projectId || null);
+    }, [selectedProjectId, task]);
 
     const handleSave = React.useCallback(() => {
         if (!taskId) return;
+        const nextProjectId = selectedProjectId === undefined
+            ? task?.projectId || ''
+            : selectedProjectId || '';
         setTasks((prev) => prev.map((t) => (t.id === taskId ? {
             ...t,
-            projectId: selectedProjectId || '',
+            projectId: nextProjectId,
         } : t)));
         router.back();
-    }, [taskId, selectedProjectId, setTasks, router]);
+    }, [task?.projectId, taskId, selectedProjectId, setTasks, router]);
 
     const handleCancel = React.useCallback(() => {
         router.back();
@@ -99,7 +106,7 @@ export default function ProjectPickerScreen() {
                     {/* No Project Option */}
                     <Pressable
                         onPress={() => setSelectedProjectId(null)}
-                        style={[styles.optionRow, selectedProjectId === null && styles.optionRowActive]}
+                        style={[styles.optionRow, (selectedProjectId ?? null) === null && styles.optionRowActive]}
                     >
                         <View style={[styles.optionIcon, { backgroundColor: withAlpha(Colors[theme].text, isDark ? 0.15 : 0.1) }]}>
                             <MaterialIcons name="folder-off" size={20} color={withAlpha(Colors[theme].text, 0.6)} />
@@ -107,13 +114,13 @@ export default function ProjectPickerScreen() {
                         <View style={styles.optionBody}>
                             <Text style={styles.optionLabel}>{t('projectPicker.noProject')}</Text>
                         </View>
-                        {selectedProjectId === null && <MaterialIcons name="check" size={20} color={Colors[theme].tint} />}
+                        {(selectedProjectId ?? null) === null && <MaterialIcons name="check" size={20} color={Colors[theme].tint} />}
                     </Pressable>
 
                     <View style={styles.divider} />
 
                     {/* Project List */}
-                    {projects.map((p) => {
+                    {visibleProjects.map((p) => {
                         const isActive = selectedProjectId === p.id;
                         return (
                             <Pressable
