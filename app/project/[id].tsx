@@ -5,12 +5,11 @@ import {
   Dimensions,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { GestureHandlerRootView, ScrollView } from "react-native-gesture-handler";
 
 import type { SwipeTaskRowStyles } from "@/components/tasks/swipe-task-row";
 import { TaskSwipeDraggableList } from "@/components/tasks/task-swipe-draggable-list";
@@ -31,11 +30,15 @@ import { isIOS26OrNewer } from "@/utils/ios-version";
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const COLUMN_WIDTH = SCREEN_WIDTH * 0.78; // Narrower to show peers
 const COLUMN_GAP = 12; // Slightly smaller gap
+const BOARD_SIDE_PADDING = 16;
 
 const SNAP_OFFSETS = [
   0,
-  16 + COLUMN_WIDTH + COLUMN_GAP + COLUMN_WIDTH / 2 - SCREEN_WIDTH / 2,
-  16 + 2 * (COLUMN_WIDTH + COLUMN_GAP) + COLUMN_WIDTH - (SCREEN_WIDTH - 16),
+  BOARD_SIDE_PADDING + COLUMN_WIDTH + COLUMN_GAP + COLUMN_WIDTH / 2 - SCREEN_WIDTH / 2,
+  BOARD_SIDE_PADDING +
+    2 * (COLUMN_WIDTH + COLUMN_GAP) +
+    COLUMN_WIDTH -
+    (SCREEN_WIDTH - BOARD_SIDE_PADDING),
 ];
 
 // Updated Order: Upcoming -> Today -> Completed
@@ -136,6 +139,7 @@ export default function ProjectDetailScreen() {
   const { projects, tasks, setTasks } = useTasksStore();
   const boardScrollRef = React.useRef<ScrollView | null>(null);
   const boardOffsetXRef = React.useRef<number>(SNAP_OFFSETS[1] ?? 0);
+  const dragPointerXRef = React.useRef<number | null>(null);
   const previousProjectIdRef = React.useRef<string | undefined>(undefined);
   const previousProjectTaskIdsRef = React.useRef<Set<string>>(new Set());
   const pendingAddTaskScrollRef = React.useRef(false);
@@ -188,20 +192,44 @@ export default function ProjectDetailScreen() {
   const onReorderSection = React.useCallback(
     (section: SectionId, orderedTaskIds: string[]) => {
       const currentOffset = boardOffsetXRef.current;
-      const nearestSection = SECTIONS.reduce(
-        (best, candidate, candidateIndex) => {
-          const candidateOffset = SNAP_OFFSETS[candidateIndex] ?? 0;
-          const distance = Math.abs(candidateOffset - currentOffset);
-          if (distance < best.distance) {
-            return { section: candidate, distance };
-          }
-          return best;
-        },
-        { section, distance: Number.POSITIVE_INFINITY } as {
-          section: SectionId;
-          distance: number;
-        },
-      ).section;
+      const nearestSection = (() => {
+        const dragPointerX = dragPointerXRef.current;
+        if (typeof dragPointerX === "number" && Number.isFinite(dragPointerX)) {
+          const boardContentX = currentOffset + dragPointerX;
+          return SECTIONS.reduce(
+            (best, candidate, candidateIndex) => {
+              const candidateCenterX =
+                BOARD_SIDE_PADDING +
+                candidateIndex * (COLUMN_WIDTH + COLUMN_GAP) +
+                COLUMN_WIDTH / 2;
+              const distance = Math.abs(candidateCenterX - boardContentX);
+              if (distance < best.distance) {
+                return { section: candidate, distance };
+              }
+              return best;
+            },
+            { section, distance: Number.POSITIVE_INFINITY } as {
+              section: SectionId;
+              distance: number;
+            },
+          ).section;
+        }
+
+        return SECTIONS.reduce(
+          (best, candidate, candidateIndex) => {
+            const candidateOffset = SNAP_OFFSETS[candidateIndex] ?? 0;
+            const distance = Math.abs(candidateOffset - currentOffset);
+            if (distance < best.distance) {
+              return { section: candidate, distance };
+            }
+            return best;
+          },
+          { section, distance: Number.POSITIVE_INFINITY } as {
+            section: SectionId;
+            distance: number;
+          },
+        ).section;
+      })();
 
       const dragContext = dragContextRef.current;
       const draggedTaskId =
@@ -219,6 +247,7 @@ export default function ProjectDetailScreen() {
           }),
         );
         dragContextRef.current = null;
+        dragPointerXRef.current = null;
         return;
       }
 
@@ -293,6 +322,7 @@ export default function ProjectDetailScreen() {
         });
       });
       dragContextRef.current = null;
+      dragPointerXRef.current = null;
     },
     [id, setTasks],
   );
@@ -383,6 +413,21 @@ export default function ProjectDetailScreen() {
     },
     [setTasks],
   );
+
+  const handleBoardTouch = React.useCallback((event: any) => {
+    if (!dragContextRef.current) return;
+    const nativeEvent = event?.nativeEvent;
+    const touch = nativeEvent?.touches?.[0] ?? nativeEvent?.changedTouches?.[0];
+    const locationX =
+      typeof touch?.locationX === "number"
+        ? touch.locationX
+        : typeof nativeEvent?.locationX === "number"
+          ? nativeEvent.locationX
+          : null;
+    if (typeof locationX === "number" && Number.isFinite(locationX)) {
+      dragPointerXRef.current = locationX;
+    }
+  }, []);
 
   const handleAddTask = React.useCallback(() => {
     pendingAddTaskScrollRef.current = true;
@@ -509,6 +554,12 @@ export default function ProjectDetailScreen() {
           onScroll={(event) => {
             boardOffsetXRef.current = event.nativeEvent.contentOffset.x;
           }}
+          onTouchStart={handleBoardTouch}
+          onTouchMove={handleBoardTouch}
+          onTouchEnd={handleBoardTouch}
+          onTouchCancel={() => {
+            dragPointerXRef.current = null;
+          }}
           scrollEventThrottle={16}
         >
           {SECTIONS.map((section) => (
@@ -528,6 +579,7 @@ export default function ProjectDetailScreen() {
               deleteTask={deleteTask}
               onReorderSection={onReorderSection}
               onDragBeginTask={(taskId) => {
+                dragPointerXRef.current = null;
                 dragContextRef.current = { taskId, sourceSection: section };
               }}
             />

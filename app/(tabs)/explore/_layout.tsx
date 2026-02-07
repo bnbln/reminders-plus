@@ -23,6 +23,8 @@ export default function ExploreLayout() {
                 options={{
                     title: t('tabs.projects'),
                     headerBackButtonDisplayMode: 'minimal',
+                    headerBackVisible: false,
+                    headerLeft: () => null,
                 }}
             />
         </Stack>

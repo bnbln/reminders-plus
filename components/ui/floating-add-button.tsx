@@ -4,7 +4,6 @@ import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View, ViewS
 import Animated, { interpolate, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
 import { GlassSurface, withAlpha } from './glass-surface';
@@ -40,7 +39,7 @@ export function FloatingAddButton({
       ? Math.max(0, insets.bottom - 8)
       : Math.max(0, insets.bottom + resolvedTabBarHeight + 12);
 
-  const primaryBlue = Colors.light.tint;
+  const primaryBlue = '#0070E1';
 
   return (
     <Pressable
@@ -143,7 +142,7 @@ export function FloatingAddPillButton({
   }, []);
 
   const isDark = theme === 'dark';
-  const primaryBlue = Colors.light.tint;
+  const primaryBlue = '#0070E1';
   const onPrimaryText = 'white';
 
   return (
