@@ -1,10 +1,25 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { MenuView, type MenuAction, type NativeActionEvent } from '@react-native-menu/menu';
+import * as ExpoGlassEffect from 'expo-glass-effect';
+import {
+  GlassView,
+  isLiquidGlassAvailable,
+} from 'expo-glass-effect';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import {
+  Alert,
+  Animated,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
 import { useTaskCreateContext } from '@/context/task-create-context';
 import { useTasksStore, type SectionId } from '@/context/tasks-store';
@@ -12,6 +27,15 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
 
 const createTaskId = () => `t-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+type ComposerActionId = 'date' | 'style' | 'location' | 'routine' | 'project';
+type MaterialIconName = React.ComponentProps<typeof MaterialIcons>['name'];
+type ComposerAction = {
+  id: ComposerActionId;
+  title: string;
+  icon: MaterialIconName;
+  accentColor: string;
+};
 
 export default function CreateTaskModal() {
   const router = useRouter();
@@ -35,8 +59,10 @@ export default function CreateTaskModal() {
   }, [focusedProjectId, projectIdParam, projects]);
 
   const [title, setTitle] = React.useState('');
+  const [isMenuExpanded, setMenuExpanded] = React.useState(false);
   const trimmed = title.trim();
   const canSubmit = trimmed.length > 0;
+  const menuProgress = React.useRef(new Animated.Value(0)).current;
 
   const inputRef = React.useRef<TextInput | null>(null);
 
@@ -96,6 +122,16 @@ export default function CreateTaskModal() {
     }
   }, [title, setTasks]);
 
+  React.useEffect(() => {
+    Animated.spring(menuProgress, {
+      toValue: isMenuExpanded ? 1 : 0,
+      tension: 220,
+      friction: 26,
+      overshootClamping: true,
+      useNativeDriver: true,
+    }).start();
+  }, [isMenuExpanded, menuProgress]);
+
   // When returning from pickers, we might need to refresh local state if we want to show badges etc.
   // But this modal is simple: just input. The menu items are actions.
 
@@ -139,71 +175,71 @@ export default function CreateTaskModal() {
   }, [ensureDraftTask, setTasks]);
 
 
-  const actions = React.useMemo<MenuAction[]>(() => {
-    const iconColor = Colors[theme].text;
-
+  const actions = React.useMemo<ComposerAction[]>(() => {
     return [
       {
         id: 'date',
         title: t('taskCreate.menu.date'),
-        image: Platform.OS === 'ios' ? 'calendar' : 'event',
-        imageColor: iconColor,
+        icon: 'event',
+        accentColor: '#4D7CFF',
       },
       {
         id: 'style',
         title: t('taskCreate.menu.style'),
-        image: Platform.OS === 'ios' ? 'paintbrush' : 'edit',
-        imageColor: iconColor,
+        icon: 'palette',
+        accentColor: '#B56CFF',
       },
       {
         id: 'location',
         title: t('taskCreate.menu.location'),
-        image: Platform.OS === 'ios' ? 'location' : 'place',
-        imageColor: iconColor,
+        icon: 'location-on',
+        accentColor: '#34C759',
       },
       {
         id: 'routine',
         title: t('taskCreate.menu.routine'),
-        image: Platform.OS === 'ios' ? 'arrow.triangle.2.circlepath' : 'loop',
-        imageColor: iconColor,
+        icon: 'autorenew',
+        accentColor: '#FF9F0A',
       },
       {
         id: 'project',
         title: t('taskCreate.menu.project'),
-        image: Platform.OS === 'ios' ? 'folder' : 'folder',
-        imageColor: iconColor,
-      }
+        icon: 'folder',
+        accentColor: '#5AC8FA',
+      },
     ];
-  }, [theme]);
+  }, []);
 
-  const onMenuAction = React.useCallback(
-    ({ nativeEvent }: NativeActionEvent) => {
-      const actionId = nativeEvent.event;
-      const id = ensureDraftTask();
+  const runAction = React.useCallback((actionId: ComposerActionId) => {
+    const id = ensureDraftTask();
 
-      switch (actionId) {
-        case 'date':
-          router.push({ pathname: '/task/date-picker', params: { taskId: id } });
-          break;
-        case 'style':
-          router.push({ pathname: '/task/emoji-picker', params: { taskId: id } });
-          break;
-        case 'location':
-          onUseCurrentLocation();
-          break;
-        case 'routine':
-          router.push({ pathname: '/task/routine-picker', params: { taskId: id } });
-          break;
-        case 'project':
-          router.push({ pathname: '/task/project-picker', params: { taskId: id } });
-          break;
-      }
-    },
-    [ensureDraftTask, onUseCurrentLocation, router]
-  );
+    switch (actionId) {
+      case 'date':
+        router.push({ pathname: '/task/date-picker', params: { taskId: id } });
+        break;
+      case 'style':
+        router.push({ pathname: '/task/emoji-picker', params: { taskId: id } });
+        break;
+      case 'location':
+        onUseCurrentLocation();
+        break;
+      case 'routine':
+        router.push({ pathname: '/task/routine-picker', params: { taskId: id } });
+        break;
+      case 'project':
+        router.push({ pathname: '/task/project-picker', params: { taskId: id } });
+        break;
+    }
+  }, [ensureDraftTask, onUseCurrentLocation, router]);
+
+  const onActionPress = React.useCallback((actionId: ComposerActionId) => {
+    setMenuExpanded(false);
+    runAction(actionId);
+  }, [runAction]);
 
 
   const onCreate = React.useCallback(() => {
+    setMenuExpanded(false);
     if (!canSubmit) {
       Alert.alert(t('taskCreate.titleMissingTitle'), t('taskCreate.titleMissingBody'));
       return;
@@ -289,76 +325,303 @@ export default function CreateTaskModal() {
   }, [canSubmit, initialProjectId, router, setTasks, trimmed]);
 
   const close = React.useCallback(() => {
+    setMenuExpanded(false);
     router.back();
   }, [router]);
 
+  const onBackdropPress = React.useCallback(() => {
+    if (isMenuExpanded) {
+      setMenuExpanded(false);
+      return;
+    }
+
+    close();
+  }, [close, isMenuExpanded]);
+
+  const menuAnimatedStyle = React.useMemo(
+    () => ({
+      transform: [
+        {
+          translateY: menuProgress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [20, 0],
+          }),
+        },
+        {
+          scale: menuProgress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0.96, 1],
+          }),
+        },
+      ],
+    }),
+    [menuProgress]
+  );
+
+  const isDark = theme === 'dark';
+  const glassApiAvailableFn = (ExpoGlassEffect as any).isGlassEffectAPIAvailable as
+    | undefined
+    | (() => boolean);
+  const canUseNativeGlass =
+    Platform.OS === 'ios' &&
+    isLiquidGlassAvailable() &&
+    (glassApiAvailableFn ? glassApiAvailableFn() : true);
+  const plusTint = withAlpha(Colors[theme].background, isDark ? 0.20 : 0.26);
+  const inputTint = withAlpha(Colors[theme].background, isDark ? 0.22 : 0.33);
+  const menuTint = withAlpha(Colors[theme].background, isDark ? 0.24 : 0.38);
+  const neutralFallback = withAlpha(Colors[theme].background, isDark ? 0.86 : 0.90);
+  const expandedMenuFallback = withAlpha(Colors[theme].background, isDark ? 0.84 : 0.88);
+  const sendTint = withAlpha('#007AFF', isDark ? 0.88 : 0.78);
+  const sendFallback = '#007AFF';
+  const sendIconColor = 'white';
+  const composerBottom = Math.max(14, insets.bottom - 16);
+  const menuBottom = 66;
+
   return (
     <View style={styles.root}>
-      {/* Backdrop: tap to dismiss */}
       <Pressable
         style={styles.backdrop}
         accessibilityRole="button"
         accessibilityLabel={t('taskCreate.close')}
-        onPress={close}
+        onPress={onBackdropPress}
       />
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? -10 : 0}
         style={styles.keyboard}
       >
-        <View style={[styles.composerWrap, { paddingBottom: Math.max(10, insets.bottom) }]} pointerEvents="box-none">
-          <View style={styles.composer}>
-
-            {/* 
-              Wrap the button directly.
-              To prevent layout shifts, we ensure MenuView doesn't add extra margin/padding 
-              and respects the flex alignment. 
-            */}
-            <MenuView
-              onPressAction={onMenuAction}
-              actions={actions}
-              shouldOpenOnLongPress={false} // Tap opens
-              themeVariant={theme}
+        <View style={[styles.composerWrap, { paddingBottom: composerBottom }]} pointerEvents="box-none">
+          {isMenuExpanded ? (
+            <Animated.View
+              pointerEvents="auto"
+              style={[styles.expandedMenuWrap, { bottom: menuBottom }, menuAnimatedStyle]}
             >
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={t('taskCreate.more')}
-                hitSlop={10}
-                style={({ pressed }) => [styles.plusButton, pressed && { opacity: 0.85 }]}
-                pointerEvents="none" // Let MenuView handle the touch
-              >
-                <MaterialIcons name="add" size={22} color={styles.plusIcon.color as any} />
-              </Pressable>
-            </MenuView>
+              {canUseNativeGlass ? (
+                <GlassView
+                  key="actions-menu-native-glass"
+                  style={styles.expandedMenuSurface}
+                  glassEffectStyle="regular"
+                  tintColor={menuTint}
+                  isInteractive
+                >
+                  {actions.map((action) => (
+                    <Pressable
+                      key={action.id}
+                      accessibilityRole="button"
+                      accessibilityLabel={action.title}
+                      onPress={() => onActionPress(action.id)}
+                      style={({ pressed }) => [styles.expandedMenuItem, pressed && styles.expandedMenuItemPressed]}
+                    >
+                    {canUseNativeGlass ? (
+                      <GlassView
+                        style={styles.expandedMenuIconBubble}
+                        glassEffectStyle="regular"
+                        tintColor={isDark ? withAlpha('#0B1118', 0.86) : withAlpha('#FFFFFF', 0.88)}
+                        isInteractive
+                      >
+                        <MaterialIcons
+                          name={action.icon}
+                          size={20}
+                          color={isDark ? withAlpha(action.accentColor, 0.82) : action.accentColor}
+                        />
+                      </GlassView>
+                    ) : (
+                      <View
+                        style={[
+                          styles.expandedMenuIconBubble,
+                          {
+                            backgroundColor: isDark
+                              ? withAlpha('#0B1118', 0.92)
+                              : withAlpha('#FFFFFF', 0.88),
+                          },
+                        ]}
+                      >
+                        <MaterialIcons
+                          name={action.icon}
+                          size={20}
+                          color={isDark ? withAlpha(action.accentColor, 0.82) : action.accentColor}
+                        />
+                      </View>
+                    )}
+                      <Text style={styles.expandedMenuLabel}>{action.title}</Text>
+                    </Pressable>
+                  ))}
+                </GlassView>
+              ) : (
+                <View style={[styles.expandedMenuSurface, { backgroundColor: expandedMenuFallback }]}>
+                  {actions.map((action) => (
+                    <Pressable
+                      key={action.id}
+                      accessibilityRole="button"
+                      accessibilityLabel={action.title}
+                      onPress={() => onActionPress(action.id)}
+                      style={({ pressed }) => [styles.expandedMenuItem, pressed && styles.expandedMenuItemPressed]}
+                    >
+                    <View
+                      style={[
+                        styles.expandedMenuIconBubble,
+                        {
+                          backgroundColor: isDark
+                            ? withAlpha('#0B1118', 0.92)
+                            : withAlpha('#FFFFFF', 0.88),
+                        },
+                      ]}
+                    >
+                      <MaterialIcons
+                        name={action.icon}
+                        size={20}
+                        color={isDark ? withAlpha(action.accentColor, 0.82) : action.accentColor}
+                      />
+                    </View>
+                      <Text style={styles.expandedMenuLabel}>{action.title}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </Animated.View>
+          ) : null}
 
-            <TextInput
-              ref={(r) => {
-                inputRef.current = r;
-              }}
-              value={title}
-              onChangeText={setTitle}
-              placeholder={t('taskCreate.placeholder.title')}
-              placeholderTextColor={styles.placeholder.color as any}
-              returnKeyType="done"
-              autoCapitalize="sentences"
-              autoCorrect
-              onSubmitEditing={() => {
-                onCreate();
-              }}
-              style={styles.input}
-            />
+          <View style={styles.composerStack}>
+            <View pointerEvents="none" style={styles.composerShadowLayer} />
+            <View style={styles.composer}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={isMenuExpanded ? t('taskCreate.close') : t('taskCreate.more')}
+                  hitSlop={10}
+                  onPress={() => {
+                    setMenuExpanded((prev) => {
+                      const next = !prev;
+                      if (next) setTimeout(() => inputRef.current?.focus(), 0);
+                      return next;
+                    });
+                  }}
+                  style={({ pressed }) => [styles.controlPressable, pressed && styles.controlPressed]}
+                >
+                  {canUseNativeGlass ? (
+                    <GlassView
+                      key="plus-native-glass"
+                      style={[styles.plusButton, isMenuExpanded && styles.plusButtonExpanded]}
+                      glassEffectStyle="clear"
+                      tintColor={plusTint}
+                      isInteractive
+                    >
+                      <MaterialIcons
+                        name={isMenuExpanded ? 'close' : 'add'}
+                        size={22}
+                        color={styles.plusIcon.color as string}
+                      />
+                    </GlassView>
+                  ) : (
+                    <GlassSurface
+                      style={[styles.plusButton, isMenuExpanded && styles.plusButtonExpanded]}
+                      glassEffectStyle="clear"
+                      tintColor={plusTint}
+                      fallbackBackgroundColor={neutralFallback}
+                      isInteractive
+                    >
+                      <MaterialIcons
+                        name={isMenuExpanded ? 'close' : 'add'}
+                        size={22}
+                        color={styles.plusIcon.color as string}
+                      />
+                    </GlassSurface>
+                  )}
+                </Pressable>
 
-            <Pressable
-              onPress={onCreate}
-              disabled={!canSubmit}
-              accessibilityRole="button"
-              accessibilityLabel={canSubmit ? t('taskCreate.accessibility.create') : t('taskCreate.accessibility.enterTitle')}
-              hitSlop={10}
-              style={({ pressed }) => [styles.sendButton, (!canSubmit || pressed) && { opacity: !canSubmit ? 0.35 : 0.85 }]}
-            >
-              <MaterialIcons name="arrow-upward" size={18} color={styles.sendIcon.color as any} />
-            </Pressable>
+                {canUseNativeGlass ? (
+                  <GlassView
+                    key="input-native-glass"
+                    style={styles.inputShell}
+                    glassEffectStyle="regular"
+                    tintColor={inputTint}
+                    isInteractive
+                  >
+                    <TextInput
+                      ref={(r) => {
+                        inputRef.current = r;
+                      }}
+                      value={title}
+                      onChangeText={(next) => {
+                        if (isMenuExpanded) setMenuExpanded(false);
+                        setTitle(next);
+                      }}
+                      placeholder={t('taskCreate.placeholder.title')}
+                      placeholderTextColor={styles.placeholder.color as string}
+                      returnKeyType="done"
+                      autoCapitalize="sentences"
+                      autoCorrect
+                      onKeyPress={() => {
+                        if (isMenuExpanded) setMenuExpanded(false);
+                      }}
+                      onFocus={() => setMenuExpanded(false)}
+                      onSubmitEditing={onCreate}
+                      style={styles.input}
+                    />
+                  </GlassView>
+                ) : (
+                  <GlassSurface
+                    style={styles.inputShell}
+                    glassEffectStyle="regular"
+                    tintColor={inputTint}
+                    fallbackBackgroundColor={neutralFallback}
+                    isInteractive
+                  >
+                    <TextInput
+                      ref={(r) => {
+                        inputRef.current = r;
+                      }}
+                      value={title}
+                      onChangeText={(next) => {
+                        if (isMenuExpanded) setMenuExpanded(false);
+                        setTitle(next);
+                      }}
+                      placeholder={t('taskCreate.placeholder.title')}
+                      placeholderTextColor={styles.placeholder.color as string}
+                      returnKeyType="done"
+                      autoCapitalize="sentences"
+                      autoCorrect
+                      onKeyPress={() => {
+                        if (isMenuExpanded) setMenuExpanded(false);
+                      }}
+                      onFocus={() => setMenuExpanded(false)}
+                      onSubmitEditing={onCreate}
+                      style={styles.input}
+                    />
+                  </GlassSurface>
+                )}
+
+                <Pressable
+                  onPress={onCreate}
+                  disabled={!canSubmit}
+                  accessibilityRole="button"
+                  accessibilityLabel={canSubmit ? t('taskCreate.accessibility.create') : t('taskCreate.accessibility.enterTitle')}
+                  hitSlop={10}
+                  style={({ pressed }) => [styles.controlPressable, pressed && canSubmit && styles.controlPressed]}
+                >
+                  {canUseNativeGlass ? (
+                    <GlassView
+                      key={`send-native-glass-${canSubmit ? 'active' : 'disabled'}`}
+                      style={styles.sendButton}
+                      glassEffectStyle="regular"
+                      tintColor={sendTint}
+                      isInteractive
+                    >
+                      <MaterialIcons name="arrow-upward" size={18} color={sendIconColor} />
+                    </GlassView>
+                  ) : (
+                    <GlassSurface
+                      style={styles.sendButton}
+                      glassEffectStyle="regular"
+                      tintColor={sendTint}
+                      fallbackBackgroundColor={sendFallback}
+                      isInteractive
+                    >
+                      <MaterialIcons name="arrow-upward" size={18} color={sendIconColor} />
+                    </GlassSurface>
+                  )}
+                </Pressable>
+            </View>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -376,7 +639,7 @@ const createStyles = (theme: keyof typeof Colors) => {
     },
     backdrop: {
       ...StyleSheet.absoluteFillObject,
-      backgroundColor: isDark ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.22)',
+      backgroundColor: isDark ? 'rgba(0,0,0,0.58)' : 'rgba(0,0,0,0.14)',
     },
     keyboard: {
       flex: 1,
@@ -384,54 +647,143 @@ const createStyles = (theme: keyof typeof Colors) => {
     },
     composerWrap: {
       paddingHorizontal: 12,
-      paddingTop: 10,
+      paddingTop: 12,
+    },
+    expandedMenuWrap: {
+      position: 'absolute',
+      left: 4,
+      width: '63%',
+      maxWidth: 300,
+      zIndex: 8,
+    },
+    expandedMenuSurface: {
+      borderRadius: 28,
+      paddingHorizontal: 10,
+      paddingVertical: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.30)',
+      overflow: 'hidden',
+      shadowColor: '#000',
+      shadowOpacity: isDark ? 0.48 : 0.26,
+      shadowRadius: 28,
+      shadowOffset: { width: 0, height: 16 },
+    },
+    expandedMenuItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 14,
+      minHeight: 56,
+      borderRadius: 18,
+      paddingHorizontal: 10,
+    },
+    expandedMenuItemPressed: {
+      backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.62)',
+    },
+    expandedMenuIconBubble: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 0,
+      overflow: 'hidden',
+      shadowColor: '#000',
+      shadowOpacity: isDark ? 0.26 : 0.12,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 6 },
+    },
+    expandedMenuLabel: {
+      fontSize: 20,
+      lineHeight: 26,
+      fontWeight: '500',
+      color: text,
+    },
+    composerStack: {
+      width: '100%',
+      position: 'relative',
+    },
+    composerShadowLayer: {
+      position: 'absolute',
+      left: 6,
+      right: 6,
+      top: 12,
+      bottom: -8,
+      borderRadius: 30,
+      backgroundColor: isDark ? 'rgba(0,0,0,0.42)' : 'rgba(0,0,0,0.18)',
+      shadowColor: '#000',
+      shadowOpacity: isDark ? 0.62 : 0.36,
+      shadowRadius: 30,
+      shadowOffset: { width: 0, height: 16 },
     },
     composer: {
       flexDirection: 'row',
-      alignItems: 'flex-end',
+      alignItems: 'center',
       gap: 10,
-      paddingHorizontal: 10,
-      paddingVertical: 20,
-      borderRadius: 30,
-      backgroundColor: isDark ? 'rgba(28,28,30,0.95)' : 'rgba(242,242,247,0.92)',
-      borderWidth: 0.5,
-      borderColor: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.08)',
+    },
+    controlPressable: {
+      borderRadius: 22,
+    },
+    controlPressed: {
+      transform: [{ scale: 0.98 }],
     },
     plusButton: {
-      width: 34,
-      height: 34,
-      borderRadius: 17,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.06)',
+      borderWidth: 0,
+      borderColor: 'transparent',
+      shadowColor: '#000',
+      shadowOpacity: isDark ? 0.42 : 0.24,
+      shadowRadius: 20,
+      shadowOffset: { width: 0, height: 10 },
+    },
+    plusButtonExpanded: {
+      transform: [{ scale: 1.02 }],
     },
     plusIcon: {
       color: text,
     },
-    input: {
+    inputShell: {
       flex: 1,
-      minHeight: 36,
+      minHeight: 44,
+      borderRadius: 22,
+      borderWidth: 0,
+      borderColor: 'transparent',
+      overflow: 'hidden',
+      justifyContent: 'center',
+      shadowColor: '#000',
+      shadowOpacity: isDark ? 0.4 : 0.2,
+      shadowRadius: 24,
+      shadowOffset: { width: 0, height: 12 },
+    },
+    input: {
+      minHeight: 44,
       maxHeight: 120,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: 16,
-      fontSize: 16,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      fontSize: 17,
       color: text,
-      backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.8)',
     },
     placeholder: {
       color: isDark ? 'rgba(235,235,245,0.45)' : 'rgba(60,60,67,0.45)',
     },
     sendButton: {
-      width: 34,
-      height: 34,
-      borderRadius: 17,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: Colors[theme].tint,
+      borderWidth: 0,
+      borderColor: 'transparent',
+      shadowColor: '#000',
+      shadowOpacity: isDark ? 0.52 : 0.32,
+      shadowRadius: 24,
+      shadowOffset: { width: 0, height: 12 },
     },
     sendIcon: {
-      color: isDark ? 'black' : 'white',
+      color: 'white',
     },
   });
 };
