@@ -28,6 +28,9 @@ public class AppDelegate: ExpoAppDelegate {
       withModuleName: "main",
       in: window,
       launchOptions: launchOptions)
+    window?.backgroundColor = UIColor.systemBackground
+    window?.rootViewController?.view.backgroundColor = UIColor.systemBackground
+    applyReactRootViewBackground()
 
     if #available(iOS 26.0, *) {
       let coordinator = TabBarAccessoryCoordinator(windowProvider: { [weak self] in
@@ -58,6 +61,34 @@ public class AppDelegate: ExpoAppDelegate {
   ) -> Bool {
     let result = RCTLinkingManager.application(application, continue: userActivity, restorationHandler: restorationHandler)
     return super.application(application, continue: userActivity, restorationHandler: restorationHandler) || result
+  }
+
+  private func applyReactRootViewBackground() {
+    DispatchQueue.main.async { [weak self] in
+      guard let self else { return }
+      guard let rootView = self.findReactRootView(in: self.window) else { return }
+      rootView.backgroundColor = UIColor.systemBackground
+      rootView.isOpaque = true
+    }
+  }
+
+  private func findReactRootView(in window: UIWindow?) -> RCTRootView? {
+    guard let view = window?.rootViewController?.view else { return nil }
+    return findReactRootView(in: view)
+  }
+
+  private func findReactRootView(in view: UIView) -> RCTRootView? {
+    if let rootView = view as? RCTRootView {
+      return rootView
+    }
+
+    for subview in view.subviews {
+      if let found = findReactRootView(in: subview) {
+        return found
+      }
+    }
+
+    return nil
   }
 }
 
@@ -684,6 +715,8 @@ private final class AddReminderAccessoryButton: UIControl {
 
     guard animated, window != nil else {
       applyTitle()
+      iconView.alpha = 1
+      iconView.transform = .identity
       titleTextLabel.alpha = 1
       titleTextLabel.transform = .identity
       return
@@ -694,17 +727,22 @@ private final class AddReminderAccessoryButton: UIControl {
       delay: 0,
       options: [.curveEaseIn, .beginFromCurrentState],
       animations: {
+        self.iconView.alpha = 0
+        self.iconView.transform = CGAffineTransform(translationX: 0, y: -3)
         self.titleTextLabel.alpha = 0
         self.titleTextLabel.transform = CGAffineTransform(translationX: 0, y: -3)
       },
       completion: { _ in
         applyTitle()
+        self.iconView.transform = CGAffineTransform(translationX: 0, y: 3)
         self.titleTextLabel.transform = CGAffineTransform(translationX: 0, y: 3)
         UIView.animate(
           withDuration: 0.18,
           delay: 0,
           options: [.curveEaseOut, .beginFromCurrentState],
           animations: {
+            self.iconView.alpha = 1
+            self.iconView.transform = .identity
             self.titleTextLabel.alpha = 1
             self.titleTextLabel.transform = .identity
           },
