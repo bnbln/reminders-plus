@@ -21,7 +21,7 @@ import {
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useStreaks } from "@/hooks/use-streaks";
-import { getIntlLocale, t } from "@/i18n";
+import { t } from "@/i18n";
 import { isIOS26OrNewer } from "@/utils/ios-version";
 
 type ThemeName = keyof typeof Colors;
@@ -96,7 +96,7 @@ const adjustDueAtOnSectionChange = (
 };
 
 type QuickTile = {
-  key: "streaks" | "inbox" | "routines" | "today";
+  key: "streaks" | "routines";
   title: string;
   subtitle: string;
   icon: React.ComponentProps<typeof MaterialIcons>["name"];
@@ -434,30 +434,12 @@ export default function HomeScreen() {
     [],
   );
 
-  const inboxTasks = React.useMemo(() => {
-    return tasks.filter(
-      (t) =>
-        !t.deletedAt &&
-        t.section !== "completed" &&
-        (!Number.isFinite(t.dueAt) || t.dueAt <= 0),
-    );
-  }, [tasks]);
-
   const routineTasksCount = React.useMemo(() => {
     return tasks.filter(
       (t) =>
         !t.deletedAt && t.isRoutine && (!!t.routineType || !!t.routineInterval),
     ).length;
   }, [tasks]);
-
-  const todayLabel = React.useMemo(() => {
-    const now = new Date();
-    return new Intl.DateTimeFormat(getIntlLocale(), {
-      weekday: "short",
-      day: "2-digit",
-      month: "short",
-    }).format(now);
-  }, []);
 
   const quickTiles = React.useMemo<QuickTile[]>(() => {
     return [
@@ -471,28 +453,14 @@ export default function HomeScreen() {
         onPress: () => router.push("/home/streaks"),
       },
       {
-        key: "inbox",
-        title: t("common.inbox"),
-        subtitle: t("home.quick.withoutDate", { count: inboxTasks.length }),
-        icon: "inbox",
-        onPress: () => router.push("/home/inbox"),
-      },
-      {
         key: "routines",
         title: t("home.quick.routines"),
         subtitle: t("home.quick.recurring", { count: routineTasksCount }),
         icon: "loop",
         onPress: () => router.push("/home/routines"),
       },
-      {
-        key: "today",
-        title: t("common.today"),
-        subtitle: todayLabel,
-        icon: "today",
-        onPress: () => router.push("/home/today"),
-      },
     ];
-  }, [currentStreak, inboxTasks.length, routineTasksCount, router, todayLabel]);
+  }, [currentStreak, routineTasksCount, router]);
 
   const quickNavTheme = React.useMemo<QuickNavTheme>(() => {
     const text = Colors[theme].text;

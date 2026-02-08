@@ -68,6 +68,12 @@ export type TaskSwipeDraggableListProps = {
    */
   onDragStateChange?: (isDragging: boolean) => void;
   onSwipeStateChange?: (isSwiping: boolean) => void;
+  /**
+   * Drag axis behavior:
+   * - `vertical` (default): classic sortable list drag.
+   * - `free`: keep vertical reorder, but let the active item follow finger on X too.
+   */
+  dragAxisMode?: "vertical" | "free";
 
   header?: React.ReactElement | null;
   footer?: React.ReactElement | null;
@@ -87,6 +93,12 @@ export type TaskSwipeDraggableListProps = {
     data: TaskSwipeDraggableListItem[];
     from: number;
     to: number;
+  }) => void;
+  onDragTouchPoint?: (params: {
+    absoluteX: number;
+    absoluteY: number;
+    translationX: number;
+    translationY: number;
   }) => void;
 
   keyForTask?: (task: Task) => string;
@@ -110,6 +122,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   onScrollOffsetChange,
   onDragStateChange,
   onSwipeStateChange,
+  dragAxisMode = "vertical",
   header,
   footer,
   empty,
@@ -122,6 +135,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   onReorderData,
   onDragBeginTask,
   onDragEndMeta,
+  onDragTouchPoint,
   keyForTask,
   sortByOrderRank,
 },
@@ -130,12 +144,6 @@ ref
   const isDark = theme === 'dark';
   const isFocused = useIsFocused();
   const { popInTaskIds, consumeTaskPopIn } = useTaskCreateContext();
-
-  const glassDragTint = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.18 : 0.28), [isDark, theme]);
-  const glassDragFallback = React.useMemo(
-    () => withAlpha(Colors[theme].background, isDark ? 0.86 : 0.92),
-    [isDark, theme]
-  );
 
   const emojiTint = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.12 : 0.22), [isDark, theme]);
   const emojiFallback = React.useMemo(
@@ -273,8 +281,9 @@ ref
   }, [scrollRef, useScrollViewCompatibilityMode]);
   const usesNestedScrollGestures = renderMode === 'nestable' || useScrollViewCompatibilityMode;
   const listActivationDistance = usesNestedScrollGestures ? 22 : 12;
+  const allowCrossAxisDrag = dragAxisMode === "free";
   const resolvedContainerStyle: StyleProp<ViewStyle> = React.useMemo(() => {
-    return [{ flex: 1, backgroundColor: Colors[theme].background }, containerStyle];
+    return [{ flex: 1, backgroundColor: Colors[theme].background, overflow: 'visible' }, containerStyle];
   }, [containerStyle, theme]);
 
   const renderItem = React.useCallback(
@@ -294,8 +303,6 @@ ref
           isActive={isActive}
           styles={rowStyles}
           itemSpacing={itemSpacing}
-          glassDragTint={glassDragTint}
-          glassDragFallback={glassDragFallback}
           emojiTint={emojiTint}
           emojiFallback={emojiFallback}
           swipeCompleteBg={swipeCompleteBg}
@@ -325,8 +332,6 @@ ref
       emojiFallback,
       emojiTint,
       endSwipe,
-      glassDragFallback,
-      glassDragTint,
       handlePressTask,
       handlePopInAnimationEnd,
       isFocused,
@@ -364,8 +369,6 @@ ref
           isActive={false}
           styles={rowStyles}
           itemSpacing={itemSpacing}
-          glassDragTint={glassDragTint}
-          glassDragFallback={glassDragFallback}
           emojiTint={emojiTint}
           emojiFallback={emojiFallback}
           swipeCompleteBg={swipeCompleteBg}
@@ -395,8 +398,6 @@ ref
       emojiFallback,
       emojiTint,
       endSwipe,
-      glassDragFallback,
-      glassDragTint,
       handlePressTask,
       handlePopInAnimationEnd,
       isFocused,
@@ -437,6 +438,7 @@ ref
     data: flatListData,
     keyExtractor: (item: TaskSwipeDraggableListItem) => item.key,
     renderItem,
+    style: { overflow: 'visible' as const },
     ListHeaderComponent: header ?? null,
     ListFooterComponent: footer ?? null,
     ListEmptyComponent: empty ?? null,
@@ -488,6 +490,8 @@ ref
       onDragEndMeta?.({ data, from, to });
       onReorder?.(data.filter((d) => d.kind === 'task').map((d) => d.taskId));
     },
+    onDragTouchPoint,
+    allowCrossAxisDrag,
   };
 
   if (renderMode === 'static') {
@@ -503,7 +507,7 @@ ref
       <View style={resolvedContainerStyle}>
         <NestableScrollContainer
           ref={internalScrollRef}
-          style={{ flex: 1 }}
+          style={{ flex: 1, overflow: "visible" }}
           contentInsetAdjustmentBehavior={contentInsetAdjustmentBehavior ?? 'automatic'}
           alwaysBounceVertical
           showsVerticalScrollIndicator={false}
@@ -517,7 +521,7 @@ ref
   return (
     <DraggableFlatList
       {...dragListProps}
-      style={{ flex: 1 }}
+      style={{ flex: 1, overflow: "visible" }}
       containerStyle={resolvedContainerStyle}
       contentContainerStyle={contentContainerStyle}
       contentInsetAdjustmentBehavior={contentInsetAdjustmentBehavior ?? 'automatic'}

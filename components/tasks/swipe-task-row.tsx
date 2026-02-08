@@ -46,6 +46,9 @@ const SWIPE_FAIL_OFFSET_Y = 18;
 const AXIS_LOCK_THRESHOLD = 4;
 const MIN_SWIPE_X = 10;
 const MIN_SCROLL_Y = 10;
+// Small delay to separate horizontal swipe intent from long-press drag.
+const SWIPE_ARM_DELAY_MS = 120;
+const DRAG_LONG_PRESS_DELAY_MS = 560;
 
 type TagChipModel = {
   key: string;
@@ -124,8 +127,6 @@ export type SwipeTaskRowProps = {
   isActive: boolean;
   styles: SwipeTaskRowStyles;
   itemSpacing?: number;
-  glassDragTint: string;
-  glassDragFallback: string;
   emojiTint: string;
   emojiFallback: string;
   swipeCompleteBg: string;
@@ -165,8 +166,6 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   isActive,
   styles,
   itemSpacing = 12,
-  glassDragTint,
-  glassDragFallback,
   emojiTint,
   emojiFallback,
   swipeCompleteBg,
@@ -201,6 +200,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   const collapse = useSharedValue(0);
   const touchStartX = useSharedValue(0);
   const touchStartY = useSharedValue(0);
+  const touchStartAt = useSharedValue(0);
   const axisDecision = useSharedValue<0 | 1>(0);
   const swipeGestureActive = useSharedValue(0);
   const thresholdHapticSent = useSharedValue(0);
@@ -374,6 +374,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       if (!touch) return;
       touchStartX.value = touch.x;
       touchStartY.value = touch.y;
+      touchStartAt.value = Date.now();
       axisDecision.value = 0;
       swipeGestureActive.value = 0;
       thresholdHapticSent.value = 0;
@@ -388,9 +389,12 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       const dy = touch.y - touchStartY.value;
       const absX = Math.abs(dx);
       const absY = Math.abs(dy);
+      const touchAgeMs = Date.now() - touchStartAt.value;
 
       const horizontalIntent =
-        absX > MIN_SWIPE_X && absX > absY * 1.15 + AXIS_LOCK_THRESHOLD;
+        touchAgeMs >= SWIPE_ARM_DELAY_MS &&
+        absX > MIN_SWIPE_X &&
+        absX > absY * 1.15 + AXIS_LOCK_THRESHOLD;
       const verticalIntent =
         absY > MIN_SCROLL_Y && absY > absX * 1.1 + AXIS_LOCK_THRESHOLD;
 
@@ -540,6 +544,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     thresholdHapticSent,
     touchStartX,
     touchStartY,
+    touchStartAt,
     translateX,
     emitThresholdHaptic,
   ]);
@@ -550,11 +555,14 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     return {
       height: rowHeight.value * p,
       marginBottom: itemSpacing * p,
-      overflow: "hidden",
+      overflow: isActive ? "visible" : "hidden",
     };
-  }, [itemSpacing]);
+  }, [isActive, itemSpacing]);
 
-  const clipStyle = React.useMemo(() => styles.swipeClip, [styles.swipeClip]);
+  const clipStyle = React.useMemo(
+    () => [styles.swipeClip, isActive ? { overflow: "visible" as const } : null],
+    [isActive, styles.swipeClip],
+  );
 
   const underlayGreenStyle = useAnimatedStyle(() => {
     const tx = translateX.value;
@@ -798,8 +806,8 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
           <Animated.View style={rowAnimatedStyle}>
             <Pressable
               onLongPress={drag}
-              delayLongPress={300}
-              pressRetentionOffset={{ top: 8, bottom: 8, left: 10, right: 10 }}
+              delayLongPress={DRAG_LONG_PRESS_DELAY_MS}
+              pressRetentionOffset={{ top: 8, bottom: 8, left: 6, right: 6 }}
               onLayout={(e) => {
                 rowWidth.value = e.nativeEvent.layout.width;
                 rowHeight.value = e.nativeEvent.layout.height;
@@ -808,38 +816,18 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
                 onPressTask(task.id);
               }}
             >
-              {isActive ? (
-                <GlassSurface
-                  style={[styles.row, styles.dragRow]}
-                  glassEffectStyle="regular"
-                  tintColor={glassDragTint}
-                  fallbackBackgroundColor={glassDragFallback}
-                >
-                  <View style={styles.rowInner}>
-                    {emojiTileView}
-                    <View style={styles.textStack}>
-                      <Text style={styles.rowTitle}>{task.title}</Text>
-                      {task.subtitle ? (
-                        <Text style={styles.rowSubtitle}>{task.subtitle}</Text>
-                      ) : null}
-                      {tagsView}
-                    </View>
-                  </View>
-                </GlassSurface>
-              ) : (
-                <View style={styles.row}>
-                  <View style={styles.rowInner}>
-                    {emojiTileView}
-                    <View style={styles.textStack}>
-                      <Text style={styles.rowTitle}>{task.title}</Text>
-                      {task.subtitle ? (
-                        <Text style={styles.rowSubtitle}>{task.subtitle}</Text>
-                      ) : null}
-                      {tagsView}
-                    </View>
+              <View style={[styles.row, isActive ? styles.dragRow : undefined]}>
+                <View style={styles.rowInner}>
+                  {emojiTileView}
+                  <View style={styles.textStack}>
+                    <Text style={styles.rowTitle}>{task.title}</Text>
+                    {task.subtitle ? (
+                      <Text style={styles.rowSubtitle}>{task.subtitle}</Text>
+                    ) : null}
+                    {tagsView}
                   </View>
                 </View>
-              )}
+              </View>
             </Pressable>
           </Animated.View>
         </GestureDetector>

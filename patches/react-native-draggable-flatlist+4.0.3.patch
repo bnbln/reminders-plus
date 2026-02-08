@@ -1,3 +1,161 @@
+diff --git a/node_modules/react-native-draggable-flatlist/lib/typescript/types.d.ts b/node_modules/react-native-draggable-flatlist/lib/typescript/types.d.ts
+index 2abb4a2..ec8be20 100644
+--- a/node_modules/react-native-draggable-flatlist/lib/typescript/types.d.ts
++++ b/node_modules/react-native-draggable-flatlist/lib/typescript/types.d.ts
+@@ -23,6 +23,13 @@ export declare type DraggableFlatListProps<T> = Modify<FlatListProps<T>, {
+     keyExtractor: (item: T, index: number) => string;
+     onDragBegin?: (index: number) => void;
+     onDragEnd?: (params: DragEndParams<T>) => void;
++    allowCrossAxisDrag?: boolean;
++    onDragTouchPoint?: (params: {
++        absoluteX: number;
++        absoluteY: number;
++        translationX: number;
++        translationY: number;
++    }) => void;
+     onPlaceholderIndexChange?: (placeholderIndex: number) => void;
+     onRelease?: (index: number) => void;
+     onScrollOffsetChange?: (scrollOffset: number) => void;
+diff --git a/node_modules/react-native-draggable-flatlist/src/components/CellRendererComponent.tsx b/node_modules/react-native-draggable-flatlist/src/components/CellRendererComponent.tsx
+index e4e861a..9040371 100644
+--- a/node_modules/react-native-draggable-flatlist/src/components/CellRendererComponent.tsx
++++ b/node_modules/react-native-draggable-flatlist/src/components/CellRendererComponent.tsx
+@@ -33,8 +33,9 @@ function CellRendererComponent<T>(props: Props<T>) {
+ 
+   const viewRef = useRef<Animated.View>(null);
+   const { cellDataRef, propsRef, containerRef } = useRefs<T>();
++  const allowCrossAxisDrag = !!propsRef.current.allowCrossAxisDrag;
+ 
+-  const { horizontalAnim, scrollOffset } = useAnimatedValues();
++  const { horizontalAnim, scrollOffset, touchTranslateX } = useAnimatedValues();
+   const {
+     activeKey,
+     keyExtractor,
+@@ -64,10 +65,17 @@ function CellRendererComponent<T>(props: Props<T>) {
+       heldTanslate.value = translate.value;
+     }
+     const t = activeKey ? translate.value : heldTanslate.value;
++    if (!horizontalAnim.value) {
++      const dragX =
++        allowCrossAxisDrag && activeKey && isActive ? touchTranslateX.value : 0;
++      return {
++        transform: [{ translateX: dragX }, { translateY: t }],
++      };
++    }
+     return {
+-      transform: [horizontalAnim.value ? { translateX: t } : { translateY: t }],
++      transform: [{ translateX: t }],
+     };
+-  }, [translate, activeKey]);
++  }, [translate, activeKey, touchTranslateX, isActive, allowCrossAxisDrag]);
+ 
+   const updateCellMeasurements = useStableCallback(() => {
+     const onSuccess: MeasureLayoutOnSuccessCallback = (x, y, w, h) => {
+diff --git a/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx b/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx
+index 7c88afc..50d5473 100644
+--- a/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx
++++ b/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx
+@@ -76,6 +76,7 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+     horizontalAnim,
+     placeholderOffset,
+     touchTranslate,
++    touchTranslateX,
+     autoScrollDistance,
+     panGestureState,
+     isTouchActiveNative,
+@@ -88,6 +89,7 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+     activeIndexAnim.value = -1;
+     spacerIndexAnim.value = -1;
+     touchTranslate.value = 0;
++    touchTranslateX.value = 0;
+     activeCellSize.value = -1;
+     activeCellOffset.value = -1;
+     setActiveKey(null);
+@@ -98,6 +100,7 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+     scrollEnabled = DEFAULT_PROPS.scrollEnabled,
+     activationDistance: activationDistanceProp = DEFAULT_PROPS.activationDistance,
+   } = props;
++  const allowCrossAxisDrag = !!props.allowCrossAxisDrag;
+ 
+   let [activeKey, setActiveKey] = useState<string | null>(null);
+   const [layoutAnimationDisabled, setLayoutAnimationDisabled] = useState(
+@@ -238,6 +241,17 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+     props.onPlaceholderIndexChange?.(index);
+   });
+ 
++  const onDragTouchPoint = useStableCallback(
++    (params: {
++      absoluteX: number;
++      absoluteY: number;
++      translationX: number;
++      translationY: number;
++    }) => {
++      props.onDragTouchPoint?.(params);
++    }
++  );
++
+   // Handle case where user ends drag without moving their finger.
+   useAnimatedReaction(
+     () => {
+@@ -277,6 +291,7 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+       gestureDisabled.value = disabled.value;
+       if (gestureDisabled.value) return;
+       panGestureState.value = evt.state;
++      touchTranslateX.value = 0;
+     })
+     .onUpdate((evt) => {
+       if (gestureDisabled.value) return;
+@@ -285,6 +300,19 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+         ? evt.translationX
+         : evt.translationY;
+       touchTranslate.value = translation;
++      if (!horizontalAnim.value && allowCrossAxisDrag) {
++        touchTranslateX.value = evt.translationX;
++      } else {
++        touchTranslateX.value = 0;
++      }
++      if (allowCrossAxisDrag && activeIndexAnim.value >= 0) {
++        runOnJS(onDragTouchPoint)({
++          absoluteX: evt.absoluteX,
++          absoluteY: evt.absoluteY,
++          translationX: evt.translationX,
++          translationY: evt.translationY,
++        });
++      }
+     })
+     .onEnd((evt) => {
+       if (gestureDisabled.value) return;
+@@ -295,7 +323,20 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+         : evt.translationY;
+ 
+       touchTranslate.value = translation + autoScrollDistance.value;
++      if (!horizontalAnim.value && allowCrossAxisDrag) {
++        touchTranslateX.value = evt.translationX;
++      } else {
++        touchTranslateX.value = 0;
++      }
+       panGestureState.value = evt.state;
++      if (allowCrossAxisDrag && activeIndexAnim.value >= 0) {
++        runOnJS(onDragTouchPoint)({
++          absoluteX: evt.absoluteX,
++          absoluteY: evt.absoluteY,
++          translationX: evt.translationX,
++          translationY: evt.translationY,
++        });
++      }
+ 
+       // Only call onDragEnd if actually dragging a cell
+       if (activeIndexAnim.value === -1 || disabled.value) return;
+@@ -328,6 +369,9 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+     const activeOffset = [-activationDistanceProp, activationDistanceProp];
+     if (props.horizontal) {
+       panGesture.activeOffsetX(activeOffset);
++    } else if (allowCrossAxisDrag) {
++      panGesture.activeOffsetX(activeOffset);
++      panGesture.activeOffsetY(activeOffset);
+     } else {
+       panGesture.activeOffsetY(activeOffset);
+     }
 diff --git a/node_modules/react-native-draggable-flatlist/src/components/NestableDraggableFlatList.tsx b/node_modules/react-native-draggable-flatlist/src/components/NestableDraggableFlatList.tsx
 index 1559352..2e2a30c 100644
 --- a/node_modules/react-native-draggable-flatlist/src/components/NestableDraggableFlatList.tsx
@@ -42,3 +200,49 @@ index 1559352..2e2a30c 100644
    });
  
    const onDragBegin: DraggableFlatListProps<T>["onDragBegin"] = useStableCallback(
+diff --git a/node_modules/react-native-draggable-flatlist/src/context/animatedValueContext.tsx b/node_modules/react-native-draggable-flatlist/src/context/animatedValueContext.tsx
+index c62360d..33bed33 100644
+--- a/node_modules/react-native-draggable-flatlist/src/context/animatedValueContext.tsx
++++ b/node_modules/react-native-draggable-flatlist/src/context/animatedValueContext.tsx
+@@ -46,6 +46,7 @@ function useSetupAnimatedValues<T>() {
+     GestureState.UNDETERMINED
+   );
+   const touchTranslate = useSharedValue(0);
++  const touchTranslateX = useSharedValue(0);
+ 
+   const isTouchActiveNative = useSharedValue(false);
+ 
+@@ -179,6 +180,7 @@ function useSetupAnimatedValues<T>() {
+       spacerIndexAnim,
+       touchPositionDiff,
+       touchTranslate,
++      touchTranslateX,
+       autoScrollDistance,
+       viewableIndexMin,
+       viewableIndexMax,
+@@ -202,6 +204,7 @@ function useSetupAnimatedValues<T>() {
+       spacerIndexAnim,
+       touchPositionDiff,
+       touchTranslate,
++      touchTranslateX,
+       autoScrollDistance,
+       viewableIndexMin,
+       viewableIndexMax,
+diff --git a/node_modules/react-native-draggable-flatlist/src/types.ts b/node_modules/react-native-draggable-flatlist/src/types.ts
+index d6755c8..77236fc 100644
+--- a/node_modules/react-native-draggable-flatlist/src/types.ts
++++ b/node_modules/react-native-draggable-flatlist/src/types.ts
+@@ -36,6 +36,13 @@ export type DraggableFlatListProps<T> = Modify<
+     keyExtractor: (item: T, index: number) => string;
+     onDragBegin?: (index: number) => void;
+     onDragEnd?: (params: DragEndParams<T>) => void;
++    allowCrossAxisDrag?: boolean;
++    onDragTouchPoint?: (params: {
++      absoluteX: number;
++      absoluteY: number;
++      translationX: number;
++      translationY: number;
++    }) => void;
+     onPlaceholderIndexChange?: (placeholderIndex: number) => void;
+     onRelease?: (index: number) => void;
+     onScrollOffsetChange?: (scrollOffset: number) => void;

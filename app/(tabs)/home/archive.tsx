@@ -30,11 +30,6 @@ export default function ArchiveScreen() {
   const glassTint = withAlpha(Colors[theme].text, isDark ? 0.12 : 0.06);
   const glassFallback = withAlpha(cardBg, isDark ? 0.92 : 1);
 
-  const glassDragTint = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.18 : 0.28), [isDark, theme]);
-  const glassDragFallback = React.useMemo(
-    () => withAlpha(Colors[theme].background, isDark ? 0.86 : 0.92),
-    [isDark, theme]
-  );
   const emojiTint = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.12 : 0.22), [isDark, theme]);
   const emojiFallback = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.52 : 0.74), [isDark, theme]);
 
@@ -254,8 +249,6 @@ export default function ArchiveScreen() {
           drag={() => undefined}
           isActive={false}
           styles={styles}
-          glassDragTint={glassDragTint}
-          glassDragFallback={glassDragFallback}
           emojiTint={emojiTint}
           emojiFallback={emojiFallback}
           swipeCompleteBg={swipeGreenBg}
@@ -299,8 +292,6 @@ export default function ArchiveScreen() {
       enabledTags,
       emojiFallback,
       emojiTint,
-      glassDragFallback,
-      glassDragTint,
       handlePressTask,
       moveCompletedBackToToday,
       moveToTrash,

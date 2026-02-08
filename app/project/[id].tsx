@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { GestureHandlerRootView, ScrollView } from "react-native-gesture-handler";
+import Animated, { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 
 import type { SwipeTaskRowStyles } from "@/components/tasks/swipe-task-row";
 import { TaskSwipeDraggableList } from "@/components/tasks/task-swipe-draggable-list";
@@ -31,6 +32,12 @@ const SCREEN_WIDTH = Dimensions.get("window").width;
 const COLUMN_WIDTH = SCREEN_WIDTH * 0.78; // Narrower to show peers
 const COLUMN_GAP = 12; // Slightly smaller gap
 const BOARD_SIDE_PADDING = 16;
+const EDGE_AUTO_SCROLL_ZONE = 84;
+const EDGE_AUTO_SCROLL_MAX_STEP = 16;
+const EDGE_AUTO_SCROLL_MIN_STEP = 1.5;
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
 
 const SNAP_OFFSETS = [
   0,
@@ -56,6 +63,7 @@ type ThemeName = keyof typeof Colors;
 function KanbanColumn({
   section,
   tasks,
+  isDragSource,
   columnBackgroundColor,
   columnBottomPadding,
   boardScrollRef,
@@ -68,9 +76,12 @@ function KanbanColumn({
   deleteTask,
   onReorderSection,
   onDragBeginTask,
+  onDragStateChange,
+  onDragTouchPoint,
 }: {
   section: SectionId;
   tasks: Task[];
+  isDragSource: boolean;
   columnBackgroundColor: string;
   columnBottomPadding: number;
   boardScrollRef: React.RefObject<ScrollView | null>;
@@ -83,9 +94,25 @@ function KanbanColumn({
   deleteTask: (taskId: string) => void;
   onReorderSection: (sectionId: SectionId, orderedTaskIds: string[]) => void;
   onDragBeginTask: (taskId: string) => void;
+  onDragStateChange: (isDragging: boolean) => void;
+  onDragTouchPoint: (params: {
+    absoluteX: number;
+    absoluteY: number;
+    translationX: number;
+    translationY: number;
+  }) => void;
 }) {
   return (
-    <View style={[styles.column, { backgroundColor: columnBackgroundColor }]}>
+    <View
+      style={[
+        styles.column,
+        {
+          backgroundColor: columnBackgroundColor,
+          zIndex: isDragSource ? 60 : 1,
+          elevation: isDragSource ? 60 : 0,
+        },
+      ]}
+    >
       <View style={styles.columnHeader}>
         <Text style={styles.columnTitle}>{SECTION_TITLES[section]}</Text>
         <GlassSurface
@@ -108,7 +135,7 @@ function KanbanColumn({
         enabledTags={new Set()}
         showTaskIcons={true}
         contentContainerStyle={[styles.columnContent, { paddingBottom: columnBottomPadding }]}
-        containerStyle={{ backgroundColor: "transparent" }}
+        containerStyle={{ backgroundColor: "transparent", overflow: "visible" }}
         contentInsetAdjustmentBehavior="never"
         empty={
           <View style={styles.emptyState}>
@@ -122,6 +149,9 @@ function KanbanColumn({
           onReorderSection(section, orderedTaskIds)
         }
         onDragBeginTask={onDragBeginTask}
+        onDragStateChange={onDragStateChange}
+        onDragTouchPoint={onDragTouchPoint}
+        dragAxisMode="free"
       />
     </View>
   );
@@ -137,13 +167,26 @@ export default function ProjectDetailScreen() {
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const rowStyles = React.useMemo(() => createRowStyles(theme), [theme]);
   const { projects, tasks, setTasks } = useTasksStore();
+  const screenRef = React.useRef<View | null>(null);
+  const screenPageRef = React.useRef({ x: 0, y: 0 });
   const boardScrollRef = React.useRef<ScrollView | null>(null);
   const boardOffsetXRef = React.useRef<number>(SNAP_OFFSETS[1] ?? 0);
+  const boardPageXRef = React.useRef<number>(0);
   const dragPointerXRef = React.useRef<number | null>(null);
+  const dragHoverSectionRef = React.useRef<SectionId | null>(null);
+  const isBoardDraggingRef = React.useRef(false);
+  const autoScrollVelocityRef = React.useRef(0);
+  const autoScrollFrameRef = React.useRef<number | null>(null);
   const previousProjectIdRef = React.useRef<string | undefined>(undefined);
   const previousProjectTaskIdsRef = React.useRef<Set<string>>(new Set());
   const pendingAddTaskScrollRef = React.useRef(false);
   const dragContextRef = React.useRef<{ taskId: string; sourceSection: SectionId } | null>(null);
+  const [isBoardDragging, setIsBoardDragging] = React.useState(false);
+  const [activeDragSourceSection, setActiveDragSourceSection] =
+    React.useState<SectionId | null>(null);
+  const [dragPreviewTaskId, setDragPreviewTaskId] = React.useState<string | null>(null);
+  const dragPreviewX = useSharedValue(-4000);
+  const dragPreviewY = useSharedValue(-4000);
 
   const projectsById = React.useMemo(
     () => new Map(projects.map((p) => [p.id, p] as const)),
@@ -158,6 +201,16 @@ export default function ProjectDetailScreen() {
   const projectTasks = React.useMemo(() => {
     return tasks.filter((t) => t.projectId === id && !t.deletedAt);
   }, [tasks, id]);
+  const projectTasksById = React.useMemo(
+    () => new Map(projectTasks.map((task) => [task.id, task] as const)),
+    [projectTasks],
+  );
+  const dragPreviewTask = dragPreviewTaskId
+    ? projectTasksById.get(dragPreviewTaskId) ?? null
+    : null;
+  const dragPreviewAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: dragPreviewX.value }, { translateY: dragPreviewY.value }],
+  }));
 
   const tasksBySection = React.useMemo(() => {
     const grouped: Record<SectionId, Task[]> = {
@@ -189,53 +242,174 @@ export default function ProjectDetailScreen() {
     router.push({ pathname: "/project/edit-modal", params: { id } });
   }, [id, router]);
 
+  const updateHoverSection = React.useCallback((next: SectionId | null) => {
+    if (dragHoverSectionRef.current === next) return;
+    dragHoverSectionRef.current = next;
+  }, []);
+
+  const resolveSectionFromBoardContentX = React.useCallback(
+    (boardContentX: number): SectionId => {
+      const span = COLUMN_WIDTH + COLUMN_GAP;
+      const start = BOARD_SIDE_PADDING + COLUMN_WIDTH / 2;
+      const relative = boardContentX - start;
+      const index = clamp(Math.round(relative / span), 0, SECTIONS.length - 1);
+      return SECTIONS[index] ?? "today";
+    },
+    [],
+  );
+
+  const stopAutoScroll = React.useCallback(() => {
+    autoScrollVelocityRef.current = 0;
+    if (autoScrollFrameRef.current !== null) {
+      cancelAnimationFrame(autoScrollFrameRef.current);
+      autoScrollFrameRef.current = null;
+    }
+  }, []);
+
+  const updateBoardPageX = React.useCallback(() => {
+    const boardNode =
+      // @ts-ignore - some scroll refs expose getNode
+      boardScrollRef.current?.getNode?.() ?? boardScrollRef.current;
+    if (!boardNode || typeof boardNode.measureInWindow !== "function") return;
+    boardNode.measureInWindow((x: number) => {
+      if (typeof x === "number" && Number.isFinite(x)) {
+        boardPageXRef.current = x;
+      }
+    });
+  }, []);
+
+  const updateScreenPage = React.useCallback(() => {
+    const screenNode =
+      // @ts-ignore - some refs expose getNode
+      screenRef.current?.getNode?.() ?? screenRef.current;
+    if (!screenNode || typeof screenNode.measureInWindow !== "function") return;
+    screenNode.measureInWindow((x: number, y: number) => {
+      if (
+        typeof x === "number" &&
+        Number.isFinite(x) &&
+        typeof y === "number" &&
+        Number.isFinite(y)
+      ) {
+        screenPageRef.current = { x, y };
+      }
+    });
+  }, []);
+
+  const resetDragPreview = React.useCallback(() => {
+    setDragPreviewTaskId(null);
+    dragPreviewX.value = -4000;
+    dragPreviewY.value = -4000;
+  }, [dragPreviewX, dragPreviewY]);
+
+  const startAutoScroll = React.useCallback(() => {
+    if (autoScrollFrameRef.current !== null) return;
+    const tick = () => {
+      if (!isBoardDraggingRef.current) {
+        autoScrollFrameRef.current = null;
+        return;
+      }
+      const velocity = autoScrollVelocityRef.current;
+      if (Math.abs(velocity) < 0.01) {
+        autoScrollFrameRef.current = null;
+        return;
+      }
+
+      const maxOffset = SNAP_OFFSETS[SNAP_OFFSETS.length - 1] ?? 0;
+      const currentOffset = boardOffsetXRef.current;
+      const nextOffset = clamp(currentOffset + velocity, 0, maxOffset);
+      if (nextOffset !== currentOffset) {
+        boardOffsetXRef.current = nextOffset;
+        boardScrollRef.current?.scrollTo({ x: nextOffset, animated: false });
+        const pointerX = dragPointerXRef.current;
+        if (typeof pointerX === "number" && Number.isFinite(pointerX)) {
+          updateHoverSection(resolveSectionFromBoardContentX(nextOffset + pointerX));
+        }
+      }
+
+      autoScrollFrameRef.current = requestAnimationFrame(tick);
+    };
+    autoScrollFrameRef.current = requestAnimationFrame(tick);
+  }, [resolveSectionFromBoardContentX, updateHoverSection]);
+
+  const applyDragPointerX = React.useCallback(
+    (pointerX: number) => {
+      dragPointerXRef.current = pointerX;
+      updateHoverSection(resolveSectionFromBoardContentX(boardOffsetXRef.current + pointerX));
+
+      let velocity = 0;
+      if (pointerX <= EDGE_AUTO_SCROLL_ZONE) {
+        const strength = clamp(
+          (EDGE_AUTO_SCROLL_ZONE - pointerX) / EDGE_AUTO_SCROLL_ZONE,
+          0,
+          1,
+        );
+        velocity =
+          -(EDGE_AUTO_SCROLL_MIN_STEP +
+            strength * (EDGE_AUTO_SCROLL_MAX_STEP - EDGE_AUTO_SCROLL_MIN_STEP));
+      } else if (pointerX >= SCREEN_WIDTH - EDGE_AUTO_SCROLL_ZONE) {
+        const strength = clamp(
+          (pointerX - (SCREEN_WIDTH - EDGE_AUTO_SCROLL_ZONE)) / EDGE_AUTO_SCROLL_ZONE,
+          0,
+          1,
+        );
+        velocity =
+          EDGE_AUTO_SCROLL_MIN_STEP +
+          strength * (EDGE_AUTO_SCROLL_MAX_STEP - EDGE_AUTO_SCROLL_MIN_STEP);
+      }
+
+      autoScrollVelocityRef.current = velocity;
+      if (Math.abs(velocity) < 0.01) {
+        stopAutoScroll();
+        return;
+      }
+      if (isBoardDraggingRef.current) {
+        startAutoScroll();
+      }
+    },
+    [resolveSectionFromBoardContentX, startAutoScroll, stopAutoScroll, updateHoverSection],
+  );
+
+  const handleDragTouchPoint = React.useCallback(
+    (params: {
+      absoluteX: number;
+      absoluteY: number;
+      translationX: number;
+      translationY: number;
+    }) => {
+      const { absoluteX, absoluteY } = params;
+      if (typeof absoluteX !== "number" || !Number.isFinite(absoluteX)) {
+        return;
+      }
+      applyDragPointerX(absoluteX - boardPageXRef.current);
+
+      if (!dragContextRef.current) return;
+      const page = screenPageRef.current;
+      // Keep the ghost directly under the finger with a stable offset.
+      // This avoids off-screen jumps when gesture translation values are noisy.
+      dragPreviewX.value = absoluteX - page.x - 34;
+      dragPreviewY.value = absoluteY - page.y - 26;
+    },
+    [applyDragPointerX, dragPreviewX, dragPreviewY],
+  );
+
   const onReorderSection = React.useCallback(
     (section: SectionId, orderedTaskIds: string[]) => {
-      const currentOffset = boardOffsetXRef.current;
-      const nearestSection = (() => {
-        const dragPointerX = dragPointerXRef.current;
-        if (typeof dragPointerX === "number" && Number.isFinite(dragPointerX)) {
-          const boardContentX = currentOffset + dragPointerX;
-          return SECTIONS.reduce(
-            (best, candidate, candidateIndex) => {
-              const candidateCenterX =
-                BOARD_SIDE_PADDING +
-                candidateIndex * (COLUMN_WIDTH + COLUMN_GAP) +
-                COLUMN_WIDTH / 2;
-              const distance = Math.abs(candidateCenterX - boardContentX);
-              if (distance < best.distance) {
-                return { section: candidate, distance };
-              }
-              return best;
-            },
-            { section, distance: Number.POSITIVE_INFINITY } as {
-              section: SectionId;
-              distance: number;
-            },
-          ).section;
+      const dropSection = (() => {
+        if (dragHoverSectionRef.current) {
+          return dragHoverSectionRef.current;
         }
-
-        return SECTIONS.reduce(
-          (best, candidate, candidateIndex) => {
-            const candidateOffset = SNAP_OFFSETS[candidateIndex] ?? 0;
-            const distance = Math.abs(candidateOffset - currentOffset);
-            if (distance < best.distance) {
-              return { section: candidate, distance };
-            }
-            return best;
-          },
-          { section, distance: Number.POSITIVE_INFINITY } as {
-            section: SectionId;
-            distance: number;
-          },
-        ).section;
+        const pointerX = dragPointerXRef.current;
+        if (typeof pointerX === "number" && Number.isFinite(pointerX)) {
+          return resolveSectionFromBoardContentX(boardOffsetXRef.current + pointerX);
+        }
+        return section;
       })();
 
       const dragContext = dragContextRef.current;
       const draggedTaskId =
         dragContext?.sourceSection === section ? dragContext.taskId : null;
 
-      if (nearestSection === section || !draggedTaskId) {
+      if (dropSection === section || !draggedTaskId) {
         const orderIndex = new Map(
           orderedTaskIds.map((taskId, i) => [taskId, i] as const),
         );
@@ -248,6 +422,12 @@ export default function ProjectDetailScreen() {
         );
         dragContextRef.current = null;
         dragPointerXRef.current = null;
+        updateHoverSection(null);
+        stopAutoScroll();
+        isBoardDraggingRef.current = false;
+        setIsBoardDragging(false);
+        setActiveDragSourceSection(null);
+        resetDragPreview();
         return;
       }
 
@@ -268,7 +448,7 @@ export default function ProjectDetailScreen() {
             (candidate) =>
               candidate.projectId === id &&
               !candidate.deletedAt &&
-              candidate.section === nearestSection &&
+              candidate.section === dropSection &&
               candidate.id !== draggedTaskId,
           )
           .sort((a, b) => (a.orderRank ?? 0) - (b.orderRank ?? 0))
@@ -282,23 +462,19 @@ export default function ProjectDetailScreen() {
         return prev.map((task) => {
           if (task.id === draggedTaskId) {
             const needsDueAt =
-              (nearestSection === "today" || nearestSection === "upcoming") &&
+              (dropSection === "today" || dropSection === "upcoming") &&
               (!Number.isFinite(task.dueAt) || task.dueAt <= 0);
             return {
               ...task,
-              section: nearestSection,
-              completedAt:
-                nearestSection === "completed"
-                  ? Date.now()
-                  : undefined,
+              section: dropSection,
+              completedAt: dropSection === "completed" ? Date.now() : undefined,
               ...(needsDueAt
                 ? {
-                    dueAt: getDueAtForSection(nearestSection),
-                    dueHasTime: nearestSection === "today",
+                    dueAt: getDueAtForSection(dropSection),
+                    dueHasTime: dropSection === "today",
                   }
                 : {}),
-              orderRank:
-                ((targetOrderIndex.get(task.id) ?? 0) + 1) * 1000,
+              orderRank: ((targetOrderIndex.get(task.id) ?? 0) + 1) * 1000,
             };
           }
 
@@ -312,7 +488,7 @@ export default function ProjectDetailScreen() {
             return { ...task, orderRank: (sourceIdx + 1) * 1000 };
           }
 
-          if (task.section === nearestSection) {
+          if (task.section === dropSection) {
             const targetIdx = targetOrderIndex.get(task.id);
             if (targetIdx === undefined) return task;
             return { ...task, orderRank: (targetIdx + 1) * 1000 };
@@ -323,8 +499,21 @@ export default function ProjectDetailScreen() {
       });
       dragContextRef.current = null;
       dragPointerXRef.current = null;
+      updateHoverSection(null);
+      stopAutoScroll();
+      isBoardDraggingRef.current = false;
+      setIsBoardDragging(false);
+      setActiveDragSourceSection(null);
+      resetDragPreview();
     },
-    [id, setTasks],
+    [
+      id,
+      resetDragPreview,
+      resolveSectionFromBoardContentX,
+      setTasks,
+      stopAutoScroll,
+      updateHoverSection,
+    ],
   );
 
   const toggleComplete = React.useCallback(
@@ -425,14 +614,31 @@ export default function ProjectDetailScreen() {
           ? nativeEvent.locationX
           : null;
     if (typeof locationX === "number" && Number.isFinite(locationX)) {
-      dragPointerXRef.current = locationX;
+      applyDragPointerX(locationX);
     }
-  }, []);
+  }, [applyDragPointerX]);
 
   const handleAddTask = React.useCallback(() => {
     pendingAddTaskScrollRef.current = true;
     router.push({ pathname: "/task/create-modal", params: { projectId: id } });
   }, [id, router]);
+
+  React.useEffect(() => {
+    const rafId = requestAnimationFrame(updateBoardPageX);
+    return () => cancelAnimationFrame(rafId);
+  }, [updateBoardPageX]);
+
+  React.useEffect(() => {
+    const rafId = requestAnimationFrame(updateScreenPage);
+    return () => cancelAnimationFrame(rafId);
+  }, [updateScreenPage]);
+
+  React.useEffect(() => {
+    return () => {
+      stopAutoScroll();
+      resetDragPreview();
+    };
+  }, [resetDragPreview, stopAutoScroll]);
 
   React.useEffect(() => {
     const currentIds = new Set(projectTasks.map((task) => task.id));
@@ -497,7 +703,7 @@ export default function ProjectDetailScreen() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <View style={styles.container}>
+      <View ref={screenRef} style={styles.container}>
         <Stack.Screen
           options={{
             title: project.name,
@@ -541,6 +747,7 @@ export default function ProjectDetailScreen() {
         <ScrollView
           ref={boardScrollRef}
           horizontal
+          scrollEnabled={!isBoardDragging}
           pagingEnabled={false}
           snapToOffsets={SNAP_OFFSETS}
           decelerationRate="fast"
@@ -557,8 +764,11 @@ export default function ProjectDetailScreen() {
           onTouchStart={handleBoardTouch}
           onTouchMove={handleBoardTouch}
           onTouchEnd={handleBoardTouch}
+          onLayout={updateBoardPageX}
           onTouchCancel={() => {
             dragPointerXRef.current = null;
+            stopAutoScroll();
+            resetDragPreview();
           }}
           scrollEventThrottle={16}
         >
@@ -567,6 +777,7 @@ export default function ProjectDetailScreen() {
               key={section}
               section={section}
               tasks={tasksBySection[section]}
+              isDragSource={activeDragSourceSection === section}
               columnBackgroundColor={columnBackgroundColor}
               columnBottomPadding={columnBottomPadding}
               boardScrollRef={boardScrollRef}
@@ -581,18 +792,62 @@ export default function ProjectDetailScreen() {
               onDragBeginTask={(taskId) => {
                 dragPointerXRef.current = null;
                 dragContextRef.current = { taskId, sourceSection: section };
+                setActiveDragSourceSection(section);
+                setDragPreviewTaskId(taskId);
+                updateBoardPageX();
+                updateScreenPage();
+                updateHoverSection(section);
+                stopAutoScroll();
               }}
+              onDragStateChange={(isDragging) => {
+                isBoardDraggingRef.current = isDragging;
+                setIsBoardDragging(isDragging);
+                if (!isDragging) {
+                  // Keep hover/pointer state until onReorderSection runs.
+                  // DraggableFlatList calls onDragStateChange(false) before onReorder.
+                  stopAutoScroll();
+                }
+              }}
+              onDragTouchPoint={handleDragTouchPoint}
             />
           ))}
         </ScrollView>
+        {dragPreviewTask ? (
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.dragPreviewWrap, dragPreviewAnimatedStyle]}
+          >
+            <View style={styles.dragPreviewCard}>
+              <GlassSurface
+                style={styles.dragPreviewEmojiTile}
+                glassEffectStyle="regular"
+                tintColor={withAlpha(Colors[theme].text, 0.1)}
+                fallbackBackgroundColor={withAlpha(Colors[theme].text, 0.14)}
+              >
+                <Text style={styles.dragPreviewEmoji}>{dragPreviewTask.emoji}</Text>
+              </GlassSurface>
+              <View style={styles.dragPreviewTextStack}>
+                <Text style={styles.dragPreviewTitle} numberOfLines={1}>
+                  {dragPreviewTask.title}
+                </Text>
+                {dragPreviewTask.subtitle ? (
+                  <Text style={styles.dragPreviewSubtitle} numberOfLines={1}>
+                    {dragPreviewTask.subtitle}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+          </Animated.View>
+        ) : null}
         {showFloatingAddButton ? <FloatingAddButton onPress={handleAddTask} /> : null}
       </View>
     </GestureHandlerRootView>
   );
 }
 
-const createStyles = (theme: ThemeName) =>
-  StyleSheet.create({
+const createStyles = (theme: ThemeName) => {
+  const isDark = theme === "dark";
+  return StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: Colors[theme].background,
@@ -610,6 +865,7 @@ const createStyles = (theme: ThemeName) =>
     boardContent: {
       paddingTop: 8,
       gap: COLUMN_GAP,
+      overflow: "visible",
       // paddingHorizontal is handled dynamically in style prop
     },
     column: {
@@ -617,6 +873,8 @@ const createStyles = (theme: ThemeName) =>
       borderRadius: 16,
       padding: 12,
       maxHeight: "100%",
+      position: "relative",
+      overflow: "visible",
     },
     columnHeader: {
       flexDirection: "row",
@@ -643,6 +901,51 @@ const createStyles = (theme: ThemeName) =>
     },
     columnContent: {
       gap: 0,
+      overflow: "visible",
+    },
+    dragPreviewWrap: {
+      position: "absolute",
+      width: COLUMN_WIDTH - 24,
+      zIndex: 5000,
+      elevation: 5000,
+    },
+    dragPreviewCard: {
+      minHeight: 56,
+      borderRadius: 12,
+      backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: isDark ? 0.28 : 0.2,
+      shadowRadius: 14,
+    },
+    dragPreviewEmojiTile: {
+      width: 38,
+      height: 38,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      overflow: "hidden",
+    },
+    dragPreviewEmoji: {
+      fontSize: 18,
+    },
+    dragPreviewTextStack: {
+      flex: 1,
+      gap: 4,
+    },
+    dragPreviewTitle: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: Colors[theme].text,
+    },
+    dragPreviewSubtitle: {
+      fontSize: 13,
+      color: withAlpha(Colors[theme].text, 0.7),
     },
     card: {
       borderRadius: 12,
@@ -694,6 +997,7 @@ const createStyles = (theme: ThemeName) =>
       fontStyle: "italic",
     },
   });
+};
 
 const createRowStyles = (theme: ThemeName): SwipeTaskRowStyles => {
   const isDark = theme === "dark";
@@ -748,11 +1052,7 @@ const createRowStyles = (theme: ThemeName): SwipeTaskRowStyles => {
       gap: 0,
     },
     dragRow: {
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hairline,
-      shadowColor: "#000",
-      shadowRadius: 18,
-      shadowOffset: { width: 0, height: 10 },
+      opacity: 0.96,
     },
     rowInner: {
       flexDirection: "row",
