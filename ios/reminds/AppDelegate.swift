@@ -718,12 +718,29 @@ private final class AddReminderAccessoryButton: UIControl {
     let localeTag = (Locale.preferredLanguages.first ?? Locale.current.identifier).lowercased()
 
     if localeTag.hasPrefix("de") { return "Aufgabe hinzufügen" }
-    if localeTag.hasPrefix("es") { return "Añadir tarea" }
+    if localeTag.hasPrefix("es") { return "Agregar tarea" }
     if localeTag.hasPrefix("fr") { return "Ajouter une tâche" }
     if localeTag.hasPrefix("pt") { return "Adicionar tarefa" }
     if localeTag.hasPrefix("hi") { return "कार्य जोड़ें" }
     if localeTag.hasPrefix("zh") { return "添加任务" }
     if localeTag.hasPrefix("ja") { return "タスクを追加" }
+    if localeTag.hasPrefix("it") { return "Aggiungi attività" }
+    if localeTag.hasPrefix("sv") { return "Lägg till uppgift" }
+    if localeTag.hasPrefix("da") { return "Tilføj opgave" }
+    if localeTag.hasPrefix("fi") { return "Lisää tehtävä" }
+    if localeTag.hasPrefix("pl") { return "Dodaj zadanie" }
+    if localeTag.hasPrefix("nl") { return "Taak toevoegen" }
+    if localeTag.hasPrefix("tr") { return "Görev ekle" }
+    if localeTag.hasPrefix("cs") { return "Přidat úkol" }
+    if localeTag.hasPrefix("hu") { return "Feladat hozzáadása" }
+    if localeTag.hasPrefix("ro") { return "Adaugă sarcină" }
+    if localeTag.hasPrefix("el") { return "Προσθήκη εργασίας" }
+    if localeTag.hasPrefix("id") { return "Tambah tugas" }
+    if localeTag.hasPrefix("vi") { return "Thêm nhiệm vụ" }
+    if localeTag.hasPrefix("ko") { return "작업 추가" }
+    if localeTag.hasPrefix("uk") { return "Додати завдання" }
+    if localeTag.hasPrefix("ru") { return "Добавить задачу" }
+    if localeTag.hasPrefix("ar") { return "إضافة مهمة" }
 
     return "Add task"
   }
@@ -732,12 +749,29 @@ private final class AddReminderAccessoryButton: UIControl {
     let localeTag = (Locale.preferredLanguages.first ?? Locale.current.identifier).lowercased()
 
     if localeTag.hasPrefix("de") { return "Projekt hinzufügen" }
-    if localeTag.hasPrefix("es") { return "Añadir proyecto" }
+    if localeTag.hasPrefix("es") { return "Agregar proyecto" }
     if localeTag.hasPrefix("fr") { return "Ajouter un projet" }
     if localeTag.hasPrefix("pt") { return "Adicionar projeto" }
     if localeTag.hasPrefix("hi") { return "प्रोजेक्ट जोड़ें" }
     if localeTag.hasPrefix("zh") { return "添加项目" }
     if localeTag.hasPrefix("ja") { return "プロジェクトを追加" }
+    if localeTag.hasPrefix("it") { return "Aggiungi progetto" }
+    if localeTag.hasPrefix("sv") { return "Lägg till projekt" }
+    if localeTag.hasPrefix("da") { return "Tilføj projekt" }
+    if localeTag.hasPrefix("fi") { return "Lisää projekti" }
+    if localeTag.hasPrefix("pl") { return "Dodaj projekt" }
+    if localeTag.hasPrefix("nl") { return "Project toevoegen" }
+    if localeTag.hasPrefix("tr") { return "Proje ekle" }
+    if localeTag.hasPrefix("cs") { return "Přidat projekt" }
+    if localeTag.hasPrefix("hu") { return "Projekt hozzáadása" }
+    if localeTag.hasPrefix("ro") { return "Adaugă proiect" }
+    if localeTag.hasPrefix("el") { return "Προσθήκη έργου" }
+    if localeTag.hasPrefix("id") { return "Tambah proyek" }
+    if localeTag.hasPrefix("vi") { return "Thêm dự án" }
+    if localeTag.hasPrefix("ko") { return "프로젝트 추가" }
+    if localeTag.hasPrefix("uk") { return "Додати проєкт" }
+    if localeTag.hasPrefix("ru") { return "Добавить проект" }
+    if localeTag.hasPrefix("ar") { return "إضافة مشروع" }
 
     return "Add project"
   }
@@ -752,6 +786,23 @@ private final class AddReminderAccessoryButton: UIControl {
     if localeTag.hasPrefix("hi") { return "प्रोजेक्ट" }
     if localeTag.hasPrefix("zh") { return "项目" }
     if localeTag.hasPrefix("ja") { return "プロジェクト" }
+    if localeTag.hasPrefix("it") { return "Progetto" }
+    if localeTag.hasPrefix("sv") { return "Projekt" }
+    if localeTag.hasPrefix("da") { return "Projekt" }
+    if localeTag.hasPrefix("fi") { return "Projekti" }
+    if localeTag.hasPrefix("pl") { return "Projekt" }
+    if localeTag.hasPrefix("nl") { return "Project" }
+    if localeTag.hasPrefix("tr") { return "Proje" }
+    if localeTag.hasPrefix("cs") { return "Projekt" }
+    if localeTag.hasPrefix("hu") { return "Projekt" }
+    if localeTag.hasPrefix("ro") { return "Proiect" }
+    if localeTag.hasPrefix("el") { return "Έργο" }
+    if localeTag.hasPrefix("id") { return "Proyek" }
+    if localeTag.hasPrefix("vi") { return "Dự án" }
+    if localeTag.hasPrefix("ko") { return "프로젝트" }
+    if localeTag.hasPrefix("uk") { return "Проєкт" }
+    if localeTag.hasPrefix("ru") { return "Проект" }
+    if localeTag.hasPrefix("ar") { return "مشروع" }
 
     return "Project"
   }
@@ -760,12 +811,29 @@ private final class AddReminderAccessoryButton: UIControl {
     let localeTag = (Locale.preferredLanguages.first ?? Locale.current.identifier).lowercased()
 
     if localeTag.hasPrefix("de") { return "In \(label) hinzufügen" }
-    if localeTag.hasPrefix("es") { return "Añadir en \(label)" }
+    if localeTag.hasPrefix("es") { return "Agregar en \(label)" }
     if localeTag.hasPrefix("fr") { return "Ajouter dans \(label)" }
     if localeTag.hasPrefix("pt") { return "Adicionar em \(label)" }
     if localeTag.hasPrefix("hi") { return "\(label) में जोड़ें" }
     if localeTag.hasPrefix("zh") { return "添加到\(label)" }
     if localeTag.hasPrefix("ja") { return "\(label)に追加" }
+    if localeTag.hasPrefix("it") { return "Aggiungi in \(label)" }
+    if localeTag.hasPrefix("sv") { return "Lägg till i \(label)" }
+    if localeTag.hasPrefix("da") { return "Tilføj i \(label)" }
+    if localeTag.hasPrefix("fi") { return "Lisää projektiin \(label)" }
+    if localeTag.hasPrefix("pl") { return "Dodaj do \(label)" }
+    if localeTag.hasPrefix("nl") { return "Toevoegen aan \(label)" }
+    if localeTag.hasPrefix("tr") { return "\(label) içine ekle" }
+    if localeTag.hasPrefix("cs") { return "Přidat do \(label)" }
+    if localeTag.hasPrefix("hu") { return "Hozzáadás ide: \(label)" }
+    if localeTag.hasPrefix("ro") { return "Adaugă în \(label)" }
+    if localeTag.hasPrefix("el") { return "Προσθήκη στο \(label)" }
+    if localeTag.hasPrefix("id") { return "Tambah di \(label)" }
+    if localeTag.hasPrefix("vi") { return "Thêm vào \(label)" }
+    if localeTag.hasPrefix("ko") { return "\(label)에 추가" }
+    if localeTag.hasPrefix("uk") { return "Додати до \(label)" }
+    if localeTag.hasPrefix("ru") { return "Добавить в \(label)" }
+    if localeTag.hasPrefix("ar") { return "إضافة في \(label)" }
 
     return "Add in \(label)"
   }

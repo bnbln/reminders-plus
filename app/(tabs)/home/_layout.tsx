@@ -17,7 +17,7 @@ import {
     type TagId,
 } from '@/context/home-filters-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { t } from '@/i18n';
+import { isRtlLocale, t } from '@/i18n';
 
 function setsEqual<T>(a: Set<T>, b: Set<T>) {
   if (a.size !== b.size) return false;
@@ -188,6 +188,7 @@ function FilterMenuButton({ theme }: { theme: keyof typeof Colors }) {
 
 export default function HomeLayout() {
   const theme = useColorScheme() ?? 'light';
+  const headerTextAlign = isRtlLocale() ? 'right' : 'left';
 
   return (
     <Stack
@@ -195,8 +196,9 @@ export default function HomeLayout() {
         headerLargeTitle: Platform.OS === 'ios',
         headerShadowVisible: false,
         headerTintColor: Colors[theme].text,
-        headerTitleStyle: { color: Colors[theme].text },
-        headerLargeTitleStyle: { color: Colors[theme].text },
+        headerTitleAlign: headerTextAlign,
+        headerTitleStyle: { color: Colors[theme].text, textAlign: headerTextAlign },
+        headerLargeTitleStyle: { color: Colors[theme].text, textAlign: headerTextAlign },
       }}>
       <Stack.Screen
         name="index"

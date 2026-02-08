@@ -25,7 +25,7 @@ import {
   useTasksStore,
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { t } from "@/i18n";
+import { isRtlLocale, t } from "@/i18n";
 import { isIOS26OrNewer } from "@/utils/ios-version";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
@@ -700,6 +700,7 @@ export default function ProjectDetailScreen() {
   const columnBackgroundColor = withAlpha(project.color, isDark ? 0.2 : 0.14);
   const boardBottomPadding = showFloatingAddButton ? 96 : 40;
   const columnBottomPadding = isIOS26Plus ? 96 : 20;
+  const headerTextAlign = isRtlLocale() ? "right" : "left";
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -712,7 +713,8 @@ export default function ProjectDetailScreen() {
             headerBackButtonDisplayMode: "minimal",
             headerBackTitle: t("project.backProjects"),
             headerTintColor: Colors[theme].text,
-            headerTitleStyle: { color: Colors[theme].text },
+            headerTitleAlign: headerTextAlign,
+            headerTitleStyle: { color: Colors[theme].text, textAlign: headerTextAlign },
             headerStyle: { backgroundColor: Colors[theme].background },
             headerRight: () => (
               <Pressable

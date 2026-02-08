@@ -1,11 +1,12 @@
 import { Stack, useRouter } from 'expo-router';
 import React from 'react';
 import { Platform } from 'react-native';
-import { t } from '@/i18n';
+import { isRtlLocale, t } from '@/i18n';
 
 export default function SearchLayout() {
   const router = useRouter();
   const searchBarRef = React.useRef<any>(null);
+  const headerTextAlign = isRtlLocale() ? 'right' : 'left';
 
   return (
     <Stack
@@ -13,6 +14,9 @@ export default function SearchLayout() {
         headerLargeTitle: Platform.OS === 'ios',
         headerShadowVisible: false,
         headerShown: true,
+        headerTitleAlign: headerTextAlign,
+        headerTitleStyle: { textAlign: headerTextAlign },
+        headerLargeTitleStyle: { textAlign: headerTextAlign },
         // headerTintColor: Colors[theme].text,
         // headerTitleStyle: { color: Colors[theme].text },
         // headerLargeTitleStyle: { color: Colors[theme].text },

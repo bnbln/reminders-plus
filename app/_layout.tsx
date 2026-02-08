@@ -2,6 +2,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
+import { I18nManager } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
@@ -9,7 +10,7 @@ import { HomeFiltersProvider } from '@/context/home-filters-store';
 import { TaskCreateProvider } from '@/context/task-create-context';
 import { TasksProvider } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { t } from '@/i18n';
+import { isRtlLocale, t } from '@/i18n';
 import { initTaskNotifications } from '@/notifications/tasks-notifications';
 
 export const unstable_settings = {
@@ -21,6 +22,17 @@ export default function RootLayout() {
 
   React.useEffect(() => {
     void initTaskNotifications();
+  }, []);
+
+  React.useEffect(() => {
+    const shouldBeRtl = isRtlLocale();
+    if (I18nManager.isRTL !== shouldBeRtl) {
+      I18nManager.allowRTL(shouldBeRtl);
+      I18nManager.forceRTL(shouldBeRtl);
+      if (__DEV__) {
+        console.info('RTL wurde aktualisiert. Bitte die App neu starten.');
+      }
+    }
   }, []);
 
   return (
