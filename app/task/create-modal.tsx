@@ -81,12 +81,17 @@ export default function CreateTaskModal() {
   const {
     projectId: projectIdParam,
     draftId: draftIdParam,
-  } = useLocalSearchParams<{ projectId?: string | string[]; draftId?: string | string[] }>();
+    preset: presetParam,
+  } = useLocalSearchParams<{
+    projectId?: string | string[];
+    draftId?: string | string[];
+    preset?: string | string[];
+  }>();
   const theme = useColorScheme() ?? 'light';
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
-  const { projectId: focusedProjectId, queueTaskPopIn } = useTaskCreateContext();
+  const { projectId: focusedProjectId, mode: taskCreateMode, queueTaskPopIn } = useTaskCreateContext();
 
   const { tasks, projects, setTasks } = useTasksStore();
   const routeDraftId = React.useMemo(() => {
@@ -99,6 +104,13 @@ export default function CreateTaskModal() {
     if (typeof rawRouteProjectId !== 'string') return '';
     return rawRouteProjectId.trim();
   }, [projectIdParam]);
+  const routePreset = React.useMemo(() => {
+    const rawPreset = Array.isArray(presetParam) ? presetParam[0] : presetParam;
+    if (typeof rawPreset !== 'string') return '';
+    return rawPreset.trim().toLowerCase();
+  }, [presetParam]);
+  const shouldPresetRoutine =
+    routePreset === 'routine' || routePreset === 'routines' || taskCreateMode === 'routine';
   const routeProjectIdIsValid = React.useMemo(
     () =>
       routeProjectId.length > 0 &&
@@ -121,7 +133,7 @@ export default function CreateTaskModal() {
   const [title, setTitle] = React.useState('');
   const [isMenuExpanded, setMenuExpanded] = React.useState(false);
   const trimmed = title.trim();
-  const canSubmit = trimmed.length > 0;
+  const hasTitle = trimmed.length > 0;
   const menuProgress = React.useRef(new Animated.Value(0)).current;
 
   const inputRef = React.useRef<TextInput | null>(null);
@@ -168,30 +180,70 @@ export default function CreateTaskModal() {
   }, [routeDraftId, setTasks]);
 
   const ensureDraftTask = React.useCallback(() => {
-    if (draftIdRef.current) return draftIdRef.current;
+    const upsertHiddenDraftTask = (id: string) => {
+      setTasks((prev) => {
+        if (prev.some((task) => task.id === id)) return prev;
+        return [
+          {
+            id,
+            title: title || '',
+            emoji: '📝',
+            projectId: initialProjectId,
+            dueAt: 0,
+            dueHasTime: false,
+            section: 'upcoming',
+            orderRank: 0, // will be fixed on create
+            deletedAt: Date.now(), // Hidden
+          },
+          ...prev,
+        ];
+      });
+    };
+
+    if (draftIdRef.current) {
+      const existingDraftId = draftIdRef.current;
+      if (!tasks.some((task) => task.id === existingDraftId)) {
+        upsertHiddenDraftTask(existingDraftId);
+      }
+      return existingDraftId;
+    }
+
+    if (routeDraftId && tasks.some((task) => task.id === routeDraftId)) {
+      draftIdRef.current = routeDraftId;
+      return routeDraftId;
+    }
 
     const nextId = createTaskId();
     draftIdRef.current = nextId;
     router.setParams({ draftId: nextId });
-
-    // Create a hidden draft task (deletedAt set)
-    setTasks((prev) => [
-      {
-        id: nextId,
-        title: title || '',
-        emoji: '📝',
-        projectId: initialProjectId,
-        dueAt: 0,
-        dueHasTime: false,
-        section: 'upcoming',
-        orderRank: 0, // will be fixed on create
-        deletedAt: Date.now(), // Hidden
-      },
-      ...prev,
-    ]);
+    upsertHiddenDraftTask(nextId);
 
     return nextId;
-  }, [initialProjectId, router, setTasks, title]);
+  }, [initialProjectId, routeDraftId, router, setTasks, tasks, title]);
+
+  const didInitRoutinePresetRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!shouldPresetRoutine || didInitRoutinePresetRef.current) return;
+    didInitRoutinePresetRef.current = true;
+
+    const draftId = ensureDraftTask();
+    setTasks((prev) =>
+      prev.map((task) =>
+        task.id === draftId
+          ? {
+            ...task,
+            isRoutine: true,
+            routineType: undefined,
+            routineInterval: undefined,
+            routineWeekday: undefined,
+            routineNthWeek: undefined,
+            routineMonthDay: undefined,
+            routineMonth: undefined,
+          }
+          : task
+      )
+    );
+  }, [ensureDraftTask, setTasks, shouldPresetRoutine]);
 
   // Keep draft title in sync so if we navigate away and back, we don't lose it
   // (Optional, but good if we want "Draft" persistence while modal is open to sub-screens)
@@ -211,49 +263,6 @@ export default function CreateTaskModal() {
       useNativeDriver: true,
     }).start();
   }, [isMenuExpanded, menuProgress]);
-
-  // When returning from pickers, we might need to refresh local state if we want to show badges etc.
-  // But this modal is simple: just input. The menu items are actions.
-
-  const onUseCurrentLocation = React.useCallback(async () => {
-    const id = ensureDraftTask();
-
-    // We need to access the store to update this task. 
-    // Since we are in a callback, we can assume 'setTasks' is enough.
-
-    try {
-      // Dynamic import to avoid hard dependency if not used
-      let Location: typeof import('expo-location');
-      try {
-        Location = await import('expo-location');
-      } catch {
-        Alert.alert(t('taskCreate.locationUnavailableTitle'), t('taskCreate.locationUnavailableBody'));
-        return;
-      }
-
-      const perm = await Location.requestForegroundPermissionsAsync();
-      if (perm.status !== 'granted') {
-        Alert.alert(t('taskCreate.locationDeniedTitle'), t('taskCreate.locationDeniedBody'));
-        return;
-      }
-
-      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const [rev] = await Location.reverseGeocodeAsync({
-        latitude: pos.coords.latitude,
-        longitude: pos.coords.longitude,
-      });
-
-      const parts = [rev.name, rev.street, rev.district, rev.city].filter(
-        (v): v is string => typeof v === 'string' && v.trim().length > 0
-      );
-      const label = parts.slice(0, 2).join(' · ') || `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
-
-      setTasks(prev => prev.map(t => t.id === id ? { ...t, location: label } : t));
-    } catch {
-      Alert.alert(t('taskCreate.locationErrorTitle'), t('taskCreate.locationErrorBody'));
-    }
-  }, [ensureDraftTask, setTasks]);
-
 
   const actions = React.useMemo<ComposerAction[]>(() => {
     return [
@@ -296,30 +305,45 @@ export default function CreateTaskModal() {
     switch (actionId) {
       case 'date':
         isNavigatingToChildModalRef.current = true;
-        router.push({ pathname: '/task/date-picker', params: { taskId: id } });
+        router.push({ pathname: '/task/date-picker', params: { taskId: id, draftId: id } });
         break;
       case 'style':
         isNavigatingToChildModalRef.current = true;
-        router.push({ pathname: '/task/emoji-picker', params: { taskId: id } });
+        router.push({ pathname: '/task/emoji-picker', params: { taskId: id, draftId: id } });
         break;
       case 'location':
-        onUseCurrentLocation();
+        isNavigatingToChildModalRef.current = true;
+        router.push({ pathname: '/task/location-picker', params: { taskId: id, draftId: id } });
         break;
       case 'routine':
-        isNavigatingToChildModalRef.current = true;
-        router.push({ pathname: '/task/routine-picker', params: { taskId: id } });
+        const openRoutinePicker = () => {
+          isNavigatingToChildModalRef.current = true;
+          router.push({ pathname: '/task/routine-picker', params: { taskId: id, draftId: id } });
+        };
+        if (tasks.some((task) => task.id === id)) {
+          openRoutinePicker();
+        } else {
+          requestAnimationFrame(openRoutinePicker);
+        }
         break;
       case 'project':
         isNavigatingToChildModalRef.current = true;
-        router.push({ pathname: '/task/project-picker', params: { taskId: id } });
+        router.push({ pathname: '/task/project-picker', params: { taskId: id, draftId: id } });
         break;
     }
-  }, [ensureDraftTask, onUseCurrentLocation, router]);
+  }, [ensureDraftTask, router, tasks]);
 
   const onActionPress = React.useCallback((actionId: ComposerActionId) => {
     setMenuExpanded(false);
     runAction(actionId);
   }, [runAction]);
+
+  const selectedRoutineType = draftTask?.isRoutine
+    ? (draftTask.routineType ?? draftTask.routineInterval)
+    : undefined;
+  const hasRoutineInterval = typeof selectedRoutineType === 'string' && selectedRoutineType.length > 0;
+  const requiresRoutineInterval = shouldPresetRoutine;
+  const canSubmit = hasTitle && (!requiresRoutineInterval || hasRoutineInterval);
 
   const selectedTags = React.useMemo<ComposerSelectionTag[]>(() => {
     const tags: ComposerSelectionTag[] = [];
@@ -395,6 +419,17 @@ export default function CreateTaskModal() {
       }
     }
 
+    if (shouldPresetRoutine && !hasRoutineInterval) {
+      tags.push({
+        key: 'routine',
+        actionId: 'routine',
+        label: t('taskCreate.routine.chooseInterval'),
+        icon: 'autorenew',
+        accentColor: '#FF9F0A',
+        removable: false,
+      });
+    }
+
     const selectedProjectId = draftTask ? draftTask.projectId : initialProjectId;
     const isProjectPinnedByRoute = routeProjectIdIsValid;
     if (selectedProjectId) {
@@ -410,7 +445,7 @@ export default function CreateTaskModal() {
     }
 
     return tags;
-  }, [draftTask, initialProjectId, projects, routeProjectIdIsValid]);
+  }, [draftTask, hasRoutineInterval, initialProjectId, projects, routeProjectIdIsValid, shouldPresetRoutine]);
 
   const onTagPress = React.useCallback((actionId: ComposerActionId) => {
     setMenuExpanded(false);
@@ -468,8 +503,12 @@ export default function CreateTaskModal() {
 
   const onCreate = React.useCallback(() => {
     setMenuExpanded(false);
-    if (!canSubmit) {
+    if (!hasTitle) {
       Alert.alert(t('taskCreate.titleMissingTitle'), t('taskCreate.titleMissingBody'));
+      return;
+    }
+    if (requiresRoutineInterval && !hasRoutineInterval) {
+      runAction('routine');
       return;
     }
 
@@ -538,6 +577,7 @@ export default function CreateTaskModal() {
             projectId: initialProjectId,
             dueAt: 0,
             dueHasTime: false,
+            isRoutine: shouldPresetRoutine ? true : undefined,
             section,
             orderRank,
             location: undefined,
@@ -555,7 +595,7 @@ export default function CreateTaskModal() {
       queueTaskPopIn(createdTaskId);
     }
     router.back();
-  }, [canSubmit, initialProjectId, queueTaskPopIn, router, setTasks, trimmed]);
+  }, [hasRoutineInterval, hasTitle, initialProjectId, queueTaskPopIn, requiresRoutineInterval, router, runAction, setTasks, shouldPresetRoutine, trimmed]);
 
   const close = React.useCallback(() => {
     setMenuExpanded(false);
@@ -904,7 +944,11 @@ export default function CreateTaskModal() {
                   onPress={onCreate}
                   disabled={!canSubmit}
                   accessibilityRole="button"
-                  accessibilityLabel={canSubmit ? t('taskCreate.accessibility.create') : t('taskCreate.accessibility.enterTitle')}
+                  accessibilityLabel={
+                    canSubmit
+                      ? t('taskCreate.accessibility.create')
+                      : (!hasTitle ? t('taskCreate.accessibility.enterTitle') : t('taskCreate.accessibility.chooseInterval'))
+                  }
                   hitSlop={10}
                   style={({ pressed }) => [styles.controlPressable, pressed && canSubmit && styles.controlPressed]}
                 >

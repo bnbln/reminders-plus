@@ -1,7 +1,7 @@
 
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { FloatingAddButton } from '@/components/ui/floating-add-button';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
@@ -12,9 +12,11 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { isIOS26OrNewer } from '@/utils/ios-version';
 
 type ThemeName = keyof typeof Colors;
+const GRID_HORIZONTAL_PADDING = 16;
+const GRID_GAP = 10;
 
 // Reusing style logic from home/index.tsx
-const createStyles = (theme: ThemeName) => {
+const createStyles = (theme: ThemeName, tileWidth: number) => {
   const isDark = theme === 'dark';
   const text = Colors[theme].text;
   const hairline = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.12)';
@@ -27,17 +29,17 @@ const createStyles = (theme: ThemeName) => {
       backgroundColor: Colors[theme].background,
     },
     content: {
-      paddingHorizontal: 16,
+      paddingHorizontal: GRID_HORIZONTAL_PADDING,
       paddingTop: 16, // Add some top padding below header
       paddingBottom: 168,
     },
     grid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 10,
+      gap: GRID_GAP,
     },
     tilePressable: {
-      width: '48%', // Approx half with gap
+      width: tileWidth,
       flexGrow: 0,
     },
     tile: {
@@ -155,8 +157,14 @@ export default function ExploreScreen() {
   const router = useRouter();
   const theme = useColorScheme() ?? 'light';
   const isDark = theme === 'dark';
+  const { width: viewportWidth } = useWindowDimensions();
   const showFloatingAddButton = Platform.OS === 'ios' && !isIOS26OrNewer();
-  const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const tileWidth = React.useMemo(
+    () =>
+      Math.max(0, (viewportWidth - GRID_HORIZONTAL_PADDING * 2 - GRID_GAP) / 2),
+    [viewportWidth]
+  );
+  const styles = React.useMemo(() => createStyles(theme, tileWidth), [theme, tileWidth]);
 
   const { projects, tasks } = useTasksStore();
 

@@ -89,6 +89,13 @@ export default function RootLayout() {
                   }}
                 />
                 <Stack.Screen
+                  name="task/location-picker"
+                  options={{
+                    presentation: 'formSheet',
+                    contentStyle: themedContentStyle,
+                  }}
+                />
+                <Stack.Screen
                   name="task/project-picker"
                   options={{
                     presentation: 'formSheet',

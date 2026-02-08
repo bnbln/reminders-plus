@@ -4,18 +4,22 @@ import React from "react";
 import {
   Dimensions,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 import { GestureHandlerRootView, ScrollView } from "react-native-gesture-handler";
-import { useSharedValue, type SharedValue } from "react-native-reanimated";
+import Animated, {
+  useAnimatedScrollHandler,
+  useSharedValue,
+  type SharedValue,
+} from "react-native-reanimated";
 
 import type { SwipeTaskRowStyles } from "@/components/tasks/swipe-task-row";
 import { TaskSwipeDraggableList } from "@/components/tasks/task-swipe-draggable-list";
 import { FloatingAddButton } from "@/components/ui/floating-add-button";
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
+import { HeaderIconButton } from "@/components/ui/header-icon-button";
 import { Colors } from "@/constants/theme";
 import {
   getDueAtForSection,
@@ -38,6 +42,8 @@ const EDGE_AUTO_SCROLL_MIN_STEP = 1.5;
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
+
+const AnimatedBoardScrollView = Animated.createAnimatedComponent(ScrollView);
 
 const SNAP_OFFSETS = [
   0,
@@ -271,6 +277,19 @@ export default function ProjectDetailScreen() {
     });
   }, []);
 
+  const onBoardScroll = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      boardOffsetXShared.value = event.contentOffset.x;
+    },
+  });
+
+  const syncBoardOffsetFromScrollEvent = React.useCallback((event: any) => {
+    const nextOffset = event?.nativeEvent?.contentOffset?.x;
+    if (typeof nextOffset === "number" && Number.isFinite(nextOffset)) {
+      boardOffsetXRef.current = nextOffset;
+    }
+  }, []);
+
   const applyBoardScrollLock = React.useCallback((locked: boolean) => {
     if (boardScrollLockedRef.current === locked) return;
     boardScrollLockedRef.current = locked;
@@ -285,10 +304,13 @@ export default function ProjectDetailScreen() {
 
     // Stop ongoing board movement immediately when a row interaction starts.
     if (locked) {
-      const currentX = boardOffsetXRef.current;
+      const currentX = boardOffsetXShared.value;
+      if (typeof currentX === "number" && Number.isFinite(currentX)) {
+        boardOffsetXRef.current = currentX;
+      }
       boardScrollRef.current?.scrollTo({ x: currentX, animated: false });
     }
-  }, []);
+  }, [boardOffsetXShared]);
 
   const syncBoardScrollLock = React.useCallback(() => {
     const shouldLock =
@@ -726,28 +748,24 @@ export default function ProjectDetailScreen() {
             headerLargeTitle: false,
             headerShadowVisible: false,
             headerBackButtonDisplayMode: "minimal",
+            gestureEnabled: false,
             headerBackTitle: t("project.backProjects"),
             headerTintColor: Colors[theme].text,
             headerTitleAlign: "left",
             headerTitleStyle: { color: Colors[theme].text },
             headerStyle: { backgroundColor: Colors[theme].background },
             headerRight: () => (
-              <Pressable
+              <HeaderIconButton
                 onPress={onEditProject}
-                style={({ pressed }) => ({
-                  opacity: pressed ? 0.6 : 1,
-                  width: 32,
-                  height: 32,
-                  alignItems: "center",
-                  justifyContent: "center",
-                })}
+                accessibilityRole="button"
+                accessibilityLabel={t("projectEdit.editProject")}
               >
                 <MaterialIcons
                   name="edit"
                   size={24}
                   color={Colors[theme].text}
                 />
-              </Pressable>
+              </HeaderIconButton>
             ),
           }}
         />
@@ -761,7 +779,7 @@ export default function ProjectDetailScreen() {
         ) : null}
 
         {/* Main Board */}
-        <ScrollView
+        <AnimatedBoardScrollView
           ref={boardScrollRef}
           horizontal
           scrollEnabled={!isBoardScrollLocked}
@@ -775,11 +793,9 @@ export default function ProjectDetailScreen() {
           showsHorizontalScrollIndicator={false}
           contentInsetAdjustmentBehavior="never"
           contentOffset={{ x: SNAP_OFFSETS[1], y: 0 }} // Start focused on Today
-          onScroll={(event) => {
-            const nextOffset = event.nativeEvent.contentOffset.x;
-            boardOffsetXRef.current = nextOffset;
-            boardOffsetXShared.value = nextOffset;
-          }}
+          onScroll={onBoardScroll}
+          onScrollEndDrag={syncBoardOffsetFromScrollEvent}
+          onMomentumScrollEnd={syncBoardOffsetFromScrollEvent}
           onTouchStart={handleBoardTouch}
           onTouchMove={handleBoardTouch}
           onTouchEnd={handleBoardTouch}
@@ -811,6 +827,10 @@ export default function ProjectDetailScreen() {
               onDragBeginTask={(taskId) => {
                 dragPointerXRef.current = null;
                 dragContextRef.current = { taskId, sourceSection: section };
+                const currentOffset = boardOffsetXShared.value;
+                if (typeof currentOffset === "number" && Number.isFinite(currentOffset)) {
+                  boardOffsetXRef.current = currentOffset;
+                }
                 setActiveDragSourceSection(section);
                 updateBoardPageX();
                 updateHoverSection(section);
@@ -834,7 +854,7 @@ export default function ProjectDetailScreen() {
               }
             />
           ))}
-        </ScrollView>
+        </AnimatedBoardScrollView>
         {showFloatingAddButton ? <FloatingAddButton onPress={handleAddTask} /> : null}
       </View>
     </GestureHandlerRootView>
@@ -872,6 +892,9 @@ const createStyles = (theme: ThemeName) => {
       overflow: "visible",
     },
     columnHeader: {
+      position: "relative",
+      zIndex: 30,
+      elevation: 30,
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",

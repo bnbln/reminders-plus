@@ -27,10 +27,14 @@ export default function InboxScreen() {
   const router = useRouter();
   const theme = useColorScheme() ?? 'light';
   const showFloatingAddButton = Platform.OS === 'ios' && !isIOS26OrNewer();
-  const params = useLocalSearchParams<{ withNotes?: string }>();
+  const params = useLocalSearchParams<{ withNotes?: string; withSubtasks?: string }>();
   const withNotesEnabled = params.withNotes === '1';
 
-  const { enabledTags, showTagIcons } = useHomeFilters();
+  const { enabledTags, showTagIcons, showCompactSubtasks } = useHomeFilters();
+  const withSubtasksEnabled =
+    params.withSubtasks === undefined
+      ? showCompactSubtasks
+      : params.withSubtasks === '1';
   const { tasks, setTasks, projects } = useTasksStore();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
 
@@ -75,6 +79,31 @@ export default function InboxScreen() {
     [setTasks]
   );
 
+  const toggleSubtask = React.useCallback(
+    (taskId: string, subtaskId: string) => {
+      setTasks((prev) => {
+        let changed = false;
+        const next = prev.map((task) => {
+          if (task.id !== taskId || !task.subtasks?.length) return task;
+
+          let toggled = false;
+          const subtasks = task.subtasks.map((subtask) => {
+            if (subtask.id !== subtaskId) return subtask;
+            toggled = true;
+            return { ...subtask, done: !subtask.done };
+          });
+
+          if (!toggled) return task;
+          changed = true;
+          return { ...task, subtasks };
+        });
+
+        return changed ? next : prev;
+      });
+    },
+    [setTasks]
+  );
+
   const applyOrderFromListData = React.useCallback(
     (orderedTaskIds: string[]) => {
       const orderIndex = new Map(orderedTaskIds.map((id, i) => [id, i] as const));
@@ -110,8 +139,10 @@ export default function InboxScreen() {
         }
         enabledTags={enabledTags}
         showTaskIcons={showTagIcons}
+        showCompactSubtasks={withSubtasksEnabled}
         onPressTask={onPressTask}
         toggleComplete={toggleComplete}
+        toggleSubtask={toggleSubtask}
         deleteTask={deleteTask}
         onReorder={applyOrderFromListData}
       />

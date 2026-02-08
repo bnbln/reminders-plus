@@ -88,9 +88,11 @@ export type TaskSwipeDraggableListProps = {
 
   enabledTags?: Set<TagId>;
   showTaskIcons?: boolean;
+  showCompactSubtasks?: boolean;
 
   onPressTask: (taskId: string) => void;
   toggleComplete: (taskId: string) => void;
+  toggleSubtask?: (taskId: string, subtaskId: string) => void;
   deleteTask: (taskId: string) => void;
 
   onReorder?: (orderedTaskIds: string[]) => void;
@@ -137,8 +139,10 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   empty,
   enabledTags,
   showTaskIcons,
+  showCompactSubtasks = false,
   onPressTask,
   toggleComplete,
+  toggleSubtask,
   deleteTask,
   onReorder,
   onReorderData,
@@ -340,6 +344,7 @@ ref
           swipeDeleteBg={swipeDeleteBg}
           enabledTags={enabledTagsResolved}
           showTaskIcons={showTaskIconsResolved}
+          showCompactSubtasks={showCompactSubtasks}
           beginSwipe={beginSwipe}
           endSwipe={endSwipe}
           registerClose={registerClose}
@@ -347,6 +352,7 @@ ref
           closeAnyOpen={closeAnyOpen}
           onPressTask={handlePressTask}
           toggleComplete={toggleComplete}
+          toggleSubtask={toggleSubtask}
           deleteTask={deleteTask}
           externalScrollRef={rowScrollGestureRef}
           onSwipeGestureActiveChange={reportSwipeGestureActive}
@@ -375,10 +381,12 @@ ref
       rowStyles,
       registerClose,
       showTaskIconsResolved,
+      showCompactSubtasks,
       swipeCompleteBg,
       swipeDeleteBg,
       tasksById,
       toggleComplete,
+      toggleSubtask,
       unregisterClose,
       reportSwipeGestureActive,
       reportRowTouchInteraction,
@@ -408,6 +416,7 @@ ref
           swipeDeleteBg={swipeDeleteBg}
           enabledTags={enabledTagsResolved}
           showTaskIcons={showTaskIconsResolved}
+          showCompactSubtasks={showCompactSubtasks}
           beginSwipe={beginSwipe}
           endSwipe={endSwipe}
           registerClose={registerClose}
@@ -415,6 +424,7 @@ ref
           closeAnyOpen={closeAnyOpen}
           onPressTask={handlePressTask}
           toggleComplete={toggleComplete}
+          toggleSubtask={toggleSubtask}
           deleteTask={deleteTask}
           externalScrollRef={rowScrollGestureRef}
           onSwipeGestureActiveChange={reportSwipeGestureActive}
@@ -443,10 +453,12 @@ ref
       renderHeaderRow,
       rowStyles,
       showTaskIconsResolved,
+      showCompactSubtasks,
       swipeCompleteBg,
       swipeDeleteBg,
       tasksById,
       toggleComplete,
+      toggleSubtask,
       unregisterClose,
       reportSwipeGestureActive,
       reportRowTouchInteraction,

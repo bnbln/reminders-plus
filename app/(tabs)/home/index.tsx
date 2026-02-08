@@ -1,7 +1,14 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import { NestableScrollContainer } from "react-native-draggable-flatlist";
 
 import {
@@ -15,6 +22,7 @@ import { Colors } from "@/constants/theme";
 import { useHomeFilters } from "@/context/home-filters-store";
 import {
   getDueAtForSection,
+  getNextRoutineDate,
   SectionId,
   type Task,
   useTasksStore,
@@ -25,6 +33,8 @@ import { t } from "@/i18n";
 import { isIOS26OrNewer } from "@/utils/ios-version";
 
 type ThemeName = keyof typeof Colors;
+const GRID_HORIZONTAL_PADDING = 16;
+const GRID_GAP = 10;
 
 const SECTION_ORDER: SectionId[] = ["today", "upcoming", "completed"];
 
@@ -176,7 +186,7 @@ function QuickNavGrid({
   );
 }
 
-const createStyles = (theme: ThemeName) => {
+const createStyles = (theme: ThemeName, quickTileWidth: number) => {
   const isDark = theme === "dark";
   const text = Colors[theme].text;
   const hairline = isDark ? "rgba(255,255,255,0.16)" : "rgba(0,0,0,0.12)";
@@ -193,7 +203,7 @@ const createStyles = (theme: ThemeName) => {
       backgroundColor: Colors[theme].background,
     },
     content: {
-      paddingHorizontal: 16,
+      paddingHorizontal: GRID_HORIZONTAL_PADDING,
       paddingTop: 16,
       paddingBottom: 180,
       gap: 10,
@@ -205,10 +215,10 @@ const createStyles = (theme: ThemeName) => {
     quickGrid: {
       flexDirection: "row",
       flexWrap: "wrap",
-      gap: 10,
+      gap: GRID_GAP,
     },
     quickTilePressable: {
-      width: "48%",
+      width: quickTileWidth,
       flexGrow: 0,
     },
     quickTile: {
@@ -431,19 +441,36 @@ export default function HomeScreen() {
   const router = useRouter();
   const theme = useColorScheme() ?? "light";
   const isDark = theme === "dark";
+  const { width: viewportWidth } = useWindowDimensions();
   const showFloatingAddButton = Platform.OS === "ios" && !isIOS26OrNewer();
   const params = useLocalSearchParams<{
     sections?: string;
     withNotes?: string;
+    withSubtasks?: string;
   }>();
   const enabledSections = React.useMemo(
     () => parseSectionsParam(params.sections),
     [params.sections],
   );
   const withNotesEnabled = params.withNotes === "1";
-  const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const quickTileWidth = React.useMemo(
+    () =>
+      Math.max(
+        0,
+        (viewportWidth - GRID_HORIZONTAL_PADDING * 2 - GRID_GAP) / 2,
+      ),
+    [viewportWidth],
+  );
+  const styles = React.useMemo(
+    () => createStyles(theme, quickTileWidth),
+    [theme, quickTileWidth],
+  );
   const { tasks, setTasks, projects } = useTasksStore();
-  const { enabledTags, showTagIcons } = useHomeFilters();
+  const { enabledTags, showTagIcons, showCompactSubtasks } = useHomeFilters();
+  const withSubtasksEnabled =
+    params.withSubtasks === undefined
+      ? showCompactSubtasks
+      : params.withSubtasks === "1";
   const { currentStreak } = useStreaks();
   const minimizeProbeRows = React.useMemo(
     () => Array.from({ length: 6 }, (_, index) => index),
@@ -704,38 +731,71 @@ export default function HomeScreen() {
         if (!task) return prev;
 
         const fromSection = task.section;
-        const toSection: SectionId =
-          fromSection === "completed" ? "today" : "completed";
-
         const now = Date.now();
+        let toSection: SectionId = fromSection;
+        const nowDate = new Date(now);
 
         const next = prev.map((t): Task => {
           if (t.id !== taskId) return t;
 
-          if (toSection === "completed") {
+          if (fromSection === "completed") {
+            toSection = "today";
+            const hasDueAt =
+              typeof t.dueAt === "number" &&
+              Number.isFinite(t.dueAt) &&
+              t.dueAt > 0;
             return {
               ...t,
-              section: "completed",
-              completedAt: now,
+              section: "today",
+              completedAt: undefined,
+              ...(hasDueAt
+                ? {}
+                : {
+                    dueAt: getDueAtForSection("today"),
+                    dueHasTime: true,
+                  }),
             };
           }
 
-          const hasDueAt =
-            typeof t.dueAt === "number" &&
-            Number.isFinite(t.dueAt) &&
-            t.dueAt > 0;
+          const routineType = t.isRoutine
+            ? (t.routineType ?? t.routineInterval)
+            : undefined;
+
+          if (routineType) {
+            const nextDue = getNextRoutineDate(t.dueAt, routineType, {
+              weekday: t.routineWeekday,
+              nthWeek: t.routineNthWeek,
+              monthDay: t.routineMonthDay,
+              month: t.routineMonth,
+            });
+            const due = new Date(nextDue);
+            const isDueToday =
+              due.getFullYear() === nowDate.getFullYear() &&
+              due.getMonth() === nowDate.getMonth() &&
+              due.getDate() === nowDate.getDate();
+            toSection = isDueToday ? "today" : "upcoming";
+            return {
+              ...t,
+              dueAt: nextDue,
+              section: toSection,
+              completedAt: undefined,
+              // Start fresh for the next routine occurrence.
+              subtasks: t.subtasks?.map((subtask) => ({
+                ...subtask,
+                done: false,
+              })),
+            };
+          }
+
+          toSection = "completed";
           return {
             ...t,
-            section: "today",
-            completedAt: undefined,
-            ...(hasDueAt
-              ? {}
-              : {
-                  dueAt: getDueAtForSection("today"),
-                  dueHasTime: true,
-                }),
+            section: "completed",
+            completedAt: now,
           };
         });
+
+        if (toSection === fromSection) return next;
 
         const moved = next.find((t) => t.id === taskId);
         if (!moved) return next;
@@ -764,6 +824,31 @@ export default function HomeScreen() {
         return prev.map((t) =>
           t.id === taskId ? { ...t, deletedAt: Date.now() } : t,
         );
+      });
+    },
+    [setTasks],
+  );
+
+  const handleToggleSubtask = React.useCallback(
+    (taskId: string, subtaskId: string) => {
+      setTasks((prev) => {
+        let changed = false;
+        const next = prev.map((task) => {
+          if (task.id !== taskId || !task.subtasks?.length) return task;
+
+          let toggled = false;
+          const subtasks = task.subtasks.map((subtask) => {
+            if (subtask.id !== subtaskId) return subtask;
+            toggled = true;
+            return { ...subtask, done: !subtask.done };
+          });
+
+          if (!toggled) return task;
+          changed = true;
+          return { ...task, subtasks };
+        });
+
+        return changed ? next : prev;
       });
     },
     [setTasks],
@@ -967,6 +1052,7 @@ export default function HomeScreen() {
           rowStyles={styles}
           enabledTags={enabledTags}
           showTaskIcons={showTagIcons}
+          showCompactSubtasks={withSubtasksEnabled}
           data={swipeListData}
           renderHeaderRow={renderSectionHeaderRow}
           header={listHeader}
@@ -978,6 +1064,7 @@ export default function HomeScreen() {
           }
           onPressTask={handlePressTask}
           toggleComplete={handleToggleComplete}
+          toggleSubtask={handleToggleSubtask}
           deleteTask={handleDeleteTask}
           onReorderData={applyOrderFromSwipeListData}
           onSwipeStateChange={handleSwipeStateChange}

@@ -1,12 +1,18 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { HeaderCloseButton } from "@/components/ui/header-close-button";
 import { withAlpha } from "@/components/ui/glass-surface";
+import { HeaderIconButton } from "@/components/ui/header-icon-button";
 import { Colors } from "@/constants/theme";
-import { RoutineType, useTasksStore } from "@/context/tasks-store";
+import {
+  type RoutineInterval,
+  RoutineType,
+  useTasksStore,
+} from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
 
@@ -31,9 +37,26 @@ const ROUTINE_OPTIONS: {
   { value: "custom", labelKey: "taskDetail.routine.custom", icon: "tune" },
 ];
 
+const toLegacyRoutineInterval = (
+  type: RoutineType,
+): RoutineInterval | undefined => {
+  switch (type) {
+    case "daily":
+    case "weekly":
+    case "monthly":
+    case "yearly":
+      return type;
+    default:
+      return undefined;
+  }
+};
+
 export default function RoutinePickerScreen() {
   const router = useRouter();
-  const { taskId } = useLocalSearchParams<{ taskId: string }>();
+  const { taskId: taskIdParam, draftId: draftIdParam } = useLocalSearchParams<{
+    taskId?: string | string[];
+    draftId?: string | string[];
+  }>();
   const theme = useColorScheme() ?? "light";
   const isDark = theme === "dark";
   const styles = React.useMemo(() => createStyles(theme), [theme]);
@@ -41,24 +64,67 @@ export default function RoutinePickerScreen() {
   const insets = useSafeAreaInsets();
 
   const { tasks, setTasks } = useTasksStore();
+  const draftId = React.useMemo(() => {
+    const normalizedDraftId = Array.isArray(draftIdParam) ? draftIdParam[0] : draftIdParam;
+    return (typeof normalizedDraftId === "string" ? normalizedDraftId : "").trim();
+  }, [draftIdParam]);
+  const taskId = React.useMemo(() => {
+    const normalizedTaskId = Array.isArray(taskIdParam) ? taskIdParam[0] : taskIdParam;
+
+    const resolvedTaskId = (typeof normalizedTaskId === "string" ? normalizedTaskId : "").trim();
+    if (resolvedTaskId.length > 0) return resolvedTaskId;
+    return draftId;
+  }, [draftId, taskIdParam]);
   const task = React.useMemo(
     () => tasks.find((t) => t.id === taskId),
     [tasks, taskId],
   );
+  const canRecoverDraft = taskId.length > 0 && draftId.length > 0 && taskId === draftId;
 
-  // Local state for the selected routine
-  const [selectedType, setSelectedType] = React.useState<
-    RoutineType | null | undefined
-  >(task?.isRoutine ? task.routineType || task.routineInterval : null);
-
-  // Initialize state when task loads (if not already set)
   React.useEffect(() => {
-    if (task && selectedType === undefined) {
-      setSelectedType(
-        task.isRoutine ? task.routineType || task.routineInterval : null,
-      );
+    if (!canRecoverDraft || task) return;
+
+    setTasks((prev) => {
+      if (prev.some((t) => t.id === taskId)) return prev;
+      return [
+        {
+          id: taskId,
+          title: "",
+          emoji: "📝",
+          projectId: "",
+          dueAt: 0,
+          dueHasTime: false,
+          isRoutine: true,
+          routineType: undefined,
+          routineInterval: undefined,
+          section: "upcoming",
+          orderRank: 0,
+          deletedAt: Date.now(),
+        },
+        ...prev,
+      ];
+    });
+  }, [canRecoverDraft, setTasks, task, taskId]);
+
+  const selectedTypeFromTask = React.useMemo<RoutineType | null>(
+    () =>
+      task?.isRoutine ? (task.routineType ?? task.routineInterval ?? null) : null,
+    [task],
+  );
+  const [selectedType, setSelectedType] =
+    React.useState<RoutineType | null>(selectedTypeFromTask);
+  const [didUserChangeSelection, setDidUserChangeSelection] =
+    React.useState(false);
+
+  React.useEffect(() => {
+    if (!didUserChangeSelection) {
+      setSelectedType(selectedTypeFromTask);
     }
-  }, [task]);
+  }, [didUserChangeSelection, selectedTypeFromTask]);
+
+  React.useEffect(() => {
+    setDidUserChangeSelection(false);
+  }, [taskId]);
 
   // Save changes
   const handleSave = React.useCallback(() => {
@@ -73,11 +139,16 @@ export default function RoutinePickerScreen() {
                 isRoutine: false,
                 routineType: undefined,
                 routineInterval: undefined,
+                routineWeekday: undefined,
+                routineNthWeek: undefined,
+                routineMonthDay: undefined,
+                routineMonth: undefined,
               }
             : t,
         ),
       );
     } else {
+      const legacyInterval = toLegacyRoutineInterval(selectedType);
       setTasks((prev) =>
         prev.map((t) =>
           t.id === taskId
@@ -85,7 +156,15 @@ export default function RoutinePickerScreen() {
                 ...t,
                 isRoutine: true,
                 routineType: selectedType,
-                routineInterval: selectedType as any,
+                routineInterval: legacyInterval,
+                routineWeekday:
+                  selectedType === "custom" ? t.routineWeekday : undefined,
+                routineNthWeek:
+                  selectedType === "custom" ? t.routineNthWeek : undefined,
+                routineMonthDay:
+                  selectedType === "custom" ? t.routineMonthDay : undefined,
+                routineMonth:
+                  selectedType === "custom" ? t.routineMonth : undefined,
               }
             : t,
         ),
@@ -98,6 +177,14 @@ export default function RoutinePickerScreen() {
   const handleCancel = React.useCallback(() => {
     router.back();
   }, [router]);
+
+  if (!task && canRecoverDraft) {
+    return (
+      <View style={[styles.container, styles.centeredState]}>
+        <ActivityIndicator size="small" color={withAlpha(Colors[theme].text, 0.6)} />
+      </View>
+    );
+  }
 
   if (!task) {
     return (
@@ -125,34 +212,16 @@ export default function RoutinePickerScreen() {
             presentation: "formSheet",
             headerTitle: t('routinePicker.title'),
             headerLeft: () => (
-              <View style={styles.iconButton}>
-                <Pressable
-                  onPress={handleCancel}
-                  hitSlop={10}
-                  style={styles.pressableIcon}
-                >
-                  <MaterialIcons
-                    name="close"
-                    size={24}
-                    color={Colors[theme].text}
-                  />
-                </Pressable>
-              </View>
+              <HeaderCloseButton onPress={handleCancel} color={Colors[theme].text} />
             ),
             headerRight: () => (
-              <View style={styles.iconButton}>
-                <Pressable
-                  onPress={handleSave}
-                  hitSlop={10}
-                  style={styles.pressableIcon}
-                >
+              <HeaderIconButton onPress={handleSave}>
                   <MaterialIcons
                     name="check"
                     size={24}
                     color={Colors[theme].text}
                   />
-                </Pressable>
-              </View>
+              </HeaderIconButton>
             ),
             headerShown: true,
             headerStyle: {
@@ -176,7 +245,10 @@ export default function RoutinePickerScreen() {
             return (
               <Pressable
                 key={option.labelKey}
-                onPress={() => setSelectedType(option.value)}
+                onPress={() => {
+                  setDidUserChangeSelection(true);
+                  setSelectedType(option.value);
+                }}
                 style={[styles.optionRow, isActive && styles.optionRowActive]}
               >
                 <View
@@ -222,6 +294,10 @@ const createStyles = (theme: ThemeName) => {
     container: {
       flex: 1,
       backgroundColor: isDark ? "#000000" : "#F2F2F7",
+    },
+    centeredState: {
+      alignItems: "center",
+      justifyContent: "center",
     },
     sheet: {
       flex: 1,

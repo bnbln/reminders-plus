@@ -54,6 +54,7 @@ const DE_TRANSLATIONS: TranslationDict = {
     'home.filter.showAllTags': 'Alle Tags anzeigen',
     'home.filter.hideAllTags': 'Alle Tags ausblenden',
     'home.filter.icons': 'Icons',
+    'home.filter.subtasks': 'Unteraufgaben',
     'home.filter.toggleSection': '{{section}} umschalten',
     'home.openArchive': 'Archiv öffnen',
     'home.empty.noTasks': 'Keine Aufgaben',
@@ -99,6 +100,7 @@ const DE_TRANSLATIONS: TranslationDict = {
     'taskCreate.menu.location': 'Standort',
     'taskCreate.menu.routine': 'Routine',
     'taskCreate.menu.project': 'Projekt',
+    'taskCreate.routine.chooseInterval': 'Jetzt Intervall wählen',
     'taskCreate.titleMissingTitle': 'Titel fehlt',
     'taskCreate.titleMissingBody': 'Bitte gib einen Aufgabentitel ein.',
     'taskCreate.close': 'Schließen',
@@ -106,6 +108,7 @@ const DE_TRANSLATIONS: TranslationDict = {
     'taskCreate.placeholder.title': 'Neue Aufgabe',
     'taskCreate.accessibility.create': 'Aufgabe erstellen',
     'taskCreate.accessibility.enterTitle': 'Titel eingeben',
+    'taskCreate.accessibility.chooseInterval': 'Intervall wählen',
     'taskCreate.color.blue': 'Blau',
     'taskCreate.color.red': 'Rot',
     'taskCreate.color.green': 'Grün',
@@ -177,6 +180,13 @@ const DE_TRANSLATIONS: TranslationDict = {
     'projectPicker.newProject': 'Neues Projekt',
     'projectPicker.noProject': 'Kein Projekt',
 
+    'locationPicker.title': 'Standort',
+    'locationPicker.useCurrent': 'Aktuellen Standort verwenden',
+    'locationPicker.useCurrentHint': 'Nutzt deinen momentanen Ort',
+    'locationPicker.noLocation': 'Kein Standort',
+    'locationPicker.custom': 'Ort auswählen',
+    'locationPicker.placeholder.custom': 'Ort eingeben…',
+
     'emojiPicker.title': 'Emoji & Farbe',
     'emojiPicker.emoji': 'Emoji',
     'emojiPicker.color': 'Farbe',
@@ -198,7 +208,7 @@ const DE_TRANSLATIONS: TranslationDict = {
     'routines.section.all': 'Alle Routinen',
     'routines.empty.title': 'Noch keine Routinen.',
     'routines.empty.subtitle': 'Aktiviere eine Routine in den Aufgabendetails.',
-    'routines.next': 'Nächst: {{value}}',
+    'routines.next': '{{value}}',
     'routines.noDate': 'Kein Datum',
     'routinesTest.title': 'Routinen-Test',
     'routinesTest.subtitle': 'Saubere Scroll-Seite zum Prüfen der nativen Tab-Bar-Minimierung auf iOS 26.',
@@ -246,6 +256,8 @@ const DE_TRANSLATIONS: TranslationDict = {
     'filters.completedOnly': 'Nur abgeschlossen',
     'filters.withNotes': 'Mit Notiz',
     'filters.withNotesOnly': 'Nur Aufgaben mit Untertitel',
+    'filters.withSubtasks': 'Mit Unteraufgaben',
+    'filters.withSubtasksOnly': 'Unteraufgaben kompakt anzeigen',
 
     'tags.overdue': 'Überfällig',
     'tags.datetime': 'Datum & Uhrzeit',
@@ -291,6 +303,7 @@ const EN_TRANSLATIONS: TranslationDict = {
     'home.filter.showAllTags': 'Show all tags',
     'home.filter.hideAllTags': 'Hide all tags',
     'home.filter.icons': 'Icons',
+    'home.filter.subtasks': 'Subtasks',
     'home.filter.toggleSection': 'Toggle {{section}}',
     'home.openArchive': 'Open archive',
     'home.empty.noTasks': 'No tasks',
@@ -336,6 +349,7 @@ const EN_TRANSLATIONS: TranslationDict = {
     'taskCreate.menu.location': 'Location',
     'taskCreate.menu.routine': 'Routine',
     'taskCreate.menu.project': 'Project',
+    'taskCreate.routine.chooseInterval': 'Choose interval now',
     'taskCreate.titleMissingTitle': 'Missing title',
     'taskCreate.titleMissingBody': 'Please enter a task title.',
     'taskCreate.close': 'Close',
@@ -343,6 +357,7 @@ const EN_TRANSLATIONS: TranslationDict = {
     'taskCreate.placeholder.title': 'New task',
     'taskCreate.accessibility.create': 'Create task',
     'taskCreate.accessibility.enterTitle': 'Enter a title',
+    'taskCreate.accessibility.chooseInterval': 'Choose interval',
     'taskCreate.color.blue': 'Blue',
     'taskCreate.color.red': 'Red',
     'taskCreate.color.green': 'Green',
@@ -414,6 +429,13 @@ const EN_TRANSLATIONS: TranslationDict = {
     'projectPicker.newProject': 'New project',
     'projectPicker.noProject': 'No project',
 
+    'locationPicker.title': 'Location',
+    'locationPicker.useCurrent': 'Use current location',
+    'locationPicker.useCurrentHint': 'Use your current place',
+    'locationPicker.noLocation': 'No location',
+    'locationPicker.custom': 'Choose place',
+    'locationPicker.placeholder.custom': 'Enter a place…',
+
     'emojiPicker.title': 'Emoji & color',
     'emojiPicker.emoji': 'Emoji',
     'emojiPicker.color': 'Color',
@@ -435,7 +457,7 @@ const EN_TRANSLATIONS: TranslationDict = {
     'routines.section.all': 'All routines',
     'routines.empty.title': 'No routines yet.',
     'routines.empty.subtitle': 'Enable a routine in task details.',
-    'routines.next': 'Next: {{value}}',
+    'routines.next': '{{value}}',
     'routines.noDate': 'No date',
     'routinesTest.title': 'Routines test',
     'routinesTest.subtitle': 'Clean scroll page to verify native tab bar minimization on iOS 26.',
@@ -483,6 +505,8 @@ const EN_TRANSLATIONS: TranslationDict = {
     'filters.completedOnly': 'Completed only',
     'filters.withNotes': 'With notes',
     'filters.withNotesOnly': 'Tasks with subtitle only',
+    'filters.withSubtasks': 'With subtasks',
+    'filters.withSubtasksOnly': 'Show compact subtasks',
 
     'tags.overdue': 'Overdue',
     'tags.datetime': 'Date & Time',
@@ -590,7 +614,7 @@ const ES_TRANSLATIONS: TranslationDict = {
   'routines.section.all': "Todas las rutinas",
   'routines.empty.title': "Aún no hay rutinas.",
   'routines.empty.subtitle': "Activa una rutina en los detalles de la tarea.",
-  'routines.next': "Siguiente: {{value}}",
+  'routines.next': "{{value}}",
   'routines.noDate': "Sin fecha",
   'streaks.stats.thisWeek': "Esta semana",
   'streaks.stats.longest': "Racha más larga",
@@ -712,7 +736,7 @@ const FR_TRANSLATIONS: TranslationDict = {
   'routines.section.all': "Toutes les routines",
   'routines.empty.title': "Aucune routine pour le moment.",
   'routines.empty.subtitle': "Active une routine dans les détails de la tâche.",
-  'routines.next': "Prochaine : {{value}}",
+  'routines.next': "{{value}}",
   'routines.noDate': "Aucune date",
   'streaks.stats.thisWeek': "Cette semaine",
   'streaks.stats.longest': "Plus longue série",
@@ -834,7 +858,7 @@ const PT_TRANSLATIONS: TranslationDict = {
   'routines.section.all': "Todas as rotinas",
   'routines.empty.title': "Ainda não há rotinas.",
   'routines.empty.subtitle': "Ative uma rotina nos detalhes da tarefa.",
-  'routines.next': "Próxima: {{value}}",
+  'routines.next': "{{value}}",
   'routines.noDate': "Sem data",
   'streaks.stats.thisWeek': "Esta semana",
   'streaks.stats.longest': "Maior sequência",
@@ -956,7 +980,7 @@ const HI_TRANSLATIONS: TranslationDict = {
   'routines.section.all': "सभी रूटीन",
   'routines.empty.title': "अभी कोई रूटीन नहीं।",
   'routines.empty.subtitle': "कार्य विवरण में रूटीन सक्षम करें।",
-  'routines.next': "अगला: {{value}}",
+  'routines.next': "{{value}}",
   'routines.noDate': "कोई तारीख नहीं",
   'streaks.stats.thisWeek': "इस सप्ताह",
   'streaks.stats.longest': "सबसे लंबी श्रृंखला",
@@ -1078,7 +1102,7 @@ const ZH_TRANSLATIONS: TranslationDict = {
   'routines.section.all': "全部例行任务",
   'routines.empty.title': "还没有例行任务。",
   'routines.empty.subtitle': "在任务详情中启用重复。",
-  'routines.next': "下次：{{value}}",
+  'routines.next': "{{value}}",
   'routines.noDate': "无日期",
   'streaks.stats.thisWeek': "本周",
   'streaks.stats.longest': "最长连续",
@@ -1200,7 +1224,7 @@ const JA_TRANSLATIONS: TranslationDict = {
   'routines.section.all': "すべてのルーチン",
   'routines.empty.title': "ルーチンはまだありません。",
   'routines.empty.subtitle': "タスク詳細で繰り返しを有効にしてください。",
-  'routines.next': "次回: {{value}}",
+  'routines.next': "{{value}}",
   'routines.noDate': "日付なし",
   'streaks.stats.thisWeek': "今週",
   'streaks.stats.longest': "最長ストリーク",
@@ -2203,7 +2227,7 @@ const AR_TRANSLATIONS: TranslationDict = {
   'routines.section.all': "كل الروتينات",
   'routines.empty.title': "لا توجد روتينات بعد.",
   'routines.empty.subtitle': "فعّل روتينًا في تفاصيل المهمة.",
-  'routines.next': "التالي: {{value}}",
+  'routines.next': "{{value}}",
   'routines.noDate': "بدون تاريخ",
   'routinesTest.title': "اختبار الروتينات",
   'routinesTest.subtitle': "صفحة تمرير نظيفة للتحقق من تصغير شريط التبويب الأصلي على iOS 26.",
@@ -2411,7 +2435,7 @@ const UK_TRANSLATIONS: TranslationDict = {
   'routines.section.all': "Усі рутини",
   'routines.empty.title': "Ще немає рутин.",
   'routines.empty.subtitle': "Увімкніть рутину в деталях завдання.",
-  'routines.next': "Далі: {{value}}",
+  'routines.next': "{{value}}",
   'routines.noDate': "Без дати",
   'routinesTest.title': "Тест рутин",
   'routinesTest.subtitle': "Чиста сторінка прокрутки для перевірки мінімізації нативної таб-бар на iOS 26.",
@@ -2619,7 +2643,7 @@ const RU_TRANSLATIONS: TranslationDict = {
   'routines.section.all': "Все рутины",
   'routines.empty.title': "Пока нет рутин.",
   'routines.empty.subtitle': "Включите рутину в деталях задачи.",
-  'routines.next': "Далее: {{value}}",
+  'routines.next': "{{value}}",
   'routines.noDate': "Без даты",
   'routinesTest.title': "Тест рутин",
   'routinesTest.subtitle': "Чистая прокрутка для проверки минимизации нативной таб-бар на iOS 26.",
@@ -2709,6 +2733,149 @@ const TRANSLATIONS: Record<AppLocale, TranslationDict> = {
   uk: UK_TRANSLATIONS,
   ru: RU_TRANSLATIONS,
 };
+
+const SUBTASK_TRANSLATIONS: Record<
+  AppLocale,
+  {
+    menu: string;
+    withSubtasks: string;
+    withSubtasksOnly: string;
+  }
+> = {
+  de: {
+    menu: 'Unteraufgaben',
+    withSubtasks: 'Mit Unteraufgaben',
+    withSubtasksOnly: 'Unteraufgaben kompakt anzeigen',
+  },
+  en: {
+    menu: 'Subtasks',
+    withSubtasks: 'With subtasks',
+    withSubtasksOnly: 'Show compact subtasks',
+  },
+  es: {
+    menu: 'Subtareas',
+    withSubtasks: 'Con subtareas',
+    withSubtasksOnly: 'Mostrar subtareas compactas',
+  },
+  fr: {
+    menu: 'Sous-tâches',
+    withSubtasks: 'Avec sous-tâches',
+    withSubtasksOnly: 'Afficher les sous-tâches compactes',
+  },
+  pt: {
+    menu: 'Subtarefas',
+    withSubtasks: 'Com subtarefas',
+    withSubtasksOnly: 'Mostrar subtarefas compactas',
+  },
+  hi: {
+    menu: 'उप-कार्य',
+    withSubtasks: 'उप-कार्यों के साथ',
+    withSubtasksOnly: 'कॉम्पैक्ट उप-कार्य दिखाएँ',
+  },
+  zh: {
+    menu: '子任务',
+    withSubtasks: '含子任务',
+    withSubtasksOnly: '显示紧凑子任务',
+  },
+  ja: {
+    menu: 'サブタスク',
+    withSubtasks: 'サブタスクあり',
+    withSubtasksOnly: 'サブタスクをコンパクト表示',
+  },
+  it: {
+    menu: 'Sottoattività',
+    withSubtasks: 'Con sottoattività',
+    withSubtasksOnly: 'Mostra sottoattività compatte',
+  },
+  sv: {
+    menu: 'Deluppgifter',
+    withSubtasks: 'Med deluppgifter',
+    withSubtasksOnly: 'Visa kompakta deluppgifter',
+  },
+  da: {
+    menu: 'Underopgaver',
+    withSubtasks: 'Med underopgaver',
+    withSubtasksOnly: 'Vis kompakte underopgaver',
+  },
+  fi: {
+    menu: 'Alatehtävät',
+    withSubtasks: 'Alatehtävillä',
+    withSubtasksOnly: 'Näytä kompaktit alatehtävät',
+  },
+  pl: {
+    menu: 'Podzadania',
+    withSubtasks: 'Z podzadaniami',
+    withSubtasksOnly: 'Pokaż podzadania w formie kompaktowej',
+  },
+  nl: {
+    menu: 'Subtaken',
+    withSubtasks: 'Met subtaken',
+    withSubtasksOnly: 'Compacte subtaken tonen',
+  },
+  tr: {
+    menu: 'Alt görevler',
+    withSubtasks: 'Alt görevli',
+    withSubtasksOnly: 'Kompakt alt görevleri göster',
+  },
+  cs: {
+    menu: 'Podúkoly',
+    withSubtasks: 'S podúkoly',
+    withSubtasksOnly: 'Zobrazit kompaktní podúkoly',
+  },
+  hu: {
+    menu: 'Részfeladatok',
+    withSubtasks: 'Részfeladatokkal',
+    withSubtasksOnly: 'Kompakt részfeladatok megjelenítése',
+  },
+  ro: {
+    menu: 'Subtaskuri',
+    withSubtasks: 'Cu subtaskuri',
+    withSubtasksOnly: 'Afișează subtaskuri compacte',
+  },
+  el: {
+    menu: 'Υποεργασίες',
+    withSubtasks: 'Με υποεργασίες',
+    withSubtasksOnly: 'Εμφάνιση συμπαγών υποεργασιών',
+  },
+  id: {
+    menu: 'Subtugas',
+    withSubtasks: 'Dengan subtugas',
+    withSubtasksOnly: 'Tampilkan subtugas ringkas',
+  },
+  vi: {
+    menu: 'Nhiệm vụ con',
+    withSubtasks: 'Có nhiệm vụ con',
+    withSubtasksOnly: 'Hiển thị nhiệm vụ con dạng gọn',
+  },
+  ko: {
+    menu: '하위 작업',
+    withSubtasks: '하위 작업 포함',
+    withSubtasksOnly: '하위 작업 간략히 표시',
+  },
+  uk: {
+    menu: 'Підзадачі',
+    withSubtasks: 'З підзадачами',
+    withSubtasksOnly: 'Показувати компактні підзадачі',
+  },
+  ru: {
+    menu: 'Подзадачи',
+    withSubtasks: 'С подзадачами',
+    withSubtasksOnly: 'Показывать подзадачи компактно',
+  },
+  ar: {
+    menu: 'المهام الفرعية',
+    withSubtasks: 'مع المهام الفرعية',
+    withSubtasksOnly: 'إظهار المهام الفرعية بشكل مضغوط',
+  },
+};
+
+for (const locale of Object.keys(SUBTASK_TRANSLATIONS) as AppLocale[]) {
+  const dict = TRANSLATIONS[locale];
+  const values = SUBTASK_TRANSLATIONS[locale];
+  dict['home.filter.subtasks'] = values.menu;
+  dict['filters.withSubtasks'] = values.withSubtasks;
+  dict['filters.withSubtasksOnly'] = values.withSubtasksOnly;
+}
 
 let localeOverride: AppLocale | null = null;
 

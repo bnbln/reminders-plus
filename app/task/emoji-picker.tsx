@@ -4,7 +4,9 @@ import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { HeaderCloseButton } from '@/components/ui/header-close-button';
 import { withAlpha } from '@/components/ui/glass-surface';
+import { HeaderIconButton } from '@/components/ui/header-icon-button';
 import { Colors } from '@/constants/theme';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -103,18 +105,12 @@ export default function EmojiPickerScreen() {
                 options={{
                     title: t('emojiPicker.title'),
                     headerLeft: () => (
-                        <View style={styles.iconButton}>
-                            <Pressable onPress={handleCancel} hitSlop={10} style={styles.pressableIcon}>
-                                <MaterialIcons name="close" size={24} color={Colors[theme].text} />
-                            </Pressable>
-                        </View>
+                        <HeaderCloseButton onPress={handleCancel} color={Colors[theme].text} />
                     ),
                     headerRight: () => (
-                        <View style={styles.iconButton}>
-                            <Pressable onPress={handleSave} hitSlop={10} style={styles.pressableIcon}>
-                                <MaterialIcons name="check" size={24} color={Colors[theme].text} />
-                            </Pressable>
-                        </View>
+                        <HeaderIconButton onPress={handleSave}>
+                            <MaterialIcons name="check" size={24} color={Colors[theme].text} />
+                        </HeaderIconButton>
                     ),
                     headerShown: true,
                     headerStyle: {

@@ -1,17 +1,31 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { NativeModules, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { FloatingAddButton } from '@/components/ui/floating-add-button';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
+import { useTaskCreateContext } from '@/context/task-create-context';
 import { Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { countLabel, getIntlLocale, t } from '@/i18n';
 import { isIOS26OrNewer } from '@/utils/ios-version';
 
 type ThemeName = keyof typeof Colors;
+type RoutineStatsBucket = 'daily' | 'weekly' | 'monthlyPlus';
+type TaskAccessoryContextBridge = {
+  setContext?: (
+    mode: 'task' | 'routine' | 'project' | 'inProject',
+    projectId?: string | null,
+    projectLabel?: string | null,
+  ) => void;
+};
+
+const DAILY_ROUTINE_TYPES = new Set(['hourly', 'daily']);
+const WEEKLY_ROUTINE_TYPES = new Set(['weekdays', 'weekends', 'weekly', 'biweekly']);
+const MONTHLY_PLUS_ROUTINE_TYPES = new Set(['monthly', 'quarterly', 'biannually', 'yearly']);
 
 const getRoutineLabel = (task: Task): string => {
   const type = task.routineType || task.routineInterval;
@@ -33,17 +47,80 @@ const getRoutineLabel = (task: Task): string => {
   }
 };
 
-const formatNextDue = (ms: number) => {
-  if (!Number.isFinite(ms) || ms <= 0) return t('routines.noDate');
-  const d = new Date(ms);
+const formatNextDue = (task: Pick<Task, 'dueAt' | 'dueHasTime'>): string | null => {
+  if (!Number.isFinite(task.dueAt) || task.dueAt <= 0) return null;
+  const d = new Date(task.dueAt);
   const today = new Date();
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
+  const hasTime = task.dueHasTime === true;
 
-  if (d.toDateString() === today.toDateString()) return t('taskDetail.relative.today');
-  if (d.toDateString() === tomorrow.toDateString()) return t('taskDetail.relative.tomorrow');
+  const formatTime = () =>
+    d.toLocaleTimeString(getIntlLocale(), { hour: '2-digit', minute: '2-digit' });
 
-  return d.toLocaleDateString(getIntlLocale(), { weekday: 'short', day: '2-digit', month: 'short' });
+  if (d.toDateString() === today.toDateString()) {
+    return hasTime ? `${t('taskDetail.relative.today')}, ${formatTime()}` : t('taskDetail.relative.today');
+  }
+  if (d.toDateString() === tomorrow.toDateString()) {
+    return hasTime ? `${t('taskDetail.relative.tomorrow')}, ${formatTime()}` : t('taskDetail.relative.tomorrow');
+  }
+
+  return d.toLocaleDateString(
+    getIntlLocale(),
+    hasTime
+      ? { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }
+      : { weekday: 'short', day: '2-digit', month: 'short' },
+  );
+};
+
+const isSameLocalDay = (left: Date, right: Date) =>
+  left.getFullYear() === right.getFullYear() &&
+  left.getMonth() === right.getMonth() &&
+  left.getDate() === right.getDate();
+
+const isDueOnDate = (dueAt: number, date: Date) => {
+  if (!Number.isFinite(dueAt) || dueAt <= 0) return false;
+  return isSameLocalDay(new Date(dueAt), date);
+};
+
+const getRoutineStatsBucket = (task: Task): RoutineStatsBucket => {
+  const type = task.routineType;
+
+  if (type) {
+    if (DAILY_ROUTINE_TYPES.has(type)) return 'daily';
+    if (WEEKLY_ROUTINE_TYPES.has(type)) return 'weekly';
+    if (MONTHLY_PLUS_ROUTINE_TYPES.has(type)) return 'monthlyPlus';
+    if (type === 'custom') {
+      if (typeof task.routineMonthDay === 'number' || typeof task.routineMonth === 'number') {
+        return 'monthlyPlus';
+      }
+      if (typeof task.routineWeekday === 'number' || typeof task.routineNthWeek === 'number') {
+        return 'weekly';
+      }
+      // `custom` advances daily in getNextRoutineDate today, so default to daily bucket.
+      return 'daily';
+    }
+  }
+
+  // Legacy fallback for older snapshots.
+  switch (task.routineInterval) {
+    case 'daily':
+      return 'daily';
+    case 'weekly':
+      return 'weekly';
+    case 'monthly':
+    case 'yearly':
+      return 'monthlyPlus';
+    default:
+      return 'daily';
+  }
+};
+
+const getRoutineAccentColor = (task: Task) => {
+  const bucket = getRoutineStatsBucket(task);
+  if (bucket === 'daily') return '#0A84FF';
+  if (bucket === 'weekly') return '#8B5CF6';
+  return '#F59E0B';
 };
 
 const createStyles = (theme: ThemeName) => {
@@ -265,9 +342,23 @@ export default function RoutinesScreen() {
   const theme = useColorScheme() ?? 'light';
   const isDark = theme === 'dark';
   const router = useRouter();
+  const accessoryBridge = NativeModules
+    .TaskAccessoryContextBridge as TaskAccessoryContextBridge | undefined;
   const showFloatingAddButton = Platform.OS === 'ios' && !isIOS26OrNewer();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const { setMode } = useTaskCreateContext();
   const { tasks } = useTasksStore();
+
+  useFocusEffect(
+    React.useCallback(() => {
+      setMode('routine');
+      if (Platform.OS !== 'ios' || !isIOS26OrNewer()) return undefined;
+      accessoryBridge?.setContext?.('routine', null, null);
+      return () => {
+        accessoryBridge?.setContext?.('task', null, null);
+      };
+    }, [accessoryBridge, setMode]),
+  );
 
   // Filter to active routine tasks
   const routineTasks = useMemo(() => {
@@ -279,17 +370,30 @@ export default function RoutinesScreen() {
 
   const routinesCount = routineTasks.length;
 
-  // Stats
-  const dailyCount = routineTasks.filter(t => t.routineInterval === 'daily').length;
-  const weeklyCount = routineTasks.filter(t => t.routineInterval === 'weekly').length;
-  const monthlyCount = routineTasks.filter(t => t.routineInterval === 'monthly' || t.routineInterval === 'yearly').length;
+  const routineStats = useMemo(() => {
+    const today = new Date();
 
-  // Routines due today
-  const today = new Date();
-  const dueTodayCount = routineTasks.filter(t => {
-    if (!t.dueAt || t.dueAt <= 0) return false;
-    return new Date(t.dueAt).toDateString() === today.toDateString();
-  }).length;
+    return routineTasks.reduce(
+      (acc, task) => {
+        if (isDueOnDate(task.dueAt, today)) {
+          acc.dueToday += 1;
+        }
+
+        const bucket = getRoutineStatsBucket(task);
+        if (bucket === 'daily') acc.daily += 1;
+        if (bucket === 'weekly') acc.weekly += 1;
+        if (bucket === 'monthlyPlus') acc.monthlyPlus += 1;
+
+        return acc;
+      },
+      { dueToday: 0, daily: 0, weekly: 0, monthlyPlus: 0 },
+    );
+  }, [routineTasks]);
+
+  const dailyCount = routineStats.daily;
+  const weeklyCount = routineStats.weekly;
+  const monthlyCount = routineStats.monthlyPlus;
+  const dueTodayCount = routineStats.dueToday;
 
   const textColor = Colors[theme].text;
   const iconColor = routinesCount > 0 ? '#0A84FF' : '#9CA3AF';
@@ -301,7 +405,7 @@ export default function RoutinesScreen() {
   const cardGlassFallback = tileSurfaceBg;
 
   const handleAddTask = React.useCallback(() => {
-    router.push('/task/create-modal');
+    router.push({ pathname: '/task/create-modal', params: { preset: 'routine' } });
   }, [router]);
 
   return (
@@ -386,10 +490,8 @@ export default function RoutinesScreen() {
             <View style={styles.routinesList}>
               {routineTasks.map((routine) => {
                 const intervalLabel = getRoutineLabel(routine);
-                const type = routine.routineType || routine.routineInterval;
-                const intervalColor = (type === 'daily' || type === 'hourly') ? '#0A84FF' :
-                  (type === 'weekly' || type === 'weekdays' || type === 'weekends' || type === 'biweekly') ? '#8B5CF6' :
-                    (type === 'monthly' || type === 'quarterly' || type === 'biannually') ? '#F59E0B' : '#10B981';
+                const intervalColor = getRoutineAccentColor(routine);
+                const nextDueLabel = formatNextDue(routine);
 
                 return (
                   <Pressable
@@ -410,7 +512,7 @@ export default function RoutinesScreen() {
                             <View style={[styles.intervalBadge, { backgroundColor: withAlpha(intervalColor, isDark ? 0.2 : 0.15) }]}>
                               <Text style={[styles.intervalText, { color: intervalColor }]}>{intervalLabel}</Text>
                             </View>
-                            <Text style={styles.nextDueText}>{t('routines.next', { value: formatNextDue(routine.dueAt) })}</Text>
+                            {nextDueLabel ? <Text style={styles.nextDueText}>{nextDueLabel}</Text> : null}
                           </View>
                         </View>
                         <MaterialIcons name="chevron-right" size={20} color={withAlpha(textColor, 0.4)} />

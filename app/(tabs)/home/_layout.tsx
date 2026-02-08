@@ -7,6 +7,7 @@ import { Platform, Pressable } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 import {
+    parseCompactSubtasksParam,
     parseTagIconsParam,
     parseTagsParam,
     serializeTagsParam,
@@ -37,8 +38,15 @@ function FilterMenuButton({ theme }: { theme: keyof typeof Colors }) {
   const router = useRouter();
   const menuRef = React.useRef<MenuComponentRef>(null);
 
-  const params = useLocalSearchParams<{ tags?: string; tagIcons?: string }>();
-  const { enabledTags, setEnabledTags, showTagIcons, setShowTagIcons } = useHomeFilters();
+  const params = useLocalSearchParams<{ tags?: string; tagIcons?: string; withSubtasks?: string }>();
+  const {
+    enabledTags,
+    setEnabledTags,
+    showTagIcons,
+    setShowTagIcons,
+    showCompactSubtasks,
+    setShowCompactSubtasks,
+  } = useHomeFilters();
 
   // One-way sync from URL params -> store (deep links / restore).
   React.useEffect(() => {
@@ -52,7 +60,21 @@ function FilterMenuButton({ theme }: { theme: keyof typeof Colors }) {
       const nextIcons = parseTagIconsParam(params.tagIcons);
       setShowTagIcons((prev) => (prev === nextIcons ? prev : nextIcons));
     }
-  }, [params.tagIcons, params.tags, setEnabledTags, setShowTagIcons]);
+
+    if (params.withSubtasks !== undefined) {
+      const nextSubtasks = parseCompactSubtasksParam(params.withSubtasks);
+      setShowCompactSubtasks((prev) =>
+        prev === nextSubtasks ? prev : nextSubtasks
+      );
+    }
+  }, [
+    params.tagIcons,
+    params.tags,
+    params.withSubtasks,
+    setEnabledTags,
+    setShowCompactSubtasks,
+    setShowTagIcons,
+  ]);
 
   const pendingReopenRef = React.useRef(false);
   const scheduleReopen = React.useCallback(() => {
@@ -90,6 +112,13 @@ function FilterMenuButton({ theme }: { theme: keyof typeof Colors }) {
         imageColor: Platform.OS === 'ios' ? iconColor : undefined,
         state: Platform.OS === 'ios' ? (showTagIcons ? 'on' : 'off') : undefined,
       },
+      {
+        id: 'toggleCompactSubtasks',
+        title: t('home.filter.subtasks'),
+        image: Platform.OS === 'ios' ? 'checkmark.square' : undefined,
+        imageColor: Platform.OS === 'ios' ? iconColor : undefined,
+        state: Platform.OS === 'ios' ? (showCompactSubtasks ? 'on' : 'off') : undefined,
+      },
       ...TAG_ORDER.map((tag) => {
         const on = enabledTags.has(tag);
         return {
@@ -111,7 +140,7 @@ function FilterMenuButton({ theme }: { theme: keyof typeof Colors }) {
     };
 
     return [showAll, hideAll, inlineGroup];
-  }, [enabledTags, showTagIcons, theme]);
+  }, [enabledTags, showCompactSubtasks, showTagIcons, theme]);
 
   const onPressAction = React.useCallback(
     ({ nativeEvent: { event } }: any) => {
@@ -120,7 +149,8 @@ function FilterMenuButton({ theme }: { theme: keyof typeof Colors }) {
       if (id === 'showAllTags') {
         const next = new Set<TagId>(TAG_ORDER);
         setEnabledTags(next);
-        router.setParams({ tags: 'all' });
+        setShowCompactSubtasks(true);
+        router.setParams({ tags: 'all', withSubtasks: '1' });
         scheduleReopen();
         return;
       }
@@ -128,7 +158,8 @@ function FilterMenuButton({ theme }: { theme: keyof typeof Colors }) {
       if (id === 'hideAllTags') {
         const next = new Set<TagId>();
         setEnabledTags(next);
-        router.setParams({ tags: undefined });
+        setShowCompactSubtasks(false);
+        router.setParams({ tags: undefined, withSubtasks: '0' });
         scheduleReopen();
         return;
       }
@@ -137,6 +168,14 @@ function FilterMenuButton({ theme }: { theme: keyof typeof Colors }) {
         const next = !showTagIcons;
         setShowTagIcons(next);
         router.setParams({ tagIcons: next ? '1' : '0' });
+        scheduleReopen();
+        return;
+      }
+
+      if (id === 'toggleCompactSubtasks') {
+        const next = !showCompactSubtasks;
+        setShowCompactSubtasks(next);
+        router.setParams({ withSubtasks: next ? '1' : '0' });
         scheduleReopen();
         return;
       }
@@ -153,7 +192,15 @@ function FilterMenuButton({ theme }: { theme: keyof typeof Colors }) {
         scheduleReopen();
       }
     },
-    [router, scheduleReopen, setEnabledTags, setShowTagIcons, showTagIcons]
+    [
+      router,
+      scheduleReopen,
+      setEnabledTags,
+      setShowCompactSubtasks,
+      setShowTagIcons,
+      showCompactSubtasks,
+      showTagIcons,
+    ]
   );
 
   return (

@@ -46,6 +46,8 @@ const SWIPE_FAIL_OFFSET_Y = 18;
 const AXIS_LOCK_THRESHOLD = 4;
 const MIN_SWIPE_X = 12;
 const MIN_SCROLL_Y = 10;
+const COMPACT_SUBTASK_ICON_SIZE = 21;
+const COMPACT_SUBTASK_TEXT_SIZE = 17;
 // Small delay to separate horizontal swipe intent from long-press drag.
 const SWIPE_ARM_DELAY_MS = 170;
 const DRAG_LONG_PRESS_DELAY_MS = 560;
@@ -146,6 +148,7 @@ export type SwipeTaskRowProps = {
   };
   enabledTags: Set<TagId>;
   showTaskIcons: boolean;
+  showCompactSubtasks?: boolean;
   beginSwipe: (taskId: string) => void;
   endSwipe: (taskId: string) => void;
   registerClose: (taskId: string, close: () => void) => void;
@@ -153,6 +156,7 @@ export type SwipeTaskRowProps = {
   closeAnyOpen: () => void;
   onPressTask: (taskId: string) => void;
   toggleComplete: (taskId: string) => void;
+  toggleSubtask?: (taskId: string, subtaskId: string) => void;
   deleteTask: (taskId: string) => void;
   onSwipeGestureActiveChange?: (taskId: string, active: boolean) => void;
   onTouchInteractionChange?: (taskId: string, active: boolean) => void;
@@ -176,6 +180,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   rightAction,
   enabledTags,
   showTaskIcons,
+  showCompactSubtasks = false,
   beginSwipe,
   endSwipe,
   registerClose,
@@ -183,6 +188,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   closeAnyOpen,
   onPressTask,
   toggleComplete,
+  toggleSubtask,
   deleteTask,
   onSwipeGestureActiveChange,
   onTouchInteractionChange,
@@ -749,6 +755,66 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     </View>
   ) : null;
 
+  const compactSubtasks = React.useMemo(() => {
+    if (!showCompactSubtasks) return [];
+
+    const source = task.subtasks ?? [];
+    return source
+      .map((subtask) => ({ ...subtask, title: subtask.title.trim() }))
+      .filter((subtask) => subtask.title.length > 0);
+  }, [showCompactSubtasks, task.subtasks]);
+
+  const compactSubtasksView = compactSubtasks.length ? (
+    <View style={{ marginTop: 4, gap: 6 }}>
+      {compactSubtasks.map((subtask) => (
+        <Pressable
+          key={subtask.id}
+          disabled={!toggleSubtask}
+          onPress={(event) => {
+            event.stopPropagation();
+            if (!toggleSubtask) return;
+            toggleSubtask(task.id, subtask.id);
+          }}
+          hitSlop={6}
+          style={({ pressed }) => [
+            {
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+              opacity: pressed && toggleSubtask ? 0.75 : 1,
+            },
+          ]}
+        >
+          <MaterialIcons
+            name={subtask.done ? "check-box" : "check-box-outline-blank"}
+            size={COMPACT_SUBTASK_ICON_SIZE}
+            color={
+              subtask.done
+                ? "rgba(52,199,89,0.92)"
+                : "rgba(127,127,127,0.72)"
+            }
+          />
+          <Text
+            numberOfLines={1}
+            style={[
+              styles.rowSubtitle,
+              {
+                flex: 1,
+                fontSize: COMPACT_SUBTASK_TEXT_SIZE,
+                lineHeight: Math.round(COMPACT_SUBTASK_TEXT_SIZE * 1.2),
+                fontWeight: "500",
+                textDecorationLine: subtask.done ? "line-through" : "none",
+                opacity: subtask.done ? 0.55 : 0.82,
+              },
+            ]}
+          >
+            {subtask.title}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  ) : null;
+
   const emojiTileView = showTaskIcons ? (
     <GlassSurface
       style={styles.emojiTile}
@@ -833,6 +899,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
                       <Text style={styles.rowSubtitle}>{task.subtitle}</Text>
                     ) : null}
                     {tagsView}
+                    {compactSubtasksView}
                   </View>
                 </View>
               </View>

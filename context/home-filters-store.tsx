@@ -36,6 +36,7 @@ export function getTagTitle(tagId: TagId): string {
 const STORAGE_KEYS = {
   tags: "reminds.homeFilters.tags",
   tagIcons: "reminds.homeFilters.tagIcons",
+  compactSubtasks: "reminds.homeFilters.compactSubtasks",
 } as const;
 
 type KeyValueBackend = {
@@ -212,6 +213,8 @@ type HomeFiltersContextValue = {
   setEnabledTags: React.Dispatch<React.SetStateAction<Set<TagId>>>;
   showTagIcons: boolean;
   setShowTagIcons: React.Dispatch<React.SetStateAction<boolean>>;
+  showCompactSubtasks: boolean;
+  setShowCompactSubtasks: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
 const HomeFiltersContext = React.createContext<HomeFiltersContextValue | null>(
@@ -228,6 +231,8 @@ export function HomeFiltersProvider({
     () => new Set(),
   );
   const [showTagIcons, setShowTagIcons] = React.useState<boolean>(true);
+  const [showCompactSubtasks, setShowCompactSubtasks] =
+    React.useState<boolean>(false);
 
   const hydratedRef = React.useRef(false);
 
@@ -237,10 +242,12 @@ export function HomeFiltersProvider({
 
     const run = async () => {
       try {
-        const [storedTags, storedIcons] = await Promise.all([
-          getStoredItem(STORAGE_KEYS.tags),
-          getStoredItem(STORAGE_KEYS.tagIcons),
-        ]);
+        const [storedTags, storedIcons, storedCompactSubtasks] =
+          await Promise.all([
+            getStoredItem(STORAGE_KEYS.tags),
+            getStoredItem(STORAGE_KEYS.tagIcons),
+            getStoredItem(STORAGE_KEYS.compactSubtasks),
+          ]);
 
         if (cancelled) return;
 
@@ -260,6 +267,14 @@ export function HomeFiltersProvider({
         if (storedIcons != null) {
           const nextIcons = parseTagIconsParam(storedIcons);
           setShowTagIcons((prev) => (prev === nextIcons ? prev : nextIcons));
+        }
+
+        if (storedCompactSubtasks != null) {
+          const nextCompactSubtasks =
+            parseCompactSubtasksParam(storedCompactSubtasks);
+          setShowCompactSubtasks((prev) =>
+            prev === nextCompactSubtasks ? prev : nextCompactSubtasks,
+          );
         }
       } finally {
         if (!cancelled) hydratedRef.current = true;
@@ -282,14 +297,25 @@ export function HomeFiltersProvider({
       else await removeStoredItem(STORAGE_KEYS.tags);
 
       await setStoredItem(STORAGE_KEYS.tagIcons, showTagIcons ? "1" : "0");
+      await setStoredItem(
+        STORAGE_KEYS.compactSubtasks,
+        showCompactSubtasks ? "1" : "0",
+      );
     };
 
     void run();
-  }, [enabledTags, showTagIcons]);
+  }, [enabledTags, showCompactSubtasks, showTagIcons]);
 
   const value = React.useMemo(
-    () => ({ enabledTags, setEnabledTags, showTagIcons, setShowTagIcons }),
-    [enabledTags, showTagIcons],
+    () => ({
+      enabledTags,
+      setEnabledTags,
+      showTagIcons,
+      setShowTagIcons,
+      showCompactSubtasks,
+      setShowCompactSubtasks,
+    }),
+    [enabledTags, showCompactSubtasks, showTagIcons],
   );
 
   return (
@@ -342,4 +368,10 @@ export function parseTagIconsParam(value: unknown): boolean {
   if (value === "0") return false;
   if (value === "1") return true;
   return true;
+}
+
+export function parseCompactSubtasksParam(value: unknown): boolean {
+  if (value === "0") return false;
+  if (value === "1") return true;
+  return false;
 }

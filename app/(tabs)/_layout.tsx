@@ -22,7 +22,7 @@ import { isIOS26OrNewer } from "@/utils/ios-version";
 
 type TaskAccessoryContextBridge = {
   setContext?: (
-    mode: "task" | "project" | "inProject",
+    mode: "task" | "routine" | "project" | "inProject",
     projectId?: string | null,
     projectLabel?: string | null,
   ) => void;
@@ -35,7 +35,7 @@ export default function TabLayout() {
   const showRoutinesTab = false;
   const segments = useSegments();
   const { id: routeIdParam } = useGlobalSearchParams<{ id?: string | string[] }>();
-  const { setProjectId, clearProjectId } = useTaskCreateContext();
+  const { setProjectId, clearProjectId, setMode } = useTaskCreateContext();
   const { projects } = useTasksStore();
   const accessoryBridge = NativeModules
     .TaskAccessoryContextBridge as TaskAccessoryContextBridge | undefined;
@@ -66,6 +66,19 @@ export default function TabLayout() {
       routeProjectExists
     ) {
       setProjectId(routeProjectId);
+      setMode("inProject");
+      return;
+    }
+
+    if (first === "(tabs)" && second === "home" && (third === "routines" || segments.includes("routines"))) {
+      clearProjectId();
+      setMode("routine");
+      return;
+    }
+
+    if (first === "(tabs)" && second === "explore") {
+      clearProjectId();
+      setMode("project");
       return;
     }
 
@@ -74,8 +87,9 @@ export default function TabLayout() {
     // so we intentionally keep the last focused project context for that flow.
     if (first === "(tabs)") {
       clearProjectId();
+      setMode("task");
     }
-  }, [clearProjectId, routeProjectExists, routeProjectId, segments, setProjectId]);
+  }, [clearProjectId, routeProjectExists, routeProjectId, segments, setMode, setProjectId]);
 
   React.useEffect(() => {
     if (Platform.OS !== "ios" || !isIOS26Plus) return;
@@ -103,6 +117,15 @@ export default function TabLayout() {
 
     if (first === "(tabs)" && second === "explore") {
       accessoryBridge?.setContext?.("project", null, null);
+      return;
+    }
+
+    const isRoutinesRoute =
+      first === "(tabs)" &&
+      second === "home" &&
+      (third === "routines" || segments.includes("routines"));
+    if (isRoutinesRoute) {
+      accessoryBridge?.setContext?.("routine", null, null);
       return;
     }
 

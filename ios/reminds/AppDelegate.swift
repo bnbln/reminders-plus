@@ -385,6 +385,8 @@ private final class TabBarAccessoryCoordinator: NSObject {
 
   private func resolvedAddActionURL() -> URL? {
     switch accessoryMode {
+    case .routine:
+      return URL(string: "reminds:///task/create-modal?preset=routine")
     case .project:
       return URL(string: "reminds:///project/edit-modal")
     case .inProject:
@@ -529,6 +531,7 @@ private final class TabBarAccessoryCoordinator: NSObject {
 private final class AddReminderAccessoryButton: UIControl {
   enum Mode: String {
     case task
+    case routine
     case project
     case inProject
   }
@@ -726,6 +729,8 @@ private final class AddReminderAccessoryButton: UIControl {
   private func resolveTitle(for mode: Mode, projectLabel: String?) -> String {
     switch mode {
     case .task:
+      return Self.localizedTaskTitle()
+    case .routine:
       return Self.localizedTaskTitle()
     case .project:
       return Self.localizedProjectTitle()

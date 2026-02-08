@@ -12,12 +12,14 @@ import { t } from '@/i18n';
 
 export default function SearchIndex() {
   const router = useRouter();
-  const { q } = useLocalSearchParams<{ q?: string }>();
+  const { q, withSubtasks } = useLocalSearchParams<{ q?: string; withSubtasks?: string }>();
   const theme = useColorScheme() ?? 'light';
   const styles = React.useMemo(() => createStyles(theme), [theme]);
 
   const { tasks, setTasks, projects } = useTasksStore();
-  const { enabledTags, showTagIcons } = useHomeFilters();
+  const { enabledTags, showTagIcons, showCompactSubtasks } = useHomeFilters();
+  const withSubtasksEnabled =
+    withSubtasks === undefined ? showCompactSubtasks : withSubtasks === '1';
 
   const projectsById = React.useMemo(() => new Map(projects.map((p) => [p.id, p] as const)), [projects]);
 
@@ -64,6 +66,31 @@ export default function SearchIndex() {
     [setTasks]
   );
 
+  const toggleSubtask = React.useCallback(
+    (taskId: string, subtaskId: string) => {
+      setTasks((prev) => {
+        let changed = false;
+        const next = prev.map((task) => {
+          if (task.id !== taskId || !task.subtasks?.length) return task;
+
+          let toggled = false;
+          const subtasks = task.subtasks.map((subtask) => {
+            if (subtask.id !== subtaskId) return subtask;
+            toggled = true;
+            return { ...subtask, done: !subtask.done };
+          });
+
+          if (!toggled) return task;
+          changed = true;
+          return { ...task, subtasks };
+        });
+
+        return changed ? next : prev;
+      });
+    },
+    [setTasks]
+  );
+
   // No-op for search reordering
   const handleReorder = React.useCallback(() => { }, []);
 
@@ -89,8 +116,10 @@ export default function SearchIndex() {
       }
       enabledTags={enabledTags}
       showTaskIcons={showTagIcons}
+      showCompactSubtasks={withSubtasksEnabled}
       onPressTask={onPressTask}
       toggleComplete={toggleComplete}
+      toggleSubtask={toggleSubtask}
       deleteTask={deleteTask}
       onReorder={handleReorder}
       sortByOrderRank={false} // Don't enforce order rank sorting for search results

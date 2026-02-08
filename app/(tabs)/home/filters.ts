@@ -1,6 +1,12 @@
 import { t } from '@/i18n';
 
-export type FilterId = 'all' | 'today' | 'upcoming' | 'completed' | 'withNotes';
+export type FilterId =
+  | 'all'
+  | 'today'
+  | 'upcoming'
+  | 'completed'
+  | 'withNotes'
+  | 'withSubtasks';
 
 export const FILTERS: {
   id: FilterId;
@@ -13,6 +19,7 @@ export const FILTERS: {
   { id: 'upcoming', title: t('filters.upcoming'), subtitle: t('filters.upcomingOnly'), icon: { ios: 'calendar', android: 'event' } },
   { id: 'completed', title: t('filters.completed'), subtitle: t('filters.completedOnly'), icon: { ios: 'checkmark.circle', android: 'check-circle' } },
   { id: 'withNotes', title: t('filters.withNotes'), subtitle: t('filters.withNotesOnly'), icon: { ios: 'note.text', android: 'notes' } },
+  { id: 'withSubtasks', title: t('filters.withSubtasks'), subtitle: t('filters.withSubtasksOnly'), icon: { ios: 'checkmark.square', android: 'check-box' } },
 ];
 
 export function isFilterId(value: unknown): value is FilterId {

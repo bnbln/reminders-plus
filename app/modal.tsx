@@ -1,8 +1,10 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import React from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, TextInput, View } from 'react-native';
 
+import { HeaderCloseButton } from '@/components/ui/header-close-button';
+import { HeaderIconButton } from '@/components/ui/header-icon-button';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -31,14 +33,12 @@ export default function ModalScreen() {
         options={{
           title: t('modal.newTask'),
           headerLeft: () => (
-            <Pressable onPress={handleCancel} hitSlop={10} style={styles.iconButton}>
-              <MaterialIcons name="close" size={24} color={Colors[theme].text} />
-            </Pressable>
+            <HeaderCloseButton onPress={handleCancel} color={Colors[theme].text} />
           ),
           headerRight: () => (
-            <Pressable onPress={handleAdd} disabled={!canSubmit} hitSlop={10} style={styles.iconButton}>
+            <HeaderIconButton onPress={handleAdd} disabled={!canSubmit}>
               <MaterialIcons name="check" size={24} color={canSubmit ? Colors[theme].text : Colors[theme].icon} />
-            </Pressable>
+            </HeaderIconButton>
           ),
           headerLargeTitle: false,
           headerShown: true,
@@ -84,11 +84,5 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     fontSize: 17, // Standard iOS body size
     color: '#000', // Default text color for input if not set, though it's overridden below
-  },
-  iconButton: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

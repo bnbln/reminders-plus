@@ -133,18 +133,31 @@ function isRoutineInterval(v: unknown): v is RoutineInterval {
   return v === "daily" || v === "weekly" || v === "monthly" || v === "yearly";
 }
 
-function isRoutineType(v: unknown): v is RoutineType {
-  return (
-    v === "daily" ||
-    v === "weekly" ||
-    v === "monthly" ||
-    v === "yearly" ||
-    v === "weekday" ||
-    v === "nth-weekday" ||
-    v === "first-of-month" ||
-    v === "last-of-month" ||
-    v === "yearly-date"
-  );
+function normalizeRoutineType(v: unknown): RoutineType | undefined {
+  switch (v) {
+    case "hourly":
+    case "daily":
+    case "weekdays":
+    case "weekends":
+    case "weekly":
+    case "biweekly":
+    case "monthly":
+    case "quarterly":
+    case "biannually":
+    case "yearly":
+    case "custom":
+      return v;
+    // Legacy aliases from older snapshots.
+    case "weekday":
+      return "weekdays";
+    case "nth-weekday":
+    case "first-of-month":
+    case "last-of-month":
+    case "yearly-date":
+      return "custom";
+    default:
+      return undefined;
+  }
 }
 
 /** Get the nth occurrence of a weekday in a given month */
@@ -167,20 +180,16 @@ function getLastDayOfMonth(year: number, month: number): Date {
   return new Date(year, month + 1, 0);
 }
 
-/** Calculate the next due date for a routine task based on the type. */
-export function getNextRoutineDate(
-  currentDueAt: number,
+function advanceRoutineDate(
+  next: Date,
   routineType: RoutineType,
   options: {
     weekday?: number;
     nthWeek?: number;
     monthDay?: number;
     month?: number;
-  } = {},
-): number {
-  const now = new Date();
-  const base = currentDueAt > 0 ? new Date(currentDueAt) : now;
-  let next = new Date(base);
+  },
+) {
   switch (routineType) {
     case "hourly":
       next.setHours(next.getHours() + 1);
@@ -213,47 +222,65 @@ export function getNextRoutineDate(
       break;
 
     case "monthly":
-      next.setMonth(next.getMonth() + 1);
-      if (typeof options.monthDay === "number" && options.monthDay >= 1) {
+      {
+        const currentDay = next.getDate();
+        const targetDay =
+          typeof options.monthDay === "number" && options.monthDay >= 1
+            ? options.monthDay
+            : currentDay;
+        next.setDate(1);
+        next.setMonth(next.getMonth() + 1);
         const maxDay = getLastDayOfMonth(
           next.getFullYear(),
           next.getMonth(),
         ).getDate();
-        next.setDate(Math.min(options.monthDay, maxDay));
+        next.setDate(Math.min(targetDay, maxDay));
       }
       break;
 
     case "quarterly":
-      next.setMonth(next.getMonth() + 3);
-      if (typeof options.monthDay === "number" && options.monthDay >= 1) {
+      {
+        const currentDay = next.getDate();
+        const targetDay =
+          typeof options.monthDay === "number" && options.monthDay >= 1
+            ? options.monthDay
+            : currentDay;
+        next.setDate(1);
+        next.setMonth(next.getMonth() + 3);
         const maxDay = getLastDayOfMonth(
           next.getFullYear(),
           next.getMonth(),
         ).getDate();
-        next.setDate(Math.min(options.monthDay, maxDay));
+        next.setDate(Math.min(targetDay, maxDay));
       }
       break;
 
     case "biannually":
-      next.setMonth(next.getMonth() + 6);
-      if (typeof options.monthDay === "number" && options.monthDay >= 1) {
+      {
+        const currentDay = next.getDate();
+        const targetDay =
+          typeof options.monthDay === "number" && options.monthDay >= 1
+            ? options.monthDay
+            : currentDay;
+        next.setDate(1);
+        next.setMonth(next.getMonth() + 6);
         const maxDay = getLastDayOfMonth(
           next.getFullYear(),
           next.getMonth(),
         ).getDate();
-        next.setDate(Math.min(options.monthDay, maxDay));
+        next.setDate(Math.min(targetDay, maxDay));
       }
       break;
 
     case "yearly":
-      next.setFullYear(next.getFullYear() + 1);
-      if (
-        typeof options.month === "number" &&
-        typeof options.monthDay === "number"
-      ) {
-        const targetMonth = options.month;
-        const targetDay = options.monthDay;
-        next.setMonth(targetMonth);
+      {
+        const targetMonth =
+          typeof options.month === "number" ? options.month : next.getMonth();
+        const targetDay =
+          typeof options.monthDay === "number" && options.monthDay >= 1
+            ? options.monthDay
+            : next.getDate();
+        next.setFullYear(next.getFullYear() + 1, targetMonth, 1);
         const maxDay = getLastDayOfMonth(
           next.getFullYear(),
           targetMonth,
@@ -267,13 +294,44 @@ export function getNextRoutineDate(
       next.setDate(next.getDate() + 1);
       break;
   }
+}
 
-  // If next date is still in the past, recursively advance
-  if (next.getTime() <= now.getTime()) {
-    return getNextRoutineDate(next.getTime(), routineType, options);
+/** Calculate the next due date for a routine task based on the type. */
+export function getNextRoutineDate(
+  currentDueAt: number,
+  routineType: RoutineType,
+  options: {
+    weekday?: number;
+    nthWeek?: number;
+    monthDay?: number;
+    month?: number;
+  } = {},
+): number {
+  const nowMs = Date.now();
+  let next = new Date(currentDueAt > 0 ? currentDueAt : nowMs);
+  const maxIterations = 4096;
+
+  for (let i = 0; i < maxIterations; i += 1) {
+    const beforeMs = next.getTime();
+    advanceRoutineDate(next, routineType, options);
+    const nextMs = next.getTime();
+
+    if (!Number.isFinite(nextMs)) break;
+
+    // Defensive: avoid non-advancing loops from invalid/stale input values.
+    if (nextMs <= beforeMs) {
+      next = new Date(beforeMs + 60_000);
+    }
+
+    if (next.getTime() > nowMs) {
+      return next.getTime();
+    }
   }
 
-  return next.getTime();
+  // Last-resort fallback in case we cannot compute a stable progression.
+  const fallback = new Date(nowMs);
+  fallback.setDate(fallback.getDate() + 1);
+  return fallback.getTime();
 }
 
 function normalizeSnapshot(raw: any): { tasks: Task[]; projects: Project[] } {
@@ -336,7 +394,7 @@ function normalizeSnapshot(raw: any): { tasks: Task[]; projects: Project[] } {
         orderRank,
         deletedAt,
         isRoutine: typeof t.isRoutine === "boolean" ? t.isRoutine : undefined,
-        routineType: isRoutineType(t.routineType) ? t.routineType : undefined,
+        routineType: normalizeRoutineType(t.routineType),
         routineInterval: isRoutineInterval(t.routineInterval)
           ? t.routineInterval
           : undefined,
