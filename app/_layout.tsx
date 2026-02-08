@@ -84,6 +84,15 @@ export default function RootLayout() {
                 <Stack.Screen name="task/[id]" options={{ title: t('common.task') }} />
                 <Stack.Screen name="project/[id]" options={{ title: t('common.project') }} />
                 <Stack.Screen
+                  name="project/create-modal"
+                  options={{
+                    presentation: 'transparentModal',
+                    headerShown: false,
+                    contentStyle: { backgroundColor: 'transparent' },
+                    animation: 'fade',
+                  }}
+                />
+                <Stack.Screen
                   name="project/edit-modal"
                   options={{
                     presentation: 'formSheet',

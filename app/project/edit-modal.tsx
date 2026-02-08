@@ -46,9 +46,15 @@ export default function ProjectEditScreen() {
     const isDark = theme === 'dark';
     const styles = React.useMemo(() => createStyles(theme), [theme]);
 
-    const { projects, setProjects, tasks, setTasks } = useTasksStore();
+    const { projects, setProjects, setTasks } = useTasksStore();
     const project = React.useMemo(() => (id ? projects.find((p) => p.id === id) : undefined), [projects, id]);
     const isCreate = !id || !project;
+
+    React.useEffect(() => {
+        if (isCreate) {
+            router.replace('/project/create-modal');
+        }
+    }, [isCreate, router]);
 
     const createProjectId = React.useCallback(() => `p-${Date.now()}-${Math.random().toString(16).slice(2)}`, []);
 
@@ -115,9 +121,13 @@ export default function ProjectEditScreen() {
         });
     }, [id, setProjects, setTasks, router]);
 
-    const headerTitle = isCreate ? t('projectEdit.newProject') : t('projectEdit.editProject');
+    const headerTitle = t('projectEdit.editProject');
 
     const insets = useSafeAreaInsets();
+
+    if (isCreate) {
+        return null;
+    }
 
     return (
         <View style={styles.container}>

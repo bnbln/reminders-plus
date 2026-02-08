@@ -166,7 +166,7 @@ export default function ExploreScreen() {
   }, [projects]);
 
   const onCreateProject = React.useCallback(() => {
-    router.push('/project/edit-modal');
+    router.push('/project/create-modal');
   }, [router]);
 
   const onPressProject = React.useCallback(

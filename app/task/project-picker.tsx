@@ -57,7 +57,7 @@ export default function ProjectPickerScreen() {
     const handleCreateProject = React.useCallback(() => {
         // Navigate to create project modal
         // Since we are in a modal, pushing another modal might stack them
-        router.push('/project/edit-modal');
+        router.push('/project/create-modal');
     }, [router]);
 
 
