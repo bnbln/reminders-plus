@@ -558,7 +558,11 @@ export default function TaskViewScreen() {
               <View style={styles.propertyTileIconRow}>
                 <View style={[styles.propertyTileIconBadge, { backgroundColor: withAlpha(project?.color ?? Colors[theme].text, isDark ? 0.15 : 0.1) }]}>
                   {project ? (
-                    <SFSymbol name={project.icon} size={14} color={project.color} />
+                    project.emoji ? (
+                      <Text style={styles.projectEmoji}>{project.emoji}</Text>
+                    ) : (
+                      <SFSymbol name={project.icon} size={14} color={project.color} />
+                    )
                   ) : (
                     <MaterialIcons name="folder" size={16} color={withAlpha(Colors[theme].text, 0.6)} />
                   )}
@@ -853,6 +857,10 @@ const createStyles = (theme: keyof typeof Colors) => {
       borderRadius: 9,
       alignItems: 'center',
       justifyContent: 'center',
+    },
+    projectEmoji: {
+      fontSize: 15,
+      lineHeight: 18,
     },
     propertyTileLabel: {
       fontSize: 11,

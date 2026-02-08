@@ -1,5 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -265,7 +265,6 @@ export default function RoutinesScreen() {
   const theme = useColorScheme() ?? 'light';
   const isDark = theme === 'dark';
   const router = useRouter();
-  const scrollRef = React.useRef<ScrollView | null>(null);
   const showFloatingAddButton = Platform.OS === 'ios' && !isIOS26OrNewer();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { tasks } = useTasksStore();
@@ -304,19 +303,9 @@ export default function RoutinesScreen() {
     router.push('/task/create-modal');
   }, [router]);
 
-  useFocusEffect(
-    React.useCallback(() => {
-      const frame = requestAnimationFrame(() => {
-        scrollRef.current?.scrollTo({ y: 0, animated: false });
-      });
-      return () => cancelAnimationFrame(frame);
-    }, [])
-  );
-
   return (
     <View style={styles.container}>
       <ScrollView
-        ref={scrollRef}
         style={styles.container}
         contentInsetAdjustmentBehavior="automatic"
         alwaysBounceVertical

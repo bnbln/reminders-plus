@@ -44,10 +44,10 @@ const SWIPE_HAPTIC_AND_ACTION_FINGER =
 const SWIPE_ACTIVE_OFFSET_X = 10;
 const SWIPE_FAIL_OFFSET_Y = 18;
 const AXIS_LOCK_THRESHOLD = 4;
-const MIN_SWIPE_X = 10;
+const MIN_SWIPE_X = 12;
 const MIN_SCROLL_Y = 10;
 // Small delay to separate horizontal swipe intent from long-press drag.
-const SWIPE_ARM_DELAY_MS = 120;
+const SWIPE_ARM_DELAY_MS = 170;
 const DRAG_LONG_PRESS_DELAY_MS = 560;
 
 type TagChipModel = {
@@ -155,6 +155,7 @@ export type SwipeTaskRowProps = {
   toggleComplete: (taskId: string) => void;
   deleteTask: (taskId: string) => void;
   onSwipeGestureActiveChange?: (taskId: string, active: boolean) => void;
+  onTouchInteractionChange?: (taskId: string, active: boolean) => void;
   shouldPopIn?: boolean;
   onPopInAnimationEnd?: (taskId: string) => void;
 };
@@ -184,6 +185,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   toggleComplete,
   deleteTask,
   onSwipeGestureActiveChange,
+  onTouchInteractionChange,
   shouldPopIn = false,
   onPopInAnimationEnd,
 }: SwipeTaskRowProps) {
@@ -808,6 +810,12 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
               onLongPress={drag}
               delayLongPress={DRAG_LONG_PRESS_DELAY_MS}
               pressRetentionOffset={{ top: 8, bottom: 8, left: 6, right: 6 }}
+              onPressIn={() => {
+                onTouchInteractionChange?.(task.id, true);
+              }}
+              onPressOut={() => {
+                onTouchInteractionChange?.(task.id, false);
+              }}
               onLayout={(e) => {
                 rowWidth.value = e.nativeEvent.layout.width;
                 rowHeight.value = e.nativeEvent.layout.height;

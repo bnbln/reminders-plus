@@ -1,8 +1,8 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { MenuView, type MenuAction } from '@react-native-menu/menu';
 import { Stack, useRouter } from 'expo-router';
 import React from 'react';
 import {
-  Animated,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -21,25 +21,38 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
 
 type ThemeName = keyof typeof Colors;
-type MaterialIconName = React.ComponentProps<typeof MaterialIcons>['name'];
-type PanelId = 'icon' | 'color' | 'description';
-type ProjectAction = {
-  id: PanelId;
-  title: string;
-  icon: MaterialIconName;
-  accentColor: string;
-};
 
-type SelectionTag = {
-  key: string;
-  panelId: PanelId;
+type EmojiPreset = {
+  emoji: string;
+  icon: string;
   label: string;
-  icon: MaterialIconName;
-  accentColor: string;
 };
 
 const DEFAULT_PROJECT_ICON = 'folder.fill';
 const DEFAULT_PROJECT_COLOR = '#2563EB';
+const PICKER_ROW_GAP = 8;
+const SEND_BUTTON_SIZE = 44;
+
+const EMOJI_PRESETS: EmojiPreset[] = [
+  { emoji: '📁', icon: 'folder.fill', label: 'Folder' },
+  { emoji: '📝', icon: 'doc.text.fill', label: 'Notes' },
+  { emoji: '⭐', icon: 'star.fill', label: 'Star' },
+  { emoji: '❤️', icon: 'heart.fill', label: 'Heart' },
+  { emoji: '🚩', icon: 'flag.fill', label: 'Flag' },
+  { emoji: '🏷️', icon: 'tag.fill', label: 'Tag' },
+  { emoji: '🎨', icon: 'paintbrush.fill', label: 'Creative' },
+  { emoji: '💼', icon: 'briefcase.fill', label: 'Work' },
+  { emoji: '👥', icon: 'person.2.fill', label: 'Team' },
+  { emoji: '🛒', icon: 'cart.fill', label: 'Shopping' },
+  { emoji: '🎁', icon: 'gift.fill', label: 'Gift' },
+  { emoji: '🎮', icon: 'gamecontroller.fill', label: 'Gaming' },
+  { emoji: '🎧', icon: 'headphones', label: 'Audio' },
+  { emoji: '✈️', icon: 'airplane', label: 'Travel' },
+  { emoji: '🚋', icon: 'tram.fill', label: 'Mobility' },
+  { emoji: '🍃', icon: 'leaf.fill', label: 'Nature' },
+  { emoji: '🔥', icon: 'flame.fill', label: 'Focus' },
+  { emoji: '⚡', icon: 'bolt.fill', label: 'Energy' },
+];
 
 const ICON_PRESETS = [
   'folder.fill',
@@ -73,7 +86,22 @@ const COLOR_PRESETS = [
   '#F59E0B',
   '#EC4899',
   '#6366F1',
+  '#0EA5E9',
+  '#14B8A6',
 ];
+
+const COLOR_LABEL_KEY_BY_HEX: Record<string, string> = {
+  '#7C3AED': 'taskCreate.color.purple',
+  '#2563EB': 'taskCreate.color.blue',
+  '#F97316': 'taskCreate.color.orange',
+  '#10B981': 'taskCreate.color.green',
+  '#EF4444': 'taskCreate.color.red',
+  '#F59E0B': 'taskCreate.color.yellow',
+  '#EC4899': 'taskCreate.color.pink',
+  '#6366F1': 'taskCreate.color.indigo',
+  '#0EA5E9': 'taskCreate.color.cyan',
+  '#14B8A6': 'taskCreate.color.mint',
+};
 
 const createProjectId = () => `p-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
@@ -93,15 +121,15 @@ export default function ProjectCreateModal() {
   const { setProjects } = useTasksStore();
 
   const [name, setName] = React.useState('');
+  const [description, setDescription] = React.useState('');
   const [icon, setIcon] = React.useState(DEFAULT_PROJECT_ICON);
   const [color, setColor] = React.useState(DEFAULT_PROJECT_COLOR);
-  const [description, setDescription] = React.useState('');
-  const [isMenuExpanded, setMenuExpanded] = React.useState(false);
-  const [activePanelId, setActivePanelId] = React.useState<PanelId>('icon');
+  const [selectedEmoji, setSelectedEmoji] = React.useState('📁');
 
-  const menuProgress = React.useRef(new Animated.Value(0)).current;
   const titleInputRef = React.useRef<TextInput | null>(null);
   const descriptionInputRef = React.useRef<TextInput | null>(null);
+  const activeInputRef = React.useRef<'title' | 'description'>('title');
+
   const canSubmit = name.trim().length > 0;
 
   React.useEffect(() => {
@@ -109,90 +137,42 @@ export default function ProjectCreateModal() {
     return () => clearTimeout(timer);
   }, []);
 
-  React.useEffect(() => {
-    Animated.spring(menuProgress, {
-      toValue: isMenuExpanded ? 1 : 0,
-      tension: 220,
-      friction: 26,
-      overshootClamping: true,
-      useNativeDriver: true,
-    }).start();
-  }, [isMenuExpanded, menuProgress]);
+  const focusActiveInput = React.useCallback(() => {
+    if (Platform.OS !== 'ios') return;
+    const target =
+      activeInputRef.current === 'description' ? descriptionInputRef.current : titleInputRef.current;
+    (target ?? titleInputRef.current)?.focus();
+  }, []);
 
-  const actions = React.useMemo<ProjectAction[]>(
-    () => [
-      {
-        id: 'icon',
-        title: t('projectEdit.icon'),
-        icon: 'folder',
-        accentColor: '#5AC8FA',
-      },
-      {
-        id: 'color',
-        title: t('projectEdit.color'),
-        icon: 'palette',
-        accentColor: '#FF9F0A',
-      },
-      {
-        id: 'description',
-        title: t('projectEdit.placeholder.description'),
-        icon: 'notes',
-        accentColor: '#34C759',
-      },
-    ],
-    []
-  );
+  const keepKeyboardOpen = React.useCallback(() => {
+    if (Platform.OS !== 'ios') return;
+    focusActiveInput();
+    requestAnimationFrame(() => focusActiveInput());
+    setTimeout(() => focusActiveInput(), 40);
+    setTimeout(() => focusActiveInput(), 120);
+  }, [focusActiveInput]);
 
-  const selectedTags = React.useMemo<SelectionTag[]>(() => {
-    const tags: SelectionTag[] = [];
+  const onFocusTitle = React.useCallback(() => {
+    activeInputRef.current = 'title';
+  }, []);
 
-    if (icon !== DEFAULT_PROJECT_ICON) {
-      tags.push({
-        key: 'icon',
-        panelId: 'icon',
-        label: formatIconLabel(icon),
-        icon: 'folder',
-        accentColor: color,
-      });
-    }
-
-    if (color !== DEFAULT_PROJECT_COLOR) {
-      tags.push({
-        key: 'color',
-        panelId: 'color',
-        label: color.toUpperCase(),
-        icon: 'palette',
-        accentColor: color,
-      });
-    }
-
-    const trimmedDescription = description.trim();
-    if (trimmedDescription.length > 0) {
-      tags.push({
-        key: 'description',
-        panelId: 'description',
-        label:
-          trimmedDescription.length > 32
-            ? `${trimmedDescription.slice(0, 32).trimEnd()}…`
-            : trimmedDescription,
-        icon: 'notes',
-        accentColor: '#34C759',
-      });
-    }
-
-    return tags;
-  }, [color, description, icon]);
+  const onFocusDescription = React.useCallback(() => {
+    activeInputRef.current = 'description';
+  }, []);
 
   const onCreate = React.useCallback(() => {
     const trimmedName = name.trim();
     if (!trimmedName) return;
 
     const trimmedDescription = description.trim();
+    const trimmedEmoji = selectedEmoji.trim();
+
     setProjects((prev) => [
       {
         id: createProjectId(),
         name: trimmedName,
         icon,
+        emoji: trimmedEmoji.length > 0 ? trimmedEmoji : undefined,
         color,
         description: trimmedDescription.length > 0 ? trimmedDescription : undefined,
         completed: false,
@@ -200,73 +180,103 @@ export default function ProjectCreateModal() {
       },
       ...prev,
     ]);
+
     router.back();
-  }, [color, description, icon, name, router, setProjects]);
+  }, [color, description, icon, name, router, selectedEmoji, setProjects]);
 
   const onBackdropPress = React.useCallback(() => {
-    if (isMenuExpanded) {
-      setMenuExpanded(false);
-      return;
-    }
     router.back();
-  }, [isMenuExpanded, router]);
+  }, [router]);
 
-  const onPanelPress = React.useCallback((panelId: PanelId) => {
-    setActivePanelId(panelId);
-    if (!isMenuExpanded) setMenuExpanded(true);
-    if (panelId === 'description') {
-      setTimeout(() => descriptionInputRef.current?.focus(), 120);
-    }
-  }, [isMenuExpanded]);
+  const symbolActions = React.useMemo<MenuAction[]>(() => {
+    const iconColor = Colors[theme].text;
 
-  const onTagRemove = React.useCallback((panelId: PanelId) => {
-    switch (panelId) {
-      case 'icon':
-        setIcon(DEFAULT_PROJECT_ICON);
-        break;
-      case 'color':
-        setColor(DEFAULT_PROJECT_COLOR);
-        break;
-      case 'description':
-        setDescription('');
-        break;
-    }
-  }, []);
+    const emojiActions: MenuAction[] = EMOJI_PRESETS.map((preset) => ({
+      id: `emoji:${preset.emoji}`,
+      title: `${preset.emoji} ${preset.label}`,
+      state: Platform.OS === 'ios' ? (selectedEmoji === preset.emoji ? 'on' : 'off') : undefined,
+    }));
 
-  const menuAnimatedStyle = React.useMemo(
-    () => ({
-      transform: [
-        {
-          translateY: menuProgress.interpolate({
-            inputRange: [0, 1],
-            outputRange: [20, 0],
-          }),
-        },
-        {
-          scale: menuProgress.interpolate({
-            inputRange: [0, 1],
-            outputRange: [0.96, 1],
-          }),
-        },
-      ],
-      opacity: menuProgress.interpolate({
-        inputRange: [0, 1],
-        outputRange: [0, 1],
-      }),
-    }),
-    [menuProgress]
+    const iconActions: MenuAction[] = ICON_PRESETS.map((candidate) => {
+      const selectedByIcon = !selectedEmoji && icon === candidate;
+      return {
+        id: `icon:${candidate}`,
+        title: formatIconLabel(candidate),
+        image: Platform.OS === 'ios' ? candidate : undefined,
+        imageColor: Platform.OS === 'ios' ? iconColor : undefined,
+        state: Platform.OS === 'ios' ? (selectedByIcon ? 'on' : 'off') : undefined,
+      };
+    });
+
+    return [
+      {
+        title: 'Emoji',
+        displayInline: true,
+        subactions: emojiActions,
+      },
+      {
+        title: t('projectEdit.icon'),
+        displayInline: true,
+        subactions: iconActions,
+      },
+    ];
+  }, [icon, selectedEmoji, theme]);
+
+  const colorActions = React.useMemo<MenuAction[]>(() => {
+    return COLOR_PRESETS.map((candidate) => ({
+      id: `color:${candidate}`,
+      title: t(COLOR_LABEL_KEY_BY_HEX[candidate.toUpperCase()] ?? 'taskCreate.color.custom'),
+      image: Platform.OS === 'ios' ? 'circle.fill' : undefined,
+      imageColor: Platform.OS === 'ios' ? candidate : undefined,
+      state: Platform.OS === 'ios' ? (color === candidate ? 'on' : 'off') : undefined,
+    }));
+  }, [color]);
+
+  const onPressSymbolAction = React.useCallback(
+    ({ nativeEvent: { event } }: any) => {
+      const id = String(event || '');
+
+      if (id.startsWith('emoji:')) {
+        const selected = id.slice('emoji:'.length);
+        const match = EMOJI_PRESETS.find((preset) => preset.emoji === selected);
+        if (!match) return;
+        setSelectedEmoji(match.emoji);
+        setIcon(match.icon);
+        keepKeyboardOpen();
+        return;
+      }
+
+      if (id.startsWith('icon:')) {
+        const selected = id.slice('icon:'.length);
+        if (!ICON_PRESETS.includes(selected)) return;
+        setSelectedEmoji('');
+        setIcon(selected);
+        keepKeyboardOpen();
+      }
+    },
+    [keepKeyboardOpen]
   );
 
-  const menuTint = withAlpha(Colors[theme].background, isDark ? 0.24 : 0.38);
-  const menuFallback = withAlpha(Colors[theme].background, isDark ? 0.84 : 0.9);
-  const plusTint = withAlpha(Colors[theme].background, isDark ? 0.22 : 0.26);
-  const inputTint = withAlpha(Colors[theme].background, isDark ? 0.22 : 0.33);
-  const neutralFallback = withAlpha(Colors[theme].background, isDark ? 0.86 : 0.9);
-  const sendTint = canSubmit
-    ? withAlpha('#007AFF', isDark ? 0.88 : 0.78)
-    : withAlpha(Colors[theme].background, isDark ? 0.24 : 0.3);
-  const sendFallback = canSubmit ? '#007AFF' : neutralFallback;
-  const composerBottom = Math.max(14, insets.bottom - 16);
+  const onPressColorAction = React.useCallback(({ nativeEvent: { event } }: any) => {
+    const id = String(event || '');
+    if (!id.startsWith('color:')) return;
+    const selected = id.slice('color:'.length).toUpperCase();
+    if (!COLOR_PRESETS.includes(selected)) return;
+    setColor(selected);
+    keepKeyboardOpen();
+  }, [keepKeyboardOpen]);
+
+  const fieldTint = withAlpha(Colors[theme].background, isDark ? 0.2 : 0.34);
+  const fieldFallback = withAlpha(Colors[theme].background, isDark ? 0.82 : 0.92);
+  const pickerFallback = withAlpha(Colors[theme].background, isDark ? 0.8 : 0.9);
+  const sendTint = withAlpha('#007AFF', isDark ? 0.88 : 0.78);
+  const disabledSendTint = withAlpha(Colors[theme].background, isDark ? 0.24 : 0.32);
+
+  const previewEmoji = selectedEmoji.trim();
+  const symbolChipTint = withAlpha(Colors[theme].background, isDark ? 0.2 : 0.3);
+  const symbolChipFallback = withAlpha(Colors[theme].background, isDark ? 0.82 : 0.92);
+  const colorChipTint = withAlpha(color, isDark ? 0.22 : 0.12);
+  const colorChipFallback = withAlpha(color, isDark ? 0.28 : 0.18);
 
   return (
     <View style={styles.root}>
@@ -292,241 +302,134 @@ export default function ProjectCreateModal() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? -10 : 0}
         style={styles.keyboard}
       >
-        <View style={[styles.composerWrap, { paddingBottom: composerBottom }]} pointerEvents="box-none">
-          {isMenuExpanded ? (
-            <Animated.View style={[styles.expandedWrap, menuAnimatedStyle]}>
-              <GlassSurface
-                style={styles.expandedSurface}
-                glassEffectStyle="regular"
-                tintColor={menuTint}
-                fallbackBackgroundColor={menuFallback}
-                isInteractive
-              >
-                <View style={styles.expandedMenuList}>
-                  {actions.map((action) => {
-                    const isActive = action.id === activePanelId;
-                    return (
-                      <Pressable
-                        key={action.id}
-                        accessibilityRole="button"
-                        accessibilityLabel={action.title}
-                        onPress={() => onPanelPress(action.id)}
-                        style={({ pressed }) => [
-                          styles.expandedMenuItem,
-                          isActive && styles.expandedMenuItemActive,
-                          pressed && styles.expandedMenuItemPressed,
-                        ]}
-                      >
-                        <View
-                          style={[
-                            styles.expandedMenuIconBubble,
-                            { backgroundColor: withAlpha(action.accentColor, isDark ? 0.24 : 0.14) },
-                          ]}
-                        >
-                          <MaterialIcons name={action.icon} size={18} color={action.accentColor} />
-                        </View>
-                        <Text style={[styles.expandedMenuLabel, isActive && styles.expandedMenuLabelActive]}>
-                          {action.title}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-
-                {activePanelId === 'icon' ? (
-                  <View style={styles.presetGrid}>
-                    {ICON_PRESETS.map((candidate) => (
-                      <Pressable
-                        key={candidate}
-                        accessibilityRole="button"
-                        accessibilityLabel={formatIconLabel(candidate)}
-                        onPress={() => setIcon(candidate)}
-                        style={styles.swatchPressable}
-                      >
-                        <View style={[styles.iconSwatch, icon === candidate && styles.selectedIconSwatch]}>
-                          <SFSymbol
-                            name={candidate}
-                            size={20}
-                            color={icon === candidate ? color : Colors[theme].text}
-                          />
-                        </View>
-                      </Pressable>
-                    ))}
-                  </View>
-                ) : null}
-
-                {activePanelId === 'color' ? (
-                  <View style={styles.presetGrid}>
-                    {COLOR_PRESETS.map((candidate) => (
-                      <Pressable
-                        key={candidate}
-                        accessibilityRole="button"
-                        accessibilityLabel={candidate}
-                        onPress={() => setColor(candidate)}
-                        style={styles.swatchPressable}
-                      >
-                        <View
-                          style={[
-                            styles.colorSwatch,
-                            { backgroundColor: candidate },
-                            color === candidate && styles.selectedColorSwatch,
-                          ]}
-                        />
-                      </Pressable>
-                    ))}
-                  </View>
-                ) : null}
-
-                {activePanelId === 'description' ? (
-                  <View style={styles.descriptionInputWrap}>
-                    <TextInput
-                      ref={(ref) => {
-                        descriptionInputRef.current = ref;
-                      }}
-                      value={description}
-                      onChangeText={setDescription}
-                      placeholder={t('projectEdit.placeholder.description')}
-                      placeholderTextColor={styles.placeholder.color as string}
-                      multiline
-                      maxLength={180}
-                      style={styles.descriptionInput}
-                    />
-                  </View>
-                ) : null}
-              </GlassSurface>
-            </Animated.View>
-          ) : null}
-
-          {selectedTags.length > 0 ? (
-            <View style={styles.selectedTagsWrap}>
-              {selectedTags.map((tag) => (
-                <Pressable
-                  key={tag.key}
-                  accessibilityRole="button"
-                  accessibilityLabel={tag.label}
-                  onPress={() => onPanelPress(tag.panelId)}
-                  style={({ pressed }) => [styles.selectedTagPressable, pressed && styles.selectedTagPressed]}
-                >
-                  <GlassSurface
-                    style={styles.selectedTagChip}
-                    glassEffectStyle="regular"
-                    tintColor={withAlpha(tag.accentColor, isDark ? 0.22 : 0.12)}
-                    fallbackBackgroundColor={withAlpha(tag.accentColor, isDark ? 0.28 : 0.17)}
-                    isInteractive
-                  >
-                    <MaterialIcons name={tag.icon} size={14} color={tag.accentColor} />
-                    <Text style={styles.selectedTagText} numberOfLines={1}>
-                      {tag.label}
-                    </Text>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`${tag.label} entfernen`}
-                      onPress={(event) => {
-                        event.stopPropagation();
-                        onTagRemove(tag.panelId);
-                      }}
-                      hitSlop={8}
-                      style={({ pressed }) => [
-                        styles.selectedTagRemoveButton,
-                        pressed && styles.selectedTagPressed,
-                      ]}
-                    >
-                      <MaterialIcons
-                        name="close"
-                        size={12}
-                        color={isDark ? 'rgba(255,255,255,0.86)' : 'rgba(28,28,30,0.72)'}
-                      />
-                    </Pressable>
-                  </GlassSurface>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
-
-          <View style={styles.composerStack}>
-            <View pointerEvents="none" style={styles.composerShadowLayer} />
-            <View style={styles.composer}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={isMenuExpanded ? t('taskCreate.close') : t('taskCreate.more')}
-                hitSlop={10}
-                onPress={() => {
-                  setMenuExpanded((prev) => {
-                    const next = !prev;
-                    if (next) {
-                      setActivePanelId('icon');
-                    } else {
-                      setTimeout(() => titleInputRef.current?.focus(), 0);
-                    }
-                    return next;
-                  });
+        <View
+          style={[styles.floatingStack, { paddingBottom: Math.max(14, insets.bottom - 8) }]}
+          pointerEvents="box-none"
+        >
+          <GlassSurface
+            style={styles.nameSurface}
+            glassEffectStyle="regular"
+            tintColor={fieldTint}
+            fallbackBackgroundColor={fieldFallback}
+            isInteractive
+          >
+            <View style={styles.nameRow}>
+              <TextInput
+                ref={(ref) => {
+                  titleInputRef.current = ref;
                 }}
-                style={({ pressed }) => [styles.controlPressable, pressed && styles.controlPressed]}
-              >
-                <GlassSurface
-                  style={[styles.plusButton, isMenuExpanded && styles.plusButtonExpanded]}
-                  glassEffectStyle="clear"
-                  tintColor={plusTint}
-                  fallbackBackgroundColor={neutralFallback}
-                  isInteractive
-                >
-                  <MaterialIcons name={isMenuExpanded ? 'close' : 'add'} size={22} color={Colors[theme].text} />
-                </GlassSurface>
-              </Pressable>
+                value={name}
+                onChangeText={setName}
+                onFocus={onFocusTitle}
+                placeholder={t('projectEdit.placeholder.projectName')}
+                placeholderTextColor={styles.placeholder.color as string}
+                returnKeyType="next"
+                autoCapitalize="sentences"
+                autoCorrect
+                style={styles.nameInput}
+              />
+            </View>
+          </GlassSurface>
 
+          <GlassSurface
+            style={styles.descriptionSurface}
+            glassEffectStyle="regular"
+            tintColor={fieldTint}
+            fallbackBackgroundColor={fieldFallback}
+            isInteractive
+          >
+            <TextInput
+              ref={(ref) => {
+                descriptionInputRef.current = ref;
+              }}
+              value={description}
+              onChangeText={setDescription}
+              onFocus={onFocusDescription}
+              placeholder={t('projectEdit.placeholder.description')}
+              placeholderTextColor={styles.placeholder.color as string}
+              multiline
+              numberOfLines={2}
+              scrollEnabled
+              maxLength={180}
+              textAlignVertical="top"
+              style={styles.descriptionInput}
+            />
+          </GlassSurface>
+
+          <View style={styles.pickerRow}>
+            <MenuView
+              actions={symbolActions}
+              onPressAction={onPressSymbolAction}
+              onOpenMenu={keepKeyboardOpen}
+              onCloseMenu={keepKeyboardOpen}
+              shouldOpenOnLongPress={false}
+              themeVariant={Platform.OS === 'ios' ? theme : undefined}
+              style={styles.menuAnchor}
+            >
               <GlassSurface
-                style={styles.inputShell}
+                style={styles.pickerSurface}
                 glassEffectStyle="regular"
-                tintColor={inputTint}
-                fallbackBackgroundColor={neutralFallback}
+                tintColor={symbolChipTint}
+                fallbackBackgroundColor={symbolChipFallback}
                 isInteractive
               >
-                <TextInput
-                  ref={(ref) => {
-                    titleInputRef.current = ref;
-                  }}
-                  value={name}
-                  onChangeText={(next) => {
-                    if (isMenuExpanded) setMenuExpanded(false);
-                    setName(next);
-                  }}
-                  placeholder={t('projectEdit.placeholder.projectName')}
-                  placeholderTextColor={styles.placeholder.color as string}
-                  returnKeyType="done"
-                  autoCapitalize="sentences"
-                  autoCorrect
-                  onFocus={() => setMenuExpanded(false)}
-                  onSubmitEditing={onCreate}
-                  style={styles.input}
+                <View style={styles.pickerContentRow} onTouchStart={keepKeyboardOpen}>
+                  {previewEmoji ? (
+                    <Text style={styles.pickerEmoji}>{previewEmoji}</Text>
+                  ) : (
+                    <SFSymbol name={icon} size={14} color={color} />
+                  )}
+                  <Text style={styles.pickerLabel} numberOfLines={1}>{t('projectEdit.icon')}</Text>
+                  <MaterialIcons name="expand-more" size={14} color={withAlpha(Colors[theme].text, 0.62)} />
+                </View>
+              </GlassSurface>
+            </MenuView>
+
+            <MenuView
+              actions={colorActions}
+              onPressAction={onPressColorAction}
+              onOpenMenu={keepKeyboardOpen}
+              onCloseMenu={keepKeyboardOpen}
+              shouldOpenOnLongPress={false}
+              themeVariant={Platform.OS === 'ios' ? theme : undefined}
+              style={styles.menuAnchor}
+            >
+              <GlassSurface
+                style={styles.pickerSurface}
+                glassEffectStyle="regular"
+                tintColor={colorChipTint}
+                fallbackBackgroundColor={colorChipFallback}
+                isInteractive
+              >
+                <View style={styles.pickerContentRow} onTouchStart={keepKeyboardOpen}>
+                  <View style={[styles.colorDot, { backgroundColor: color }]} />
+                  <Text style={styles.pickerLabel} numberOfLines={1}>{t('projectEdit.color')}</Text>
+                  <MaterialIcons name="expand-more" size={14} color={withAlpha(Colors[theme].text, 0.62)} />
+                </View>
+              </GlassSurface>
+            </MenuView>
+
+            <Pressable
+              onPress={onCreate}
+              disabled={!canSubmit}
+              style={({ pressed }) => [styles.sendPressable, pressed && canSubmit && styles.buttonPressed]}
+              accessibilityRole="button"
+              accessibilityLabel={t('projectEdit.newProject')}
+            >
+              <GlassSurface
+                style={[styles.sendSurface, !canSubmit && styles.sendSurfaceDisabled]}
+                glassEffectStyle="regular"
+                tintColor={canSubmit ? sendTint : disabledSendTint}
+                fallbackBackgroundColor={canSubmit ? '#007AFF' : pickerFallback}
+                isInteractive
+              >
+                <MaterialIcons
+                  name="arrow-upward"
+                  size={18}
+                  color={canSubmit ? 'white' : withAlpha(Colors[theme].text, 0.45)}
                 />
               </GlassSurface>
-
-              <Pressable
-                onPress={onCreate}
-                disabled={!canSubmit}
-                accessibilityRole="button"
-                accessibilityLabel={t('projectEdit.newProject')}
-                hitSlop={10}
-                style={({ pressed }) => [
-                  styles.controlPressable,
-                  pressed && canSubmit && styles.controlPressed,
-                ]}
-              >
-                <GlassSurface
-                  style={[styles.sendButton, !canSubmit && styles.sendButtonDisabled]}
-                  glassEffectStyle="regular"
-                  tintColor={sendTint}
-                  fallbackBackgroundColor={sendFallback}
-                  isInteractive
-                >
-                  <MaterialIcons
-                    name="arrow-upward"
-                    size={18}
-                    color={canSubmit ? 'white' : withAlpha(Colors[theme].text, 0.45)}
-                  />
-                </GlassSurface>
-              </Pressable>
-            </View>
+            </Pressable>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -537,6 +440,8 @@ export default function ProjectCreateModal() {
 const createStyles = (theme: ThemeName) => {
   const isDark = theme === 'dark';
   const text = Colors[theme].text;
+  const cardBorder = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.34)';
+
   return StyleSheet.create({
     root: {
       flex: 1,
@@ -550,237 +455,125 @@ const createStyles = (theme: ThemeName) => {
       flex: 1,
       justifyContent: 'flex-end',
     },
-    composerWrap: {
+    floatingStack: {
       paddingHorizontal: 12,
       paddingTop: 12,
-    },
-    expandedWrap: {
-      marginBottom: 10,
-    },
-    expandedSurface: {
-      borderRadius: 28,
-      paddingHorizontal: 10,
-      paddingVertical: 12,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.30)',
-      overflow: 'hidden',
-      shadowColor: '#000',
-      shadowOpacity: isDark ? 0.48 : 0.26,
-      shadowRadius: 28,
-      shadowOffset: { width: 0, height: 16 },
-    },
-    expandedMenuList: {
-      flexDirection: 'row',
-      gap: 8,
-      flexWrap: 'wrap',
-    },
-    expandedMenuItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      minHeight: 40,
-      borderRadius: 14,
-      gap: 8,
-      paddingHorizontal: 10,
-      backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.48)',
-    },
-    expandedMenuItemActive: {
-      backgroundColor: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(255,255,255,0.78)',
-    },
-    expandedMenuItemPressed: {
-      opacity: 0.8,
-    },
-    expandedMenuIconBubble: {
-      width: 24,
-      height: 24,
-      borderRadius: 12,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    expandedMenuLabel: {
-      fontSize: 13,
-      fontWeight: '600',
-      color: withAlpha(text, 0.72),
-    },
-    expandedMenuLabelActive: {
-      color: text,
-    },
-    presetGrid: {
-      marginTop: 12,
-      flexDirection: 'row',
-      flexWrap: 'wrap',
       gap: 10,
     },
-    swatchPressable: {
-      borderRadius: 14,
-    },
-    iconSwatch: {
-      width: 42,
-      height: 42,
-      borderRadius: 13,
-      alignItems: 'center',
+    nameSurface: {
+      borderRadius: SEND_BUTTON_SIZE / 2,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: cardBorder,
+      height: SEND_BUTTON_SIZE,
+      marginRight: SEND_BUTTON_SIZE + PICKER_ROW_GAP,
+      paddingHorizontal: 14,
       justifyContent: 'center',
-      backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.78)',
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
-    },
-    selectedIconSwatch: {
-      borderColor: '#FFFFFF',
-      borderWidth: 2,
       shadowColor: '#000',
-      shadowOpacity: 0.2,
-      shadowRadius: 8,
-      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: isDark ? 0.3 : 0.16,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 6 },
     },
-    colorSwatch: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      borderWidth: 2,
-      borderColor: 'transparent',
+    nameRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
     },
-    selectedColorSwatch: {
-      borderColor: '#FFFFFF',
-      shadowColor: '#000',
-      shadowOpacity: 0.2,
-      shadowRadius: 8,
-      shadowOffset: { width: 0, height: 4 },
+    nameInput: {
+      flex: 1,
+      fontSize: 17,
+      color: text,
+      paddingVertical: 0,
+      minHeight: 24,
     },
-    descriptionInputWrap: {
-      marginTop: 12,
-      borderRadius: 16,
-      backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.74)',
+    descriptionSurface: {
+      borderRadius: 22,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.09)',
-      paddingHorizontal: 12,
+      borderColor: cardBorder,
+      height: 64,
+      marginRight: 0,
+      paddingHorizontal: 14,
       paddingVertical: 10,
-    },
-    descriptionInput: {
-      minHeight: 72,
-      maxHeight: 140,
-      fontSize: 15,
-      lineHeight: 20,
-      color: text,
-      textAlignVertical: 'top',
-    },
-    selectedTagsWrap: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 8,
-      paddingLeft: 56,
-      paddingRight: 56,
-      marginBottom: 8,
-    },
-    selectedTagChip: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      maxWidth: '100%',
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-      borderRadius: 14,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
-      overflow: 'hidden',
-    },
-    selectedTagPressable: {
-      maxWidth: '100%',
-      borderRadius: 14,
-    },
-    selectedTagPressed: {
-      opacity: 0.85,
-    },
-    selectedTagText: {
-      flexShrink: 1,
-      fontSize: 13,
-      fontWeight: '600',
-      color: text,
-    },
-    selectedTagRemoveButton: {
-      width: 18,
-      height: 18,
-      borderRadius: 9,
-      marginLeft: 2,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.68)',
-    },
-    composerStack: {
-      width: '100%',
-      position: 'relative',
-    },
-    composerShadowLayer: {
-      position: 'absolute',
-      left: 6,
-      right: 6,
-      top: 12,
-      bottom: -8,
-      borderRadius: 30,
-      backgroundColor: isDark ? 'rgba(0,0,0,0.42)' : 'rgba(0,0,0,0.18)',
       shadowColor: '#000',
-      shadowOpacity: isDark ? 0.62 : 0.36,
-      shadowRadius: 30,
-      shadowOffset: { width: 0, height: 16 },
-    },
-    composer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 10,
-    },
-    controlPressable: {
-      borderRadius: 22,
-    },
-    controlPressed: {
-      transform: [{ scale: 0.98 }],
-    },
-    plusButton: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      alignItems: 'center',
-      justifyContent: 'center',
-      shadowColor: '#000',
-      shadowOpacity: isDark ? 0.42 : 0.24,
+      shadowOpacity: isDark ? 0.34 : 0.18,
       shadowRadius: 20,
       shadowOffset: { width: 0, height: 10 },
     },
-    plusButtonExpanded: {
-      transform: [{ scale: 1.02 }],
+    descriptionInput: {
+      minHeight: 40,
+      maxHeight: 40,
+      fontSize: 15,
+      lineHeight: 20,
+      color: text,
+      paddingVertical: 0,
     },
-    inputShell: {
+    pickerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: PICKER_ROW_GAP,
+    },
+    menuAnchor: {
       flex: 1,
-      minHeight: 44,
+      minWidth: 0,
+    },
+    pickerSurface: {
+      height: 44,
       borderRadius: 22,
-      overflow: 'hidden',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: cardBorder,
+      paddingHorizontal: 12,
       justifyContent: 'center',
       shadowColor: '#000',
-      shadowOpacity: isDark ? 0.4 : 0.2,
-      shadowRadius: 24,
-      shadowOffset: { width: 0, height: 12 },
+      shadowOpacity: isDark ? 0.28 : 0.14,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 6 },
     },
-    input: {
-      minHeight: 44,
-      maxHeight: 120,
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      fontSize: 17,
+    pickerContentRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    pickerEmoji: {
+      fontSize: 16,
+      lineHeight: 19,
+    },
+    pickerLabel: {
+      flex: 1,
+      fontSize: 12,
+      fontWeight: '600',
       color: text,
+      textTransform: 'uppercase',
+      letterSpacing: 0.3,
+    },
+    colorDot: {
+      width: 11,
+      height: 11,
+      borderRadius: 6,
+    },
+    sendPressable: {
+      borderRadius: SEND_BUTTON_SIZE / 2,
+    },
+    sendSurface: {
+      width: SEND_BUTTON_SIZE,
+      height: SEND_BUTTON_SIZE,
+      borderRadius: SEND_BUTTON_SIZE / 2,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: withAlpha('#007AFF', 0.45),
+      shadowColor: '#000',
+      shadowOpacity: isDark ? 0.44 : 0.24,
+      shadowRadius: 22,
+      shadowOffset: { width: 0, height: 10 },
+    },
+    sendSurfaceDisabled: {
+      borderColor: cardBorder,
+      shadowOpacity: isDark ? 0.16 : 0.1,
     },
     placeholder: {
       color: isDark ? 'rgba(235,235,245,0.45)' : 'rgba(60,60,67,0.45)',
     },
-    sendButton: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      alignItems: 'center',
-      justifyContent: 'center',
-      shadowColor: '#000',
-      shadowOpacity: isDark ? 0.52 : 0.32,
-      shadowRadius: 24,
-      shadowOffset: { width: 0, height: 12 },
-    },
-    sendButtonDisabled: {
-      shadowOpacity: isDark ? 0.18 : 0.1,
+    buttonPressed: {
+      opacity: 0.86,
+      transform: [{ scale: 0.98 }],
     },
   });
 };

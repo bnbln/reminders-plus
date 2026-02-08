@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 import { GestureHandlerRootView, ScrollView } from "react-native-gesture-handler";
-import Animated, { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
+import { useSharedValue, type SharedValue } from "react-native-reanimated";
 
 import type { SwipeTaskRowStyles } from "@/components/tasks/swipe-task-row";
 import { TaskSwipeDraggableList } from "@/components/tasks/task-swipe-draggable-list";
@@ -25,7 +25,7 @@ import {
   useTasksStore,
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { isRtlLocale, t } from "@/i18n";
+import { t } from "@/i18n";
 import { isIOS26OrNewer } from "@/utils/ios-version";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
@@ -64,6 +64,7 @@ function KanbanColumn({
   section,
   tasks,
   isDragSource,
+  crossAxisExternalOffset,
   columnBackgroundColor,
   columnBottomPadding,
   boardScrollRef,
@@ -77,11 +78,14 @@ function KanbanColumn({
   onReorderSection,
   onDragBeginTask,
   onDragStateChange,
+  onSwipeStateChange,
+  onRowTouchStateChange,
   onDragTouchPoint,
 }: {
   section: SectionId;
   tasks: Task[];
   isDragSource: boolean;
+  crossAxisExternalOffset: SharedValue<number>;
   columnBackgroundColor: string;
   columnBottomPadding: number;
   boardScrollRef: React.RefObject<ScrollView | null>;
@@ -95,12 +99,9 @@ function KanbanColumn({
   onReorderSection: (sectionId: SectionId, orderedTaskIds: string[]) => void;
   onDragBeginTask: (taskId: string) => void;
   onDragStateChange: (isDragging: boolean) => void;
-  onDragTouchPoint: (params: {
-    absoluteX: number;
-    absoluteY: number;
-    translationX: number;
-    translationY: number;
-  }) => void;
+  onSwipeStateChange: (isSwiping: boolean) => void;
+  onRowTouchStateChange: (isTouching: boolean) => void;
+  onDragTouchPoint: (absoluteX: number) => void;
 }) {
   return (
     <View
@@ -150,8 +151,11 @@ function KanbanColumn({
         }
         onDragBeginTask={onDragBeginTask}
         onDragStateChange={onDragStateChange}
-        onDragTouchPoint={onDragTouchPoint}
+        onSwipeStateChange={onSwipeStateChange}
+        onRowTouchStateChange={onRowTouchStateChange}
+        onDragTouchPoint={({ absoluteX }) => onDragTouchPoint(absoluteX)}
         dragAxisMode="free"
+        crossAxisExternalOffset={crossAxisExternalOffset}
       />
     </View>
   );
@@ -167,10 +171,9 @@ export default function ProjectDetailScreen() {
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const rowStyles = React.useMemo(() => createRowStyles(theme), [theme]);
   const { projects, tasks, setTasks } = useTasksStore();
-  const screenRef = React.useRef<View | null>(null);
-  const screenPageRef = React.useRef({ x: 0, y: 0 });
   const boardScrollRef = React.useRef<ScrollView | null>(null);
   const boardOffsetXRef = React.useRef<number>(SNAP_OFFSETS[1] ?? 0);
+  const boardOffsetXShared = useSharedValue<number>(SNAP_OFFSETS[1] ?? 0);
   const boardPageXRef = React.useRef<number>(0);
   const dragPointerXRef = React.useRef<number | null>(null);
   const dragHoverSectionRef = React.useRef<SectionId | null>(null);
@@ -181,12 +184,12 @@ export default function ProjectDetailScreen() {
   const previousProjectTaskIdsRef = React.useRef<Set<string>>(new Set());
   const pendingAddTaskScrollRef = React.useRef(false);
   const dragContextRef = React.useRef<{ taskId: string; sourceSection: SectionId } | null>(null);
-  const [isBoardDragging, setIsBoardDragging] = React.useState(false);
+  const swipingSectionsRef = React.useRef(new Set<SectionId>());
+  const touchingSectionsRef = React.useRef(new Set<SectionId>());
+  const boardScrollLockedRef = React.useRef(false);
+  const [isBoardScrollLocked, setIsBoardScrollLocked] = React.useState(false);
   const [activeDragSourceSection, setActiveDragSourceSection] =
     React.useState<SectionId | null>(null);
-  const [dragPreviewTaskId, setDragPreviewTaskId] = React.useState<string | null>(null);
-  const dragPreviewX = useSharedValue(-4000);
-  const dragPreviewY = useSharedValue(-4000);
 
   const projectsById = React.useMemo(
     () => new Map(projects.map((p) => [p.id, p] as const)),
@@ -201,16 +204,6 @@ export default function ProjectDetailScreen() {
   const projectTasks = React.useMemo(() => {
     return tasks.filter((t) => t.projectId === id && !t.deletedAt);
   }, [tasks, id]);
-  const projectTasksById = React.useMemo(
-    () => new Map(projectTasks.map((task) => [task.id, task] as const)),
-    [projectTasks],
-  );
-  const dragPreviewTask = dragPreviewTaskId
-    ? projectTasksById.get(dragPreviewTaskId) ?? null
-    : null;
-  const dragPreviewAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: dragPreviewX.value }, { translateY: dragPreviewY.value }],
-  }));
 
   const tasksBySection = React.useMemo(() => {
     const grouped: Record<SectionId, Task[]> = {
@@ -278,28 +271,58 @@ export default function ProjectDetailScreen() {
     });
   }, []);
 
-  const updateScreenPage = React.useCallback(() => {
-    const screenNode =
-      // @ts-ignore - some refs expose getNode
-      screenRef.current?.getNode?.() ?? screenRef.current;
-    if (!screenNode || typeof screenNode.measureInWindow !== "function") return;
-    screenNode.measureInWindow((x: number, y: number) => {
-      if (
-        typeof x === "number" &&
-        Number.isFinite(x) &&
-        typeof y === "number" &&
-        Number.isFinite(y)
-      ) {
-        screenPageRef.current = { x, y };
-      }
-    });
+  const applyBoardScrollLock = React.useCallback((locked: boolean) => {
+    if (boardScrollLockedRef.current === locked) return;
+    boardScrollLockedRef.current = locked;
+    setIsBoardScrollLocked((prev) => (prev === locked ? prev : locked));
+
+    const scrollNode =
+      // @ts-ignore - some scroll refs expose getNode
+      boardScrollRef.current?.getNode?.() ?? boardScrollRef.current;
+    if (scrollNode?.setNativeProps) {
+      scrollNode.setNativeProps({ scrollEnabled: !locked });
+    }
+
+    // Stop ongoing board movement immediately when a row interaction starts.
+    if (locked) {
+      const currentX = boardOffsetXRef.current;
+      boardScrollRef.current?.scrollTo({ x: currentX, animated: false });
+    }
   }, []);
 
-  const resetDragPreview = React.useCallback(() => {
-    setDragPreviewTaskId(null);
-    dragPreviewX.value = -4000;
-    dragPreviewY.value = -4000;
-  }, [dragPreviewX, dragPreviewY]);
+  const syncBoardScrollLock = React.useCallback(() => {
+    const shouldLock =
+      isBoardDraggingRef.current ||
+      swipingSectionsRef.current.size > 0 ||
+      touchingSectionsRef.current.size > 0;
+    applyBoardScrollLock(shouldLock);
+  }, [applyBoardScrollLock]);
+
+  const handleSectionSwipeStateChange = React.useCallback(
+    (section: SectionId, isSwiping: boolean) => {
+      const set = swipingSectionsRef.current;
+      if (isSwiping) {
+        set.add(section);
+      } else {
+        set.delete(section);
+      }
+      syncBoardScrollLock();
+    },
+    [syncBoardScrollLock],
+  );
+
+  const handleSectionRowTouchStateChange = React.useCallback(
+    (section: SectionId, isTouching: boolean) => {
+      const set = touchingSectionsRef.current;
+      if (isTouching) {
+        set.add(section);
+      } else {
+        set.delete(section);
+      }
+      syncBoardScrollLock();
+    },
+    [syncBoardScrollLock],
+  );
 
   const startAutoScroll = React.useCallback(() => {
     if (autoScrollFrameRef.current !== null) return;
@@ -319,6 +342,7 @@ export default function ProjectDetailScreen() {
       const nextOffset = clamp(currentOffset + velocity, 0, maxOffset);
       if (nextOffset !== currentOffset) {
         boardOffsetXRef.current = nextOffset;
+        boardOffsetXShared.value = nextOffset;
         boardScrollRef.current?.scrollTo({ x: nextOffset, animated: false });
         const pointerX = dragPointerXRef.current;
         if (typeof pointerX === "number" && Number.isFinite(pointerX)) {
@@ -329,7 +353,7 @@ export default function ProjectDetailScreen() {
       autoScrollFrameRef.current = requestAnimationFrame(tick);
     };
     autoScrollFrameRef.current = requestAnimationFrame(tick);
-  }, [resolveSectionFromBoardContentX, updateHoverSection]);
+  }, [boardOffsetXShared, resolveSectionFromBoardContentX, updateHoverSection]);
 
   const applyDragPointerX = React.useCallback(
     (pointerX: number) => {
@@ -370,26 +394,13 @@ export default function ProjectDetailScreen() {
   );
 
   const handleDragTouchPoint = React.useCallback(
-    (params: {
-      absoluteX: number;
-      absoluteY: number;
-      translationX: number;
-      translationY: number;
-    }) => {
-      const { absoluteX, absoluteY } = params;
+    (absoluteX: number) => {
       if (typeof absoluteX !== "number" || !Number.isFinite(absoluteX)) {
         return;
       }
       applyDragPointerX(absoluteX - boardPageXRef.current);
-
-      if (!dragContextRef.current) return;
-      const page = screenPageRef.current;
-      // Keep the ghost directly under the finger with a stable offset.
-      // This avoids off-screen jumps when gesture translation values are noisy.
-      dragPreviewX.value = absoluteX - page.x - 34;
-      dragPreviewY.value = absoluteY - page.y - 26;
     },
-    [applyDragPointerX, dragPreviewX, dragPreviewY],
+    [applyDragPointerX],
   );
 
   const onReorderSection = React.useCallback(
@@ -425,9 +436,8 @@ export default function ProjectDetailScreen() {
         updateHoverSection(null);
         stopAutoScroll();
         isBoardDraggingRef.current = false;
-        setIsBoardDragging(false);
+        syncBoardScrollLock();
         setActiveDragSourceSection(null);
-        resetDragPreview();
         return;
       }
 
@@ -502,15 +512,14 @@ export default function ProjectDetailScreen() {
       updateHoverSection(null);
       stopAutoScroll();
       isBoardDraggingRef.current = false;
-      setIsBoardDragging(false);
+      syncBoardScrollLock();
       setActiveDragSourceSection(null);
-      resetDragPreview();
     },
     [
       id,
-      resetDragPreview,
       resolveSectionFromBoardContentX,
       setTasks,
+      syncBoardScrollLock,
       stopAutoScroll,
       updateHoverSection,
     ],
@@ -629,16 +638,23 @@ export default function ProjectDetailScreen() {
   }, [updateBoardPageX]);
 
   React.useEffect(() => {
-    const rafId = requestAnimationFrame(updateScreenPage);
-    return () => cancelAnimationFrame(rafId);
-  }, [updateScreenPage]);
-
-  React.useEffect(() => {
+    const swipingSections = swipingSectionsRef.current;
+    const touchingSections = touchingSectionsRef.current;
+    const boardRef = boardScrollRef.current;
     return () => {
       stopAutoScroll();
-      resetDragPreview();
+      isBoardDraggingRef.current = false;
+      swipingSections.clear();
+      touchingSections.clear();
+      boardScrollLockedRef.current = false;
+      const scrollNode =
+        // @ts-ignore - some scroll refs expose getNode
+        boardRef?.getNode?.() ?? boardRef;
+      if (scrollNode?.setNativeProps) {
+        scrollNode.setNativeProps({ scrollEnabled: true });
+      }
     };
-  }, [resetDragPreview, stopAutoScroll]);
+  }, [stopAutoScroll]);
 
   React.useEffect(() => {
     const currentIds = new Set(projectTasks.map((task) => task.id));
@@ -700,11 +716,10 @@ export default function ProjectDetailScreen() {
   const columnBackgroundColor = withAlpha(project.color, isDark ? 0.2 : 0.14);
   const boardBottomPadding = showFloatingAddButton ? 96 : 40;
   const columnBottomPadding = isIOS26Plus ? 96 : 20;
-  const headerTextAlign = isRtlLocale() ? "right" : "left";
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <View ref={screenRef} style={styles.container}>
+      <View style={styles.container}>
         <Stack.Screen
           options={{
             title: project.name,
@@ -713,8 +728,8 @@ export default function ProjectDetailScreen() {
             headerBackButtonDisplayMode: "minimal",
             headerBackTitle: t("project.backProjects"),
             headerTintColor: Colors[theme].text,
-            headerTitleAlign: headerTextAlign,
-            headerTitleStyle: { color: Colors[theme].text, textAlign: headerTextAlign },
+            headerTitleAlign: "left",
+            headerTitleStyle: { color: Colors[theme].text },
             headerStyle: { backgroundColor: Colors[theme].background },
             headerRight: () => (
               <Pressable
@@ -749,7 +764,7 @@ export default function ProjectDetailScreen() {
         <ScrollView
           ref={boardScrollRef}
           horizontal
-          scrollEnabled={!isBoardDragging}
+          scrollEnabled={!isBoardScrollLocked}
           pagingEnabled={false}
           snapToOffsets={SNAP_OFFSETS}
           decelerationRate="fast"
@@ -761,7 +776,9 @@ export default function ProjectDetailScreen() {
           contentInsetAdjustmentBehavior="never"
           contentOffset={{ x: SNAP_OFFSETS[1], y: 0 }} // Start focused on Today
           onScroll={(event) => {
-            boardOffsetXRef.current = event.nativeEvent.contentOffset.x;
+            const nextOffset = event.nativeEvent.contentOffset.x;
+            boardOffsetXRef.current = nextOffset;
+            boardOffsetXShared.value = nextOffset;
           }}
           onTouchStart={handleBoardTouch}
           onTouchMove={handleBoardTouch}
@@ -770,7 +787,6 @@ export default function ProjectDetailScreen() {
           onTouchCancel={() => {
             dragPointerXRef.current = null;
             stopAutoScroll();
-            resetDragPreview();
           }}
           scrollEventThrottle={16}
         >
@@ -780,6 +796,7 @@ export default function ProjectDetailScreen() {
               section={section}
               tasks={tasksBySection[section]}
               isDragSource={activeDragSourceSection === section}
+              crossAxisExternalOffset={boardOffsetXShared}
               columnBackgroundColor={columnBackgroundColor}
               columnBottomPadding={columnBottomPadding}
               boardScrollRef={boardScrollRef}
@@ -795,15 +812,13 @@ export default function ProjectDetailScreen() {
                 dragPointerXRef.current = null;
                 dragContextRef.current = { taskId, sourceSection: section };
                 setActiveDragSourceSection(section);
-                setDragPreviewTaskId(taskId);
                 updateBoardPageX();
-                updateScreenPage();
                 updateHoverSection(section);
                 stopAutoScroll();
               }}
               onDragStateChange={(isDragging) => {
                 isBoardDraggingRef.current = isDragging;
-                setIsBoardDragging(isDragging);
+                syncBoardScrollLock();
                 if (!isDragging) {
                   // Keep hover/pointer state until onReorderSection runs.
                   // DraggableFlatList calls onDragStateChange(false) before onReorder.
@@ -811,36 +826,15 @@ export default function ProjectDetailScreen() {
                 }
               }}
               onDragTouchPoint={handleDragTouchPoint}
+              onSwipeStateChange={(isSwiping) =>
+                handleSectionSwipeStateChange(section, isSwiping)
+              }
+              onRowTouchStateChange={(isTouching) =>
+                handleSectionRowTouchStateChange(section, isTouching)
+              }
             />
           ))}
         </ScrollView>
-        {dragPreviewTask ? (
-          <Animated.View
-            pointerEvents="none"
-            style={[styles.dragPreviewWrap, dragPreviewAnimatedStyle]}
-          >
-            <View style={styles.dragPreviewCard}>
-              <GlassSurface
-                style={styles.dragPreviewEmojiTile}
-                glassEffectStyle="regular"
-                tintColor={withAlpha(Colors[theme].text, 0.1)}
-                fallbackBackgroundColor={withAlpha(Colors[theme].text, 0.14)}
-              >
-                <Text style={styles.dragPreviewEmoji}>{dragPreviewTask.emoji}</Text>
-              </GlassSurface>
-              <View style={styles.dragPreviewTextStack}>
-                <Text style={styles.dragPreviewTitle} numberOfLines={1}>
-                  {dragPreviewTask.title}
-                </Text>
-                {dragPreviewTask.subtitle ? (
-                  <Text style={styles.dragPreviewSubtitle} numberOfLines={1}>
-                    {dragPreviewTask.subtitle}
-                  </Text>
-                ) : null}
-              </View>
-            </View>
-          </Animated.View>
-        ) : null}
         {showFloatingAddButton ? <FloatingAddButton onPress={handleAddTask} /> : null}
       </View>
     </GestureHandlerRootView>
@@ -848,7 +842,6 @@ export default function ProjectDetailScreen() {
 }
 
 const createStyles = (theme: ThemeName) => {
-  const isDark = theme === "dark";
   return StyleSheet.create({
     container: {
       flex: 1,
@@ -904,50 +897,6 @@ const createStyles = (theme: ThemeName) => {
     columnContent: {
       gap: 0,
       overflow: "visible",
-    },
-    dragPreviewWrap: {
-      position: "absolute",
-      width: COLUMN_WIDTH - 24,
-      zIndex: 5000,
-      elevation: 5000,
-    },
-    dragPreviewCard: {
-      minHeight: 56,
-      borderRadius: 12,
-      backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 10,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: isDark ? 0.28 : 0.2,
-      shadowRadius: 14,
-    },
-    dragPreviewEmojiTile: {
-      width: 38,
-      height: 38,
-      borderRadius: 12,
-      alignItems: "center",
-      justifyContent: "center",
-      overflow: "hidden",
-    },
-    dragPreviewEmoji: {
-      fontSize: 18,
-    },
-    dragPreviewTextStack: {
-      flex: 1,
-      gap: 4,
-    },
-    dragPreviewTitle: {
-      fontSize: 16,
-      fontWeight: "600",
-      color: Colors[theme].text,
-    },
-    dragPreviewSubtitle: {
-      fontSize: 13,
-      color: withAlpha(Colors[theme].text, 0.7),
     },
     card: {
       borderRadius: 12,

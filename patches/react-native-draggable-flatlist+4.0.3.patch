@@ -1,12 +1,13 @@
 diff --git a/node_modules/react-native-draggable-flatlist/lib/typescript/types.d.ts b/node_modules/react-native-draggable-flatlist/lib/typescript/types.d.ts
-index 2abb4a2..ec8be20 100644
+index 2abb4a2..54c55f1 100644
 --- a/node_modules/react-native-draggable-flatlist/lib/typescript/types.d.ts
 +++ b/node_modules/react-native-draggable-flatlist/lib/typescript/types.d.ts
-@@ -23,6 +23,13 @@ export declare type DraggableFlatListProps<T> = Modify<FlatListProps<T>, {
+@@ -23,6 +23,14 @@ export declare type DraggableFlatListProps<T> = Modify<FlatListProps<T>, {
      keyExtractor: (item: T, index: number) => string;
      onDragBegin?: (index: number) => void;
      onDragEnd?: (params: DragEndParams<T>) => void;
 +    allowCrossAxisDrag?: boolean;
++    crossAxisExternalOffset?: Animated.SharedValue<number>;
 +    onDragTouchPoint?: (params: {
 +        absoluteX: number;
 +        absoluteY: number;
@@ -52,7 +53,7 @@ index e4e861a..9040371 100644
    const updateCellMeasurements = useStableCallback(() => {
      const onSuccess: MeasureLayoutOnSuccessCallback = (x, y, w, h) => {
 diff --git a/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx b/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx
-index 7c88afc..50d5473 100644
+index 7c88afc..ee6ef5e 100644
 --- a/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx
 +++ b/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx
 @@ -76,6 +76,7 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
@@ -63,23 +64,40 @@ index 7c88afc..50d5473 100644
      autoScrollDistance,
      panGestureState,
      isTouchActiveNative,
-@@ -88,6 +89,7 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+@@ -88,6 +89,9 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
      activeIndexAnim.value = -1;
      spacerIndexAnim.value = -1;
      touchTranslate.value = 0;
 +    touchTranslateX.value = 0;
++    crossAxisGestureTranslationX.value = 0;
++    crossAxisExternalDeltaX.value = 0;
      activeCellSize.value = -1;
      activeCellOffset.value = -1;
      setActiveKey(null);
-@@ -98,6 +100,7 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+@@ -98,6 +102,10 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
      scrollEnabled = DEFAULT_PROPS.scrollEnabled,
      activationDistance: activationDistanceProp = DEFAULT_PROPS.activationDistance,
    } = props;
 +  const allowCrossAxisDrag = !!props.allowCrossAxisDrag;
++  const crossAxisDragStartOffset = useSharedValue(0);
++  const crossAxisExternalDeltaX = useSharedValue(0);
++  const crossAxisGestureTranslationX = useSharedValue(0);
  
    let [activeKey, setActiveKey] = useState<string | null>(null);
    const [layoutAnimationDisabled, setLayoutAnimationDisabled] = useState(
-@@ -238,6 +241,17 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+@@ -155,6 +163,11 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+ 
+     const { onDragBegin } = propsRef.current;
+     if (index !== undefined) {
++      const crossAxisOffset = propsRef.current.crossAxisExternalOffset?.value ?? 0;
++      crossAxisDragStartOffset.value = crossAxisOffset;
++      crossAxisExternalDeltaX.value = 0;
++      crossAxisGestureTranslationX.value = 0;
++      touchTranslateX.value = 0;
+       spacerIndexAnim.value = index;
+       activeIndexAnim.value = index;
+       setActiveKey(activeKey);
+@@ -238,6 +251,17 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
      props.onPlaceholderIndexChange?.(index);
    });
  
@@ -97,20 +115,42 @@ index 7c88afc..50d5473 100644
    // Handle case where user ends drag without moving their finger.
    useAnimatedReaction(
      () => {
-@@ -277,6 +291,7 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+@@ -270,6 +294,19 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+     [spacerIndexAnim]
+   );
+ 
++  useAnimatedReaction(
++    () => propsRef.current.crossAxisExternalOffset?.value ?? 0,
++    (cur) => {
++      if (!allowCrossAxisDrag) return;
++      const delta = cur - crossAxisDragStartOffset.value;
++      crossAxisExternalDeltaX.value = delta;
++      if (!horizontalAnim.value && activeIndexAnim.value >= 0) {
++        touchTranslateX.value = crossAxisGestureTranslationX.value + delta;
++      }
++    },
++    [allowCrossAxisDrag, activeIndexAnim, horizontalAnim]
++  );
++
+   const gestureDisabled = useSharedValue(false);
+ 
+   const panGesture = Gesture.Pan()
+@@ -277,6 +314,8 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
        gestureDisabled.value = disabled.value;
        if (gestureDisabled.value) return;
        panGestureState.value = evt.state;
++      crossAxisGestureTranslationX.value = 0;
 +      touchTranslateX.value = 0;
      })
      .onUpdate((evt) => {
        if (gestureDisabled.value) return;
-@@ -285,6 +300,19 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+@@ -285,6 +324,20 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
          ? evt.translationX
          : evt.translationY;
        touchTranslate.value = translation;
++      crossAxisGestureTranslationX.value = evt.translationX;
 +      if (!horizontalAnim.value && allowCrossAxisDrag) {
-+        touchTranslateX.value = evt.translationX;
++        touchTranslateX.value = evt.translationX + crossAxisExternalDeltaX.value;
 +      } else {
 +        touchTranslateX.value = 0;
 +      }
@@ -125,12 +165,13 @@ index 7c88afc..50d5473 100644
      })
      .onEnd((evt) => {
        if (gestureDisabled.value) return;
-@@ -295,7 +323,20 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+@@ -295,7 +348,21 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
          : evt.translationY;
  
        touchTranslate.value = translation + autoScrollDistance.value;
++      crossAxisGestureTranslationX.value = evt.translationX;
 +      if (!horizontalAnim.value && allowCrossAxisDrag) {
-+        touchTranslateX.value = evt.translationX;
++        touchTranslateX.value = evt.translationX + crossAxisExternalDeltaX.value;
 +      } else {
 +        touchTranslateX.value = 0;
 +      }
@@ -146,7 +187,7 @@ index 7c88afc..50d5473 100644
  
        // Only call onDragEnd if actually dragging a cell
        if (activeIndexAnim.value === -1 || disabled.value) return;
-@@ -328,6 +369,9 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+@@ -328,6 +395,9 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
      const activeOffset = [-activationDistanceProp, activationDistanceProp];
      if (props.horizontal) {
        panGesture.activeOffsetX(activeOffset);
@@ -229,14 +270,15 @@ index c62360d..33bed33 100644
        viewableIndexMin,
        viewableIndexMax,
 diff --git a/node_modules/react-native-draggable-flatlist/src/types.ts b/node_modules/react-native-draggable-flatlist/src/types.ts
-index d6755c8..77236fc 100644
+index d6755c8..3f7df3c 100644
 --- a/node_modules/react-native-draggable-flatlist/src/types.ts
 +++ b/node_modules/react-native-draggable-flatlist/src/types.ts
-@@ -36,6 +36,13 @@ export type DraggableFlatListProps<T> = Modify<
+@@ -36,6 +36,14 @@ export type DraggableFlatListProps<T> = Modify<
      keyExtractor: (item: T, index: number) => string;
      onDragBegin?: (index: number) => void;
      onDragEnd?: (params: DragEndParams<T>) => void;
 +    allowCrossAxisDrag?: boolean;
++    crossAxisExternalOffset?: Animated.SharedValue<number>;
 +    onDragTouchPoint?: (params: {
 +      absoluteX: number;
 +      absoluteY: number;

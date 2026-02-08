@@ -252,7 +252,6 @@ function StatTile({
   styles,
   glassTint,
   glassFallback,
-  chevronColor,
   isDark,
 }: {
   title: string;
@@ -262,7 +261,6 @@ function StatTile({
   styles: ReturnType<typeof createStyles>;
   glassTint: string;
   glassFallback: string;
-  chevronColor: string;
   isDark: boolean;
 }) {
   const badgeTint = withAlpha(iconColor, isDark ? 0.22 : 0.18);
@@ -286,7 +284,6 @@ function StatTile({
             >
               <MaterialIcons name={icon} size={18} color={iconColor} />
             </GlassSurface>
-            <MaterialIcons name="chevron-right" size={18} color={chevronColor} />
           </View>
           <Text style={styles.quickTileTitle}>{title}</Text>
           <Text style={styles.quickTileSubtitle}>{value}</Text>
@@ -323,7 +320,6 @@ export default function StreaksScreen() {
   // Match home/index.tsx QuickNavTheme exactly
   const glassTint = withAlpha(backgroundColor, isDark ? 0.18 : 0.28);
   const glassFallback = isDark ? '#1C1C1E' : '#F2F2F7';
-  const chevronColor = withAlpha(textColor, 0.45);
 
   const ranges: { label: string; value: RangeOption }[] = [
     { label: t('streaks.range.7d'), value: '7d' },
@@ -374,7 +370,6 @@ export default function StreaksScreen() {
             styles={styles}
             glassTint={glassTint}
             glassFallback={glassFallback}
-            chevronColor={chevronColor}
             isDark={isDark}
           />
           <StatTile
@@ -385,7 +380,6 @@ export default function StreaksScreen() {
             styles={styles}
             glassTint={glassTint}
             glassFallback={glassFallback}
-            chevronColor={chevronColor}
             isDark={isDark}
           />
           <StatTile
@@ -396,7 +390,6 @@ export default function StreaksScreen() {
             styles={styles}
             glassTint={glassTint}
             glassFallback={glassFallback}
-            chevronColor={chevronColor}
             isDark={isDark}
           />
           <StatTile
@@ -407,7 +400,6 @@ export default function StreaksScreen() {
             styles={styles}
             glassTint={glassTint}
             glassFallback={glassFallback}
-            chevronColor={chevronColor}
             isDark={isDark}
           />
         </View>

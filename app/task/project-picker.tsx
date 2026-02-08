@@ -129,7 +129,11 @@ export default function ProjectPickerScreen() {
                                 style={[styles.optionRow, isActive && styles.optionRowActive]}
                             >
                                 <View style={[styles.optionIcon, { backgroundColor: withAlpha(p.color, 0.15) }]}>
-                                    <SFSymbol name={p.icon} size={20} color={p.color} />
+                                    {p.emoji ? (
+                                        <Text style={styles.optionEmoji}>{p.emoji}</Text>
+                                    ) : (
+                                        <SFSymbol name={p.icon} size={20} color={p.color} />
+                                    )}
                                 </View>
                                 <View style={styles.optionBody}>
                                     <Text style={styles.optionLabel}>{p.name}</Text>
@@ -187,6 +191,10 @@ const createStyles = (theme: keyof typeof Colors) => {
             borderRadius: 10,
             alignItems: 'center',
             justifyContent: 'center',
+        },
+        optionEmoji: {
+            fontSize: 20,
+            lineHeight: 24,
         },
         optionBody: {
             flex: 1,

@@ -68,6 +68,10 @@ const createStyles = (theme: ThemeName) => {
       justifyContent: 'center',
       // Note: Project icon badge background comes from project color dynamically
     },
+    tileIconEmoji: {
+      fontSize: 18,
+      lineHeight: 22,
+    },
     tileTitle: {
       fontSize: 15,
       fontWeight: '700',
@@ -125,7 +129,11 @@ function ProjectTile({
         <View style={styles.tileInner}>
           <View style={styles.tileIconRow}>
             <View style={[styles.tileIconBadge, { backgroundColor: badgeBg }]}>
-              <SFSymbol name={project.icon} size={18} color={iconColor} />
+              {project.emoji ? (
+                <Text style={styles.tileIconEmoji}>{project.emoji}</Text>
+              ) : (
+                <SFSymbol name={project.icon} size={18} color={iconColor} />
+              )}
             </View>
             <SFSymbol name="chevron.right" size={14} color={chevronColor} weight="bold" />
           </View>

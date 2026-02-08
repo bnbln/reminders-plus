@@ -3,6 +3,7 @@ import { useIsFocused } from '@react-navigation/native';
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { View } from 'react-native';
+import type { SharedValue } from 'react-native-reanimated';
 import DraggableFlatList, {
   NestableDraggableFlatList,
   NestableScrollContainer,
@@ -68,6 +69,12 @@ export type TaskSwipeDraggableListProps = {
    */
   onDragStateChange?: (isDragging: boolean) => void;
   onSwipeStateChange?: (isSwiping: boolean) => void;
+  onRowTouchStateChange?: (isTouchingRow: boolean) => void;
+  /**
+   * Horizontal outer board offset used to compensate active drag X while board auto-scrolls.
+   * Only used together with `dragAxisMode="free"`.
+   */
+  crossAxisExternalOffset?: SharedValue<number>;
   /**
    * Drag axis behavior:
    * - `vertical` (default): classic sortable list drag.
@@ -122,6 +129,8 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   onScrollOffsetChange,
   onDragStateChange,
   onSwipeStateChange,
+  onRowTouchStateChange,
+  crossAxisExternalOffset,
   dragAxisMode = "vertical",
   header,
   footer,
@@ -163,6 +172,7 @@ ref
   const openSwipeIdRef = React.useRef<string | null>(null);
   const closeByIdRef = React.useRef(new Map<string, () => void>());
   const swipingTaskIdsRef = React.useRef(new Set<string>());
+  const touchingTaskIdsRef = React.useRef(new Set<string>());
   const internalScrollRef = React.useRef<any>(null);
 
   const registerClose = React.useCallback((taskId: string, close: () => void) => {
@@ -175,7 +185,12 @@ ref
     const hadAnyBefore = swipingTaskIdsRef.current.size > 0;
     swipingTaskIdsRef.current.delete(taskId);
     if (hadAnyBefore && swipingTaskIdsRef.current.size === 0) onSwipeStateChange?.(false);
-  }, [onSwipeStateChange]);
+    const hadTouchingBefore = touchingTaskIdsRef.current.size > 0;
+    touchingTaskIdsRef.current.delete(taskId);
+    if (hadTouchingBefore && touchingTaskIdsRef.current.size === 0) {
+      onRowTouchStateChange?.(false);
+    }
+  }, [onRowTouchStateChange, onSwipeStateChange]);
 
   const reportSwipeGestureActive = React.useCallback(
     (taskId: string, isActive: boolean) => {
@@ -191,12 +206,28 @@ ref
     [onSwipeStateChange]
   );
 
+  const reportRowTouchInteraction = React.useCallback(
+    (taskId: string, isTouching: boolean) => {
+      const wasTouchingAny = touchingTaskIdsRef.current.size > 0;
+      if (isTouching) {
+        touchingTaskIdsRef.current.add(taskId);
+      } else {
+        touchingTaskIdsRef.current.delete(taskId);
+      }
+      const isTouchingAny = touchingTaskIdsRef.current.size > 0;
+      if (wasTouchingAny !== isTouchingAny) onRowTouchStateChange?.(isTouchingAny);
+    },
+    [onRowTouchStateChange]
+  );
+
   React.useEffect(() => {
     const swipingTaskIds = swipingTaskIdsRef.current;
+    const touchingTaskIds = touchingTaskIdsRef.current;
     return () => {
       if (swipingTaskIds.size > 0) onSwipeStateChange?.(false);
+      if (touchingTaskIds.size > 0) onRowTouchStateChange?.(false);
     };
-  }, [onSwipeStateChange]);
+  }, [onRowTouchStateChange, onSwipeStateChange]);
 
   const closeAnyOpen = React.useCallback(() => {
     const openId = openSwipeIdRef.current;
@@ -319,6 +350,7 @@ ref
           deleteTask={deleteTask}
           externalScrollRef={rowScrollGestureRef}
           onSwipeGestureActiveChange={reportSwipeGestureActive}
+          onTouchInteractionChange={reportRowTouchInteraction}
           shouldPopIn={isFocused && popInTaskIdSet.has(task.id)}
           onPopInAnimationEnd={handlePopInAnimationEnd}
         />
@@ -349,6 +381,7 @@ ref
       toggleComplete,
       unregisterClose,
       reportSwipeGestureActive,
+      reportRowTouchInteraction,
     ]
   );
 
@@ -385,6 +418,7 @@ ref
           deleteTask={deleteTask}
           externalScrollRef={rowScrollGestureRef}
           onSwipeGestureActiveChange={reportSwipeGestureActive}
+          onTouchInteractionChange={reportRowTouchInteraction}
           shouldPopIn={isFocused && popInTaskIdSet.has(task.id)}
           onPopInAnimationEnd={handlePopInAnimationEnd}
         />
@@ -415,6 +449,7 @@ ref
       toggleComplete,
       unregisterClose,
       reportSwipeGestureActive,
+      reportRowTouchInteraction,
     ]
   );
 
@@ -492,6 +527,7 @@ ref
     },
     onDragTouchPoint,
     allowCrossAxisDrag,
+    crossAxisExternalOffset,
   };
 
   if (renderMode === 'static') {

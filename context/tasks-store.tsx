@@ -14,6 +14,7 @@ export type Project = {
   id: string;
   name: string;
   color: string; // hex
+  emoji?: string;
   icon: string; // sf symbol name
   description?: string;
   completed?: boolean;
@@ -377,6 +378,10 @@ function normalizeSnapshot(raw: any): { tasks: Task[]; projects: Project[] } {
         id: p.id,
         name: p.name,
         color: typeof p.color === "string" ? p.color : "#2563EB",
+        emoji:
+          typeof p.emoji === "string" && p.emoji.trim().length > 0
+            ? p.emoji
+            : undefined,
         icon: typeof p.icon === "string" ? p.icon : "folder.fill",
         description:
           typeof p.description === "string" ? p.description : undefined,

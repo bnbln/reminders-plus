@@ -100,13 +100,14 @@ type QuickTile = {
   title: string;
   subtitle: string;
   icon: React.ComponentProps<typeof MaterialIcons>["name"];
+  iconColor: string;
+  iconBadgeColor: string;
   onPress: () => void;
 };
 
 type QuickNavTheme = {
   tileTintColor: string;
   tileFallbackBg: string;
-  iconColor: string;
   chevronColor: string;
 };
 
@@ -141,11 +142,16 @@ function QuickNavGrid({
             >
               <View style={styles.quickTileInner}>
                 <View style={styles.quickTileIconRow}>
-                  <View style={styles.quickTileIconBadge}>
+                  <View
+                    style={[
+                      styles.quickTileIconBadge,
+                      { backgroundColor: tile.iconBadgeColor },
+                    ]}
+                  >
                     <MaterialIcons
                       name={tile.icon}
                       size={18}
-                      color={theme.iconColor}
+                      color={tile.iconColor}
                     />
                   </View>
                   <MaterialIcons
@@ -442,6 +448,7 @@ export default function HomeScreen() {
   }, [tasks]);
 
   const quickTiles = React.useMemo<QuickTile[]>(() => {
+    const streakIconColor = currentStreak > 0 ? "#F59E0B" : "#9CA3AF";
     return [
       {
         key: "streaks",
@@ -450,6 +457,8 @@ export default function HomeScreen() {
           currentStreak === 1 ? t("home.quick.day") : t("home.quick.days")
         }`,
         icon: "local-fire-department",
+        iconColor: streakIconColor,
+        iconBadgeColor: withAlpha(streakIconColor, isDark ? 0.24 : 0.18),
         onPress: () => router.push("/home/streaks"),
       },
       {
@@ -457,17 +466,18 @@ export default function HomeScreen() {
         title: t("home.quick.routines"),
         subtitle: t("home.quick.recurring", { count: routineTasksCount }),
         icon: "loop",
+        iconColor: "#0A84FF",
+        iconBadgeColor: withAlpha("#0A84FF", isDark ? 0.24 : 0.18),
         onPress: () => router.push("/home/routines"),
       },
     ];
-  }, [currentStreak, routineTasksCount, router]);
+  }, [currentStreak, isDark, routineTasksCount, router]);
 
   const quickNavTheme = React.useMemo<QuickNavTheme>(() => {
     const text = Colors[theme].text;
     return {
       tileTintColor: withAlpha(Colors[theme].background, isDark ? 0.18 : 0.28),
       tileFallbackBg: isDark ? "#1C1C1E" : "#F2F2F7",
-      iconColor: withAlpha(text, 0.86),
       chevronColor: withAlpha(text, 0.45),
     };
   }, [isDark, theme]);
