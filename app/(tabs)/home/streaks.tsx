@@ -1,6 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import React, { useMemo, useState } from 'react';
-import { LayoutAnimation, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import SegmentedControl from '@react-native-segmented-control/segmented-control';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
@@ -137,33 +138,7 @@ const createStyles = (theme: ThemeName) => {
       letterSpacing: 0.2,
     },
     segmentedControl: {
-      flexDirection: 'row',
-      padding: 3,
-      borderRadius: 10,
-      height: 32,
-      backgroundColor: withAlpha(text, isDark ? 0.08 : 0.06),
-    },
-    segment: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderRadius: 7,
-    },
-    segmentActive: {
-      backgroundColor: cardBg,
-      shadowColor: '#000',
-      shadowOpacity: isDark ? 0.3 : 0.1,
-      shadowRadius: 4,
-      shadowOffset: { width: 0, height: 2 },
-    },
-    segmentText: {
-      fontSize: 11,
-      fontWeight: '600',
-      color: subtitleColor,
-    },
-    segmentTextActive: {
-      fontWeight: '700',
-      color: text,
+      height: 36,
     },
     chartBody: {
       flexDirection: 'row',
@@ -321,7 +296,6 @@ export default function StreaksScreen() {
   const gridGlassFallback = tileSurfaceBg;
   const chartGlassTint = withAlpha(Colors[theme].background, isDark ? 0.18 : 0.28);
   const chartGlassFallback = tileSurfaceBg;
-
   const ranges: { label: string; value: RangeOption }[] = [
     { label: t('streaks.range.7d'), value: '7d' },
     { label: t('streaks.range.14d'), value: '14d' },
@@ -329,6 +303,10 @@ export default function StreaksScreen() {
     { label: t('streaks.range.1y'), value: '1y' },
     { label: t('streaks.range.max'), value: 'max' },
   ];
+  const activeRangeIndex = Math.max(
+    ranges.findIndex((item) => item.value === range),
+    0
+  );
 
   return (
     <ScrollView
@@ -416,25 +394,17 @@ export default function StreaksScreen() {
         <View style={styles.chartHeader}>
           <Text style={styles.cardTitle}>{t('streaks.chart.activity')}</Text>
           {/* Segmented Control */}
-          <View style={styles.segmentedControl}>
-            {ranges.map((r) => {
-              const isActive = range === r.value;
-              return (
-                <Pressable
-                  key={r.value}
-                  style={[styles.segment, isActive && styles.segmentActive]}
-                  onPress={() => {
-                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                    setRange(r.value);
-                  }}
-                >
-                  <Text style={[styles.segmentText, isActive && styles.segmentTextActive]}>
-                    {r.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          <SegmentedControl
+            style={styles.segmentedControl}
+            values={ranges.map((item) => item.label)}
+            selectedIndex={activeRangeIndex}
+            onChange={(event) => {
+              const nextIndex = event.nativeEvent.selectedSegmentIndex;
+              const nextRange = ranges[nextIndex]?.value;
+              if (!nextRange || nextRange === range) return;
+              setRange(nextRange);
+            }}
+          />
         </View>
 
         <View style={styles.chartBody}>
