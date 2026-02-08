@@ -2,6 +2,18 @@ import Expo
 import React
 import ReactAppDependencyProvider
 
+private extension UIColor {
+  static var remindsAppBackground: UIColor {
+    UIColor { traits in
+      if traits.userInterfaceStyle == .dark {
+        // Matches JS theme dark background: Colors.dark.background (#151718)
+        return UIColor(red: 21.0 / 255.0, green: 23.0 / 255.0, blue: 24.0 / 255.0, alpha: 1)
+      }
+      return .white
+    }
+  }
+}
+
 @UIApplicationMain
 public class AppDelegate: ExpoAppDelegate {
   var window: UIWindow?
@@ -28,8 +40,8 @@ public class AppDelegate: ExpoAppDelegate {
       withModuleName: "main",
       in: window,
       launchOptions: launchOptions)
-    window?.backgroundColor = UIColor.systemBackground
-    window?.rootViewController?.view.backgroundColor = UIColor.systemBackground
+    window?.backgroundColor = UIColor.remindsAppBackground
+    window?.rootViewController?.view.backgroundColor = UIColor.remindsAppBackground
     applyReactRootViewBackground()
 
     if #available(iOS 26.0, *) {
@@ -67,7 +79,7 @@ public class AppDelegate: ExpoAppDelegate {
     DispatchQueue.main.async { [weak self] in
       guard let self else { return }
       guard let rootView = self.findReactRootView(in: self.window) else { return }
-      rootView.backgroundColor = UIColor.systemBackground
+      rootView.backgroundColor = UIColor.remindsAppBackground
       rootView.isOpaque = true
     }
   }
@@ -201,6 +213,8 @@ private final class TabBarAccessoryCoordinator: NSObject {
       return false
     }
 
+    Self.applyContainerBackgroundColor(in: tabBarController)
+
     tabBarController.tabBarMinimizeBehavior = .onScrollDown
     bindObservedScrollViewIfNeeded(for: tabBarController)
 
@@ -216,6 +230,30 @@ private final class TabBarAccessoryCoordinator: NSObject {
     )
 
     return true
+  }
+
+  private static func applyContainerBackgroundColor(in viewController: UIViewController?) {
+    guard let viewController else {
+      return
+    }
+
+    if let tabBarController = viewController as? UITabBarController {
+      tabBarController.view.backgroundColor = .remindsAppBackground
+      tabBarController.view.isOpaque = true
+    }
+
+    if let navigationController = viewController as? UINavigationController {
+      navigationController.view.backgroundColor = .remindsAppBackground
+      navigationController.view.isOpaque = true
+    }
+
+    for child in viewController.children {
+      applyContainerBackgroundColor(in: child)
+    }
+
+    if let presented = viewController.presentedViewController {
+      applyContainerBackgroundColor(in: presented)
+    }
   }
 
   @objc private func handleAccessoryContextDidChange(_ notification: Notification) {

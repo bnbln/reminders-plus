@@ -195,6 +195,7 @@ export default function HomeLayout() {
       screenOptions={{
         headerLargeTitle: Platform.OS === 'ios',
         headerShadowVisible: false,
+        contentStyle: { backgroundColor: Colors[theme].background },
         headerTintColor: Colors[theme].text,
         headerTitleAlign: headerTextAlign,
         headerTitleStyle: { color: Colors[theme].text, textAlign: headerTextAlign },

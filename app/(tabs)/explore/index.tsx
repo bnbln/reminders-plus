@@ -102,8 +102,9 @@ function ProjectTile({
   theme: ThemeName;
   isDark: boolean;
 }) {
-  const tileTintColor = withAlpha(Colors[theme].background, isDark ? 0.18 : 0.28);
-  const tileFallbackBg = isDark ? '#1C1C1E' : '#F2F2F7';
+  const tileSurfaceBg = isDark ? '#1C1C1E' : '#F2F2F7';
+  const tileTintColor = isDark ? withAlpha(tileSurfaceBg, 0.22) : tileSurfaceBg;
+  const tileFallbackBg = tileSurfaceBg;
   const chevronColor = withAlpha(Colors[theme].text, 0.45);
   const iconColor = project.color; // Use project color for icon
   const badgeBg = withAlpha(project.color, 0.15); // Subtle background matching project color

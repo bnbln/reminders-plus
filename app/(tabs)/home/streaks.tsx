@@ -313,13 +313,14 @@ export default function StreaksScreen() {
   const maxVal = useMemo(() => Math.max(...chartData.map(d => d.count), 5), [chartData]);
 
   const textColor = Colors[theme].text;
-  const backgroundColor = Colors[theme].background;
   const fireColor = currentStreak > 0 ? '#F59E0B' : '#9CA3AF';
   const fireBadgeColor = withAlpha(fireColor, isDark ? 0.24 : 0.2);
 
-  // Match home/index.tsx QuickNavTheme exactly
-  const glassTint = withAlpha(backgroundColor, isDark ? 0.18 : 0.28);
-  const glassFallback = isDark ? '#1C1C1E' : '#F2F2F7';
+  const tileSurfaceBg = isDark ? '#1C1C1E' : '#F2F2F7';
+  const gridGlassTint = isDark ? withAlpha(tileSurfaceBg, 0.22) : tileSurfaceBg;
+  const gridGlassFallback = tileSurfaceBg;
+  const chartGlassTint = withAlpha(Colors[theme].background, isDark ? 0.18 : 0.28);
+  const chartGlassFallback = tileSurfaceBg;
 
   const ranges: { label: string; value: RangeOption }[] = [
     { label: t('streaks.range.7d'), value: '7d' },
@@ -368,8 +369,8 @@ export default function StreaksScreen() {
             icon="check-circle"
             iconColor="#10B981"
             styles={styles}
-            glassTint={glassTint}
-            glassFallback={glassFallback}
+            glassTint={gridGlassTint}
+            glassFallback={gridGlassFallback}
             isDark={isDark}
           />
           <StatTile
@@ -378,8 +379,8 @@ export default function StreaksScreen() {
             icon="date-range"
             iconColor="#3B82F6"
             styles={styles}
-            glassTint={glassTint}
-            glassFallback={glassFallback}
+            glassTint={gridGlassTint}
+            glassFallback={gridGlassFallback}
             isDark={isDark}
           />
           <StatTile
@@ -388,8 +389,8 @@ export default function StreaksScreen() {
             icon="emoji-events"
             iconColor="#F59E0B"
             styles={styles}
-            glassTint={glassTint}
-            glassFallback={glassFallback}
+            glassTint={gridGlassTint}
+            glassFallback={gridGlassFallback}
             isDark={isDark}
           />
           <StatTile
@@ -398,8 +399,8 @@ export default function StreaksScreen() {
             icon="local-fire-department"
             iconColor="#EF4444"
             styles={styles}
-            glassTint={glassTint}
-            glassFallback={glassFallback}
+            glassTint={gridGlassTint}
+            glassFallback={gridGlassFallback}
             isDark={isDark}
           />
         </View>
@@ -409,8 +410,8 @@ export default function StreaksScreen() {
       <GlassSurface
         style={styles.chartCard}
         glassEffectStyle="regular"
-        tintColor={glassTint}
-        fallbackBackgroundColor={glassFallback}
+        tintColor={chartGlassTint}
+        fallbackBackgroundColor={chartGlassFallback}
       >
         <View style={styles.chartHeader}>
           <Text style={styles.cardTitle}>{t('streaks.chart.activity')}</Text>

@@ -119,7 +119,7 @@ export default function TabLayout() {
 
   if (Platform.OS !== "ios" && Platform.OS !== "android") {
     return (
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, backgroundColor: Colors[theme].background }}>
         <Tabs
           screenOptions={{
             tabBarActiveTintColor: Colors[theme].tint,
@@ -184,12 +184,13 @@ export default function TabLayout() {
   }
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: Colors[theme].background }}>
       <TabBarMinimizeProvider behavior="onScrollDown">
         <NativeTabs
           minimizeBehavior="onScrollDown"
           // Keep scroll-edge behavior native on iOS 26+ so tab minimization can react to content scrolling.
           disableTransparentOnScrollEdge={!isIOS26Plus}
+          backgroundColor={Colors[theme].background}
           labelStyle={
             Platform.OS === "ios"
               ? {

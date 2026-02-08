@@ -718,7 +718,7 @@ export default function ProjectDetailScreen() {
   const columnBottomPadding = isIOS26Plus ? 96 : 20;
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: Colors[theme].background }}>
       <View style={styles.container}>
         <Stack.Screen
           options={{

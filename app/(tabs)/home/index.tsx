@@ -161,10 +161,12 @@ function QuickNavGrid({
                   />
                 </View>
 
-                <Text style={styles.quickTileTitle}>{tile.title}</Text>
-                <Text style={styles.quickTileSubtitle} numberOfLines={1}>
-                  {tile.subtitle}
-                </Text>
+                <View style={styles.quickTileTextWrap}>
+                  <Text style={styles.quickTileTitle}>{tile.title}</Text>
+                  <Text style={styles.quickTileSubtitle} numberOfLines={1}>
+                    {tile.subtitle}
+                  </Text>
+                </View>
               </View>
             </GlassSurface>
           </Pressable>
@@ -197,7 +199,7 @@ const createStyles = (theme: ThemeName) => {
       gap: 10,
     },
     quickGridWrap: {
-      marginTop: 8,
+      marginTop: 0,
       marginBottom: 12,
     },
     quickGrid: {
@@ -206,7 +208,8 @@ const createStyles = (theme: ThemeName) => {
       gap: 10,
     },
     quickTilePressable: {
-      width: "48.5%",
+      width: "48%",
+      flexGrow: 0,
     },
     quickTile: {
       borderRadius: 16,
@@ -214,11 +217,14 @@ const createStyles = (theme: ThemeName) => {
       borderColor: hairline,
       overflow: "hidden",
       backgroundColor: isDark ? "#1C1C1E" : "#F2F2F7",
+      minHeight: 110,
     },
     quickTileInner: {
       paddingHorizontal: 12,
       paddingVertical: 12,
       gap: 6,
+      flex: 1,
+      justifyContent: "space-between",
     },
     quickTileIconRow: {
       flexDirection: "row",
@@ -226,22 +232,26 @@ const createStyles = (theme: ThemeName) => {
       justifyContent: "space-between",
     },
     quickTileIconBadge: {
-      width: 30,
-      height: 30,
+      width: 32,
+      height: 32,
       borderRadius: 10,
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: withAlpha(text, isDark ? 0.08 : 0.06),
     },
+    quickTileTextWrap: {
+      gap: 2,
+    },
     quickTileTitle: {
-      fontSize: 14,
-      fontWeight: "800",
+      fontSize: 15,
+      fontWeight: "700",
       color: text,
       letterSpacing: 0.2,
+      marginTop: 4,
     },
     quickTileSubtitle: {
-      fontSize: 12,
-      fontWeight: "700",
+      fontSize: 13,
+      fontWeight: "600",
       color: quickTileSubtitle,
     },
     sectionHeader: {
@@ -475,9 +485,10 @@ export default function HomeScreen() {
 
   const quickNavTheme = React.useMemo<QuickNavTheme>(() => {
     const text = Colors[theme].text;
+    const tileSurfaceBg = isDark ? "#1C1C1E" : "#F2F2F7";
     return {
-      tileTintColor: withAlpha(Colors[theme].background, isDark ? 0.18 : 0.28),
-      tileFallbackBg: isDark ? "#1C1C1E" : "#F2F2F7",
+      tileTintColor: isDark ? withAlpha(tileSurfaceBg, 0.22) : tileSurfaceBg,
+      tileFallbackBg: tileSurfaceBg,
       chevronColor: withAlpha(text, 0.45),
     };
   }, [isDark, theme]);

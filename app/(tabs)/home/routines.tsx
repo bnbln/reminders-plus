@@ -292,12 +292,13 @@ export default function RoutinesScreen() {
   }).length;
 
   const textColor = Colors[theme].text;
-  const backgroundColor = Colors[theme].background;
   const iconColor = routinesCount > 0 ? '#0A84FF' : '#9CA3AF';
   const iconBadgeColor = withAlpha(iconColor, isDark ? 0.24 : 0.2);
-
-  const glassTint = withAlpha(backgroundColor, isDark ? 0.18 : 0.28);
-  const glassFallback = isDark ? '#1C1C1E' : '#F2F2F7';
+  const tileSurfaceBg = isDark ? '#1C1C1E' : '#F2F2F7';
+  const gridGlassTint = isDark ? withAlpha(tileSurfaceBg, 0.22) : tileSurfaceBg;
+  const gridGlassFallback = tileSurfaceBg;
+  const cardGlassTint = withAlpha(Colors[theme].background, isDark ? 0.18 : 0.28);
+  const cardGlassFallback = tileSurfaceBg;
 
   const handleAddTask = React.useCallback(() => {
     router.push('/task/create-modal');
@@ -335,8 +336,8 @@ export default function RoutinesScreen() {
             icon="today"
             iconColor="#10B981"
             styles={styles}
-            glassTint={glassTint}
-            glassFallback={glassFallback}
+            glassTint={gridGlassTint}
+            glassFallback={gridGlassFallback}
             isDark={isDark}
           />
           <StatTile
@@ -345,8 +346,8 @@ export default function RoutinesScreen() {
             icon="repeat"
             iconColor="#0A84FF"
             styles={styles}
-            glassTint={glassTint}
-            glassFallback={glassFallback}
+            glassTint={gridGlassTint}
+            glassFallback={gridGlassFallback}
             isDark={isDark}
           />
           <StatTile
@@ -355,8 +356,8 @@ export default function RoutinesScreen() {
             icon="date-range"
             iconColor="#8B5CF6"
             styles={styles}
-            glassTint={glassTint}
-            glassFallback={glassFallback}
+            glassTint={gridGlassTint}
+            glassFallback={gridGlassFallback}
             isDark={isDark}
           />
           <StatTile
@@ -365,8 +366,8 @@ export default function RoutinesScreen() {
             icon="calendar-today"
             iconColor="#F59E0B"
             styles={styles}
-            glassTint={glassTint}
-            glassFallback={glassFallback}
+            glassTint={gridGlassTint}
+            glassFallback={gridGlassFallback}
             isDark={isDark}
           />
         </View>
@@ -398,8 +399,8 @@ export default function RoutinesScreen() {
                     <GlassSurface
                       style={styles.routineCard}
                       glassEffectStyle="regular"
-                      tintColor={glassTint}
-                      fallbackBackgroundColor={glassFallback}
+                      tintColor={cardGlassTint}
+                      fallbackBackgroundColor={cardGlassFallback}
                     >
                       <View style={styles.routineCardInner}>
                         <Text style={styles.routineEmoji}>{routine.emoji}</Text>

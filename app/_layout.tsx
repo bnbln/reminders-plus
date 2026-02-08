@@ -2,13 +2,14 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
-import { I18nManager } from 'react-native';
+import { Appearance, I18nManager } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { HomeFiltersProvider } from '@/context/home-filters-store';
 import { TaskCreateProvider } from '@/context/task-create-context';
 import { TasksProvider } from '@/context/tasks-store';
+import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { isRtlLocale, t } from '@/i18n';
 import { initTaskNotifications } from '@/notifications/tasks-notifications';
@@ -19,6 +20,23 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const resolvedColorScheme = colorScheme ?? Appearance.getColorScheme();
+  const theme = resolvedColorScheme === 'dark' ? 'dark' : 'light';
+  const themedContentStyle = React.useMemo(
+    () => ({ backgroundColor: Colors[theme].background }),
+    [theme]
+  );
+  const navigationTheme = React.useMemo(() => {
+    const baseTheme = theme === 'dark' ? DarkTheme : DefaultTheme;
+    return {
+      ...baseTheme,
+      colors: {
+        ...baseTheme.colors,
+        background: Colors[theme].background,
+        card: Colors[theme].background,
+      },
+    };
+  }, [theme]);
 
   React.useEffect(() => {
     void initTaskNotifications();
@@ -36,12 +54,15 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: Colors[theme].background }}>
       <TasksProvider>
         <TaskCreateProvider>
           <HomeFiltersProvider>
-            <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-              <Stack>
+            <ThemeProvider value={navigationTheme}>
+              <Stack
+                screenOptions={{
+                  contentStyle: themedContentStyle,
+                }}>
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                 <Stack.Screen
                   name="task/create-modal"
@@ -57,28 +78,28 @@ export default function RootLayout() {
                   name="task/routine-picker"
                   options={{
                     presentation: 'formSheet',
-                    contentStyle: { backgroundColor: 'transparent' },
+                    contentStyle: themedContentStyle,
                   } as any}
                 />
                 <Stack.Screen
                   name="task/date-picker"
                   options={{
                     presentation: 'formSheet',
-                    contentStyle: { backgroundColor: 'transparent' },
+                    contentStyle: themedContentStyle,
                   }}
                 />
                 <Stack.Screen
                   name="task/project-picker"
                   options={{
                     presentation: 'formSheet',
-                    contentStyle: { backgroundColor: 'transparent' },
+                    contentStyle: themedContentStyle,
                   }}
                 />
                 <Stack.Screen
                   name="task/emoji-picker"
                   options={{
                     presentation: 'formSheet',
-                    contentStyle: { backgroundColor: 'transparent' },
+                    contentStyle: themedContentStyle,
                   }}
                 />
                 <Stack.Screen name="task/[id]" options={{ title: t('common.task') }} />
@@ -95,15 +116,17 @@ export default function RootLayout() {
                 <Stack.Screen
                   name="project/edit-modal"
                   options={{
-                    presentation: 'formSheet',
+                    presentation: 'transparentModal',
+                    headerShown: false,
                     contentStyle: { backgroundColor: 'transparent' },
+                    animation: 'fade',
                   }}
                 />
                 <Stack.Screen
                   name="modal"
                   options={{
                     presentation: 'formSheet',
-                    contentStyle: { backgroundColor: 'transparent' },
+                    contentStyle: themedContentStyle,
                     title: t('modal.newTask')
                   }}
                 />
