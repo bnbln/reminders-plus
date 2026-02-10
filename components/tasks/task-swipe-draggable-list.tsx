@@ -547,7 +547,12 @@ ref
   }
 
   if (renderMode === 'nestable') {
-    return <NestableDraggableFlatList {...dragListProps} />;
+    return (
+      <NestableDraggableFlatList
+        {...dragListProps}
+        style={[{ flex: 1, overflow: 'visible' }, containerStyle]}
+      />
+    );
   }
 
   if (useScrollViewCompatibilityMode) {
