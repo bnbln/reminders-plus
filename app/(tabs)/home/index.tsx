@@ -1,7 +1,11 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import {
+  FlatList,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   Platform,
   Pressable,
   StyleSheet,
@@ -35,6 +39,12 @@ import { isIOS26OrNewer } from "@/utils/ios-version";
 type ThemeName = keyof typeof Colors;
 const GRID_HORIZONTAL_PADDING = 16;
 const GRID_GAP = 10;
+const SECTION_SIDE_INSET = 4;
+const DATE_RAIL_PAST_DAYS = 119;
+const DATE_RAIL_FUTURE_DAYS = 365;
+const DATE_RAIL_MIN_ITEM_WIDTH = 44;
+const DATE_RAIL_ITEM_GAP = 0;
+const DATE_RAIL_PAGE_DAYS = 7;
 
 const SECTION_ORDER: SectionId[] = ["today", "upcoming", "completed"];
 
@@ -55,21 +65,42 @@ const parseSectionsParam = (value: unknown): SectionId[] => {
 
 const SECTION_TITLE_KEYS: Record<SectionId, string> = {
   today: "common.today",
-  upcoming: "common.upcoming",
+  upcoming: "home.section.withoutDate",
   completed: "common.completed",
 };
 
-const getStartOfToday = () => {
-  const now = new Date();
+const getStartOfDay = (timestamp: number) => {
+  const date = new Date(timestamp);
   return new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
     0,
     0,
     0,
     0,
   ).getTime();
+};
+
+const getStartOfToday = () => {
+  return getStartOfDay(Date.now());
+};
+
+const isSameLocalDay = (left: number, right: number) => {
+  const a = new Date(left);
+  const b = new Date(right);
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+};
+
+const addDays = (timestamp: number, days: number) => {
+  const date = new Date(timestamp);
+  date.setDate(date.getDate() + days);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
 };
 
 const adjustDueAtOnSectionChange = (
@@ -119,6 +150,17 @@ type QuickNavTheme = {
   tileTintColor: string;
   tileFallbackBg: string;
   chevronColor: string;
+};
+
+type DateRailDay = {
+  key: string;
+  timestamp: number;
+  dayOfMonth: string;
+  weekday: string;
+  isSelected: boolean;
+  isToday: boolean;
+  isWeekend: boolean;
+  eventCount: number;
 };
 
 function QuickNavGrid({
@@ -186,7 +228,11 @@ function QuickNavGrid({
   );
 }
 
-const createStyles = (theme: ThemeName, quickTileWidth: number) => {
+const createStyles = (
+  theme: ThemeName,
+  quickTileWidth: number,
+  dateRailItemWidth: number,
+) => {
   const isDark = theme === "dark";
   const text = Colors[theme].text;
   const hairline = isDark ? "rgba(255,255,255,0.16)" : "rgba(0,0,0,0.12)";
@@ -196,6 +242,7 @@ const createStyles = (theme: ThemeName, quickTileWidth: number) => {
   const dangerBg = isDark ? "rgba(255,69,58,0.18)" : "rgba(255,59,48,0.14)";
   const dangerBorder = isDark ? "rgba(255,69,58,0.32)" : "rgba(255,59,48,0.26)";
   const quickTileSubtitle = withAlpha(text, 0.62);
+  const dayBubbleSize = Math.max(30, Math.min(40, dateRailItemWidth - 14));
 
   return StyleSheet.create({
     container: {
@@ -210,7 +257,7 @@ const createStyles = (theme: ThemeName, quickTileWidth: number) => {
     },
     quickGridWrap: {
       marginTop: 0,
-      marginBottom: 12,
+      marginBottom: 10,
     },
     quickGrid: {
       flexDirection: "row",
@@ -264,19 +311,106 @@ const createStyles = (theme: ThemeName, quickTileWidth: number) => {
       fontWeight: "600",
       color: quickTileSubtitle,
     },
+    dateRailWrap: {
+      paddingHorizontal: SECTION_SIDE_INSET,
+      paddingTop: 4,
+      paddingBottom: 12,
+      marginBottom: 8,
+    },
+    dateRailList: {
+      flexGrow: 0,
+    },
+    dateRailRow: {
+      gap: DATE_RAIL_ITEM_GAP,
+    },
+    dateRailDay: {
+      width: dateRailItemWidth,
+      alignItems: "center",
+      justifyContent: "flex-start",
+      gap: 3,
+      paddingHorizontal: 1,
+      paddingTop: 2,
+      paddingBottom: 6,
+    },
+    dateRailDayBubble: {
+      width: dayBubbleSize,
+      height: dayBubbleSize,
+      borderRadius: dayBubbleSize / 2,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    dateRailDayBubbleSelected: {
+      backgroundColor: "#000000",
+    },
+    dateRailDayNum: {
+      color: isDark ? "rgba(255,255,255,0.92)" : "#111111",
+      fontSize: 21,
+      lineHeight: 24,
+      fontWeight: "500",
+      letterSpacing: -0.15,
+    },
+    dateRailDayNumSelected: {
+      color: "#FFFFFF",
+    },
+    dateRailDayNumToday: {
+      color: "#FF3B30",
+    },
+    dateRailDayNumWeekend: {
+      color: isDark ? "rgba(255,255,255,0.52)" : "#8E8E93",
+    },
+    dateRailDow: {
+      color: isDark ? "rgba(255,255,255,0.9)" : "#111111",
+      fontSize: 12,
+      lineHeight: 15,
+      fontWeight: "600",
+      letterSpacing: 0.18,
+      textTransform: "uppercase",
+    },
+    dateRailDowWeekend: {
+      color: isDark ? "rgba(255,255,255,0.52)" : "#8E8E93",
+    },
+    dateRailEventIndicator: {
+      marginTop: 2,
+      width: 5,
+      height: 5,
+      borderRadius: 2.5,
+      backgroundColor: isDark ? "#7CB8FF" : "#0A84FF",
+    },
+    dateRailEventIndicatorSpacer: {
+      height: 5,
+      marginTop: 2,
+    },
+    dateRailNoEventsHint: {
+      marginTop: 7,
+      marginHorizontal: 2,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "flex-start",
+      gap: 6,
+      paddingVertical: 4,
+      paddingHorizontal: 0,
+    },
+    dateRailNoEventsHintText: {
+      fontSize: 12,
+      fontWeight: "500",
+      color: withAlpha(text, 0.68),
+    },
     sectionHeader: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 10,
-      marginTop: 8,
-      marginBottom: 4,
+      marginTop: 10,
+      marginBottom: 6,
+      paddingHorizontal: SECTION_SIDE_INSET,
+    },
+    sectionHeaderTightTop: {
+      marginTop: 2,
     },
     sectionHeaderButton: {
       flexDirection: "row",
       alignItems: "center",
       gap: 6,
-      paddingVertical: 6,
-      paddingHorizontal: 6,
+      paddingVertical: 4,
+      paddingHorizontal: 0,
     },
     sectionTitle: {
       fontSize: 12,
@@ -285,11 +419,6 @@ const createStyles = (theme: ThemeName, quickTileWidth: number) => {
       textTransform: "uppercase",
       color: text,
       opacity: 0.55,
-    },
-    sectionLine: {
-      flex: 1,
-      height: StyleSheet.hairlineWidth,
-      backgroundColor: hairline,
     },
     itemSpacer: {
       marginBottom: 12,
@@ -461,9 +590,19 @@ export default function HomeScreen() {
       ),
     [viewportWidth],
   );
+  const dateRailItemWidth = React.useMemo(() => {
+    const availableWidth = Math.max(
+      0,
+      viewportWidth - GRID_HORIZONTAL_PADDING * 2 - 4,
+    );
+    return Math.max(
+      DATE_RAIL_MIN_ITEM_WIDTH,
+      (availableWidth - DATE_RAIL_ITEM_GAP * 6) / 7,
+    );
+  }, [viewportWidth]);
   const styles = React.useMemo(
-    () => createStyles(theme, quickTileWidth),
-    [theme, quickTileWidth],
+    () => createStyles(theme, quickTileWidth, dateRailItemWidth),
+    [dateRailItemWidth, theme, quickTileWidth],
   );
   const { tasks, setTasks, projects } = useTasksStore();
   const { enabledTags, showTagIcons, showCompactSubtasks } = useHomeFilters();
@@ -472,6 +611,14 @@ export default function HomeScreen() {
       ? showCompactSubtasks
       : params.withSubtasks === "1";
   const { currentStreak } = useStreaks();
+  const [selectedDateStart, setSelectedDateStart] = React.useState(() =>
+    getStartOfToday(),
+  );
+  const dayLabelFormatter = React.useMemo(
+    () => new Intl.DateTimeFormat(undefined, { weekday: "narrow" }),
+    [],
+  );
+  const todayStart = React.useMemo(() => getStartOfToday(), []);
   const minimizeProbeRows = React.useMemo(
     () => Array.from({ length: 6 }, (_, index) => index),
     [],
@@ -527,6 +674,148 @@ export default function HomeScreen() {
     ) as SectionId[];
   }, [enabledSections]);
 
+  const dayEventCountByStart = React.useMemo(() => {
+    const counts = new Map<number, number>();
+    for (const task of tasks) {
+      if (task.deletedAt) continue;
+      if (!homeEnabledSections.includes(task.section)) continue;
+      if (withNotesEnabled && !task.subtitle) continue;
+      if (
+        typeof task.dueAt !== "number" ||
+        !Number.isFinite(task.dueAt) ||
+        task.dueAt <= 0
+      ) {
+        continue;
+      }
+
+      const dayStart = getStartOfDay(task.dueAt);
+      counts.set(dayStart, (counts.get(dayStart) ?? 0) + 1);
+    }
+    return counts;
+  }, [homeEnabledSections, tasks, withNotesEnabled]);
+
+  const selectedDateHintFormatter = React.useMemo(
+    () =>
+      new Intl.DateTimeFormat(undefined, {
+        weekday: "long",
+        day: "2-digit",
+        month: "2-digit",
+      }),
+    [],
+  );
+  const selectedDateHintLabel = React.useMemo(
+    () => selectedDateHintFormatter.format(selectedDateStart),
+    [selectedDateHintFormatter, selectedDateStart],
+  );
+  const selectedDayEventCount = React.useMemo(
+    () => dayEventCountByStart.get(selectedDateStart) ?? 0,
+    [dayEventCountByStart, selectedDateStart],
+  );
+
+  const dateRailInitialIndex = DATE_RAIL_PAST_DAYS;
+  const dateRailSnapInterval = React.useMemo(
+    () => dateRailItemWidth + DATE_RAIL_ITEM_GAP,
+    [dateRailItemWidth],
+  );
+  const dateRailPageInterval = React.useMemo(
+    () => dateRailSnapInterval * DATE_RAIL_PAGE_DAYS,
+    [dateRailSnapInterval],
+  );
+  const dateRailDays = React.useMemo<DateRailDay[]>(() => {
+    const rangeStart = addDays(todayStart, -DATE_RAIL_PAST_DAYS);
+    return Array.from(
+      { length: DATE_RAIL_PAST_DAYS + DATE_RAIL_FUTURE_DAYS + 1 },
+      (_, index) => {
+        const timestamp = addDays(rangeStart, index);
+        const eventCount = dayEventCountByStart.get(timestamp) ?? 0;
+        return {
+          key: `d-${timestamp}`,
+          timestamp,
+          dayOfMonth: String(new Date(timestamp).getDate()),
+          weekday: dayLabelFormatter
+            .format(timestamp)
+            .replace(".", "")
+            .toUpperCase(),
+          isSelected: isSameLocalDay(timestamp, selectedDateStart),
+          isToday: isSameLocalDay(timestamp, todayStart),
+          isWeekend:
+            new Date(timestamp).getDay() === 0 ||
+            new Date(timestamp).getDay() === 6,
+          eventCount,
+        };
+      },
+    );
+  }, [dayEventCountByStart, dayLabelFormatter, selectedDateStart, todayStart]);
+
+  const handleSelectDate = React.useCallback(
+    (timestamp: number) => {
+      setSelectedDateStart((current) => {
+        if (isSameLocalDay(current, timestamp)) return current;
+        void Haptics.selectionAsync().catch(() => undefined);
+        return timestamp;
+      });
+    },
+    [],
+  );
+
+  const getDateRailItemLayout = React.useCallback(
+    (_: ArrayLike<DateRailDay> | null | undefined, index: number) => ({
+      length: dateRailSnapInterval,
+      offset: dateRailSnapInterval * index,
+      index,
+    }),
+    [dateRailSnapInterval],
+  );
+
+  const dateRailRef = React.useRef<FlatList<DateRailDay> | null>(null);
+  const currentWeekIndexRef = React.useRef(
+    Math.floor(dateRailInitialIndex / DATE_RAIL_PAGE_DAYS),
+  );
+  const dateRailWeekSnapOffsets = React.useMemo(() => {
+    const weekCount = Math.ceil(dateRailDays.length / DATE_RAIL_PAGE_DAYS);
+    return Array.from({ length: weekCount }, (_, week) => week * dateRailPageInterval);
+  }, [dateRailDays.length, dateRailPageInterval]);
+  const handleDateRailScrollToIndexFailed = React.useCallback(() => {
+    requestAnimationFrame(() => {
+      dateRailRef.current?.scrollToIndex({
+        index: dateRailInitialIndex,
+        animated: false,
+        viewPosition: 0,
+      });
+    });
+  }, [dateRailInitialIndex]);
+
+  const handleDateRailMomentumEnd = React.useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const offset = event.nativeEvent.contentOffset.x;
+      const maxWeekIndex = Math.max(
+        0,
+        Math.ceil(dateRailDays.length / DATE_RAIL_PAGE_DAYS) - 1,
+      );
+      const weekIndex = Math.min(
+        Math.max(Math.round(offset / dateRailPageInterval), 0),
+        maxWeekIndex,
+      );
+      const previousWeekIndex = currentWeekIndexRef.current;
+      if (weekIndex === previousWeekIndex) return;
+
+      const isBackward = weekIndex < previousWeekIndex;
+      const weekStartIndex = weekIndex * DATE_RAIL_PAGE_DAYS;
+      const rawIndex = isBackward
+        ? weekStartIndex + (DATE_RAIL_PAGE_DAYS - 1)
+        : weekStartIndex;
+      currentWeekIndexRef.current = weekIndex;
+      const nextIndex = Math.min(
+        Math.max(rawIndex, 0),
+        Math.max(dateRailDays.length - 1, 0),
+      );
+      const nextDay = dateRailDays[nextIndex];
+      if (!nextDay) return;
+      handleSelectDate(nextDay.timestamp);
+    },
+    [dateRailDays, dateRailPageInterval, handleSelectDate],
+  );
+
   const [collapsedSections, setCollapsedSections] = React.useState<
     Record<"today" | "upcoming", boolean>
   >({
@@ -556,15 +845,18 @@ export default function HomeScreen() {
       if (t.deletedAt) return false;
       if (!homeEnabledSections.includes(t.section)) return false;
 
-      if (t.section === "upcoming") return true;
+      const hasDueAt =
+        typeof t.dueAt === "number" && Number.isFinite(t.dueAt) && t.dueAt > 0;
 
-      return (
-        typeof t.dueAt === "number" && Number.isFinite(t.dueAt) && t.dueAt > 0
-      );
+      if (!hasDueAt) {
+        return t.section === "upcoming";
+      }
+
+      return isSameLocalDay(t.dueAt, selectedDateStart);
     });
     if (!withNotesEnabled) return base;
     return base.filter((t) => !!t.subtitle);
-  }, [homeEnabledSections, tasks, withNotesEnabled]);
+  }, [homeEnabledSections, selectedDateStart, tasks, withNotesEnabled]);
 
   const visibleSections = React.useMemo(() => {
     return SECTION_ORDER.filter((s) =>
@@ -875,8 +1167,12 @@ export default function HomeScreen() {
       };
 
       return (
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionLine} />
+        <View
+          style={[
+            styles.sectionHeader,
+            id === "upcoming" ? styles.sectionHeaderTightTop : null,
+          ]}
+        >
           <Pressable
             accessibilityRole={isCollapsible ? "button" : undefined}
             accessibilityLabel={
@@ -902,7 +1198,6 @@ export default function HomeScreen() {
             ) : null}
             <Text style={styles.sectionTitle}>{t(SECTION_TITLE_KEYS[id])}</Text>
           </Pressable>
-          <View style={styles.sectionLine} />
         </View>
       );
     },
@@ -917,6 +1212,86 @@ export default function HomeScreen() {
 
   const listHeader = React.useMemo(() => {
     const sectionId = firstVisibleSection;
+
+    if (sectionId === "today") {
+      return (
+        <View>
+          <QuickNavGrid tiles={quickTiles} styles={styles} theme={quickNavTheme} />
+          <View style={styles.dateRailWrap}>
+            <FlatList
+              ref={dateRailRef}
+              data={dateRailDays}
+              keyExtractor={(day) => day.key}
+              renderItem={({ item: day }) => {
+                const dayContainerStyle = [styles.dateRailDay];
+                const dayBubbleStyle = [
+                  styles.dateRailDayBubble,
+                  day.isSelected ? styles.dateRailDayBubbleSelected : null,
+                ];
+                const dayNumStyle = [
+                  styles.dateRailDayNum,
+                  day.isWeekend ? styles.dateRailDayNumWeekend : null,
+                  day.isToday ? styles.dateRailDayNumToday : null,
+                  day.isSelected ? styles.dateRailDayNumSelected : null,
+                ];
+                const dayDowStyle = [
+                  styles.dateRailDow,
+                  day.isWeekend ? styles.dateRailDowWeekend : null,
+                ];
+
+                return (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${day.weekday} ${day.dayOfMonth}`}
+                    onPress={() => {
+                      closeAnyOpen();
+                      handleSelectDate(day.timestamp);
+                    }}
+                    style={dayContainerStyle}
+                  >
+                    <Text style={dayDowStyle}>{day.weekday}</Text>
+                    <View style={dayBubbleStyle}>
+                      <Text style={dayNumStyle}>{day.dayOfMonth}</Text>
+                    </View>
+                    {day.eventCount > 0 ? (
+                      <View style={styles.dateRailEventIndicator} />
+                    ) : (
+                      <View style={styles.dateRailEventIndicatorSpacer} />
+                    )}
+                  </Pressable>
+                );
+              }}
+              horizontal
+              style={styles.dateRailList}
+              contentContainerStyle={styles.dateRailRow}
+              initialScrollIndex={dateRailInitialIndex}
+              getItemLayout={getDateRailItemLayout}
+              onScrollToIndexFailed={handleDateRailScrollToIndexFailed}
+              onMomentumScrollEnd={handleDateRailMomentumEnd}
+              showsHorizontalScrollIndicator={false}
+              snapToOffsets={dateRailWeekSnapOffsets}
+              snapToAlignment="start"
+              decelerationRate="fast"
+              disableIntervalMomentum
+              bounces={false}
+            />
+            {selectedDayEventCount === 0 ? (
+              <View style={styles.dateRailNoEventsHint}>
+                <MaterialIcons
+                  name="event-busy"
+                  size={14}
+                  color={withAlpha(Colors[theme].text, 0.52)}
+                />
+                <Text style={styles.dateRailNoEventsHintText}>
+                  {`${t("home.empty.noTasks")} · ${selectedDateHintLabel}`}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        </View>
+      );
+    }
+
     const isCollapsible = sectionId === "today" || sectionId === "upcoming";
     const isCollapsed =
       sectionId === "today"
@@ -934,15 +1309,12 @@ export default function HomeScreen() {
 
     return (
       <View>
-        {sectionId === "today" ? (
-          <QuickNavGrid
-            tiles={quickTiles}
-            styles={styles}
-            theme={quickNavTheme}
-          />
-        ) : null}
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionLine} />
+        <View
+          style={[
+            styles.sectionHeader,
+            sectionId === "upcoming" ? styles.sectionHeaderTightTop : null,
+          ]}
+        >
           <Pressable
             accessibilityRole={isCollapsible ? "button" : undefined}
             accessibilityLabel={
@@ -970,7 +1342,6 @@ export default function HomeScreen() {
               {t(SECTION_TITLE_KEYS[sectionId])}
             </Text>
           </Pressable>
-          <View style={styles.sectionLine} />
         </View>
       </View>
     );
@@ -978,9 +1349,18 @@ export default function HomeScreen() {
     closeAnyOpen,
     collapsedSections.today,
     collapsedSections.upcoming,
+    dateRailDays,
+    dateRailInitialIndex,
+    dateRailWeekSnapOffsets,
+    handleDateRailMomentumEnd,
     firstVisibleSection,
+    getDateRailItemLayout,
+    handleDateRailScrollToIndexFailed,
+    handleSelectDate,
     quickNavTheme,
     quickTiles,
+    selectedDateHintLabel,
+    selectedDayEventCount,
     styles,
     theme,
   ]);

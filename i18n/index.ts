@@ -66,6 +66,7 @@ const DE_TRANSLATIONS: TranslationDict = {
     'home.quick.day': 'Tag',
     'home.quick.days': 'Tage',
     'home.quick.withoutDate': '{{count}} ohne Datum',
+    'home.section.withoutDate': 'Ohne Datum',
     'home.quick.routines': 'Routinen',
     'home.quick.recurring': '{{count}} wiederkehrend',
 
@@ -315,6 +316,7 @@ const EN_TRANSLATIONS: TranslationDict = {
     'home.quick.day': 'day',
     'home.quick.days': 'days',
     'home.quick.withoutDate': '{{count}} without date',
+    'home.section.withoutDate': 'Without date',
     'home.quick.routines': 'Routines',
     'home.quick.recurring': '{{count}} recurring',
 

@@ -17,7 +17,6 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
-import { GlassSurface } from "@/components/ui/glass-surface";
 import {
   getTagTitle,
   TAG_ORDER,
@@ -100,6 +99,15 @@ const formatDueLabel = (dueAt: number, dueHasTime?: boolean) => {
   return `${dayLabel} ${timeLabel}`;
 };
 
+const formatRowTimeLabel = (dueAt: number, dueHasTime?: boolean) => {
+  if (!Number.isFinite(dueAt) || dueAt <= 0 || !dueHasTime) return null;
+  return new Intl.DateTimeFormat(getIntlLocale(), {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(dueAt));
+};
+
 export type SwipeTaskRowStyles = {
   itemSpacer: any;
   swipeClip: any;
@@ -114,7 +122,9 @@ export type SwipeTaskRowStyles = {
   emojiTile: any;
   emojiText: any;
   textStack: any;
+  titleRow: any;
   rowTitle: any;
+  rowMeta: any;
   rowSubtitle: any;
   tagRow: any;
   tagChip: any;
@@ -815,15 +825,23 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     </View>
   ) : null;
 
+  const timeLabel = React.useMemo(
+    () => formatRowTimeLabel(task.dueAt, task.dueHasTime),
+    [task.dueAt, task.dueHasTime],
+  );
+
   const emojiTileView = showTaskIcons ? (
-    <GlassSurface
-      style={styles.emojiTile}
-      glassEffectStyle="regular"
-      tintColor={emojiTint}
-      fallbackBackgroundColor={emojiFallback}
+    <View
+      style={[
+        styles.emojiTile,
+        {
+          backgroundColor: emojiTint,
+          borderColor: emojiFallback,
+        },
+      ]}
     >
       <Text style={styles.emojiText}>{task.emoji}</Text>
-    </GlassSurface>
+    </View>
   ) : null;
 
   return (
@@ -894,7 +912,16 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
                 <View style={styles.rowInner}>
                   {emojiTileView}
                   <View style={styles.textStack}>
-                    <Text style={styles.rowTitle}>{task.title}</Text>
+                    <View style={styles.titleRow}>
+                      <Text style={styles.rowTitle} numberOfLines={1}>
+                        {task.title}
+                      </Text>
+                      {timeLabel ? (
+                        <Text style={styles.rowMeta} numberOfLines={1}>
+                          {timeLabel}
+                        </Text>
+                      ) : null}
+                    </View>
                     {task.subtitle ? (
                       <Text style={styles.rowSubtitle}>{task.subtitle}</Text>
                     ) : null}
