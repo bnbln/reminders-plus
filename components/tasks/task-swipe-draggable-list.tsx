@@ -1,14 +1,14 @@
-import * as Haptics from 'expo-haptics';
 import { useIsFocused } from '@react-navigation/native';
+import * as Haptics from 'expo-haptics';
 import React from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { View } from 'react-native';
-import type { SharedValue } from 'react-native-reanimated';
+import { LayoutAnimation, View } from 'react-native';
 import DraggableFlatList, {
   NestableDraggableFlatList,
   NestableScrollContainer,
   RenderItemParams,
 } from 'react-native-draggable-flatlist';
+import type { SharedValue } from 'react-native-reanimated';
 
 import type { SwipeTaskRowStyles } from '@/components/tasks/swipe-task-row';
 import { SwipeTaskRow } from '@/components/tasks/swipe-task-row';
@@ -27,6 +27,58 @@ export type TaskSwipeDraggableListItem =
 
 export type TaskSwipeDraggableListHandle = {
   closeAnyOpen: () => void;
+};
+
+const areListItemsEqual = (
+  current: TaskSwipeDraggableListItem[],
+  next: TaskSwipeDraggableListItem[],
+) => {
+  if (current === next) return true;
+  if (current.length !== next.length) return false;
+
+  for (let index = 0; index < current.length; index += 1) {
+    const currentItem = current[index];
+    const nextItem = next[index];
+    if (!nextItem) return false;
+    if (currentItem.kind !== nextItem.kind) return false;
+    if (currentItem.key !== nextItem.key) return false;
+
+    if (currentItem.kind === 'task') {
+      if (nextItem.kind !== 'task' || currentItem.taskId !== nextItem.taskId) {
+        return false;
+      }
+      continue;
+    }
+
+    if (
+      nextItem.kind !== 'header' ||
+      currentItem.sectionId !== nextItem.sectionId
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+const configureListDataLayoutAnimation = () => {
+  LayoutAnimation.configureNext({
+    duration: 220,
+    create: {
+      type: LayoutAnimation.Types.easeInEaseOut,
+      property: LayoutAnimation.Properties.opacity,
+      duration: 170,
+    },
+    update: {
+      type: LayoutAnimation.Types.easeInEaseOut,
+      duration: 220,
+    },
+    delete: {
+      type: LayoutAnimation.Types.easeInEaseOut,
+      property: LayoutAnimation.Properties.opacity,
+      duration: 170,
+    },
+  });
 };
 
 export type TaskSwipeDraggableListProps = {
@@ -89,6 +141,8 @@ export type TaskSwipeDraggableListProps = {
   enabledTags?: Set<TagId>;
   showTaskIcons?: boolean;
   showCompactSubtasks?: boolean;
+  /** When set, datetime tags matching this day are suppressed in task rows. */
+  selectedDateStart?: number;
 
   onPressTask: (taskId: string) => void;
   toggleComplete: (taskId: string) => void;
@@ -102,57 +156,78 @@ export type TaskSwipeDraggableListProps = {
     data: TaskSwipeDraggableListItem[];
     from: number;
     to: number;
-  }) => void;
+  }) => boolean | void;
   onDragTouchPoint?: (params: {
     absoluteX: number;
     absoluteY: number;
     translationX: number;
     translationY: number;
   }) => void;
+  getTaskRowStyleOverrides?: (params: {
+    task: Task;
+    sectionId: string | null;
+    isSectionFirstTask: boolean;
+    isSectionLastTask: boolean;
+  }) => {
+    itemSpacerStyle?: StyleProp<ViewStyle>;
+    swipeClipStyle?: StyleProp<ViewStyle>;
+    rowStyle?: StyleProp<ViewStyle>;
+  } | null;
 
   keyForTask?: (task: Task) => string;
   sortByOrderRank?: boolean;
+  /**
+   * Keep list data in sync with parent updates even during an active drag.
+   * Useful for views that intentionally swap datasets mid-drag.
+   */
+  syncDataDuringDrag?: boolean;
+  /** Disable internal list layout animations when parent drives its own transition. */
+  animateDataLayoutChanges?: boolean;
 };
 
 export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHandle, TaskSwipeDraggableListProps>(function TaskSwipeDraggableList(
-{
-  theme,
-  tasks,
-  projectsById,
-  rowStyles,
-  itemSpacing,
-  scrollRef,
-  renderMode = 'auto',
-  data,
-  renderHeaderRow,
-  contentContainerStyle,
-  containerStyle,
-  contentInsetAdjustmentBehavior,
-  onScrollOffsetChange,
-  onDragStateChange,
-  onSwipeStateChange,
-  onRowTouchStateChange,
-  crossAxisExternalOffset,
-  dragAxisMode = "vertical",
-  header,
-  footer,
-  empty,
-  enabledTags,
-  showTaskIcons,
-  showCompactSubtasks = false,
-  onPressTask,
-  toggleComplete,
-  toggleSubtask,
-  deleteTask,
-  onReorder,
-  onReorderData,
-  onDragBeginTask,
-  onDragEndMeta,
-  onDragTouchPoint,
-  keyForTask,
-  sortByOrderRank,
-},
-ref
+  {
+    theme,
+    tasks,
+    projectsById,
+    rowStyles,
+    itemSpacing,
+    scrollRef,
+    renderMode = 'auto',
+    data,
+    renderHeaderRow,
+    contentContainerStyle,
+    containerStyle,
+    contentInsetAdjustmentBehavior,
+    onScrollOffsetChange,
+    onDragStateChange,
+    onSwipeStateChange,
+    onRowTouchStateChange,
+    crossAxisExternalOffset,
+    dragAxisMode = "vertical",
+    header,
+    footer,
+    empty,
+    enabledTags,
+    showTaskIcons,
+    showCompactSubtasks = false,
+    selectedDateStart,
+    onPressTask,
+    toggleComplete,
+    toggleSubtask,
+    deleteTask,
+    onReorder,
+    onReorderData,
+    onDragBeginTask,
+    onDragEndMeta,
+    onDragTouchPoint,
+    getTaskRowStyleOverrides,
+    keyForTask,
+    sortByOrderRank,
+    syncDataDuringDrag = false,
+    animateDataLayoutChanges = true,
+  },
+  ref
 ) {
   const isDark = theme === 'dark';
   const isFocused = useIsFocused();
@@ -173,6 +248,7 @@ ref
 
   const isDraggingRef = React.useRef(false);
   const placeholderIndexRef = React.useRef<number>(-1);
+  const draggingTaskIdRef = React.useRef<string | null>(null);
   const openSwipeIdRef = React.useRef<string | null>(null);
   const closeByIdRef = React.useRef(new Map<string, () => void>());
   const swipingTaskIdsRef = React.useRef(new Set<string>());
@@ -297,9 +373,66 @@ ref
 
   const [flatListData, setFlatListData] = React.useState<TaskSwipeDraggableListItem[]>(() => resolvedData);
 
-  React.useEffect(() => {
-    if (!isDraggingRef.current) setFlatListData(resolvedData);
-  }, [resolvedData]);
+  React.useLayoutEffect(() => {
+    if (isDraggingRef.current && !syncDataDuringDrag) return;
+
+    setFlatListData((current) => {
+      if (areListItemsEqual(current, resolvedData)) return current;
+      if (animateDataLayoutChanges) {
+        configureListDataLayoutAnimation();
+      }
+      return resolvedData;
+    });
+  }, [animateDataLayoutChanges, resolvedData, syncDataDuringDrag]);
+
+  const taskSectionMetaById = React.useMemo(() => {
+    const bySection = new Map<string, string[]>();
+    let currentSection: string | null = null;
+
+    const appendTask = (sectionId: string | null, taskId: string) => {
+      const key = sectionId ?? '__none__';
+      const existing = bySection.get(key);
+      if (existing) {
+        existing.push(taskId);
+      } else {
+        bySection.set(key, [taskId]);
+      }
+    };
+
+    for (const item of flatListData) {
+      if (item.kind === 'header') {
+        currentSection = item.sectionId;
+        continue;
+      }
+      let sectionId = currentSection;
+      const keyParts = item.key.split(':');
+      const suffix = keyParts[keyParts.length - 1];
+      if (suffix === 'today' || suffix === 'upcoming' || suffix === 'completed') {
+        sectionId = suffix;
+      }
+      appendTask(sectionId, item.taskId);
+    }
+
+    const taskMeta = new Map<
+      string,
+      {
+        sectionId: string | null;
+        isSectionFirstTask: boolean;
+        isSectionLastTask: boolean;
+      }
+    >();
+    for (const [sectionKey, taskIds] of bySection.entries()) {
+      const sectionId = sectionKey === '__none__' ? null : sectionKey;
+      taskIds.forEach((taskId, index) => {
+        taskMeta.set(taskId, {
+          sectionId,
+          isSectionFirstTask: index === 0,
+          isSectionLastTask: index === taskIds.length - 1,
+        });
+      });
+    }
+    return taskMeta;
+  }, [flatListData]);
 
   // Native tab-bar minimize-on-scroll currently tracks ScrollView reliably on iOS 26,
   // but not DraggableFlatList. Keep a ScrollView path for iOS 26 to preserve native minimize behavior.
@@ -316,7 +449,9 @@ ref
   }, [scrollRef, useScrollViewCompatibilityMode]);
   const usesNestedScrollGestures = renderMode === 'nestable' || useScrollViewCompatibilityMode;
   const listActivationDistance = usesNestedScrollGestures ? 22 : 12;
-  const allowCrossAxisDrag = dragAxisMode === "free";
+  // `react-native-draggable-flatlist` only emits `onDragTouchPoint` when cross-axis drag is enabled.
+  // Auto-enable it whenever callers subscribe to drag touch points.
+  const allowCrossAxisDrag = dragAxisMode === "free" || !!onDragTouchPoint;
   const resolvedContainerStyle: StyleProp<ViewStyle> = React.useMemo(() => {
     return [{ flex: 1, backgroundColor: Colors[theme].background, overflow: 'visible' }, containerStyle];
   }, [containerStyle, theme]);
@@ -329,6 +464,17 @@ ref
 
       const task = tasksById.get(item.taskId);
       if (!task) return null;
+      const sectionMeta = taskSectionMetaById.get(item.taskId) ?? {
+        sectionId: null,
+        isSectionFirstTask: false,
+        isSectionLastTask: false,
+      };
+      const rowStyleOverrides = getTaskRowStyleOverrides?.({
+        task,
+        sectionId: sectionMeta.sectionId,
+        isSectionFirstTask: sectionMeta.isSectionFirstTask,
+        isSectionLastTask: sectionMeta.isSectionLastTask,
+      });
 
       return (
         <SwipeTaskRow
@@ -359,6 +505,10 @@ ref
           onTouchInteractionChange={reportRowTouchInteraction}
           shouldPopIn={isFocused && popInTaskIdSet.has(task.id)}
           onPopInAnimationEnd={handlePopInAnimationEnd}
+          selectedDateStart={selectedDateStart}
+          itemSpacerStyle={rowStyleOverrides?.itemSpacerStyle}
+          swipeClipStyle={rowStyleOverrides?.swipeClipStyle}
+          rowStyle={rowStyleOverrides?.rowStyle}
         />
       );
     },
@@ -370,6 +520,7 @@ ref
       emojiFallback,
       emojiTint,
       endSwipe,
+      getTaskRowStyleOverrides,
       handlePressTask,
       handlePopInAnimationEnd,
       isFocused,
@@ -380,10 +531,12 @@ ref
       projectsById,
       rowStyles,
       registerClose,
+      selectedDateStart,
       showTaskIconsResolved,
       showCompactSubtasks,
       swipeCompleteBg,
       swipeDeleteBg,
+      taskSectionMetaById,
       tasksById,
       toggleComplete,
       toggleSubtask,
@@ -401,12 +554,23 @@ ref
 
       const task = tasksById.get(item.taskId);
       if (!task) return null;
+      const sectionMeta = taskSectionMetaById.get(item.taskId) ?? {
+        sectionId: null,
+        isSectionFirstTask: false,
+        isSectionLastTask: false,
+      };
+      const rowStyleOverrides = getTaskRowStyleOverrides?.({
+        task,
+        sectionId: sectionMeta.sectionId,
+        isSectionFirstTask: sectionMeta.isSectionFirstTask,
+        isSectionLastTask: sectionMeta.isSectionLastTask,
+      });
 
       return (
         <SwipeTaskRow
           task={task}
           project={projectsById?.get(task.projectId)}
-          drag={() => {}}
+          drag={() => { }}
           isActive={false}
           styles={rowStyles}
           itemSpacing={itemSpacing}
@@ -431,6 +595,10 @@ ref
           onTouchInteractionChange={reportRowTouchInteraction}
           shouldPopIn={isFocused && popInTaskIdSet.has(task.id)}
           onPopInAnimationEnd={handlePopInAnimationEnd}
+          selectedDateStart={selectedDateStart}
+          itemSpacerStyle={rowStyleOverrides?.itemSpacerStyle}
+          swipeClipStyle={rowStyleOverrides?.swipeClipStyle}
+          rowStyle={rowStyleOverrides?.rowStyle}
         />
       );
     },
@@ -442,6 +610,7 @@ ref
       emojiFallback,
       emojiTint,
       endSwipe,
+      getTaskRowStyleOverrides,
       handlePressTask,
       handlePopInAnimationEnd,
       isFocused,
@@ -452,10 +621,12 @@ ref
       rowScrollGestureRef,
       renderHeaderRow,
       rowStyles,
+      selectedDateStart,
       showTaskIconsResolved,
       showCompactSubtasks,
       swipeCompleteBg,
       swipeDeleteBg,
+      taskSectionMetaById,
       tasksById,
       toggleComplete,
       toggleSubtask,
@@ -481,6 +652,68 @@ ref
     );
   }, [empty, flatListData, footer, header, renderCompatItem]);
 
+  const handleDragBegin = React.useCallback(
+    (fromIndex: number) => {
+      isDraggingRef.current = true;
+      onDragStateChange?.(true);
+      placeholderIndexRef.current = fromIndex;
+      closeAnyOpen();
+      setFlatListData(resolvedData);
+      const sourceItem = resolvedData[fromIndex];
+      if (sourceItem?.kind === "task") {
+        draggingTaskIdRef.current = sourceItem.taskId;
+        onDragBeginTask?.(sourceItem.taskId);
+      } else {
+        draggingTaskIdRef.current = null;
+      }
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(
+        () => undefined,
+      );
+    },
+    [closeAnyOpen, onDragBeginTask, onDragStateChange, resolvedData],
+  );
+
+  const handleDragRelease = React.useCallback(() => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
+      () => undefined,
+    );
+  }, []);
+
+  const handleDragEnd = React.useCallback(
+    ({
+      data,
+      from,
+      to,
+    }: {
+      data: TaskSwipeDraggableListItem[];
+      from: number;
+      to: number;
+    }) => {
+      const handledExternally = onDragEndMeta?.({ data, from, to }) === true;
+      if (handledExternally) {
+        const draggingTaskId = draggingTaskIdRef.current;
+        if (!draggingTaskId) {
+          setFlatListData(data);
+        } else {
+          setFlatListData((prev) =>
+            prev.filter(
+              (item) => item.kind === "header" || item.taskId !== draggingTaskId,
+            ),
+          );
+        }
+      } else {
+        setFlatListData(data);
+        onReorderData?.(data);
+        onReorder?.(data.filter((d) => d.kind === "task").map((d) => d.taskId));
+      }
+      draggingTaskIdRef.current = null;
+      isDraggingRef.current = false;
+      placeholderIndexRef.current = -1;
+      onDragStateChange?.(false);
+    },
+    [onDragEndMeta, onDragStateChange, onReorder, onReorderData],
+  );
+
   const dragListProps = {
     data: flatListData,
     keyExtractor: (item: TaskSwipeDraggableListItem) => item.key,
@@ -500,43 +733,12 @@ ref
       overshootClamping: true,
     },
     dragItemOverflow: true,
-    onDragBegin: (fromIndex: number) => {
-      isDraggingRef.current = true;
-      onDragStateChange?.(true);
-      placeholderIndexRef.current = fromIndex;
-      closeAnyOpen();
-      setFlatListData(resolvedData);
-      const sourceItem = resolvedData[fromIndex];
-      if (sourceItem?.kind === 'task') {
-        onDragBeginTask?.(sourceItem.taskId);
-      }
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
-    },
+    onDragBegin: handleDragBegin,
     onPlaceholderIndexChange: (index: number) => {
       placeholderIndexRef.current = index;
     },
-    onRelease: (fromIndex: number) => {
-      const toIndex = placeholderIndexRef.current;
-      if (toIndex >= 0 && fromIndex >= 0 && toIndex !== fromIndex) {
-        setFlatListData((prev) => {
-          if (fromIndex >= prev.length || toIndex >= prev.length) return prev;
-          const next = [...prev];
-          const [moved] = next.splice(fromIndex, 1);
-          if (!moved) return prev;
-          next.splice(toIndex, 0, moved);
-          return next;
-        });
-      }
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
-    },
-    onDragEnd: ({ data, from, to }: { data: TaskSwipeDraggableListItem[]; from: number; to: number }) => {
-      setFlatListData(data);
-      isDraggingRef.current = false;
-      onDragStateChange?.(false);
-      onReorderData?.(data);
-      onDragEndMeta?.({ data, from, to });
-      onReorder?.(data.filter((d) => d.kind === 'task').map((d) => d.taskId));
-    },
+    onRelease: handleDragRelease,
+    onDragEnd: handleDragEnd,
     onDragTouchPoint,
     allowCrossAxisDrag,
     crossAxisExternalOffset,
@@ -584,43 +786,12 @@ ref
         overshootClamping: true,
       }}
       dragItemOverflow
-      onDragBegin={(fromIndex) => {
-        isDraggingRef.current = true;
-        onDragStateChange?.(true);
-        placeholderIndexRef.current = fromIndex;
-        closeAnyOpen();
-        setFlatListData(resolvedData);
-        const sourceItem = resolvedData[fromIndex];
-        if (sourceItem?.kind === 'task') {
-          onDragBeginTask?.(sourceItem.taskId);
-        }
-        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
-      }}
+      onDragBegin={handleDragBegin}
       onPlaceholderIndexChange={(index) => {
         placeholderIndexRef.current = index;
       }}
-      onRelease={(fromIndex) => {
-        const toIndex = placeholderIndexRef.current;
-        if (toIndex >= 0 && fromIndex >= 0 && toIndex !== fromIndex) {
-          setFlatListData((prev) => {
-            if (fromIndex >= prev.length || toIndex >= prev.length) return prev;
-            const next = [...prev];
-            const [moved] = next.splice(fromIndex, 1);
-            if (!moved) return prev;
-            next.splice(toIndex, 0, moved);
-            return next;
-          });
-        }
-        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
-      }}
-      onDragEnd={({ data, from, to }) => {
-        setFlatListData(data);
-        isDraggingRef.current = false;
-        onDragStateChange?.(false);
-        onReorderData?.(data);
-        onDragEndMeta?.({ data, from, to });
-        onReorder?.(data.filter((d) => d.kind === 'task').map((d) => d.taskId));
-      }}
+      onRelease={handleDragRelease}
+      onDragEnd={handleDragEnd}
     />
   );
 });

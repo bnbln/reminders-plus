@@ -26,6 +26,7 @@ import { useTaskCreateContext } from '@/context/task-create-context';
 import { useTasksStore, type RoutineType, type SectionId, type Task } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { formatDate, t } from '@/i18n';
+import { deriveActiveSectionFromDueAt, hasValidDueAt } from '@/utils/task-dates';
 
 const createTaskId = () => `t-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
@@ -535,11 +536,8 @@ export default function CreateTaskModal() {
         const dueAt = task.dueAt;
         let section: SectionId = 'upcoming';
 
-        if (dueAt && dueAt > 0) {
-          const now = new Date();
-          const due = new Date(dueAt);
-          const isToday = now.getFullYear() === due.getFullYear() && now.getMonth() === due.getMonth() && now.getDate() === due.getDate();
-          section = isToday ? 'today' : 'upcoming';
+        if (hasValidDueAt(dueAt)) {
+          section = deriveActiveSectionFromDueAt(dueAt);
         }
 
         // Find min rank in target section

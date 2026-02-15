@@ -12,6 +12,7 @@ import { Colors } from '@/constants/theme';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
+import { deriveActiveSectionFromDueAt } from '@/utils/task-dates';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
@@ -83,10 +84,7 @@ export default function DatePickerScreen() {
 
         // Simple section logic update
         if (task && task.section !== 'completed') {
-            const now = new Date();
-            const due = new Date(nextDueAt);
-            const isToday = now.getFullYear() === due.getFullYear() && now.getMonth() === due.getMonth() && now.getDate() === due.getDate();
-            nextSection = isToday ? 'today' : 'upcoming';
+            nextSection = deriveActiveSectionFromDueAt(nextDueAt);
         }
 
         setTasks((prev) => prev.map((t) => (t.id === taskId ? {

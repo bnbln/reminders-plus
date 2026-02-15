@@ -1,7 +1,7 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as Haptics from "expo-haptics";
 import React from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, Text, type StyleProp, View, type ViewStyle } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   Easing,
@@ -12,7 +12,6 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withDelay,
-  withSequence,
   withSpring,
   withTiming,
 } from "react-native-reanimated";
@@ -45,11 +44,11 @@ const SWIPE_FAIL_OFFSET_Y = 18;
 const AXIS_LOCK_THRESHOLD = 4;
 const MIN_SWIPE_X = 12;
 const MIN_SCROLL_Y = 10;
-const COMPACT_SUBTASK_ICON_SIZE = 21;
-const COMPACT_SUBTASK_TEXT_SIZE = 17;
+const COMPACT_SUBTASK_ICON_SIZE = 18;
+const COMPACT_SUBTASK_TEXT_SIZE = 14;
 // Small delay to separate horizontal swipe intent from long-press drag.
 const SWIPE_ARM_DELAY_MS = 170;
-const DRAG_LONG_PRESS_DELAY_MS = 560;
+const DRAG_LONG_PRESS_DELAY_MS = 420;
 
 type TagChipModel = {
   key: string;
@@ -85,10 +84,10 @@ const formatDueLabel = (dueAt: number, dueHasTime?: boolean) => {
       : dueDay.getTime() === tomorrow.getTime()
         ? t("taskDetail.relative.tomorrow")
         : new Intl.DateTimeFormat(getIntlLocale(), {
-            weekday: "short",
-            day: "2-digit",
-            month: "2-digit",
-          }).format(due);
+          weekday: "short",
+          day: "2-digit",
+          month: "2-digit",
+        }).format(due);
 
   if (!dueHasTime) return dayLabel;
 
@@ -172,6 +171,11 @@ export type SwipeTaskRowProps = {
   onTouchInteractionChange?: (taskId: string, active: boolean) => void;
   shouldPopIn?: boolean;
   onPopInAnimationEnd?: (taskId: string) => void;
+  /** When set, datetime tags matching this day are suppressed (avoids redundant "Heute" chips). */
+  selectedDateStart?: number;
+  itemSpacerStyle?: StyleProp<ViewStyle>;
+  swipeClipStyle?: StyleProp<ViewStyle>;
+  rowStyle?: StyleProp<ViewStyle>;
 };
 
 export const SwipeTaskRow = React.memo(function SwipeTaskRow({
@@ -180,7 +184,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   drag,
   isActive,
   styles,
-  itemSpacing = 12,
+  itemSpacing = 0,
   emojiTint,
   emojiFallback,
   swipeCompleteBg,
@@ -204,6 +208,10 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   onTouchInteractionChange,
   shouldPopIn = false,
   onPopInAnimationEnd,
+  selectedDateStart,
+  itemSpacerStyle,
+  swipeClipStyle,
+  rowStyle,
 }: SwipeTaskRowProps) {
   const translateX = useSharedValue(0);
   const direction = useSharedValue<-1 | 0 | 1>(0);
@@ -214,6 +222,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   const rowScale = useSharedValue(1);
   const entryOpacity = useSharedValue(1);
   const entryScale = useSharedValue(1);
+  const entryTranslateY = useSharedValue(0);
   const swipeVisualAlpha = useSharedValue(1);
   const collapse = useSharedValue(0);
   const touchStartX = useSharedValue(0);
@@ -250,34 +259,39 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   React.useEffect(() => {
     if (!shouldPopIn) return;
 
-    entryOpacity.value = 0.78;
-    entryScale.value = 1.22;
+    entryOpacity.value = 0;
+    entryScale.value = 0.985;
+    entryTranslateY.value = 12;
 
     entryOpacity.value = withTiming(1, {
-      duration: 230,
-      easing: Easing.inOut(Easing.exp),
+      duration: 180,
+      easing: Easing.out(Easing.quad),
     });
 
-    entryScale.value = withSequence(
-      withTiming(0.94, {
+    entryScale.value = withTiming(1, {
+      duration: 220,
+      easing: Easing.out(Easing.cubic),
+    });
+
+    entryTranslateY.value = withTiming(
+      0,
+      {
         duration: 220,
-        easing: Easing.inOut(Easing.exp),
-      }),
-      withSpring(
-        1,
-        {
-          damping: 5.8,
-          stiffness: 260,
-          mass: 0.52,
-          overshootClamping: false,
-        },
-        (finished) => {
-          if (!finished) return;
-          if (onPopInAnimationEnd) runOnJS(onPopInAnimationEnd)(task.id);
-        },
-      ),
+        easing: Easing.out(Easing.cubic),
+      },
+      (finished) => {
+        if (!finished) return;
+        if (onPopInAnimationEnd) runOnJS(onPopInAnimationEnd)(task.id);
+      },
     );
-  }, [entryOpacity, entryScale, onPopInAnimationEnd, shouldPopIn, task.id]);
+  }, [
+    entryOpacity,
+    entryScale,
+    entryTranslateY,
+    onPopInAnimationEnd,
+    shouldPopIn,
+    task.id,
+  ]);
 
   const commitLeft = React.useCallback(() => {
     if (leftAction) {
@@ -537,9 +551,9 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     if (typeof (pan as any).simultaneousWithExternalGesture === "function") {
       return externalScrollRef
         ? (pan as any).simultaneousWithExternalGesture(
-            nativeScroll,
-            externalScrollRef,
-          )
+          nativeScroll,
+          externalScrollRef,
+        )
         : (pan as any).simultaneousWithExternalGesture(nativeScroll);
     }
     return Gesture.Simultaneous(nativeScroll, pan);
@@ -578,8 +592,12 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   }, [isActive, itemSpacing]);
 
   const clipStyle = React.useMemo(
-    () => [styles.swipeClip, isActive ? { overflow: "visible" as const } : null],
-    [isActive, styles.swipeClip],
+    () => [
+      styles.swipeClip,
+      swipeClipStyle,
+      isActive ? { overflow: "visible" as const } : null,
+    ],
+    [isActive, styles.swipeClip, swipeClipStyle],
   );
 
   const underlayGreenStyle = useAnimatedStyle(() => {
@@ -650,6 +668,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     opacity: rowOpacity.value * entryOpacity.value,
     transform: [
       { translateX: translateX.value },
+      { translateY: entryTranslateY.value },
       { scale: rowScale.value * entryScale.value },
     ],
   }));
@@ -702,6 +721,18 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
 
       if (tagId === "datetime") {
         if (!Number.isFinite(task.dueAt) || task.dueAt <= 0) continue;
+        // Suppress redundant date chip when it matches the currently viewed day.
+        if (selectedDateStart != null && selectedDateStart > 0) {
+          const dueDay = new Date(task.dueAt);
+          const selDay = new Date(selectedDateStart);
+          if (
+            dueDay.getFullYear() === selDay.getFullYear() &&
+            dueDay.getMonth() === selDay.getMonth() &&
+            dueDay.getDate() === selDay.getDate()
+          ) {
+            continue;
+          }
+        }
         chips.push({
           key: `dt-${task.dueAt}`,
           tagId,
@@ -738,6 +769,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   }, [
     enabledTags,
     project,
+    selectedDateStart,
     task.dueAt,
     task.dueHasTime,
     task.location,
@@ -811,7 +843,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
               {
                 flex: 1,
                 fontSize: COMPACT_SUBTASK_TEXT_SIZE,
-                lineHeight: Math.round(COMPACT_SUBTASK_TEXT_SIZE * 1.2),
+                lineHeight: 19,
                 fontWeight: "500",
                 textDecorationLine: subtask.done ? "line-through" : "none",
                 opacity: subtask.done ? 0.55 : 0.82,
@@ -845,7 +877,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   ) : null;
 
   return (
-    <Animated.View style={[styles.itemSpacer, spacerAnimatedStyle]}>
+    <Animated.View style={[styles.itemSpacer, itemSpacerStyle, spacerAnimatedStyle]}>
       <View style={clipStyle}>
         <Animated.View style={[styles.underlay, underlayGreenStyle]} />
         <Animated.View style={[styles.underlay, underlayRedStyle]} />
@@ -908,7 +940,13 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
                 onPressTask(task.id);
               }}
             >
-              <View style={[styles.row, isActive ? styles.dragRow : undefined]}>
+              <View
+                style={[
+                  styles.row,
+                  rowStyle,
+                  isActive ? styles.dragRow : undefined,
+                ]}
+              >
                 <View style={styles.rowInner}>
                   {emojiTileView}
                   <View style={styles.textStack}>

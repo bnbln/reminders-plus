@@ -130,12 +130,14 @@ export default function SearchIndex() {
 const createStyles = (theme: keyof typeof Colors) => {
   const isDark = theme === 'dark';
   const text = Colors[theme].text;
+  const rowSurface = Colors[theme].background;
   const hairline = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.12)';
-  const cardBg = isDark ? '#1C1C1E' : '#F2F2F7';
+  const rowDivider = isDark ? 'rgba(255,255,255,0.24)' : 'rgba(0,0,0,0.16)';
   const tagBg = withAlpha(text, isDark ? 0.10 : 0.08);
   const tagText = withAlpha(text, 0.78);
   const dangerBg = isDark ? 'rgba(255,69,58,0.18)' : 'rgba(255,59,48,0.14)';
   const dangerBorder = isDark ? 'rgba(255,69,58,0.32)' : 'rgba(255,59,48,0.26)';
+  const rowMetaText = withAlpha(text, isDark ? 0.5 : 0.42);
 
   return StyleSheet.create({
     content: {
@@ -177,11 +179,12 @@ const createStyles = (theme: keyof typeof Colors) => {
     },
 
     itemSpacer: {
-      marginBottom: 12,
+      marginBottom: 0,
     },
     swipeClip: {
       borderRadius: 12,
       overflow: 'hidden',
+      backgroundColor: rowSurface,
     },
     underlay: {
       ...StyleSheet.absoluteFillObject,
@@ -201,58 +204,74 @@ const createStyles = (theme: keyof typeof Colors) => {
       alignItems: 'center',
     },
     actionSlotInner: {
-      width: 44,
-      height: 44,
-      borderRadius: 12,
+      width: 40,
+      height: 40,
+      borderRadius: 11,
       alignItems: 'center',
       justifyContent: 'center',
     },
 
     row: {
-      minHeight: 56,
-      borderRadius: 12,
-      backgroundColor: cardBg,
+      minHeight: 62,
+      borderRadius: 0,
+      backgroundColor: rowSurface,
       justifyContent: 'center',
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      gap: 4,
+      paddingHorizontal: 6,
+      paddingVertical: 12,
+      gap: 5,
+      borderBottomWidth: 1,
+      borderBottomColor: rowDivider,
     },
     rowInner: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10,
+      gap: 12,
     },
     emojiTile: {
-      width: 38,
-      height: 38,
-      borderRadius: 12,
+      width: 30,
+      height: 30,
+      borderRadius: 10,
       alignItems: 'center',
       justifyContent: 'center',
       overflow: 'hidden',
+      borderWidth: StyleSheet.hairlineWidth,
     },
     emojiText: {
-      fontSize: 18,
+      fontSize: 17,
     },
     textStack: {
       flex: 1,
-      gap: 4,
+      gap: 5,
+    },
+    titleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
     },
     rowTitle: {
-      fontSize: 16,
+      flex: 1,
+      fontSize: 18,
       fontWeight: '600',
       color: text,
+      letterSpacing: -0.15,
+    },
+    rowMeta: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: rowMetaText,
+      letterSpacing: 0.2,
     },
     rowSubtitle: {
-      fontSize: 13,
+      fontSize: 14,
       color: text,
-      opacity: 0.7,
+      opacity: 0.66,
     },
 
     tagRow: {
       flexDirection: 'row',
       flexWrap: 'wrap',
       gap: 6,
-      marginTop: 2,
+      marginTop: 4,
     },
     tagChip: {
       flexDirection: 'row',
@@ -278,11 +297,10 @@ const createStyles = (theme: keyof typeof Colors) => {
     },
 
     dragRow: {
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hairline,
-      shadowColor: '#000',
-      shadowRadius: 18,
-      shadowOffset: { width: 0, height: 10 },
+      borderRadius: 0,
+      backgroundColor: rowSurface,
+      borderWidth: 0,
+      opacity: 1,
     },
 
     empty: {

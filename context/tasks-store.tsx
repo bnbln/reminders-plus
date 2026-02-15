@@ -1,12 +1,18 @@
 import React from "react";
+import { AppState } from "react-native";
 
 import { syncTaskDueNotifications } from "@/notifications/tasks-notifications";
 import {
-    createOnboardingSeedData,
-    hasCompletedOnboardingSeed,
-    markCompletedOnboardingSeed,
+  createOnboardingSeedData,
+  hasCompletedOnboardingSeed,
+  markCompletedOnboardingSeed,
 } from "@/storage/tasks-onboarding-seed";
 import { loadTasksSnapshot, saveTasksSnapshot } from "@/storage/tasks-storage";
+import {
+  deriveActiveSectionFromDueAt,
+  getStartOfLocalDayMs,
+  hasValidDueAt,
+} from "@/utils/task-dates";
 
 export type SectionId = "today" | "upcoming" | "completed";
 
@@ -112,21 +118,6 @@ const SNAPSHOT_VERSION = 1 as const;
 
 function isSectionId(v: unknown): v is SectionId {
   return v === "today" || v === "upcoming" || v === "completed";
-}
-
-function isSameLocalDay(a: Date, b: Date) {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
-}
-
-function deriveActiveSectionFromDueAt(dueAt: number): SectionId {
-  if (!Number.isFinite(dueAt) || dueAt <= 0) return "upcoming";
-  const now = new Date();
-  const due = new Date(dueAt);
-  return isSameLocalDay(now, due) ? "today" : "upcoming";
 }
 
 function isRoutineInterval(v: unknown): v is RoutineInterval {
@@ -353,25 +344,19 @@ function normalizeSnapshot(raw: any): { tasks: Task[]; projects: Project[] } {
       const rawSection: SectionId = isSectionId(t.section)
         ? t.section
         : "today";
-      // Keep completed as-is. For active tasks, derive section from due date so Home grouping matches due dates.
-      // - undated -> upcoming
-      // - due today -> today
-      // - due future -> upcoming
+      const hasCompletedAt = hasValidDueAt(t.completedAt);
+      const isCompleted = rawSection === "completed" || hasCompletedAt;
       const section: SectionId =
-        rawSection === "completed"
-          ? "completed"
-          : deriveActiveSectionFromDueAt(dueAt);
+        isCompleted ? "completed" : deriveActiveSectionFromDueAt(dueAt);
       const deletedAt =
         typeof t.deletedAt === "number" && Number.isFinite(t.deletedAt)
           ? t.deletedAt
           : undefined;
       const completedAt =
-        typeof t.completedAt === "number" && Number.isFinite(t.completedAt)
+        hasCompletedAt
           ? t.completedAt
           : section === "completed"
-            ? typeof t.dueAt === "number" &&
-              Number.isFinite(t.dueAt) &&
-              t.dueAt > 0
+            ? typeof t.dueAt === "number" && Number.isFinite(t.dueAt) && t.dueAt > 0
               ? t.dueAt
               : Date.now()
             : undefined;
@@ -455,6 +440,54 @@ function normalizeSnapshot(raw: any): { tasks: Task[]; projects: Project[] } {
   return { tasks, projects };
 }
 
+function reconcileTaskSection(task: Task, referenceMs: number): Task {
+  if (task.deletedAt) return task;
+
+  if (task.section === "completed" || hasValidDueAt(task.completedAt)) {
+    const normalizedCompletedAt =
+      task.completedAt ??
+      (hasValidDueAt(task.dueAt) ? task.dueAt : referenceMs);
+    if (
+      task.section === "completed" &&
+      task.completedAt === normalizedCompletedAt
+    ) {
+      return task;
+    }
+    return {
+      ...task,
+      section: "completed",
+      completedAt: normalizedCompletedAt,
+    };
+  }
+
+  const normalizedSection = deriveActiveSectionFromDueAt(
+    task.dueAt,
+    referenceMs,
+  );
+  if (task.section === normalizedSection && task.completedAt === undefined) {
+    return task;
+  }
+
+  return {
+    ...task,
+    section: normalizedSection,
+    completedAt: undefined,
+  };
+}
+
+function reconcileTaskSections(
+  tasks: Task[],
+  referenceMs: number = Date.now(),
+): Task[] {
+  let changed = false;
+  const next = tasks.map((task) => {
+    const normalized = reconcileTaskSection(task, referenceMs);
+    if (normalized !== task) changed = true;
+    return normalized;
+  });
+  return changed ? next : tasks;
+}
+
 type TasksContextValue = {
   tasks: Task[];
   setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
@@ -469,6 +502,7 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
   const [projects, setProjects] = React.useState<Project[]>([]);
   const hydratedRef = React.useRef(false);
   const persistEnabledRef = React.useRef(false);
+  const dayAnchorRef = React.useRef(getStartOfLocalDayMs());
 
   // Hydrate from local encrypted snapshot once.
   React.useEffect(() => {
@@ -509,7 +543,12 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
         // 'unavailable' or 'error': keep in-memory state but DO NOT persist (prevents overwriting existing snapshot).
         persistEnabledRef.current = false;
       } finally {
-        if (!cancelled) hydratedRef.current = true;
+        if (!cancelled) {
+          hydratedRef.current = true;
+          const nowMs = Date.now();
+          dayAnchorRef.current = getStartOfLocalDayMs(nowMs);
+          setTasks((prev) => reconcileTaskSections(prev, nowMs));
+        }
       }
     };
 
@@ -518,6 +557,29 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
     };
   }, []);
+
+  // Keep sections stable across day rollovers and app foreground transitions.
+  React.useEffect(() => {
+    const reconcileIfDayChanged = () => {
+      if (!hydratedRef.current) return;
+      const nowMs = Date.now();
+      const todayStart = getStartOfLocalDayMs(nowMs);
+      if (todayStart === dayAnchorRef.current) return;
+      dayAnchorRef.current = todayStart;
+      setTasks((prev) => reconcileTaskSections(prev, nowMs));
+    };
+
+    const appStateSub = AppState.addEventListener("change", (nextState) => {
+      if (nextState !== "active") return;
+      reconcileIfDayChanged();
+    });
+    const timer = setInterval(reconcileIfDayChanged, 60_000);
+
+    return () => {
+      appStateSub.remove();
+      clearInterval(timer);
+    };
+  }, [setTasks]);
 
   // Persist on change (after hydration). Debounced to avoid excessive writes on drag/reorder.
   React.useEffect(() => {

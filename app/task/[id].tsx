@@ -24,6 +24,7 @@ import { Colors } from '@/constants/theme';
 import { getDueAtForSection, getNextRoutineDate, Project, Subtask, Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getIntlLocale, t } from '@/i18n';
+import { deriveActiveSectionFromDueAt, hasValidDueAt } from '@/utils/task-dates';
 
 
 
@@ -221,10 +222,11 @@ export default function TaskViewScreen() {
   const onToggleComplete = React.useCallback(() => {
     if (!task) return;
     if (task.section === 'completed') {
-      const hasDueAt = typeof task.dueAt === 'number' && Number.isFinite(task.dueAt) && task.dueAt > 0;
+      const hasDueAt = hasValidDueAt(task.dueAt);
+      const restoredSection = hasDueAt ? deriveActiveSectionFromDueAt(task.dueAt) : 'today';
       updateTask(
         hasDueAt
-          ? { section: 'today', completedAt: undefined }
+          ? { section: restoredSection, completedAt: undefined }
           : { section: 'today', completedAt: undefined, dueAt: getDueAtForSection('today'), dueHasTime: true }
       );
       return;
@@ -243,9 +245,7 @@ export default function TaskViewScreen() {
           month: task.routineMonth,
         }
       );
-      const nextSection = nextDue > 0 ? (
-        new Date(nextDue).toDateString() === new Date().toDateString() ? 'today' : 'upcoming'
-      ) : 'upcoming';
+      const nextSection = deriveActiveSectionFromDueAt(nextDue);
 
       updateTask({
         dueAt: nextDue,

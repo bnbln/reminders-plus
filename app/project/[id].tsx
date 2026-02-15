@@ -31,6 +31,7 @@ import {
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
 import { isIOS26OrNewer } from "@/utils/ios-version";
+import { deriveActiveSectionFromDueAt, hasValidDueAt } from "@/utils/task-dates";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const COLUMN_WIDTH = SCREEN_WIDTH * 0.78; // Narrower to show peers
@@ -554,7 +555,7 @@ export default function ProjectDetailScreen() {
         if (!task) return prev;
 
         const fromSection = task.section;
-        const toSection: SectionId =
+        let toSection: SectionId =
           fromSection === "completed" ? "today" : "completed";
 
         const now = Date.now();
@@ -571,13 +572,13 @@ export default function ProjectDetailScreen() {
             return updated;
           }
 
-          const hasDueAt =
-            typeof t.dueAt === "number" &&
-            Number.isFinite(t.dueAt) &&
-            t.dueAt > 0;
+          const hasDueAt = hasValidDueAt(t.dueAt);
+          toSection = hasDueAt
+            ? deriveActiveSectionFromDueAt(t.dueAt)
+            : "today";
           const updated: Task = {
             ...t,
-            section: "today",
+            section: toSection,
             completedAt: undefined,
             ...(hasDueAt
               ? {}

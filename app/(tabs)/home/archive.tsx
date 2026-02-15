@@ -9,6 +9,7 @@ import { useHomeFilters } from '@/context/home-filters-store';
 import { getDueAtForSection, type Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
+import { deriveActiveSectionFromDueAt, hasValidDueAt } from '@/utils/task-dates';
 
 type TabId = 'completed' | 'trash';
 
@@ -23,12 +24,6 @@ export default function ArchiveScreen() {
   const styles = React.useMemo(() => createStyles(theme), [theme]);
 
   const { enabledTags, showTagIcons } = useHomeFilters();
-
-  const hairline = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)';
-
-  const cardBg = isDark ? '#1C1C1E' : '#F2F2F7';
-  const glassTint = withAlpha(Colors[theme].text, isDark ? 0.12 : 0.06);
-  const glassFallback = withAlpha(cardBg, isDark ? 0.92 : 1);
 
   const emojiTint = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.12 : 0.22), [isDark, theme]);
   const emojiFallback = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.52 : 0.74), [isDark, theme]);
@@ -113,19 +108,22 @@ export default function ArchiveScreen() {
       setTasks((prev) => {
         const current = prev.find((t) => t.id === taskId);
         if (!current) return prev;
+        const hasDueAt = hasValidDueAt(current.dueAt);
+        const restoredSection = hasDueAt
+          ? deriveActiveSectionFromDueAt(current.dueAt)
+          : 'today';
 
-        const todayActive = prev
-          .filter((t) => t.section === 'today' && !t.deletedAt)
+        const activeInSection = prev
+          .filter((t) => t.section === restoredSection && !t.deletedAt && t.id !== taskId)
           .sort((a, b) => a.orderRank - b.orderRank);
-        const minRank = todayActive.length ? todayActive[0]!.orderRank : 1000;
+        const minRank = activeInSection.length ? activeInSection[0]!.orderRank : 1000;
         const nextRank = Math.max(0, minRank - 1000);
 
         return prev.map((t) => {
           if (t.id !== taskId) return t;
-          const hasDueAt = typeof t.dueAt === 'number' && Number.isFinite(t.dueAt) && t.dueAt > 0;
           return {
             ...t,
-            section: 'today',
+            section: restoredSection,
             completedAt: undefined,
             ...(hasDueAt
               ? {}
@@ -170,27 +168,12 @@ export default function ArchiveScreen() {
       ? formatCountLabel(completed.length)
       : formatCountLabel(trashed.length);
 
-  const headerEmoji = tab === 'completed' ? '✅' : '🧹';
-
   const listHeader = React.useMemo(() => {
     return (
       <View style={styles.header}>
-        <View style={styles.headerRow}>
-
-          {/* <View style={[styles.headerEmojiTile, { borderColor: hairline }]}>
-            <GlassSurface
-              style={styles.headerEmojiTileInner}
-              glassEffectStyle="regular"
-              tintColor={glassTint}
-              fallbackBackgroundColor={glassFallback}>
-              <Text style={styles.headerEmojiText}>{headerEmoji}</Text>
-            </GlassSurface>
-          </View> */}
-
-          {/* <View style={styles.headerMeta}>
-            <Text style={[styles.titleText, { color: Colors[theme].text }]}>{title}</Text>
-            <Text style={[styles.subtitleText, { color: withAlpha(Colors[theme].text, 0.72) }]}>{subtitle}</Text>
-          </View> */}
+        <View style={styles.headerMeta}>
+          <Text style={styles.titleText}>{title}</Text>
+          <Text style={styles.subtitleText}>{subtitle}</Text>
         </View>
 
         <GlassSurface
@@ -227,16 +210,12 @@ export default function ArchiveScreen() {
   }, [
     closeAnyOpen,
     completed.length,
-    glassFallback,
-    glassTint,
-    hairline,
-    headerEmoji,
     isDark,
     styles,
-    subtitle,
     tab,
     theme,
     title,
+    subtitle,
     trashed.length,
   ]);
 
@@ -348,13 +327,15 @@ export default function ArchiveScreen() {
 const createStyles = (theme: keyof typeof Colors) => {
   const isDark = theme === 'dark';
   const text = Colors[theme].text;
+  const rowSurface = Colors[theme].background;
   const hairline = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)';
 
-  const cardBg = isDark ? '#1C1C1E' : '#F2F2F7';
+  const rowDivider = isDark ? 'rgba(255,255,255,0.24)' : 'rgba(0,0,0,0.16)';
   const tagBg = withAlpha(text, isDark ? 0.10 : 0.08);
   const tagText = withAlpha(text, 0.78);
   const dangerBg = isDark ? 'rgba(255,69,58,0.18)' : 'rgba(255,59,48,0.14)';
   const dangerBorder = isDark ? 'rgba(255,69,58,0.32)' : 'rgba(255,59,48,0.26)';
+  const rowMetaText = withAlpha(text, isDark ? 0.5 : 0.42);
 
   return StyleSheet.create({
     screen: {
@@ -362,50 +343,32 @@ const createStyles = (theme: keyof typeof Colors) => {
       backgroundColor: Colors[theme].background,
     },
     content: {
-      paddingHorizontal: 18,
-      paddingTop: 18,
-      paddingBottom: 44,
+      paddingHorizontal: 16,
+      paddingTop: 12,
+      paddingBottom: 56,
     },
 
     header: {
-      gap: 14,
-      marginBottom: 14,
-    },
-    headerRow: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 14,
+      gap: 10,
+      marginBottom: 12,
     },
     headerMeta: {
       flex: 1,
-      gap: 6,
-    },
-
-    headerEmojiTile: {
-      width: 64,
-      height: 64,
-      borderRadius: 20,
-      overflow: 'hidden',
-      borderWidth: StyleSheet.hairlineWidth,
-    },
-    headerEmojiTileInner: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    headerEmojiText: {
-      fontSize: 30,
+      gap: 3,
     },
 
     titleText: {
-      fontSize: 30,
-      fontWeight: '900',
-      letterSpacing: -0.2,
+      fontSize: 24,
+      lineHeight: 30,
+      fontWeight: '700',
+      letterSpacing: -0.1,
+      color: text,
     },
     subtitleText: {
-      fontSize: 15,
+      fontSize: 13,
+      lineHeight: 18,
       fontWeight: '600',
-      lineHeight: 20,
+      color: withAlpha(text, 0.7),
     },
 
     segmentWrap: {
@@ -417,7 +380,7 @@ const createStyles = (theme: keyof typeof Colors) => {
     },
     segment: {
       flex: 1,
-      paddingVertical: 10,
+      paddingVertical: 9,
       paddingHorizontal: 10,
       alignItems: 'center',
       justifyContent: 'center',
@@ -427,7 +390,8 @@ const createStyles = (theme: keyof typeof Colors) => {
     },
     segmentText: {
       fontSize: 12,
-      fontWeight: '800',
+      lineHeight: 16,
+      fontWeight: '700',
       color: withAlpha(text, 0.7),
     },
     segmentTextActive: {
@@ -436,11 +400,12 @@ const createStyles = (theme: keyof typeof Colors) => {
 
     // --- shared task row styles (same contract as Home SwipeTaskRow) ---
     itemSpacer: {
-      marginBottom: 12,
+      marginBottom: 0,
     },
     swipeClip: {
       borderRadius: 12,
       overflow: 'hidden',
+      backgroundColor: rowSurface,
     },
     underlay: {
       ...StyleSheet.absoluteFillObject,
@@ -460,59 +425,76 @@ const createStyles = (theme: keyof typeof Colors) => {
       alignItems: 'center',
     },
     actionSlotInner: {
-      width: 44,
-      height: 44,
-      borderRadius: 12,
+      width: 40,
+      height: 40,
+      borderRadius: 11,
       alignItems: 'center',
       justifyContent: 'center',
     },
     row: {
-      minHeight: 56,
-      borderRadius: 12,
-      backgroundColor: cardBg,
+      minHeight: 66,
+      borderRadius: 0,
+      backgroundColor: rowSurface,
       justifyContent: 'center',
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      gap: 4,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hairline,
+      paddingHorizontal: 8,
+      paddingVertical: 11,
+      gap: 6,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: rowDivider,
     },
     dragRow: {
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hairline,
-      shadowColor: '#000',
-      shadowRadius: 18,
-      shadowOffset: { width: 0, height: 10 },
+      borderRadius: 0,
+      backgroundColor: rowSurface,
+      borderWidth: 0,
+      opacity: 1,
     },
     rowInner: {
       flexDirection: 'row',
-      alignItems: 'center',
-      gap: 10,
+      alignItems: 'flex-start',
+      gap: 12,
     },
     emojiTile: {
-      width: 38,
-      height: 38,
-      borderRadius: 12,
+      width: 30,
+      height: 30,
+      borderRadius: 10,
       alignItems: 'center',
       justifyContent: 'center',
       overflow: 'hidden',
+      borderWidth: StyleSheet.hairlineWidth,
+      marginTop: 1,
     },
     emojiText: {
-      fontSize: 18,
+      fontSize: 17,
     },
     textStack: {
       flex: 1,
       gap: 4,
     },
+    titleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
     rowTitle: {
-      fontSize: 16,
+      flex: 1,
+      fontSize: 17,
+      lineHeight: 22,
       fontWeight: '600',
       color: text,
+      letterSpacing: -0.2,
+    },
+    rowMeta: {
+      fontSize: 12,
+      lineHeight: 16,
+      fontWeight: '600',
+      color: rowMetaText,
+      letterSpacing: 0.15,
     },
     rowSubtitle: {
-      fontSize: 13,
-      color: text,
-      opacity: 0.7,
+      fontSize: 14,
+      lineHeight: 19,
+      fontWeight: '500',
+      color: withAlpha(text, 0.72),
     },
     tagRow: {
       flexDirection: 'row',
@@ -538,24 +520,27 @@ const createStyles = (theme: keyof typeof Colors) => {
     },
     tagChipText: {
       fontSize: 12,
+      lineHeight: 16,
       fontWeight: '600',
       color: tagText,
       maxWidth: 220,
     },
 
     empty: {
-      paddingTop: 18,
+      paddingTop: 22,
       paddingHorizontal: 8,
       alignItems: 'center',
       gap: 6,
     },
     emptyTitle: {
-      fontSize: 16,
-      fontWeight: '800',
+      fontSize: 15,
+      lineHeight: 20,
+      fontWeight: '700',
       color: text,
     },
     emptySubtitle: {
-      fontSize: 13,
+      fontSize: 14,
+      lineHeight: 18,
       fontWeight: '600',
       color: withAlpha(text, 0.65),
       textAlign: 'center',
