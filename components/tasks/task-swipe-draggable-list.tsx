@@ -20,6 +20,15 @@ import type { Project, Task } from '@/context/tasks-store';
 import { isIOS26OrNewer } from '@/utils/ios-version';
 
 type ThemeName = keyof typeof Colors;
+const LIST_ACTIVATION_DISTANCE_NESTED = 14;
+const LIST_ACTIVATION_DISTANCE_DEFAULT = 8;
+const LIST_AUTOSCROLL_SPEED = 58;
+const LIST_ANIMATION_CONFIG = {
+  damping: 26,
+  stiffness: 300,
+  mass: 0.28,
+  overshootClamping: true,
+} as const;
 
 export type TaskSwipeDraggableListItem =
   | { kind: 'task'; key: string; taskId: string }
@@ -448,7 +457,9 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     return undefined;
   }, [scrollRef, useScrollViewCompatibilityMode]);
   const usesNestedScrollGestures = renderMode === 'nestable' || useScrollViewCompatibilityMode;
-  const listActivationDistance = usesNestedScrollGestures ? 22 : 12;
+  const listActivationDistance = usesNestedScrollGestures
+    ? LIST_ACTIVATION_DISTANCE_NESTED
+    : LIST_ACTIVATION_DISTANCE_DEFAULT;
   // `react-native-draggable-flatlist` only emits `onDragTouchPoint` when cross-axis drag is enabled.
   // Auto-enable it whenever callers subscribe to drag touch points.
   const allowCrossAxisDrag = dragAxisMode === "free" || !!onDragTouchPoint;
@@ -725,13 +736,8 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     contentContainerStyle,
     simultaneousHandlers,
     activationDistance: listActivationDistance,
-    autoscrollSpeed: 22,
-    animationConfig: {
-      damping: 32,
-      stiffness: 420,
-      mass: 0.22,
-      overshootClamping: true,
-    },
+    autoscrollSpeed: LIST_AUTOSCROLL_SPEED,
+    animationConfig: LIST_ANIMATION_CONFIG,
     dragItemOverflow: true,
     onDragBegin: handleDragBegin,
     onPlaceholderIndexChange: (index: number) => {
@@ -778,13 +784,8 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       onScrollOffsetChange={onScrollOffsetChange}
       showsVerticalScrollIndicator={false}
       activationDistance={listActivationDistance}
-      autoscrollSpeed={22}
-      animationConfig={{
-        damping: 32,
-        stiffness: 420,
-        mass: 0.22,
-        overshootClamping: true,
-      }}
+      autoscrollSpeed={LIST_AUTOSCROLL_SPEED}
+      animationConfig={LIST_ANIMATION_CONFIG}
       dragItemOverflow
       onDragBegin={handleDragBegin}
       onPlaceholderIndexChange={(index) => {

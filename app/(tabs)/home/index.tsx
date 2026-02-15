@@ -1,4 +1,5 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { MenuView, type MenuAction } from "@react-native-menu/menu";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import React from "react";
@@ -19,6 +20,7 @@ import {
   View,
 } from "react-native";
 import { NestableScrollContainer } from "react-native-draggable-flatlist";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import {
   TaskSwipeDraggableList,
@@ -39,7 +41,7 @@ import {
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useStreaks } from "@/hooks/use-streaks";
-import { countLabel, t } from "@/i18n";
+import { countLabel, getIntlLocale, t } from "@/i18n";
 import { isIOS26OrNewer } from "@/utils/ios-version";
 import {
   alignDueAtToLocalDay,
@@ -59,7 +61,7 @@ const DATE_RAIL_FUTURE_DAYS = 365;
 const DATE_RAIL_MIN_ITEM_WIDTH = 44;
 const DATE_RAIL_ITEM_GAP = 0;
 const DATE_RAIL_PAGE_DAYS = 7;
-const DATE_DROP_VERTICAL_PADDING = 8;
+const DATE_DROP_VERTICAL_PADDING = 16;
 const STREAK_PROGRESS_DAYS = 7;
 const HOME_TASK_ITEM_SPACING = 4;
 const TASK_ROW_SIDE_BLEED = 6;
@@ -68,11 +70,42 @@ const TASK_ROW_HORIZONTAL_PADDING = 12;
 const CONTENT_STACK_GAP = 10;
 const DATE_TRANSITION_DURATION = 250;
 const TODAY_SURFACE_HEIGHT_ANIMATION_DURATION = 300;
+const HOME_ONBOARDING_KEYS = {
+  gestures: "reminds.home.onboarding.gestures.v1",
+  dragDropTargets: "reminds.home.onboarding.dragDropTargets.v1",
+} as const;
 
 const SECTION_ORDER: SectionId[] = ["today", "upcoming", "completed"];
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
+
+async function readOnboardingSeen(key: string): Promise<boolean> {
+  try {
+    if (Platform.OS === "web") {
+      if (typeof localStorage === "undefined") return false;
+      return localStorage.getItem(key) === "1";
+    }
+    const value = await AsyncStorage.getItem(key);
+    return value === "1";
+  } catch {
+    return false;
+  }
+}
+
+async function markOnboardingSeen(key: string): Promise<void> {
+  try {
+    if (Platform.OS === "web") {
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem(key, "1");
+      }
+      return;
+    }
+    await AsyncStorage.setItem(key, "1");
+  } catch {
+    // ignore
+  }
+}
 
 const configureSmoothListLayoutTransition = () => {
   LayoutAnimation.configureNext({
@@ -220,6 +253,12 @@ type DateRailDay = {
   eventCount: number;
 };
 
+type DateRailMonthOption = {
+  key: string;
+  monthStart: number;
+  title: string;
+};
+
 type DateListTransitionState = {
   fromDateStart: number;
   toDateStart: number;
@@ -241,6 +280,14 @@ const isPointNearBounds = (
     x <= bounds.x + bounds.width + inset.right &&
     y >= bounds.y - inset.top &&
     y <= bounds.y + bounds.height + inset.bottom
+  );
+};
+
+const isSameLocalMonth = (left: number, right: number) => {
+  const l = new Date(left);
+  const r = new Date(right);
+  return (
+    l.getFullYear() === r.getFullYear() && l.getMonth() === r.getMonth()
   );
 };
 
@@ -746,6 +793,9 @@ const createStyles = (
     dateTasksSurfaceHeightFrame: {
       overflow: "hidden",
     },
+    dateTasksSurfaceHeightFrameDragActive: {
+      overflow: "visible",
+    },
     upcomingTasksSurface: {
       marginTop: CONTENT_STACK_GAP,
       position: "relative",
@@ -776,6 +826,9 @@ const createStyles = (
     dateListTransitionHost: {
       position: "relative",
       overflow: "hidden",
+    },
+    dateListTransitionHostDragActive: {
+      overflow: "visible",
     },
     dateListTransitionTrack: {
       flexDirection: "row",
@@ -1028,10 +1081,69 @@ export default function HomeScreen() {
   const { tasks, setTasks, projects } = useTasksStore();
   const { queueTaskPopIn } = useTaskCreateContext();
   const { enabledTags, showTagIcons, showCompactSubtasks } = useHomeFilters();
+  const locale = React.useMemo(() => getIntlLocale().toLowerCase(), []);
+  const isGermanLocale = locale.startsWith("de");
   const withSubtasksEnabled =
     params.withSubtasks === undefined
       ? showCompactSubtasks
       : params.withSubtasks === "1";
+  const [showGestureHint, setShowGestureHint] = React.useState(false);
+  const [shouldHighlightDropTargetsOnFirstDrag, setShouldHighlightDropTargetsOnFirstDrag] =
+    React.useState(false);
+  const [showDragDropTargetsHint, setShowDragDropTargetsHint] = React.useState(false);
+  const gesturesHintSeenRef = React.useRef(true);
+  const dragDropTargetsHintSeenRef = React.useRef(true);
+  const gestureHintCopy = React.useMemo(
+    () =>
+      isGermanLocale
+        ? {
+          title: "Gesten-Tipp",
+          body: "Wische horizontal über die Liste für den Tagwechsel. Halte eine Aufgabe zum Verschieben.",
+          dismissLabel: "Schließen",
+          dragToDate: "Auf Datum ziehen",
+          dragToUndated: "Oder in Ohne Datum ablegen",
+          monthPickerLabel: "Monat wählen",
+        }
+        : {
+          title: "Gesture tip",
+          body: "Swipe horizontally over the list to change day. Long-press a task to drag it.",
+          dismissLabel: "Dismiss",
+          dragToDate: "Drag to a day",
+          dragToUndated: "Or drop into Without date",
+          monthPickerLabel: "Pick month",
+        },
+    [isGermanLocale],
+  );
+  const markGesturesHintSeen = React.useCallback(() => {
+    if (gesturesHintSeenRef.current) return;
+    gesturesHintSeenRef.current = true;
+    setShowGestureHint(false);
+    void markOnboardingSeen(HOME_ONBOARDING_KEYS.gestures);
+  }, []);
+  const markDragDropTargetsHintSeen = React.useCallback(() => {
+    if (dragDropTargetsHintSeenRef.current) return;
+    dragDropTargetsHintSeenRef.current = true;
+    setShouldHighlightDropTargetsOnFirstDrag(false);
+    void markOnboardingSeen(HOME_ONBOARDING_KEYS.dragDropTargets);
+  }, []);
+  React.useEffect(() => {
+    let cancelled = false;
+    const hydrateHints = async () => {
+      const [gesturesSeen, dragTargetsSeen] = await Promise.all([
+        readOnboardingSeen(HOME_ONBOARDING_KEYS.gestures),
+        readOnboardingSeen(HOME_ONBOARDING_KEYS.dragDropTargets),
+      ]);
+      if (cancelled) return;
+      gesturesHintSeenRef.current = gesturesSeen;
+      dragDropTargetsHintSeenRef.current = dragTargetsSeen;
+      setShowGestureHint(!gesturesSeen);
+      setShouldHighlightDropTargetsOnFirstDrag(!dragTargetsSeen);
+    };
+    void hydrateHints();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const { currentStreak, longestStreak, mostTasksInOneDay } = useStreaks();
   const [selectedDateStart, setSelectedDateStart] = React.useState(() =>
     getStartOfToday(),
@@ -1074,6 +1186,10 @@ export default function HomeScreen() {
     () => new Intl.DateTimeFormat(undefined, { weekday: "narrow" }),
     [],
   );
+  const monthActionFormatter = React.useMemo(
+    () => new Intl.DateTimeFormat(undefined, { month: "short", year: "numeric" }),
+    [],
+  );
   const todayStart = getStartOfToday();
   const currentWeekStart = React.useMemo(
     () => getStartOfWeekMonday(todayStart),
@@ -1089,6 +1205,8 @@ export default function HomeScreen() {
   const [activeDragSurface, setActiveDragSurface] = React.useState<DragSurfaceId | null>(
     null,
   );
+  const showDropTargetGuides =
+    showDragDropTargetsHint && activeDragSurface !== null;
   const dragContextRef = React.useRef<{
     taskId: string;
     sourceSection: SectionId;
@@ -1242,12 +1360,15 @@ export default function HomeScreen() {
     () => dateRailSnapInterval * DATE_RAIL_PAGE_DAYS,
     [dateRailSnapInterval],
   );
+  const dateRailRangeStart = React.useMemo(
+    () => addDays(currentWeekStart, -DATE_RAIL_PAST_DAYS),
+    [currentWeekStart],
+  );
   const dateRailDays = React.useMemo<DateRailDay[]>(() => {
-    const rangeStart = addDays(currentWeekStart, -DATE_RAIL_PAST_DAYS);
     return Array.from(
       { length: DATE_RAIL_PAST_DAYS + DATE_RAIL_FUTURE_DAYS + 1 },
       (_, index) => {
-        const timestamp = addDays(rangeStart, index);
+        const timestamp = addDays(dateRailRangeStart, index);
         const eventCount = dayEventCountByStart.get(timestamp) ?? 0;
         return {
           key: `d-${timestamp}`,
@@ -1268,11 +1389,54 @@ export default function HomeScreen() {
     );
   }, [
     activeDateSelectionStart,
-    currentWeekStart,
+    dateRailRangeStart,
     dayEventCountByStart,
     dayLabelFormatter,
     todayStart,
   ]);
+  const dateRailMonthOptions = React.useMemo<DateRailMonthOption[]>(() => {
+    const firstDay = dateRailDays[0]?.timestamp;
+    const lastDay = dateRailDays[dateRailDays.length - 1]?.timestamp;
+    if (!firstDay || !lastDay) return [];
+
+    const options: DateRailMonthOption[] = [];
+    const cursor = new Date(firstDay);
+    cursor.setDate(1);
+    cursor.setHours(0, 0, 0, 0);
+    const end = new Date(lastDay);
+    end.setDate(1);
+    end.setHours(0, 0, 0, 0);
+
+    while (cursor.getTime() <= end.getTime()) {
+      const monthStart = cursor.getTime();
+      options.push({
+        key: `m-${monthStart}`,
+        monthStart,
+        title: monthActionFormatter.format(monthStart),
+      });
+      cursor.setMonth(cursor.getMonth() + 1);
+      cursor.setDate(1);
+      cursor.setHours(0, 0, 0, 0);
+    }
+    return options;
+  }, [dateRailDays, monthActionFormatter]);
+  const monthPickerActions = React.useMemo<MenuAction[]>(
+    () =>
+      dateRailMonthOptions.map((option) => ({
+        id: option.key,
+        title: option.title,
+        state:
+          Platform.OS === "ios" &&
+          isSameLocalMonth(option.monthStart, selectedDateStart)
+            ? "on"
+            : undefined,
+      })),
+    [dateRailMonthOptions, selectedDateStart],
+  );
+  const monthPickerButtonLabel = React.useMemo(
+    () => monthActionFormatter.format(selectedDateStart),
+    [monthActionFormatter, selectedDateStart],
+  );
   const cancelDateListTransitionStart = React.useCallback(() => {
     if (dateListTransitionStartRafRef.current == null) return;
     cancelAnimationFrame(dateListTransitionStartRafRef.current);
@@ -2238,10 +2402,10 @@ export default function HomeScreen() {
         {
           // Allow dropping slightly above/around the "Ohne Datum" card,
           // which feels more natural when releasing near the section boundary.
-          top: 44,
-          right: 20,
-          bottom: extraBottomInset,
-          left: 20,
+          top: 68,
+          right: 28,
+          bottom: extraBottomInset + 18,
+          left: 28,
         },
       );
     },
@@ -2971,6 +3135,9 @@ export default function HomeScreen() {
             <Animated.View
               style={[
                 styles.dateTasksSurfaceHeightFrame,
+                activeDragSurface === "today"
+                  ? styles.dateTasksSurfaceHeightFrameDragActive
+                  : null,
                 todaySurfaceMeasuredHeight > 0 ? { height: todaySurfaceHeight } : null,
               ]}
             >
@@ -2985,7 +3152,12 @@ export default function HomeScreen() {
                     ]}
                   >
                     <View
-                      style={styles.dateListTransitionHost}
+                      style={[
+                        styles.dateListTransitionHost,
+                        activeDragSurface === "today"
+                          ? styles.dateListTransitionHostDragActive
+                          : null,
+                      ]}
                       onLayout={handleDateListHostLayout}
                     >
                       {isDateListTransitioning &&

@@ -48,7 +48,7 @@ const COMPACT_SUBTASK_ICON_SIZE = 18;
 const COMPACT_SUBTASK_TEXT_SIZE = 14;
 // Small delay to separate horizontal swipe intent from long-press drag.
 const SWIPE_ARM_DELAY_MS = 170;
-const DRAG_LONG_PRESS_DELAY_MS = 420;
+const DRAG_LONG_PRESS_DELAY_MS = 300;
 
 type TagChipModel = {
   key: string;
