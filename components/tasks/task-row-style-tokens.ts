@@ -7,7 +7,7 @@ export const SPACING = {
   md: 16,
 } as const;
 
-export const TASK_ROW_MIN_HEIGHT = 60;
+export const TASK_ROW_MIN_HEIGHT = 58;
 
 type DragShadowConfig = {
   shadowColor: string;
@@ -75,28 +75,28 @@ export function createSharedTaskRowStyles({
   dragShadow,
   rowMinHeight = TASK_ROW_MIN_HEIGHT,
   rowPaddingHorizontal = SPACING.sm,
-  rowPaddingVertical = SPACING.sm,
+  rowPaddingVertical = SPACING.xs,
   rowGap = SPACING.xxs,
   rowInnerGap = SPACING.sm,
   textStackGap = SPACING.xxs,
   titleRowGap = SPACING.xs,
   actionSize = 40,
-  actionRadius = 10,
+  actionRadius = 999,
   emojiSize = 32,
   emojiRadius = 10,
   emojiFontSize = 18,
-  rowTitleFontSize = 17,
-  rowTitleLineHeight = 22,
-  rowMetaFontSize = 12,
-  rowMetaLineHeight = 16,
-  rowSubtitleFontSize = 14,
-  rowSubtitleLineHeight = 19,
+  rowTitleFontSize = 16,
+  rowTitleLineHeight = 21,
+  rowMetaFontSize = 11,
+  rowMetaLineHeight = 14,
+  rowSubtitleFontSize = 13,
+  rowSubtitleLineHeight = 17,
   tagRowGap = SPACING.xxs,
   tagRowMarginTop = SPACING.xxs,
   tagChipGap = SPACING.xxs,
   tagChipPaddingHorizontal = SPACING.xs,
   tagChipPaddingVertical = SPACING.xxs,
-  tagChipRadius = 8,
+  tagChipRadius = 999,
 }: SharedTaskRowStyleOptions) {
   return {
     itemSpacer: {
@@ -188,14 +188,14 @@ export function createSharedTaskRowStyles({
     rowMeta: {
       fontSize: rowMetaFontSize,
       lineHeight: rowMetaLineHeight,
-      fontWeight: "600" as const,
+      fontWeight: "700" as const,
       color: rowMetaColor,
       letterSpacing: 0.1,
     },
     rowSubtitle: {
       fontSize: rowSubtitleFontSize,
       lineHeight: rowSubtitleLineHeight,
-      fontWeight: "500" as const,
+      fontWeight: "600" as const,
       color: rowSubtitleColor,
     },
     tagRow: {
@@ -221,9 +221,9 @@ export function createSharedTaskRowStyles({
       borderColor: dangerBorderColor,
     },
     tagChipText: {
-      fontSize: 12,
-      lineHeight: 16,
-      fontWeight: "600" as const,
+      fontSize: 11,
+      lineHeight: 14,
+      fontWeight: "700" as const,
       color: tagTextColor,
       maxWidth: 220,
     },

@@ -1,4 +1,5 @@
 import { useTasksStore } from '@/context/tasks-store';
+import { getIntlLocale } from '@/i18n';
 import { useMemo } from 'react';
 
 export type ChartDataPoint = {
@@ -28,17 +29,25 @@ function toLocalISODate(timestamp: number): string {
     return `${year}-${month}-${day}`;
 }
 
-function getStartOfWeek(date: Date): Date {
-    const d = new Date(date);
-    const day = d.getDay(); // 0 (Sun) to 6 (Sat)
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
-    return new Date(d.setDate(diff));
+function parseLocalISODate(dateStr: string): Date {
+    const [yearStr, monthStr, dayStr] = dateStr.split('-');
+    const year = Number(yearStr);
+    const month = Number(monthStr);
+    const day = Number(dayStr);
+    if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+        return new Date(dateStr);
+    }
+    return new Date(year, month - 1, day, 0, 0, 0, 0);
 }
 
 export function useStreaks(): StreakStats {
     const { tasks } = useTasksStore();
 
     return useMemo(() => {
+        const intlLocale = getIntlLocale();
+        const weekdayShortFormatter = new Intl.DateTimeFormat(intlLocale, { weekday: 'short' });
+        const monthShortFormatter = new Intl.DateTimeFormat(intlLocale, { month: 'short' });
+        const monthNarrowFormatter = new Intl.DateTimeFormat(intlLocale, { month: 'narrow' });
         // 1. Filter completed tasks
         const completedTasks = tasks.filter((t) => !!t.completedAt);
 
@@ -93,7 +102,7 @@ export function useStreaks(): StreakStats {
         let tempStreak = 0;
         let prevDate: Date | null = null;
         for (const dateStr of sortedDates) {
-            const d = new Date(dateStr);
+            const d = parseLocalISODate(dateStr);
             if (!prevDate) {
                 tempStreak = 1;
             } else {
@@ -118,7 +127,7 @@ export function useStreaks(): StreakStats {
                     d.setDate(d.getDate() - i);
                     const dStr = toLocalISODate(d.getTime());
                     data.push({
-                        label: i === 0 ? 'Heute' : d.toLocaleDateString('de-DE', { weekday: 'short' }),
+                        label: weekdayShortFormatter.format(d).replace(/\.$/u, ''),
                         count: completionsByDate.get(dStr) || 0,
                         dateStr: dStr,
                         isToday: i === 0,
@@ -144,14 +153,14 @@ export function useStreaks(): StreakStats {
                     // Brute-force sum for that month from our map
                     // Optimization: we only store dates with tasks in Map.
                     for (const [dateKey, count] of completionsByDate.entries()) {
-                        const dateKeyObj = new Date(dateKey);
+                        const dateKeyObj = parseLocalISODate(dateKey);
                         if (dateKeyObj.getFullYear() === targetYear && dateKeyObj.getMonth() === targetMonth) {
                             sum += count;
                         }
                     }
 
                     data.push({
-                        label: d.toLocaleDateString('de-DE', { month: 'short' }),
+                        label: monthShortFormatter.format(d).replace(/\.$/u, ''),
                         count: sum,
                         dateStr: `${targetYear}-${targetMonth}`,
                         type: 'month'
@@ -162,7 +171,7 @@ export function useStreaks(): StreakStats {
                 // Let's assume lifespan is < 5 years for now, so Months is fine.
                 // If we have very old data, we start from first date.
                 if (sortedDates.length === 0) return [];
-                const first = new Date(sortedDates[0]);
+                const first = parseLocalISODate(sortedDates[0]!);
                 const now = new Date();
 
                 // Iterate months from first to now
@@ -172,13 +181,13 @@ export function useStreaks(): StreakStats {
                     const tY = curr.getFullYear();
                     let sum = 0;
                     for (const [dateKey, count] of completionsByDate.entries()) {
-                        const dk = new Date(dateKey);
+                        const dk = parseLocalISODate(dateKey);
                         if (dk.getFullYear() === tY && dk.getMonth() === tM) {
                             sum += count;
                         }
                     }
                     data.push({
-                        label: curr.toLocaleDateString('de-DE', { month: 'narrow' }), // J, F, M...
+                        label: monthNarrowFormatter.format(curr),
                         count: sum,
                         dateStr: `${tY}-${tM}`,
                         type: 'month'

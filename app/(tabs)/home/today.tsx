@@ -3,6 +3,10 @@ import React from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 
 import { TaskSwipeDraggableList } from '@/components/tasks/task-swipe-draggable-list';
+import {
+  createSharedTaskRowStyles,
+  SPACING,
+} from '@/components/tasks/task-row-style-tokens';
 import { FloatingAddButton } from '@/components/ui/floating-add-button';
 import { withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
@@ -170,7 +174,27 @@ const createStyles = (theme: keyof typeof Colors) => {
   const tagText = withAlpha(text, 0.78);
   const dangerBg = isDark ? 'rgba(255,69,58,0.18)' : 'rgba(255,59,48,0.14)';
   const dangerBorder = isDark ? 'rgba(255,69,58,0.32)' : 'rgba(255,59,48,0.26)';
-  const rowMetaText = withAlpha(text, isDark ? 0.5 : 0.42);
+  const rowMetaText = withAlpha(text, isDark ? 0.42 : 0.34);
+  const sharedRowStyles = createSharedTaskRowStyles({
+    textColor: text,
+    rowSurface,
+    rowDividerColor: rowDivider,
+    rowMetaColor: rowMetaText,
+    rowSubtitleColor: withAlpha(text, 0.62),
+    hairlineColor: hairline,
+    tagBackground: tagBg,
+    tagTextColor: tagText,
+    dangerBackground: dangerBg,
+    dangerBorderColor: dangerBorder,
+    rowMinHeight: 58,
+    rowPaddingVertical: SPACING.xs,
+    rowTitleFontSize: 16,
+    rowTitleLineHeight: 21,
+    rowMetaFontSize: 11,
+    rowMetaLineHeight: 14,
+    rowSubtitleFontSize: 13,
+    rowSubtitleLineHeight: 17,
+  });
 
   return StyleSheet.create({
     container: {
@@ -178,150 +202,27 @@ const createStyles = (theme: keyof typeof Colors) => {
       backgroundColor: Colors[theme].background,
     },
     content: {
-      paddingHorizontal: 16,
-      paddingTop: 8,
-      paddingBottom: 184,
+      paddingHorizontal: SPACING.md,
+      paddingTop: SPACING.xxs,
+      paddingBottom: 160,
     },
-
-    itemSpacer: {
-      marginBottom: 0,
-    },
-    swipeClip: {
-      borderRadius: 12,
-      overflow: 'hidden',
-      backgroundColor: rowSurface,
-    },
-    underlay: {
-      ...StyleSheet.absoluteFillObject,
-    },
-    actionSlot: {
-      position: 'absolute',
-      top: 0,
-      bottom: 0,
-      justifyContent: 'center',
-    },
-    actionSlotLeft: {
-      left: 0,
-      alignItems: 'center',
-    },
-    actionSlotRight: {
-      right: 0,
-      alignItems: 'center',
-    },
-    actionSlotInner: {
-      width: 40,
-      height: 40,
-      borderRadius: 11,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-
-    row: {
-      minHeight: 66,
-      borderRadius: 0,
-      backgroundColor: rowSurface,
-      justifyContent: 'center',
-      paddingHorizontal: 8,
-      paddingVertical: 11,
-      gap: 6,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: rowDivider,
-    },
-    rowInner: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 12,
-    },
-    emojiTile: {
-      width: 30,
-      height: 30,
-      borderRadius: 10,
-      alignItems: 'center',
-      justifyContent: 'center',
-      overflow: 'hidden',
-      borderWidth: StyleSheet.hairlineWidth,
-      marginTop: 1,
-    },
-    emojiText: {
-      fontSize: 17,
-    },
-    textStack: {
-      flex: 1,
-      gap: 4,
-    },
-    titleRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 10,
-    },
-    rowTitle: {
-      flex: 1,
-      fontSize: 17,
-      lineHeight: 22,
-      fontWeight: '600',
-      color: text,
-      letterSpacing: -0.2,
-    },
-    rowMeta: {
-      fontSize: 12,
-      lineHeight: 16,
-      fontWeight: '600',
-      color: rowMetaText,
-      letterSpacing: 0.15,
-    },
-    rowSubtitle: {
-      fontSize: 14,
-      lineHeight: 19,
-      fontWeight: '500',
-      color: withAlpha(text, 0.72),
-    },
-
-    tagRow: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 6,
-      marginTop: 2,
-    },
-    tagChip: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      maxWidth: '100%',
-      paddingVertical: 4,
-      paddingHorizontal: 8,
-      borderRadius: 999,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hairline,
-      backgroundColor: tagBg,
-    },
-    tagChipDanger: {
-      backgroundColor: dangerBg,
-      borderColor: dangerBorder,
-    },
-    tagChipText: {
-      fontSize: 12,
-      lineHeight: 16,
-      fontWeight: '600',
-      color: tagText,
-      maxWidth: 220,
-    },
-
-    dragRow: {
-      borderRadius: 0,
-      backgroundColor: rowSurface,
-      borderWidth: 0,
-      opacity: 1,
-    },
+    ...sharedRowStyles,
 
     empty: {
       alignItems: 'center',
-      paddingVertical: 22,
+      marginTop: SPACING.xs,
+      paddingVertical: SPACING.sm,
+      paddingHorizontal: SPACING.sm,
+      borderRadius: SPACING.sm,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: withAlpha(text, isDark ? 0.14 : 0.1),
+      backgroundColor: withAlpha(text, isDark ? 0.06 : 0.03),
     },
     emptyText: {
-      fontSize: 14,
-      lineHeight: 18,
+      fontSize: 13,
+      lineHeight: 17,
       fontWeight: '600',
-      opacity: 0.65,
+      opacity: 0.6,
     },
   });
 };

@@ -807,7 +807,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   }, [showCompactSubtasks, task.subtasks]);
 
   const compactSubtasksView = compactSubtasks.length ? (
-    <View style={{ marginTop: 4, gap: 6 }}>
+    <View style={{ marginTop: 2, gap: 4 }}>
       {compactSubtasks.map((subtask) => (
         <Pressable
           key={subtask.id}
@@ -822,7 +822,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
             {
               flexDirection: "row",
               alignItems: "center",
-              gap: 8,
+              gap: 6,
               opacity: pressed && toggleSubtask ? 0.75 : 1,
             },
           ]}
@@ -843,10 +843,10 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
               {
                 flex: 1,
                 fontSize: COMPACT_SUBTASK_TEXT_SIZE,
-                lineHeight: 19,
-                fontWeight: "500",
+                lineHeight: 18,
+                fontWeight: "600",
                 textDecorationLine: subtask.done ? "line-through" : "none",
-                opacity: subtask.done ? 0.55 : 0.82,
+                opacity: subtask.done ? 0.5 : 0.74,
               },
             ]}
           >

@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import React, { useMemo, useState } from 'react';
 import SegmentedControl from '@react-native-segmented-control/segmented-control';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
@@ -13,7 +13,7 @@ type ThemeName = keyof typeof Colors;
 type RangeOption = '7d' | '14d' | '1m' | '1y' | 'max';
 
 // Exact styles from home/index.tsx QuickNavGrid
-const createStyles = (theme: ThemeName) => {
+const createStyles = (theme: ThemeName, compact: boolean) => {
   const isDark = theme === 'dark';
   const text = Colors[theme].text;
   const hairline = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.12)';
@@ -37,7 +37,7 @@ const createStyles = (theme: ThemeName) => {
       alignItems: 'center',
       justifyContent: 'center',
       gap: 12,
-      paddingVertical: 16,
+      paddingVertical: compact ? 12 : 16,
       marginBottom: 8,
     },
     fireContainer: {
@@ -46,9 +46,9 @@ const createStyles = (theme: ThemeName) => {
       justifyContent: 'center',
     },
     fireBadge: {
-      width: 68,
-      height: 68,
-      borderRadius: 34,
+      width: compact ? 56 : 68,
+      height: compact ? 56 : 68,
+      borderRadius: compact ? 28 : 34,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -57,15 +57,15 @@ const createStyles = (theme: ThemeName) => {
       gap: 0,
     },
     bigNumber: {
-      fontSize: 48,
+      fontSize: compact ? 40 : 48,
       fontWeight: '900',
       letterSpacing: -1,
-      lineHeight: 48,
+      lineHeight: compact ? 42 : 48,
       color: text,
     },
     heroSubtitle: {
-      fontSize: 15,
-      fontWeight: '600',
+      fontSize: compact ? 14 : 15,
+      fontWeight: '700',
       lineHeight: 19,
       color: subtitleColor,
     },
@@ -158,18 +158,18 @@ const createStyles = (theme: ThemeName) => {
       width: '55%',
       height: '100%',
       justifyContent: 'flex-end',
-      borderRadius: 4,
+      borderRadius: 999,
     },
     barFill: {
       width: '100%',
-      borderRadius: 4,
+      borderRadius: 999,
       minHeight: 4,
     },
     barLabel: {
-      fontSize: 9,
-      fontWeight: '600',
+      fontSize: 10,
+      fontWeight: '700',
       textAlign: 'center',
-      width: 18,
+      width: 26,
     },
     emptyChart: {
       flex: 1,
@@ -186,7 +186,7 @@ function ChartBar({ item, max, textColor, isDark }: { item: ChartDataPoint; max:
   const isZero = item.count === 0;
   const barColor = item.isToday ? '#EF4444' : withAlpha(textColor, 0.6);
 
-  const styles = createStyles(isDark ? 'dark' : 'light');
+  const styles = createStyles(isDark ? 'dark' : 'light', false);
 
   return (
     <View style={styles.barContainer}>
@@ -207,12 +207,12 @@ function ChartBar({ item, max, textColor, isDark }: { item: ChartDataPoint; max:
           styles.barLabel,
           {
             color: item.isToday ? '#EF4444' : withAlpha(textColor, 0.45),
-            fontWeight: item.isToday ? '700' : '600'
+            fontWeight: item.isToday ? '800' : '700'
           }
         ]}
         numberOfLines={1}
       >
-        {item.label[0]}
+        {item.label}
       </Text>
     </View>
   );
@@ -269,9 +269,11 @@ function StatTile({
 }
 
 export default function StreaksScreen() {
+  const { width } = useWindowDimensions();
   const theme = useColorScheme() ?? 'light';
   const isDark = theme === 'dark';
-  const styles = useMemo(() => createStyles(theme), [theme]);
+  const compact = width < 390;
+  const styles = useMemo(() => createStyles(theme, compact), [compact, theme]);
 
   const {
     currentStreak,
@@ -327,7 +329,7 @@ export default function StreaksScreen() {
               }
             ]}
           >
-            <MaterialIcons name="local-fire-department" size={42} color={fireColor} />
+            <MaterialIcons name="local-fire-department" size={compact ? 34 : 42} color={fireColor} />
           </View>
         </View>
         <View style={styles.heroTextWrap}>
@@ -419,7 +421,7 @@ export default function StreaksScreen() {
           ))}
           {chartData.length === 0 && (
             <View style={styles.emptyChart}>
-              <Text style={{ color: withAlpha(textColor, 0.5), fontSize: 12, fontWeight: '600' }}>{t('streaks.chart.noData')}</Text>
+              <Text style={{ color: withAlpha(textColor, 0.5), fontSize: 12, fontWeight: '700' }}>{t('streaks.chart.noData')}</Text>
             </View>
           )}
         </View>

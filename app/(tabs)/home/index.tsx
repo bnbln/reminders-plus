@@ -28,6 +28,7 @@ import {
   type TaskSwipeDraggableListItem,
 } from "@/components/tasks/task-swipe-draggable-list";
 import { FloatingAddButton } from "@/components/ui/floating-add-button";
+import { SFSymbol } from "@/components/ui/sfsymbol";
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { Colors } from "@/constants/theme";
 import { useHomeFilters } from "@/context/home-filters-store";
@@ -219,27 +220,18 @@ const adjustDueAtOnSectionChange = (
   };
 };
 
-type QuickTile = {
-  key: "streaks";
+type HomeMetricsProps = {
+  completionPercentage: number;
   currentStreak: number;
-  longestStreak: number;
-  mostTasksInOneDay: number;
   onPress: () => void;
 };
 
-type QuickNavTheme = {
+type HomeMetricsTheme = {
   topSurface: string;
-  topDivider: string;
-  cardTintColor: string;
-  cardFallbackColor: string;
-  streakFlameActive: string;
-  streakFlameInactive: string;
-  streakPrimaryText: string;
-  streakMutedText: string;
-  streakStatLabel: string;
-  streakStatValue: string;
-  streakProgressTrack: string;
-  streakProgressFill: string;
+  cardBackgroundColor: string;
+  borderColor: string;
+  primaryText: string;
+  mutedText: string;
 };
 
 type DateRailDay = {
@@ -291,185 +283,81 @@ const isSameLocalMonth = (left: number, right: number) => {
   );
 };
 
-function QuickNavGrid({
-  tiles,
+function HomeMetricsGrid({
+  metrics,
   styles,
   theme,
 }: {
-  tiles: QuickTile[];
+  metrics: HomeMetricsProps;
   styles: ReturnType<typeof createStyles>;
-  theme: QuickNavTheme;
+  theme: HomeMetricsTheme;
 }) {
   return (
-    <View style={styles.quickGridWrap}>
-      <View style={styles.quickGrid}>
-        {tiles.map((tile) => {
-          const progressDays = clamp(tile.currentStreak, 0, STREAK_PROGRESS_DAYS);
-          const rawProgressPercent = (progressDays / STREAK_PROGRESS_DAYS) * 100;
-          const progressPercent = Number.isFinite(rawProgressPercent)
-            ? clamp(Math.round(rawProgressPercent), 0, 100)
-            : 0;
-          const streakLabel =
-            tile.currentStreak === 1
-              ? t("streaks.hero.one")
-              : t("streaks.hero.other");
-          const longestLabel = countLabel(
-            tile.longestStreak,
-            "streaks.count.days.one",
-            "streaks.count.days.other",
-          );
-          const recordPerDayLabel = `${tile.mostTasksInOneDay}/${t(
-            "home.quick.day",
-          )}`;
-          const fireIconColor =
-            tile.currentStreak > 0
-              ? theme.streakFlameActive
-              : theme.streakFlameInactive;
-          const scaleDays = Array.from(
-            { length: STREAK_PROGRESS_DAYS },
-            (_, idx) => idx + 1,
-          );
+    <View style={styles.metricsGridWrap}>
+      <View style={styles.metricsGrid}>
+        
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`status: ${metrics.completionPercentage}%`}
+          onPress={metrics.onPress}
+          hitSlop={8}
+          style={({ pressed }) => [
+            styles.metricsCardPressable,
+            pressed && { opacity: 0.9 },
+            { transform: [{ scale: pressed ? 0.98 : 1 }] }
+          ]}
+        >
+          <GlassSurface
+            style={styles.metricsCard}
+            glassEffectStyle="regular"
+            tintColor={theme.cardBackgroundColor}
+            fallbackBackgroundColor={theme.cardBackgroundColor}
+            isInteractive
+          >
+            <View style={styles.metricsCardInner}>
+              <View style={styles.metricsHeaderRow}>
+                <SFSymbol name="arrow.up.right" size={16} color="#22C55E" weight="bold" />
+                <Text style={[styles.metricsHeaderLabel, { color: theme.mutedText }]}>STATUS</Text>
+              </View>
+              <Text style={[styles.metricsPrimaryValue, { color: theme.primaryText }]}>
+                {metrics.completionPercentage}%
+              </Text>
+            </View>
+          </GlassSurface>
+        </Pressable>
 
-          return (
-            <Pressable
-              key={tile.key}
-              accessibilityRole="button"
-              accessibilityLabel={`${t("home.quick.streaks")}: ${tile.currentStreak} ${streakLabel}`}
-              onPress={tile.onPress}
-              pressRetentionOffset={{ top: 2, bottom: 2, left: 2, right: 2 }}
-              hitSlop={8}
-              style={styles.quickTilePressable}
-            >
-              <GlassSurface
-                style={styles.quickTile}
-                glassEffectStyle="regular"
-                tintColor={theme.cardTintColor}
-                fallbackBackgroundColor={theme.cardFallbackColor}
-              >
-                <View style={styles.quickTileInner}>
-                  <View style={styles.streakHeaderRow}>
-                    <View style={styles.streakLeadRow}>
-                      <MaterialIcons
-                        name="local-fire-department"
-                        size={48}
-                        color={fireIconColor}
-                        style={styles.streakFlameIcon}
-                      />
-                      <View style={styles.streakLeadTextWrap}>
-                        <Text
-                          style={[
-                            styles.streakPrimaryValue,
-                            { color: theme.streakPrimaryText },
-                          ]}
-                        >
-                          {tile.currentStreak}
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={styles.streakStatsColumn}>
-                      <View style={styles.streakStatsGrid}>
-                        <View style={styles.streakStatsLabelRow}>
-                          <View style={styles.streakStatsCell}>
-                            <Text
-                              numberOfLines={2}
-                              style={[
-                                styles.streakStatLabel,
-                                { color: theme.streakStatLabel },
-                              ]}
-                            >
-                              {t("streaks.stats.longest")}
-                            </Text>
-                          </View>
-                          <View style={styles.streakStatsCell}>
-                            <Text
-                              numberOfLines={2}
-                              style={[
-                                styles.streakStatLabel,
-                                { color: theme.streakStatLabel },
-                              ]}
-                            >
-                              {t("streaks.stats.record")}
-                            </Text>
-                          </View>
-                        </View>
-                        <View style={styles.streakStatsValueRow}>
-                          <View style={styles.streakStatsCell}>
-                            <Text
-                              numberOfLines={1}
-                              style={[
-                                styles.streakStatValue,
-                                { color: theme.streakStatValue },
-                              ]}
-                            >
-                              {longestLabel}
-                            </Text>
-                          </View>
-                          <View style={styles.streakStatsCell}>
-                            <Text
-                              numberOfLines={1}
-                              style={[
-                                styles.streakStatValue,
-                                { color: theme.streakStatValue },
-                              ]}
-                            >
-                              {recordPerDayLabel}
-                            </Text>
-                          </View>
-                        </View>
-                      </View>
-                    </View>
-                  </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`streak: ${metrics.currentStreak}`}
+          onPress={metrics.onPress}
+          hitSlop={8}
+          style={({ pressed }) => [
+            styles.metricsCardPressable,
+            pressed && { opacity: 0.9 },
+            { transform: [{ scale: pressed ? 0.98 : 1 }] }
+          ]}
+        >
+          <GlassSurface
+            style={styles.metricsCard}
+            glassEffectStyle="regular"
+            tintColor={theme.cardBackgroundColor}
+            fallbackBackgroundColor={theme.cardBackgroundColor}
+            isInteractive
+          >
+            <View style={styles.metricsCardInner}>
+              <View style={styles.metricsHeaderRow}>
+                <SFSymbol name="flame.fill" size={16} color="#F97316" />
+                <Text style={[styles.metricsHeaderLabel, { color: theme.mutedText }]}>STREAK</Text>
+              </View>
+              <Text style={[styles.metricsPrimaryValue, { color: theme.primaryText }]}>
+                {metrics.currentStreak}
+              </Text>
+            </View>
+          </GlassSurface>
+        </Pressable>
 
-                  <View style={styles.streakProgressWrap}>
-                    <View style={styles.streakProgressTrackInset}>
-                      <GlassSurface
-                        style={[
-                          styles.streakProgressTrack,
-                          { backgroundColor: theme.streakProgressTrack },
-                        ]}
-                        glassEffectStyle="regular"
-                        tintColor={theme.streakProgressTrack}
-                        fallbackBackgroundColor={theme.streakProgressTrack}
-                      >
-                        <GlassSurface
-                          style={[
-                            styles.streakProgressFill,
-                            {
-                              width: `${progressPercent}%`,
-                              backgroundColor: theme.streakProgressFill,
-                            },
-                          ]}
-                          glassEffectStyle="regular"
-                          tintColor={theme.streakProgressFill}
-                          fallbackBackgroundColor={theme.streakProgressFill}
-                        />
-                        <View
-                          pointerEvents="none"
-                          style={styles.streakProgressLabelsRow}
-                        >
-                          {scaleDays.map((day) => (
-                            <View key={day} style={styles.streakProgressLabelCell}>
-                              <Text
-                                style={[
-                                  styles.streakProgressLabelText,
-                                  { color: theme.streakPrimaryText },
-                                ]}
-                              >
-                                {day}
-                              </Text>
-                            </View>
-                          ))}
-                        </View>
-                      </GlassSurface>
-                    </View>
-                  </View>
-                </View>
-              </GlassSurface>
-            </Pressable>
-          );
-        })}
       </View>
-    </View >
+    </View>
   );
 }
 
@@ -1144,7 +1032,7 @@ export default function HomeScreen() {
       cancelled = true;
     };
   }, []);
-  const { currentStreak, longestStreak, mostTasksInOneDay } = useStreaks();
+  const { currentStreak } = useStreaks();
   const [selectedDateStart, setSelectedDateStart] = React.useState(() =>
     getStartOfToday(),
   );

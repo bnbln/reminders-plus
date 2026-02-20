@@ -344,7 +344,7 @@ const createStyles = (theme: keyof typeof Colors) => {
     },
     content: {
       paddingHorizontal: 16,
-      paddingTop: 12,
+      paddingTop: 8,
       paddingBottom: 56,
     },
 
@@ -427,18 +427,18 @@ const createStyles = (theme: keyof typeof Colors) => {
     actionSlotInner: {
       width: 40,
       height: 40,
-      borderRadius: 11,
+      borderRadius: 999,
       alignItems: 'center',
       justifyContent: 'center',
     },
     row: {
-      minHeight: 66,
+      minHeight: 60,
       borderRadius: 0,
       backgroundColor: rowSurface,
       justifyContent: 'center',
       paddingHorizontal: 8,
-      paddingVertical: 11,
-      gap: 6,
+      paddingVertical: 8,
+      gap: 4,
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: rowDivider,
     },
@@ -451,7 +451,7 @@ const createStyles = (theme: keyof typeof Colors) => {
     rowInner: {
       flexDirection: 'row',
       alignItems: 'flex-start',
-      gap: 12,
+      gap: 10,
     },
     emojiTile: {
       width: 30,
@@ -468,7 +468,7 @@ const createStyles = (theme: keyof typeof Colors) => {
     },
     textStack: {
       flex: 1,
-      gap: 4,
+      gap: 2,
     },
     titleRow: {
       flexDirection: 'row',
@@ -477,23 +477,23 @@ const createStyles = (theme: keyof typeof Colors) => {
     },
     rowTitle: {
       flex: 1,
-      fontSize: 17,
-      lineHeight: 22,
-      fontWeight: '600',
+      fontSize: 16,
+      lineHeight: 21,
+      fontWeight: '700',
       color: text,
       letterSpacing: -0.2,
     },
     rowMeta: {
-      fontSize: 12,
-      lineHeight: 16,
-      fontWeight: '600',
+      fontSize: 11,
+      lineHeight: 14,
+      fontWeight: '700',
       color: rowMetaText,
       letterSpacing: 0.15,
     },
     rowSubtitle: {
-      fontSize: 14,
-      lineHeight: 19,
-      fontWeight: '500',
+      fontSize: 13,
+      lineHeight: 17,
+      fontWeight: '600',
       color: withAlpha(text, 0.72),
     },
     tagRow: {
@@ -521,7 +521,7 @@ const createStyles = (theme: keyof typeof Colors) => {
     tagChipText: {
       fontSize: 12,
       lineHeight: 16,
-      fontWeight: '600',
+      fontWeight: '700',
       color: tagText,
       maxWidth: 220,
     },
