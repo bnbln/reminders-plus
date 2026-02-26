@@ -1,8 +1,13 @@
 import { useIsFocused } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import React from 'react';
-import type { StyleProp, ViewStyle } from 'react-native';
-import { LayoutAnimation, View } from 'react-native';
+import {
+  LayoutAnimation,
+  LayoutChangeEvent,
+  View,
+  type StyleProp,
+  type ViewStyle
+} from "react-native";
 import DraggableFlatList, {
   NestableDraggableFlatList,
   NestableScrollContainer,
@@ -118,10 +123,12 @@ export type TaskSwipeDraggableListProps = {
 
   contentContainerStyle?: StyleProp<ViewStyle>;
   containerStyle?: StyleProp<ViewStyle>;
+  isDark: boolean;
+  onLayout?: (e: LayoutChangeEvent) => void;
   contentInsetAdjustmentBehavior?: 'automatic' | 'never';
 
   /**
-   * `react-native-draggable-flatlist` exposes scroll via `onScrollOffsetChange` (number), not `onScroll`.
+   * `react - native - draggable - flatlist` exposes scroll via `onScrollOffsetChange` (number), not `onScroll`.
    */
   onScrollOffsetChange?: (scrollOffset: number) => void;
 
@@ -133,7 +140,7 @@ export type TaskSwipeDraggableListProps = {
   onRowTouchStateChange?: (isTouchingRow: boolean) => void;
   /**
    * Horizontal outer board offset used to compensate active drag X while board auto-scrolls.
-   * Only used together with `dragAxisMode="free"`.
+   * Only used together with `dragAxisMode = "free"`.
    */
   crossAxisExternalOffset?: SharedValue<number>;
   /**
@@ -207,6 +214,8 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     renderHeaderRow,
     contentContainerStyle,
     containerStyle,
+    isDark,
+    onLayout,
     contentInsetAdjustmentBehavior,
     onScrollOffsetChange,
     onDragStateChange,
@@ -238,7 +247,6 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   },
   ref
 ) {
-  const isDark = theme === 'dark';
   const isFocused = useIsFocused();
   const { popInTaskIds, consumeTaskPopIn } = useTaskCreateContext();
 
@@ -460,7 +468,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   const listActivationDistance = usesNestedScrollGestures
     ? LIST_ACTIVATION_DISTANCE_NESTED
     : LIST_ACTIVATION_DISTANCE_DEFAULT;
-  // `react-native-draggable-flatlist` only emits `onDragTouchPoint` when cross-axis drag is enabled.
+  // `react - native - draggable - flatlist` only emits `onDragTouchPoint` when cross-axis drag is enabled.
   // Auto-enable it whenever callers subscribe to drag touch points.
   const allowCrossAxisDrag = dragAxisMode === "free" || !!onDragTouchPoint;
   const resolvedContainerStyle: StyleProp<ViewStyle> = React.useMemo(() => {
@@ -468,7 +476,8 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   }, [containerStyle, theme]);
 
   const renderItem = React.useCallback(
-    ({ item, drag, isActive }: RenderItemParams<TaskSwipeDraggableListItem>) => {
+    ({ item, drag, isActive, getIndex }: RenderItemParams<TaskSwipeDraggableListItem>) => {
+      const index = getIndex();
       if (item.kind === 'header') {
         return renderHeaderRow ? renderHeaderRow(item.sectionId) : null;
       }
@@ -494,6 +503,8 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           drag={drag}
           isActive={isActive}
           styles={rowStyles}
+          isDark={isDark}
+          isLast={index === flatListData.length - 1}
           itemSpacing={itemSpacing}
           emojiTint={emojiTint}
           emojiFallback={emojiFallback}
@@ -554,11 +565,12 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       unregisterClose,
       reportSwipeGestureActive,
       reportRowTouchInteraction,
+      flatListData.length,
     ]
   );
 
   const renderCompatItem = React.useCallback(
-    (item: TaskSwipeDraggableListItem) => {
+    (item: TaskSwipeDraggableListItem, index: number) => {
       if (item.kind === 'header') {
         return renderHeaderRow ? renderHeaderRow(item.sectionId) : null;
       }
@@ -584,6 +596,8 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           drag={() => { }}
           isActive={false}
           styles={rowStyles}
+          isDark={isDark}
+          isLast={index === flatListData.length - 1}
           itemSpacing={itemSpacing}
           emojiTint={emojiTint}
           emojiFallback={emojiFallback}
@@ -644,6 +658,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       unregisterClose,
       reportSwipeGestureActive,
       reportRowTouchInteraction,
+      flatListData.length,
     ]
   );
 
@@ -655,7 +670,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
         {flatListData.length === 0 ? (
           empty ?? null
         ) : (
-          flatListData.map((item) => <React.Fragment key={item.key}>{renderCompatItem(item)}</React.Fragment>)
+          flatListData.map((item, index) => <React.Fragment key={item.key}>{renderCompatItem(item, index)}</React.Fragment>)
         )}
 
         {footer ?? null}

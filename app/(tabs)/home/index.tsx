@@ -1,5 +1,5 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { MenuView, type MenuAction } from "@react-native-menu/menu";
+import { type MenuAction } from "@react-native-menu/menu";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import React from "react";
@@ -8,8 +8,9 @@ import {
   Easing,
   FlatList,
   type GestureResponderEvent,
-  type LayoutChangeEvent,
   LayoutAnimation,
+  type LayoutChangeEvent,
+  Modal,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   Platform,
@@ -20,7 +21,9 @@ import {
   View,
 } from "react-native";
 import { NestableScrollContainer } from "react-native-draggable-flatlist";
+
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 import {
   TaskSwipeDraggableList,
@@ -28,8 +31,8 @@ import {
   type TaskSwipeDraggableListItem,
 } from "@/components/tasks/task-swipe-draggable-list";
 import { FloatingAddButton } from "@/components/ui/floating-add-button";
-import { SFSymbol } from "@/components/ui/sfsymbol";
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
+import { SFSymbol } from "@/components/ui/sfsymbol";
 import { Colors } from "@/constants/theme";
 import { useHomeFilters } from "@/context/home-filters-store";
 import { useTaskCreateContext } from "@/context/task-create-context";
@@ -42,7 +45,7 @@ import {
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useStreaks } from "@/hooks/use-streaks";
-import { countLabel, getIntlLocale, t } from "@/i18n";
+import { getIntlLocale, t } from "@/i18n";
 import { isIOS26OrNewer } from "@/utils/ios-version";
 import {
   alignDueAtToLocalDay,
@@ -56,16 +59,16 @@ type ThemeName = keyof typeof Colors;
 const GRID_HORIZONTAL_PADDING = 16;
 const GRID_GAP = 10;
 const SECTION_SIDE_INSET = 0;
-const DATE_RAIL_HORIZONTAL_PADDING = 12;
+const DATE_RAIL_HORIZONTAL_PADDING = 6;
 const DATE_RAIL_PAST_DAYS = 119;
 const DATE_RAIL_FUTURE_DAYS = 365;
-const DATE_RAIL_MIN_ITEM_WIDTH = 44;
-const DATE_RAIL_ITEM_GAP = 0;
+const DATE_RAIL_MIN_ITEM_WIDTH = 40;
+const DATE_RAIL_ITEM_GAP = 6;
 const DATE_RAIL_PAGE_DAYS = 7;
 const DATE_DROP_VERTICAL_PADDING = 16;
 const STREAK_PROGRESS_DAYS = 7;
-const HOME_TASK_ITEM_SPACING = 4;
-const TASK_ROW_SIDE_BLEED = 6;
+const HOME_TASK_ITEM_SPACING = 8;
+const TASK_ROW_SIDE_BLEED = 8;
 const HERO_HEADER_OVERLAP = 268;
 const TASK_ROW_HORIZONTAL_PADDING = 12;
 const CONTENT_STACK_GAP = 10;
@@ -80,6 +83,10 @@ const SECTION_ORDER: SectionId[] = ["today", "upcoming", "completed"];
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
+
+// Month Year Picker styles
+const CALENDAR_POPOVER_WIDTH = 310;
+const CALENDAR_POPOVER_HEIGHT = 220;
 
 async function readOnboardingSeen(key: string): Promise<boolean> {
   try {
@@ -295,7 +302,7 @@ function HomeMetricsGrid({
   return (
     <View style={styles.metricsGridWrap}>
       <View style={styles.metricsGrid}>
-        
+
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`status: ${metrics.completionPercentage}%`}
@@ -418,79 +425,46 @@ const createStyles = (
       // Keep vertical spacing between streak card and the shared day panel.
       paddingBottom: CONTENT_STACK_GAP,
     },
-    quickGridWrap: {
+    metricsGridWrap: {
       marginTop: 0,
       marginBottom: 0,
       paddingHorizontal: GRID_HORIZONTAL_PADDING,
     },
-    quickGrid: {
+    metricsGrid: {
       flexDirection: "row",
-      flexWrap: "wrap",
-      gap: GRID_GAP,
+      justifyContent: "space-between",
+      gap: 16,
     },
-    quickTilePressable: {
-      width: "100%",
-      flexGrow: 0,
+    metricsCardPressable: {
+      flex: 1,
     },
-    quickTile: {
-      borderRadius: heroCardRadius,
+    metricsCard: {
+      borderRadius: 24,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: heroCardBorder,
-      backgroundColor: "transparent",
-      minHeight: 120,
       overflow: "hidden",
+      minHeight: 110,
     },
-    quickTileInner: {
-      paddingHorizontal: 24,
-      paddingTop: 26,
-      paddingBottom: 26,
-      gap: 20,
-      flex: 1,
-      justifyContent: "space-between",
-    },
-    streakHeaderRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 14,
-    },
-    streakLeadRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      flex: 1,
-      minWidth: 0,
-    },
-    streakFlameIcon: {
-      marginTop: 2,
-    },
-    streakLeadTextWrap: {
-      gap: 2,
-      justifyContent: "flex-start",
-      paddingTop: 0,
-    },
-    streakPrimaryValue: {
-      fontSize: 56,
-      lineHeight: 56,
-      fontWeight: WEIGHT_HERO,
-      letterSpacing: -1.5,
-    },
-    streakStatsColumn: {
-      alignItems: "stretch",
+    metricsCardInner: {
+      paddingHorizontal: 20,
+      paddingVertical: 20,
       justifyContent: "center",
-      marginLeft: 8,
-      minWidth: 178,
-      flexShrink: 0,
-      paddingTop: 2,
-      paddingRight: 2,
+      gap: 8,
     },
-    streakStatsGrid: {
-      gap: 6,
-    },
-    streakStatsLabelRow: {
+    metricsHeaderRow: {
       flexDirection: "row",
       alignItems: "center",
       gap: 8,
+    },
+    metricsHeaderLabel: {
+      fontSize: 13,
+      fontWeight: WEIGHT_HEADING,
+      letterSpacing: 0.5,
+    },
+    metricsPrimaryValue: {
+      fontSize: 40,
+      fontWeight: WEIGHT_HERO,
+      letterSpacing: -0.5,
     },
     streakStatsValueRow: {
       flexDirection: "row",
@@ -554,22 +528,24 @@ const createStyles = (
       letterSpacing: 0.15,
     },
     dateRailWrap: {
-      paddingHorizontal: DATE_RAIL_HORIZONTAL_PADDING,
-      // Mirror spacing below the divider for optical centering.
-      paddingTop: 16,
-      paddingBottom: 10,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: heroCardBorder,
-      marginBottom: 0,
+      paddingHorizontal: 0,
+      paddingTop: 10,
+      paddingBottom: 6,
+      marginHorizontal: 10,
+      marginTop: 0,
+      marginBottom: 6,
+      zIndex: 100,
     },
     dateRailMotionContent: {
       position: "relative",
+      zIndex: 100,
     },
     dateRailTitleHost: {
       position: "relative",
       minHeight: 36,
       marginBottom: 12,
       justifyContent: "center",
+      zIndex: 100,
     },
     dateRailTitlePressable: {
       width: "100%",
@@ -593,11 +569,63 @@ const createStyles = (
       alignItems: "center",
       justifyContent: "center",
     },
+    dateRailTitleCenterHost: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+    },
     dateRailTitleRow: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
       gap: 8,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: RADIUS_PILL,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: hairline,
+    },
+    calendarButton: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      marginLeft: 8,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: heroCardBorder,
+    },
+    calendarPopover: {
+      width: CALENDAR_POPOVER_WIDTH,
+      height: CALENDAR_POPOVER_HEIGHT,
+      borderRadius: RADIUS_CARD,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: heroCardBorder,
+      overflow: "hidden",
+      shadowColor: "#000000",
+      shadowOpacity: isDark ? 0.4 : 0.18,
+      shadowRadius: 28,
+      shadowOffset: { width: 0, height: 14 },
+    },
+    calendarPopoverHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: heroCardBorder,
+    },
+    calendarPopoverTitle: {
+      fontSize: 14,
+      fontWeight: WEIGHT_HEADING,
+      color: text,
+      opacity: ALPHA_2,
+    },
+    calendarPopoverDone: {
+      fontSize: 14,
+      fontWeight: WEIGHT_HEADING,
+      color: ACCENT,
     },
     dateRailTitle: {
       fontSize: 18,
@@ -615,28 +643,24 @@ const createStyles = (
     },
     dateRailDay: {
       width: dateRailItemWidth,
-      alignItems: "center",
-      justifyContent: "flex-start",
-      gap: 4,
-      paddingHorizontal: 0,
-      paddingTop: 1,
-      paddingBottom: 5,
-    },
-    dateRailDayBubble: {
-      width: dayBubbleSize,
-      height: dayBubbleSize,
-      borderRadius: dayBubbleSize / 2,
+      height: 64,
       alignItems: "center",
       justifyContent: "center",
+      gap: 2,
+      paddingHorizontal: 0,
+      paddingTop: 6,
+      paddingBottom: 6,
+      borderRadius: 12,
+      backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
     },
-    dateRailDayBubbleSelected: {
+    dateRailDaySelected: {
       backgroundColor: ACCENT,
     },
     dateRailDayNum: {
-      color: isDark ? "rgba(255,255,255,0.92)" : "#111111",
-      fontSize: 21,
+      color: isDark ? "rgba(255,255,255,0.92)" : "#475569",
+      fontSize: 20,
       lineHeight: 24,
-      fontWeight: WEIGHT_SUBTLE,
+      fontWeight: WEIGHT_HEADING,
       letterSpacing: -0.15,
     },
     dateRailDayNumSelected: {
@@ -649,26 +673,29 @@ const createStyles = (
       color: withAlpha(text, ALPHA_3),
     },
     dateRailDow: {
-      color: isDark ? "rgba(255,255,255,0.9)" : "#111111",
-      fontSize: 11,
-      lineHeight: 14,
+      color: isDark ? "rgba(255,255,255,0.8)" : "#64748B",
+      fontSize: 10,
+      lineHeight: 12,
       fontWeight: WEIGHT_BODY,
       letterSpacing: 0.35,
       textTransform: "uppercase",
+    },
+    dateRailDowSelected: {
+      color: "#FFFFFF",
     },
     dateRailDowWeekend: {
       color: withAlpha(text, ALPHA_3),
     },
     dateRailEventIndicator: {
-      marginTop: 2,
+      position: "absolute",
+      bottom: 6,
       width: 6,
       height: 6,
       borderRadius: 3,
-      backgroundColor: isDark ? withAlpha("#FFFFFF", ALPHA_2) : withAlpha("#FFFFFF", 0.9),
+      backgroundColor: isDark ? withAlpha("#FFFFFF", ALPHA_2) : withAlpha("#000000", 0.5),
     },
     dateRailEventIndicatorSpacer: {
-      height: 6,
-      marginTop: 2,
+      display: "none",
     },
     dateTasksSurface: {
       position: "relative",
@@ -695,21 +722,36 @@ const createStyles = (
     },
     segmentSurfaceDragActive: {
       overflow: "visible",
-      zIndex: 40,
+      zIndex: 200,
       elevation: 24,
     },
     segmentSurfaceDragInactive: {
       zIndex: 10,
     },
+    segmentSurfaceDropHover: {
+      borderWidth: 2,
+      borderColor: ACCENT,
+      backgroundColor: isDark ? "rgba(244, 81, 44, 0.08)" : "rgba(244, 81, 44, 0.05)",
+    },
     taskListInset: {
       paddingHorizontal: TASK_ROW_SIDE_BLEED,
-      paddingTop: 10,
-      paddingBottom: 8,
+      paddingTop: 0,
+      paddingBottom: 0,
       overflow: "visible",
     },
     taskListInsetNoContent: {
       paddingTop: 0,
       paddingBottom: 0,
+    },
+    taskContentSolid: {
+      marginHorizontal: 4,
+      marginTop: 0,
+      marginBottom: 0,
+      borderRadius: 18,
+      backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
+      overflow: "hidden",
+      paddingHorizontal: 0,
+      paddingVertical: 8,
     },
     dateListTransitionHost: {
       position: "relative",
@@ -756,10 +798,10 @@ const createStyles = (
       marginBottom: 0,
     },
     swipeClip: {
-      borderRadius: RADIUS_CARD,
+      borderRadius: 12,
       overflow: "hidden",
-      backgroundColor: rowSurface,
-      marginHorizontal: -TASK_ROW_SIDE_BLEED,
+      backgroundColor: "transparent",
+      marginHorizontal: 0,
     },
     underlay: {
       ...StyleSheet.absoluteFillObject,
@@ -779,25 +821,22 @@ const createStyles = (
       alignItems: "center",
     },
     actionSlotInner: {
-      width: 40,
-      height: 40,
-      borderRadius: RADIUS_TILE,
+      flex: 1,
       alignItems: "center",
       justifyContent: "center",
+      alignSelf: "stretch",
     },
     row: {
-      minHeight: 56,
-      borderRadius: 0,
-      backgroundColor: rowSurface,
+      minHeight: 52,
+      borderRadius: 12,
+      backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.03)",
       justifyContent: "center",
-      paddingHorizontal: TASK_ROW_HORIZONTAL_PADDING,
-      paddingVertical: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
       gap: 4,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: withAlpha(rowDivider, 0.5),
     },
     dragRow: {
-      borderRadius: RADIUS_CARD,
+      borderRadius: 20,
       backgroundColor: rowSurface,
       borderWidth: 0,
       opacity: 1,
@@ -815,17 +854,18 @@ const createStyles = (
       gap: 10,
     },
     emojiTile: {
-      width: 34,
-      height: 34,
-      borderRadius: RADIUS_TILE,
+      width: 36,
+      height: 36,
+      borderRadius: 10,
       alignItems: "center",
       justifyContent: "center",
       overflow: "hidden",
-      borderWidth: StyleSheet.hairlineWidth,
-      marginTop: 1,
+      borderWidth: 0,
+      marginTop: 0,
+      backgroundColor: "transparent",
     },
     emojiText: {
-      fontSize: 20,
+      fontSize: 24,
     },
     textStack: {
       flex: 1,
@@ -838,24 +878,24 @@ const createStyles = (
     },
     rowTitle: {
       flex: 1,
-      fontSize: 17,
-      lineHeight: 22,
+      fontSize: 16,
+      lineHeight: 20,
       fontWeight: WEIGHT_HEADING,
       color: text,
-      letterSpacing: -0.25,
+      letterSpacing: -0.2,
     },
     rowMeta: {
-      fontSize: 11,
-      lineHeight: 15,
+      fontSize: 10,
+      lineHeight: 14,
       fontWeight: WEIGHT_BODY,
       color: rowMetaText,
       letterSpacing: 0.1,
     },
     rowSubtitle: {
-      fontSize: 13,
-      lineHeight: 18,
+      fontSize: 12,
+      lineHeight: 16,
       fontWeight: WEIGHT_SUBTLE,
-      color: withAlpha(text, 0.36),
+      color: withAlpha(text, 0.32),
     },
     tagRow: {
       flexDirection: "row",
@@ -866,30 +906,31 @@ const createStyles = (
     tagChip: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 4,
+      gap: 3,
       maxWidth: "100%",
-      paddingVertical: 3,
-      paddingHorizontal: 7,
-      borderRadius: RADIUS_CHIP,
+      paddingVertical: 2,
+      paddingHorizontal: 8,
+      borderRadius: RADIUS_PILL,
       borderWidth: 0,
-      backgroundColor: tagBg,
+      backgroundColor: isDark ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.85)",
     },
     tagChipDanger: {
       backgroundColor: dangerBg,
       borderColor: dangerBorder,
     },
     tagChipText: {
-      fontSize: 11,
-      lineHeight: 15,
-      fontWeight: WEIGHT_BODY,
-      letterSpacing: 0.1,
-      color: tagText,
+      fontSize: 10,
+      lineHeight: 14,
+      fontWeight: WEIGHT_HEADING,
+      letterSpacing: 0.2,
+      textTransform: "uppercase" as const,
+      color: isDark ? withAlpha(text, 0.7) : withAlpha(text, 0.5),
       maxWidth: 220,
     },
     emptyState: {
-      paddingTop: 22,
-      paddingBottom: 16,
+      paddingVertical: 28,
       alignItems: "center",
+      justifyContent: "center",
     },
     upcomingEmptyDropZone: {
       minHeight: 86,
@@ -930,6 +971,37 @@ const createStyles = (
       height: 70,
       opacity: 0,
     },
+    calendarPickerContainer: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 1000,
+    },
+    calendarPickerOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: "rgba(0,0,0,0.4)",
+    },
+    calendarPickerContent: {
+      width: CALENDAR_POPOVER_WIDTH,
+      height: CALENDAR_POPOVER_HEIGHT,
+      borderRadius: RADIUS_CARD,
+      overflow: "hidden",
+    },
+    calendarPickerButton: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: RADIUS_PILL,
+      backgroundColor: withAlpha(text, 0.1),
+    },
+    calendarPickerButtonText: {
+      fontSize: 14,
+      fontWeight: WEIGHT_BODY,
+      color: text,
+    },
   });
 };
 
@@ -939,6 +1011,13 @@ export default function HomeScreen() {
   const theme = useColorScheme() ?? "light";
   const isDark = theme === "dark";
   const { width: viewportWidth } = useWindowDimensions();
+
+  const [isCalendarPickerOpen, setIsCalendarPickerOpen] = React.useState(false);
+  const [calendarPickerDate, setCalendarPickerDate] = React.useState(() => {
+    const d = new Date();
+    return { month: d.getMonth() + 1, year: d.getFullYear() };
+  });
+
   const showFloatingAddButton = Platform.OS === "ios" && !isIOS26OrNewer();
   const params = useLocalSearchParams<{
     sections?: string;
@@ -951,15 +1030,18 @@ export default function HomeScreen() {
   );
   const withNotesEnabled = params.withNotes === "1";
   const dateRailItemWidth = React.useMemo(() => {
+    // The date rail lives inside a container with marginHorizontal: 10 from the surface,
+    // the surface itself has GRID_HORIZONTAL_PADDING from screen edges.
+    const railContainerMargin = 10; // matches taskContentSolid marginHorizontal
     const availableWidth = Math.max(
       0,
       viewportWidth -
       GRID_HORIZONTAL_PADDING * 2 -
-      DATE_RAIL_HORIZONTAL_PADDING * 2,
+      railContainerMargin * 2,
     );
     return Math.max(
       DATE_RAIL_MIN_ITEM_WIDTH,
-      (availableWidth - DATE_RAIL_ITEM_GAP * 6) / 7,
+      Math.floor((availableWidth - DATE_RAIL_ITEM_GAP * 6) / 7),
     );
   }, [viewportWidth]);
   const styles = React.useMemo(
@@ -1109,57 +1191,55 @@ export default function HomeScreen() {
   const dropCommitFrameRef = React.useRef<number | null>(null);
   const upcomingSurfaceRef = React.useRef<View | null>(null);
   const upcomingSurfaceBoundsRef = React.useRef<DragBounds | null>(null);
+  const todaySurfaceRef = React.useRef<View | null>(null);
+  const todaySurfaceBoundsRef = React.useRef<DragBounds | null>(null);
+  const [isHoveringUpcomingDropZone, setIsHoveringUpcomingDropZone] = React.useState(false);
+  const [isHoveringTodayDropZone, setIsHoveringTodayDropZone] = React.useState(false);
   const dragLastTouchPointRef = React.useRef<{
     absoluteX: number;
     absoluteY: number;
   } | null>(null);
 
-  const quickTiles = React.useMemo<QuickTile[]>(() => {
-    return [
-      {
-        key: "streaks",
-        currentStreak,
-        longestStreak,
-        mostTasksInOneDay,
-        onPress: () => router.push("/home/streaks"),
-      },
-    ];
-  }, [currentStreak, longestStreak, mostTasksInOneDay, router]);
+  const completionPercentage = React.useMemo(() => {
+    let todayTotal = 0;
+    let todayCompleted = 0;
+    const todayStartMs = getStartOfToday();
 
-  const quickNavTheme = React.useMemo<QuickNavTheme>(() => {
-    const accentDark = "#F4512C";
-    const accentLight = "#D94722";
-    const topSurface = Colors[theme].background;
-    const topDivider = withAlpha(Colors[theme].text, isDark ? 0.08 : 0.1);
-    if (isDark) {
-      return {
-        topSurface,
-        topDivider,
-        cardTintColor: withAlpha(Colors[theme].background, 0.2),
-        cardFallbackColor: "#1F2224",
-        streakFlameActive: accentDark,
-        streakFlameInactive: "rgba(245,245,245,0.34)",
-        streakPrimaryText: "#F5F5F5",
-        streakMutedText: "rgba(245,245,245,0.76)",
-        streakStatLabel: "rgba(245,245,245,0.58)",
-        streakStatValue: "rgba(245,245,245,0.92)",
-        streakProgressTrack: "rgba(255,255,255,0.16)",
-        streakProgressFill: accentDark,
-      };
+    for (const task of tasks) {
+      if (task.deletedAt) continue;
+
+      const isDueToday =
+        hasValidDueAt(task.dueAt) && isSameLocalDay(task.dueAt, todayStartMs);
+      const isCompletedToday =
+        task.completedAt && isSameLocalDay(task.completedAt, todayStartMs);
+
+      if (isDueToday || isCompletedToday) {
+        todayTotal++;
+        if (task.completedAt) {
+          todayCompleted++;
+        }
+      }
     }
+
+    if (todayTotal === 0) return 0;
+    return Math.round((todayCompleted / todayTotal) * 100);
+  }, [tasks]);
+
+  const homeMetricsProps = React.useMemo<HomeMetricsProps>(() => {
     return {
-      topSurface,
-      topDivider,
-      cardTintColor: withAlpha(Colors[theme].background, 0.52),
-      cardFallbackColor: "#F3F4F7",
-      streakFlameActive: accentLight,
-      streakFlameInactive: "rgba(18,18,18,0.3)",
-      streakPrimaryText: "#121212",
-      streakMutedText: "rgba(18,18,18,0.66)",
-      streakStatLabel: "rgba(18,18,18,0.52)",
-      streakStatValue: "rgba(18,18,18,0.86)",
-      streakProgressTrack: "rgba(18,18,18,0.18)",
-      streakProgressFill: accentLight,
+      completionPercentage,
+      currentStreak,
+      onPress: () => router.push("/home/streaks"),
+    };
+  }, [completionPercentage, currentStreak, router]);
+
+  const homeMetricsTheme = React.useMemo<HomeMetricsTheme>(() => {
+    return {
+      topSurface: Colors[theme].background,
+      cardBackgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
+      borderColor: isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.12)",
+      primaryText: isDark ? "#FFFFFF" : "#000000",
+      mutedText: "#94A3B8",
     };
   }, [isDark, theme]);
 
@@ -1315,7 +1395,7 @@ export default function HomeScreen() {
         title: option.title,
         state:
           Platform.OS === "ios" &&
-          isSameLocalMonth(option.monthStart, selectedDateStart)
+            isSameLocalMonth(option.monthStart, selectedDateStart)
             ? "on"
             : undefined,
       })),
@@ -1707,6 +1787,24 @@ export default function HomeScreen() {
         return;
       }
       upcomingSurfaceBoundsRef.current = { x, y, width, height };
+    });
+  }, []);
+
+  const measureTodaySurfaceBounds = React.useCallback(() => {
+    const node =
+      // @ts-ignore - some refs expose getNode
+      todaySurfaceRef.current?.getNode?.() ?? todaySurfaceRef.current;
+    if (!node || typeof node.measureInWindow !== "function") return;
+    node.measureInWindow((x: number, y: number, width: number, height: number) => {
+      if (
+        !Number.isFinite(x) ||
+        !Number.isFinite(y) ||
+        !Number.isFinite(width) ||
+        !Number.isFinite(height)
+      ) {
+        return;
+      }
+      todaySurfaceBoundsRef.current = { x, y, width, height };
     });
   }, []);
   React.useEffect(
@@ -2156,6 +2254,7 @@ export default function HomeScreen() {
       clearUpcomingExpandTimer();
       setActiveDragSurface(sourceSection === "today" ? "today" : "upcoming");
       measureUpcomingSurfaceBounds();
+      measureTodaySurfaceBounds();
       clearDateDragHover();
       measureDateRailBounds();
     },
@@ -2164,6 +2263,7 @@ export default function HomeScreen() {
       clearDateDragHover,
       clearUpcomingExpandTimer,
       measureDateRailBounds,
+      measureTodaySurfaceBounds,
       measureUpcomingSurfaceBounds,
       visibleTaskDisplaySectionById,
       visibleTasksById,
@@ -2181,7 +2281,7 @@ export default function HomeScreen() {
 
       const { absoluteX, absoluteY } = params;
       dragLastTouchPointRef.current = { absoluteX, absoluteY };
-      const isHoveringUpcomingSurface = isPointNearBounds(
+      const isHoveringUpcomingSurface = dragContextRef.current.sourceSection === "today" && isPointNearBounds(
         upcomingSurfaceBoundsRef.current,
         absoluteX,
         absoluteY,
@@ -2193,10 +2293,25 @@ export default function HomeScreen() {
         },
       );
       if (isHoveringUpcomingSurface) {
+        setIsHoveringUpcomingDropZone(true);
         scheduleUpcomingExpandOnHover();
       } else {
+        setIsHoveringUpcomingDropZone(false);
         clearUpcomingExpandTimer();
       }
+
+      const isHoveringTodaySurface = dragContextRef.current.sourceSection === "upcoming" && isPointNearBounds(
+        todaySurfaceBoundsRef.current,
+        absoluteX,
+        absoluteY,
+        {
+          top: 36,
+          right: 20,
+          bottom: 64,
+          left: 20,
+        },
+      );
+      setIsHoveringTodayDropZone(isHoveringTodaySurface);
       const bounds = dateRailBoundsRef.current;
       if (!bounds) return;
 
@@ -2300,6 +2415,27 @@ export default function HomeScreen() {
     [collapsedSections.upcoming, hasUpcomingTasks],
   );
 
+  const shouldDropIntoTodaySurface = React.useCallback(
+    (dragContext: { taskId: string; sourceSection: SectionId; sourceHasDueAt: boolean }) => {
+      if (dragContext.sourceSection !== "upcoming") return false;
+      const point = dragLastTouchPointRef.current;
+      if (!point) return false;
+      return isPointNearBounds(
+        todaySurfaceBoundsRef.current,
+        point.absoluteX,
+        point.absoluteY,
+        {
+          // Allow dropping slightly around the bounds
+          top: 68,
+          right: 28,
+          bottom: 18,
+          left: 28,
+        },
+      );
+    },
+    [],
+  );
+
   const applyDraggedTaskToUpcomingUndated = React.useCallback(
     (taskId: string) => {
       setTasks((prev) => {
@@ -2388,6 +2524,8 @@ export default function HomeScreen() {
       dragLastRailDateStartRef.current = null;
       clearUpcomingExpandTimer();
       clearDateDragHover();
+      setIsHoveringUpcomingDropZone(false);
+      setIsHoveringTodayDropZone(false);
 
       if (!dragContext) {
         dragLastTouchPointRef.current = null;
@@ -2404,6 +2542,18 @@ export default function HomeScreen() {
           );
           applyDraggedTaskToUpcomingUndated(droppedTaskId);
           queueTaskPopIn(droppedTaskId);
+        });
+        return true;
+      }
+
+      if (shouldDropIntoTodaySurface(dragContext)) {
+        const droppedTaskId = dragContext.taskId;
+        dragLastTouchPointRef.current = null;
+        queueDropCommit(() => {
+          configureSmoothListLayoutTransition();
+          applyDraggedTaskToDate(droppedTaskId, listDateStartRef.current);
+          queueTaskPopIn(droppedTaskId);
+          selectDateWithoutTransition(listDateStartRef.current);
         });
         return true;
       }
@@ -2434,6 +2584,7 @@ export default function HomeScreen() {
       resolveOpenDayDropDateStart,
       selectDateWithoutTransition,
       shouldDropIntoUpcomingSurface,
+      shouldDropIntoTodaySurface,
     ],
   );
 
@@ -2609,30 +2760,53 @@ export default function HomeScreen() {
             isUpcoming && { justifyContent: "center", gap: 8 },
           ]}
         >
-          <Text
-            style={isUpcoming ? styles.dateRailTitle : styles.sectionTitle}
-          >
-            {t(SECTION_TITLE_KEYS[id])}
-          </Text>
-          {isCollapsible ? (
-            <MaterialIcons
-              name="chevron-right"
-              size={isUpcoming ? 24 : 18}
-              color={
-                isUpcoming
-                  ? Colors[theme].text
-                  : withAlpha(Colors[theme].text, 0.48)
-              }
-              style={[
-                styles.sectionChevron,
-                {
-                  transform: [{ rotate: isCollapsed ? "0deg" : "90deg" }],
-                  opacity: isUpcoming ? 1 : 0.48,
-                  marginTop: isUpcoming ? 2 : 0, // Visual tuning for larger font
-                },
-              ]}
-            />
-          ) : null}
+          {isUpcoming ? (
+            <GlassSurface
+              tintColor={withAlpha(Colors[theme].background, isDark ? 0.18 : 0.28)}
+              fallbackBackgroundColor={withAlpha(Colors[theme].background, isDark ? 0.86 : 0.92)}
+              style={styles.dateRailTitleRow}
+            >
+              <Text style={styles.dateRailTitle}>
+                {t(SECTION_TITLE_KEYS[id])}
+              </Text>
+              {isCollapsible ? (
+                <MaterialIcons
+                  name="chevron-right"
+                  size={24}
+                  color={Colors[theme].text}
+                  style={[
+                    styles.sectionChevron,
+                    {
+                      transform: [{ rotate: isCollapsed ? "0deg" : "90deg" }],
+                      opacity: 1,
+                      marginTop: 2,
+                    },
+                  ]}
+                />
+              ) : null}
+            </GlassSurface>
+          ) : (
+            <>
+              <Text style={styles.sectionTitle}>
+                {t(SECTION_TITLE_KEYS[id])}
+              </Text>
+              {isCollapsible ? (
+                <MaterialIcons
+                  name="chevron-right"
+                  size={18}
+                  color={withAlpha(Colors[theme].text, 0.48)}
+                  style={[
+                    styles.sectionChevron,
+                    {
+                      transform: [{ rotate: isCollapsed ? "0deg" : "90deg" }],
+                      opacity: 0.48,
+                      marginTop: 0,
+                    },
+                  ]}
+                />
+              ) : null}
+            </>
+          )}
         </Pressable>
       );
 
@@ -2657,7 +2831,14 @@ export default function HomeScreen() {
       <View
         ref={dateRailWrapRef}
         onLayout={measureDateRailBounds}
-        style={styles.dateRailWrap}
+        style={[
+          styles.dateRailWrap,
+          collapsedSections.today && {
+            paddingTop: 6,
+            paddingBottom: 6,
+            marginBottom: 0,
+          },
+        ]}
       >
         <View style={styles.dateRailMotionContent}>
           <View style={styles.dateRailTitleHost}>
@@ -2676,9 +2857,9 @@ export default function HomeScreen() {
             >
               <View style={styles.dateRailTitleViewport}>
                 {isDateListTransitioning &&
-                dateListTransitionState &&
-                transitionFromHeaderTitle &&
-                transitionToHeaderTitle ? (
+                  dateListTransitionState &&
+                  transitionFromHeaderTitle &&
+                  transitionToHeaderTitle ? (
                   <Animated.View
                     style={[
                       styles.dateRailTitleTrack,
@@ -2693,7 +2874,17 @@ export default function HomeScreen() {
                             { width: dateListTransitionPageWidth },
                           ]}
                         >
-                          <View style={styles.dateRailTitleRow}>
+                          <GlassSurface
+                            tintColor={withAlpha(
+                              Colors[theme].background,
+                              isDark ? 0.18 : 0.28,
+                            )}
+                            fallbackBackgroundColor={withAlpha(
+                              Colors[theme].background,
+                              isDark ? 0.86 : 0.92,
+                            )}
+                            style={styles.dateRailTitleRow}
+                          >
                             <Text style={styles.dateRailTitle}>{transitionFromHeaderTitle}</Text>
                             <MaterialIcons
                               name="chevron-right"
@@ -2710,7 +2901,7 @@ export default function HomeScreen() {
                                 },
                               ]}
                             />
-                          </View>
+                          </GlassSurface>
                         </View>
                         <View
                           style={[
@@ -2718,7 +2909,17 @@ export default function HomeScreen() {
                             { width: dateListTransitionPageWidth },
                           ]}
                         >
-                          <View style={styles.dateRailTitleRow}>
+                          <GlassSurface
+                            tintColor={withAlpha(
+                              Colors[theme].background,
+                              isDark ? 0.18 : 0.28,
+                            )}
+                            fallbackBackgroundColor={withAlpha(
+                              Colors[theme].background,
+                              isDark ? 0.86 : 0.92,
+                            )}
+                            style={styles.dateRailTitleRow}
+                          >
                             <Text style={styles.dateRailTitle}>{transitionToHeaderTitle}</Text>
                             <MaterialIcons
                               name="chevron-right"
@@ -2735,7 +2936,7 @@ export default function HomeScreen() {
                                 },
                               ]}
                             />
-                          </View>
+                          </GlassSurface>
                         </View>
                       </>
                     ) : (
@@ -2746,7 +2947,17 @@ export default function HomeScreen() {
                             { width: dateListTransitionPageWidth },
                           ]}
                         >
-                          <View style={styles.dateRailTitleRow}>
+                          <GlassSurface
+                            tintColor={withAlpha(
+                              Colors[theme].background,
+                              isDark ? 0.18 : 0.28,
+                            )}
+                            fallbackBackgroundColor={withAlpha(
+                              Colors[theme].background,
+                              isDark ? 0.86 : 0.92,
+                            )}
+                            style={styles.dateRailTitleRow}
+                          >
                             <Text style={styles.dateRailTitle}>{transitionToHeaderTitle}</Text>
                             <MaterialIcons
                               name="chevron-right"
@@ -2763,7 +2974,7 @@ export default function HomeScreen() {
                                 },
                               ]}
                             />
-                          </View>
+                          </GlassSurface>
                         </View>
                         <View
                           style={[
@@ -2771,7 +2982,17 @@ export default function HomeScreen() {
                             { width: dateListTransitionPageWidth },
                           ]}
                         >
-                          <View style={styles.dateRailTitleRow}>
+                          <GlassSurface
+                            tintColor={withAlpha(
+                              Colors[theme].background,
+                              isDark ? 0.18 : 0.28,
+                            )}
+                            fallbackBackgroundColor={withAlpha(
+                              Colors[theme].background,
+                              isDark ? 0.86 : 0.92,
+                            )}
+                            style={styles.dateRailTitleRow}
+                          >
                             <Text style={styles.dateRailTitle}>{transitionFromHeaderTitle}</Text>
                             <MaterialIcons
                               name="chevron-right"
@@ -2788,13 +3009,17 @@ export default function HomeScreen() {
                                 },
                               ]}
                             />
-                          </View>
+                          </GlassSurface>
                         </View>
                       </>
                     )}
                   </Animated.View>
                 ) : (
-                  <View style={styles.dateRailTitleRow}>
+                  <GlassSurface
+                    tintColor={withAlpha(Colors[theme].background, isDark ? 0.18 : 0.28)}
+                    fallbackBackgroundColor={withAlpha(Colors[theme].background, isDark ? 0.86 : 0.92)}
+                    style={styles.dateRailTitleRow}
+                  >
                     <Text style={styles.dateRailTitle}>{dynamicHeaderTitle}</Text>
                     <MaterialIcons
                       name="chevron-right"
@@ -2809,31 +3034,114 @@ export default function HomeScreen() {
                         },
                       ]}
                     />
-                  </View>
+                  </GlassSurface>
                 )}
               </View>
             </Pressable>
+
+            {/* Calendar Button — hidden when today section is collapsed */}
+            {!collapsedSections.today && (
+              <View style={{ position: "absolute", right: 24, top: 0, bottom: 0, justifyContent: 'center', zIndex: 10 }}>
+                <GlassSurface
+                  tintColor={withAlpha(Colors[theme].background, isDark ? 0.3 : 0.4)}
+                  fallbackBackgroundColor={withAlpha(Colors[theme].background, isDark ? 0.86 : 0.92)}
+                  style={styles.calendarButton}
+                  isInteractive={true}
+                >
+                  <Pressable
+                    accessibilityRole="button"
+                    hitSlop={16}
+                    style={StyleSheet.absoluteFillObject}
+                    onPress={() => {
+                      setIsCalendarPickerOpen((prev) => !prev);
+                    }}
+                  >
+                    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                      <SFSymbol name="calendar" size={16} color={Colors[theme].text} />
+                    </View>
+                  </Pressable>
+                </GlassSurface>
+              </View>
+            )}
           </View>
+
+          {/* Calendar picker rendered as top-level Modal to avoid clipping */}
+          <Modal
+            visible={isCalendarPickerOpen}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setIsCalendarPickerOpen(false)}
+          >
+            {/* Backdrop */}
+            <Pressable
+              style={[StyleSheet.absoluteFillObject, { backgroundColor: "transparent" }]}
+              onPress={() => setIsCalendarPickerOpen(false)}
+            />
+            {/* Popover card — centered horizontally near top */}
+            <View
+              pointerEvents="box-none"
+              style={{
+                position: "absolute",
+                top: 120,
+                left: 0,
+                right: 0,
+                alignItems: "center",
+              }}
+            >
+              <GlassSurface
+                tintColor={withAlpha(Colors[theme].background, isDark ? 0.22 : 0.32)}
+                fallbackBackgroundColor={withAlpha(Colors[theme].background, isDark ? 0.88 : 0.94)}
+                style={styles.calendarPopover}
+                isInteractive={true}
+              >
+                {/* Clip container to hide the Day column (leftmost ~88px) */}
+                <View style={{ width: "100%", overflow: "hidden" }}>
+                  <DateTimePicker
+                    value={new Date(calendarPickerDate.year, calendarPickerDate.month - 1, 1)}
+                    mode="date"
+                    display="spinner"
+                    onChange={(_: any, date?: Date) => {
+                      if (date) {
+                        const month = date.getMonth() + 1;
+                        const year = date.getFullYear();
+                        setCalendarPickerDate({ month, year });
+                        handleSelectDate(new Date(year, month - 1, 1).getTime());
+                      }
+                    }}
+                    style={{ width: CALENDAR_POPOVER_WIDTH + 88, height: CALENDAR_POPOVER_HEIGHT, marginLeft: -88 }}
+                    textColor={isDark ? "#ffffff" : "#000000"}
+                    themeVariant={isDark ? "dark" : "light"}
+                  />
+                </View>
+              </GlassSurface>
+            </View>
+          </Modal>
+
           {!collapsedSections.today ? (
             <FlatList
               ref={dateRailRef}
               data={dateRailDays}
               keyExtractor={(day) => day.key}
               renderItem={({ item: day }) => {
-                const dayContainerStyle = [styles.dateRailDay];
-                const dayBubbleStyle = [
-                  styles.dateRailDayBubble,
-                  day.isSelected ? styles.dateRailDayBubbleSelected : null,
+                const isSelected = day.isSelected;
+                const isToday = day.isToday;
+
+                const dayContainerStyle = [
+                  styles.dateRailDay,
+                  isSelected ? styles.dateRailDaySelected : null,
                 ];
+
                 const dayNumStyle = [
                   styles.dateRailDayNum,
                   day.isWeekend ? styles.dateRailDayNumWeekend : null,
-                  day.isToday ? styles.dateRailDayNumToday : null,
-                  day.isSelected ? styles.dateRailDayNumSelected : null,
+                  isToday ? styles.dateRailDayNumToday : null,
+                  isSelected ? styles.dateRailDayNumSelected : null,
                 ];
+
                 const dayDowStyle = [
                   styles.dateRailDow,
                   day.isWeekend ? styles.dateRailDowWeekend : null,
+                  isSelected ? styles.dateRailDowSelected : null,
                 ];
 
                 return (
@@ -2844,27 +3152,15 @@ export default function HomeScreen() {
                       closeAnyOpen();
                       handleSelectDate(day.timestamp);
                     }}
-                    style={dayContainerStyle}
+                    style={({ pressed }) => [
+                      dayContainerStyle,
+                      { opacity: pressed ? 0.8 : 1 },
+                    ]}
                   >
                     <Text style={dayDowStyle}>{day.weekday}</Text>
-                    {day.isSelected ? (
-                      <GlassSurface
-                        style={dayBubbleStyle}
-                        glassEffectStyle="regular"
-                        tintColor={"#F4512C"}
-                        fallbackBackgroundColor={"#F4512C"}
-                      >
-                        <Text style={dayNumStyle}>{day.dayOfMonth}</Text>
-                      </GlassSurface>
-                    ) : (
-                      <View style={dayBubbleStyle}>
-                        <Text style={dayNumStyle}>{day.dayOfMonth}</Text>
-                      </View>
-                    )}
-                    {day.eventCount > 0 ? (
+                    <Text style={dayNumStyle}>{day.dayOfMonth}</Text>
+                    {day.eventCount > 0 && (
                       <View style={styles.dateRailEventIndicator} />
-                    ) : (
-                      <View style={styles.dateRailEventIndicatorSpacer} />
                     )}
                   </Pressable>
                 );
@@ -2890,6 +3186,7 @@ export default function HomeScreen() {
       </View>
     );
   }, [
+    calendarPickerDate,
     closeAnyOpen,
     collapsedSections.today,
     dateRailDays,
@@ -2905,7 +3202,9 @@ export default function HomeScreen() {
     handleDateRailScroll,
     handleDateRailScrollToIndexFailed,
     handleSelectDate,
+    isCalendarPickerOpen,
     isDateListTransitioning,
+    isDark,
     measureDateRailBounds,
     styles,
     theme,
@@ -2923,16 +3222,14 @@ export default function HomeScreen() {
             style={[
               styles.topHeroSurface,
               {
-                backgroundColor: quickNavTheme.topSurface,
-                borderBottomColor: quickNavTheme.topDivider,
-                borderBottomWidth: StyleSheet.hairlineWidth,
+                backgroundColor: homeMetricsTheme.topSurface,
               },
             ]}
           >
-            <QuickNavGrid
-              tiles={quickTiles}
+            <HomeMetricsGrid
+              metrics={homeMetricsProps}
               styles={styles}
-              theme={quickNavTheme}
+              theme={homeMetricsTheme}
             />
           </View>
         </View>
@@ -2941,8 +3238,8 @@ export default function HomeScreen() {
     return null;
   }, [
     firstVisibleSection,
-    quickNavTheme,
-    quickTiles,
+    homeMetricsProps,
+    homeMetricsTheme,
     styles,
   ]);
 
@@ -3009,16 +3306,19 @@ export default function HomeScreen() {
 
         {hasTodaySection ? (
           <GlassSurface
+            ref={todaySurfaceRef}
+            onLayout={measureTodaySurfaceBounds}
+            disabled={collapsedSections.today}
             style={[
               styles.dateTasksSurface,
               activeDragSurface === "today" ? styles.segmentSurfaceDragActive : null,
-              activeDragSurface === "upcoming"
-                ? styles.segmentSurfaceDragInactive
-                : null,
+              activeDragSurface === "upcoming" ? styles.segmentSurfaceDragInactive : null,
+              isHoveringTodayDropZone ? styles.segmentSurfaceDropHover : null,
+              collapsedSections.today ? { borderWidth: 0, borderColor: "transparent" } : null,
             ]}
             glassEffectStyle="regular"
-            tintColor={quickNavTheme.cardTintColor}
-            fallbackBackgroundColor={quickNavTheme.cardFallbackColor}
+            tintColor={homeMetricsTheme.cardBackgroundColor}
+            fallbackBackgroundColor={collapsedSections.today ? "transparent" : homeMetricsTheme.cardBackgroundColor}
           >
             <Animated.View
               style={[
@@ -3033,210 +3333,214 @@ export default function HomeScreen() {
                 {dateRailPanel}
 
                 {!collapsedSections.today ? (
-                  <View
-                    style={[
-                      styles.taskListInset,
-                      !hasTodayTasks ? styles.taskListInsetNoContent : null,
-                    ]}
-                  >
+                  <View style={styles.taskContentSolid}>
                     <View
-                      style={[
-                        styles.dateListTransitionHost,
-                        activeDragSurface === "today"
-                          ? styles.dateListTransitionHostDragActive
-                          : null,
-                      ]}
-                      onLayout={handleDateListHostLayout}
+                      style={styles.taskListInset}
                     >
-                      {isDateListTransitioning &&
-                      dateListTransitionState &&
-                      dateListTransitionData ? (
-                        <Animated.View
-                          pointerEvents="none"
-                          style={[
-                            styles.dateListTransitionTrack,
-                            { transform: [{ translateX: dateListTranslateX }] },
-                          ]}
-                        >
-                          {dateListTransitionState.direction === 1 ? (
-                            <>
-                              <View
-                                style={[
-                                  styles.dateListTransitionPage,
-                                  { width: dateListTransitionPageWidth },
-                                ]}
-                              >
-                                <TaskSwipeDraggableList
-                                  theme={theme}
-                                  tasks={dateListTransitionData.fromVisibleTasks}
-                                  projectsById={projectsById}
-                                  rowStyles={styles}
-                                  itemSpacing={HOME_TASK_ITEM_SPACING}
-                                  enabledTags={enabledTags}
-                                  showTaskIcons={showTagIcons}
-                                  showCompactSubtasks={withSubtasksEnabled}
-                                  selectedDateStart={dateListTransitionState.fromDateStart}
-                                  data={dateListTransitionData.fromTodayData}
-                                  empty={
-                                    dateListTransitionData.fromTodayData.length === 0 ? (
-                                      <View style={styles.emptyState}>
-                                        <Text style={styles.emptyText}>{t("home.empty.noTasks")}</Text>
-                                      </View>
-                                    ) : null
-                                  }
-                                  onPressTask={handlePressTask}
-                                  toggleComplete={handleToggleComplete}
-                                  toggleSubtask={handleToggleSubtask}
-                                  deleteTask={handleDeleteTask}
-                                  renderMode="static"
-                                  animateDataLayoutChanges={false}
-                                />
-                              </View>
-                              <View
-                                style={[
-                                  styles.dateListTransitionPage,
-                                  { width: dateListTransitionPageWidth },
-                                ]}
-                              >
-                                <TaskSwipeDraggableList
-                                  theme={theme}
-                                  tasks={dateListTransitionData.toVisibleTasks}
-                                  projectsById={projectsById}
-                                  rowStyles={styles}
-                                  itemSpacing={HOME_TASK_ITEM_SPACING}
-                                  enabledTags={enabledTags}
-                                  showTaskIcons={showTagIcons}
-                                  showCompactSubtasks={withSubtasksEnabled}
-                                  selectedDateStart={dateListTransitionState.toDateStart}
-                                  data={dateListTransitionData.toTodayData}
-                                  empty={
-                                    dateListTransitionData.toTodayData.length === 0 ? (
-                                      <View style={styles.emptyState}>
-                                        <Text style={styles.emptyText}>{t("home.empty.noTasks")}</Text>
-                                      </View>
-                                    ) : null
-                                  }
-                                  onPressTask={handlePressTask}
-                                  toggleComplete={handleToggleComplete}
-                                  toggleSubtask={handleToggleSubtask}
-                                  deleteTask={handleDeleteTask}
-                                  renderMode="static"
-                                  animateDataLayoutChanges={false}
-                                />
-                              </View>
-                            </>
-                          ) : (
-                            <>
-                              <View
-                                style={[
-                                  styles.dateListTransitionPage,
-                                  { width: dateListTransitionPageWidth },
-                                ]}
-                              >
-                                <TaskSwipeDraggableList
-                                  theme={theme}
-                                  tasks={dateListTransitionData.toVisibleTasks}
-                                  projectsById={projectsById}
-                                  rowStyles={styles}
-                                  itemSpacing={HOME_TASK_ITEM_SPACING}
-                                  enabledTags={enabledTags}
-                                  showTaskIcons={showTagIcons}
-                                  showCompactSubtasks={withSubtasksEnabled}
-                                  selectedDateStart={dateListTransitionState.toDateStart}
-                                  data={dateListTransitionData.toTodayData}
-                                  empty={
-                                    dateListTransitionData.toTodayData.length === 0 ? (
-                                      <View style={styles.emptyState}>
-                                        <Text style={styles.emptyText}>{t("home.empty.noTasks")}</Text>
-                                      </View>
-                                    ) : null
-                                  }
-                                  onPressTask={handlePressTask}
-                                  toggleComplete={handleToggleComplete}
-                                  toggleSubtask={handleToggleSubtask}
-                                  deleteTask={handleDeleteTask}
-                                  renderMode="static"
-                                  animateDataLayoutChanges={false}
-                                />
-                              </View>
-                              <View
-                                style={[
-                                  styles.dateListTransitionPage,
-                                  { width: dateListTransitionPageWidth },
-                                ]}
-                              >
-                                <TaskSwipeDraggableList
-                                  theme={theme}
-                                  tasks={dateListTransitionData.fromVisibleTasks}
-                                  projectsById={projectsById}
-                                  rowStyles={styles}
-                                  itemSpacing={HOME_TASK_ITEM_SPACING}
-                                  enabledTags={enabledTags}
-                                  showTaskIcons={showTagIcons}
-                                  showCompactSubtasks={withSubtasksEnabled}
-                                  selectedDateStart={dateListTransitionState.fromDateStart}
-                                  data={dateListTransitionData.fromTodayData}
-                                  empty={
-                                    dateListTransitionData.fromTodayData.length === 0 ? (
-                                      <View style={styles.emptyState}>
-                                        <Text style={styles.emptyText}>{t("home.empty.noTasks")}</Text>
-                                      </View>
-                                    ) : null
-                                  }
-                                  onPressTask={handlePressTask}
-                                  toggleComplete={handleToggleComplete}
-                                  toggleSubtask={handleToggleSubtask}
-                                  deleteTask={handleDeleteTask}
-                                  renderMode="static"
-                                  animateDataLayoutChanges={false}
-                                />
-                              </View>
-                            </>
-                          )}
-                        </Animated.View>
-                      ) : (
-                        <View
-                          onTouchStart={onListTouchStart}
-                          onTouchEnd={onListTouchEnd}
-                          onTouchCancel={onListTouchCancel}
-                          pointerEvents={isDateListTransitioning ? "none" : "auto"}
-                        >
-                          <TaskSwipeDraggableList
-                            ref={todayListRef}
-                            theme={theme}
-                            tasks={visibleTasks}
-                            projectsById={projectsById}
-                            rowStyles={styles}
-                            itemSpacing={HOME_TASK_ITEM_SPACING}
-                            enabledTags={enabledTags}
-                            showTaskIcons={showTagIcons}
-                            showCompactSubtasks={withSubtasksEnabled}
-                            selectedDateStart={listDateStart}
-                            data={todaySwipeListData}
-                            empty={
-                              !hasTodayTasks ? (
-                                <View style={styles.emptyState}>
-                                  <Text style={styles.emptyText}>{t("home.empty.noTasks")}</Text>
+                      <View
+                        style={[
+                          styles.dateListTransitionHost,
+                          activeDragSurface === "today"
+                            ? styles.dateListTransitionHostDragActive
+                            : null,
+                        ]}
+                        onLayout={handleDateListHostLayout}
+                      >
+                        {isDateListTransitioning &&
+                          dateListTransitionState &&
+                          dateListTransitionData ? (
+                          <Animated.View
+                            pointerEvents="none"
+                            style={[
+                              styles.dateListTransitionTrack,
+                              { transform: [{ translateX: dateListTranslateX }] },
+                            ]}
+                          >
+                            {dateListTransitionState.direction === 1 ? (
+                              <>
+                                <View
+                                  style={[
+                                    styles.dateListTransitionPage,
+                                    { width: dateListTransitionPageWidth },
+                                  ]}
+                                >
+                                  <TaskSwipeDraggableList
+                                    theme={theme}
+                                    tasks={dateListTransitionData.fromVisibleTasks}
+                                    projectsById={projectsById}
+                                    isDark={isDark}
+                                    rowStyles={styles}
+                                    itemSpacing={HOME_TASK_ITEM_SPACING}
+                                    enabledTags={enabledTags}
+                                    showTaskIcons={showTagIcons}
+                                    showCompactSubtasks={withSubtasksEnabled}
+                                    selectedDateStart={dateListTransitionState.fromDateStart}
+                                    data={dateListTransitionData.fromTodayData}
+                                    empty={
+                                      dateListTransitionData.fromTodayData.length === 0 ? (
+                                        <View style={styles.emptyState}>
+                                          <Text style={styles.emptyText}>{t("home.empty.noTasks")}</Text>
+                                        </View>
+                                      ) : null
+                                    }
+                                    onPressTask={handlePressTask}
+                                    toggleComplete={handleToggleComplete}
+                                    toggleSubtask={handleToggleSubtask}
+                                    deleteTask={handleDeleteTask}
+                                    renderMode="static"
+                                    animateDataLayoutChanges={false}
+                                  />
                                 </View>
-                              ) : null
-                            }
-                            onPressTask={handlePressTask}
-                            toggleComplete={handleToggleComplete}
-                            toggleSubtask={handleToggleSubtask}
-                            deleteTask={handleDeleteTask}
-                            onReorderData={applyOrderFromTodaySegment}
-                            onDragBeginTask={handleDragBeginTask}
-                            onDragTouchPoint={handleDragTouchPoint}
-                            onDragEndMeta={handleDragEndMeta}
-                            onDragStateChange={handleDragStateChange}
-                            onSwipeStateChange={handleSwipeStateChange}
-                            dragAxisMode="free"
-                            renderMode="nestable"
-                            scrollRef={scrollRef}
-                            animateDataLayoutChanges={false}
-                          />
-                        </View>
-                      )}
+                                <View
+                                  style={[
+                                    styles.dateListTransitionPage,
+                                    { width: dateListTransitionPageWidth },
+                                  ]}
+                                >
+                                  <TaskSwipeDraggableList
+                                    theme={theme}
+                                    tasks={dateListTransitionData.toVisibleTasks}
+                                    projectsById={projectsById}
+                                    isDark={isDark}
+                                    rowStyles={styles}
+                                    itemSpacing={HOME_TASK_ITEM_SPACING}
+                                    enabledTags={enabledTags}
+                                    showTaskIcons={showTagIcons}
+                                    showCompactSubtasks={withSubtasksEnabled}
+                                    selectedDateStart={dateListTransitionState.toDateStart}
+                                    data={dateListTransitionData.toTodayData}
+                                    empty={
+                                      dateListTransitionData.toTodayData.length === 0 ? (
+                                        <View style={styles.emptyState}>
+                                          <Text style={styles.emptyText}>{t("home.empty.noTasks")}</Text>
+                                        </View>
+                                      ) : null
+                                    }
+                                    onPressTask={handlePressTask}
+                                    toggleComplete={handleToggleComplete}
+                                    toggleSubtask={handleToggleSubtask}
+                                    deleteTask={handleDeleteTask}
+                                    renderMode="static"
+                                    animateDataLayoutChanges={false}
+                                  />
+                                </View>
+                              </>
+                            ) : (
+                              <>
+                                <View
+                                  style={[
+                                    styles.dateListTransitionPage,
+                                    { width: dateListTransitionPageWidth },
+                                  ]}
+                                >
+                                  <TaskSwipeDraggableList
+                                    theme={theme}
+                                    tasks={dateListTransitionData.toVisibleTasks}
+                                    projectsById={projectsById}
+                                    isDark={isDark}
+                                    rowStyles={styles}
+                                    itemSpacing={HOME_TASK_ITEM_SPACING}
+                                    enabledTags={enabledTags}
+                                    showTaskIcons={showTagIcons}
+                                    showCompactSubtasks={withSubtasksEnabled}
+                                    selectedDateStart={dateListTransitionState.toDateStart}
+                                    data={dateListTransitionData.toTodayData}
+                                    empty={
+                                      dateListTransitionData.toTodayData.length === 0 ? (
+                                        <View style={styles.emptyState}>
+                                          <Text style={styles.emptyText}>{t("home.empty.noTasks")}</Text>
+                                        </View>
+                                      ) : null
+                                    }
+                                    onPressTask={handlePressTask}
+                                    toggleComplete={handleToggleComplete}
+                                    toggleSubtask={handleToggleSubtask}
+                                    deleteTask={handleDeleteTask}
+                                    renderMode="static"
+                                    animateDataLayoutChanges={false}
+                                  />
+                                </View>
+                                <View
+                                  style={[
+                                    styles.dateListTransitionPage,
+                                    { width: dateListTransitionPageWidth },
+                                  ]}
+                                >
+                                  <TaskSwipeDraggableList
+                                    theme={theme}
+                                    tasks={dateListTransitionData.fromVisibleTasks}
+                                    projectsById={projectsById}
+                                    isDark={isDark}
+                                    rowStyles={styles}
+                                    itemSpacing={HOME_TASK_ITEM_SPACING}
+                                    enabledTags={enabledTags}
+                                    showTaskIcons={showTagIcons}
+                                    showCompactSubtasks={withSubtasksEnabled}
+                                    selectedDateStart={dateListTransitionState.fromDateStart}
+                                    data={dateListTransitionData.fromTodayData}
+                                    empty={
+                                      dateListTransitionData.fromTodayData.length === 0 ? (
+                                        <View style={styles.emptyState}>
+                                          <Text style={styles.emptyText}>{t("home.empty.noTasks")}</Text>
+                                        </View>
+                                      ) : null
+                                    }
+                                    onPressTask={handlePressTask}
+                                    toggleComplete={handleToggleComplete}
+                                    toggleSubtask={handleToggleSubtask}
+                                    deleteTask={handleDeleteTask}
+                                    renderMode="static"
+                                    animateDataLayoutChanges={false}
+                                  />
+                                </View>
+                              </>
+                            )}
+                          </Animated.View>
+                        ) : (
+                          <View
+                            onTouchStart={onListTouchStart}
+                            onTouchEnd={onListTouchEnd}
+                            onTouchCancel={onListTouchCancel}
+                            pointerEvents={isDateListTransitioning ? "none" : "auto"}
+                          >
+                            <TaskSwipeDraggableList
+                              ref={todayListRef}
+                              theme={theme}
+                              tasks={visibleTasks}
+                              projectsById={projectsById}
+                              isDark={isDark}
+                              rowStyles={styles}
+                              itemSpacing={HOME_TASK_ITEM_SPACING}
+                              enabledTags={enabledTags}
+                              showTaskIcons={showTagIcons}
+                              showCompactSubtasks={withSubtasksEnabled}
+                              selectedDateStart={listDateStart}
+                              data={todaySwipeListData}
+                              empty={
+                                !hasTodayTasks ? (
+                                  <View style={styles.emptyState}>
+                                    <Text style={styles.emptyText}>{t("home.empty.noTasks")}</Text>
+                                  </View>
+                                ) : null
+                              }
+                              onPressTask={handlePressTask}
+                              toggleComplete={handleToggleComplete}
+                              toggleSubtask={handleToggleSubtask}
+                              deleteTask={handleDeleteTask}
+                              onReorderData={applyOrderFromTodaySegment}
+                              onDragBeginTask={handleDragBeginTask}
+                              onDragTouchPoint={handleDragTouchPoint}
+                              onDragEndMeta={handleDragEndMeta}
+                              onDragStateChange={handleDragStateChange}
+                              onSwipeStateChange={handleSwipeStateChange}
+                              dragAxisMode="free"
+                              renderMode="nestable"
+                              scrollRef={scrollRef}
+                              animateDataLayoutChanges={false}
+                            />
+                          </View>
+                        )}
+                      </View>
                     </View>
                   </View>
                 ) : null}
@@ -3249,63 +3553,64 @@ export default function HomeScreen() {
           <GlassSurface
             ref={upcomingSurfaceRef}
             onLayout={measureUpcomingSurfaceBounds}
+            disabled={collapsedSections.upcoming}
             style={[
               styles.upcomingTasksSurface,
-              activeDragSurface === "upcoming"
-                ? styles.segmentSurfaceDragActive
-                : null,
-              activeDragSurface === "today"
-                ? styles.segmentSurfaceDragInactive
-                : null,
+              activeDragSurface === "upcoming" ? styles.segmentSurfaceDragActive : null,
+              activeDragSurface === "today" ? styles.segmentSurfaceDragInactive : null,
+              isHoveringUpcomingDropZone ? styles.segmentSurfaceDropHover : null,
+              collapsedSections.upcoming ? { borderWidth: 0, borderColor: "transparent" } : null,
             ]}
             glassEffectStyle="regular"
-            tintColor={quickNavTheme.cardTintColor}
-            fallbackBackgroundColor={quickNavTheme.cardFallbackColor}
+            tintColor={homeMetricsTheme.cardBackgroundColor}
+            fallbackBackgroundColor={collapsedSections.upcoming ? "transparent" : homeMetricsTheme.cardBackgroundColor}
           >
             {renderSectionHeaderRow("upcoming")}
             {!collapsedSections.upcoming ? (
-              <View
-                style={[
-                  styles.taskListInset,
-                  !hasUpcomingTasks ? styles.taskListInsetNoContent : null,
-                ]}
-              >
+              <View style={styles.taskContentSolid}>
                 <View
-                  onTouchStart={onListTouchStart}
-                  onTouchEnd={onListTouchEnd}
-                  onTouchCancel={onListTouchCancel}
+                  style={styles.taskListInset}
                 >
-                  <TaskSwipeDraggableList
-                    ref={upcomingListRef}
-                    theme={theme}
-                    tasks={visibleTasks}
-                    projectsById={projectsById}
-                    rowStyles={styles}
-                    itemSpacing={HOME_TASK_ITEM_SPACING}
-                    enabledTags={enabledTags}
-                    showTaskIcons={showTagIcons}
-                    showCompactSubtasks={withSubtasksEnabled}
-                    selectedDateStart={listDateStart}
-                    data={upcomingSwipeListData}
-                    empty={
-                      !hasUpcomingTasks ? (
-                        <View style={styles.upcomingEmptyDropZone} />
-                      ) : null
-                    }
-                    onPressTask={handlePressTask}
-                    toggleComplete={handleToggleComplete}
-                    toggleSubtask={handleToggleSubtask}
-                    deleteTask={handleDeleteTask}
-                    onReorderData={applyOrderFromUpcomingSegment}
-                    onDragBeginTask={handleDragBeginTask}
-                    onDragTouchPoint={handleDragTouchPoint}
-                    onDragEndMeta={handleDragEndMeta}
-                    onDragStateChange={handleDragStateChange}
-                    onSwipeStateChange={handleSwipeStateChange}
-                    dragAxisMode="free"
-                    renderMode="nestable"
-                    scrollRef={scrollRef}
-                  />
+                  <View
+                    onTouchStart={onListTouchStart}
+                    onTouchEnd={onListTouchEnd}
+                    onTouchCancel={onListTouchCancel}
+                  >
+                    <TaskSwipeDraggableList
+                      ref={upcomingListRef}
+                      theme={theme}
+                      tasks={visibleTasks}
+                      projectsById={projectsById}
+                      isDark={isDark}
+                      rowStyles={styles}
+                      itemSpacing={HOME_TASK_ITEM_SPACING}
+                      enabledTags={enabledTags}
+                      showTaskIcons={showTagIcons}
+                      showCompactSubtasks={withSubtasksEnabled}
+                      selectedDateStart={listDateStart}
+                      data={upcomingSwipeListData}
+                      empty={
+                        !hasUpcomingTasks ? (
+                          <View style={styles.emptyState}>
+                            <Text style={styles.emptyText}>{t("home.empty.noTasks")}</Text>
+                          </View>
+                        ) : null
+                      }
+                      onPressTask={handlePressTask}
+                      toggleComplete={handleToggleComplete}
+                      toggleSubtask={handleToggleSubtask}
+                      deleteTask={handleDeleteTask}
+                      onReorderData={applyOrderFromUpcomingSegment}
+                      onDragBeginTask={handleDragBeginTask}
+                      onDragTouchPoint={handleDragTouchPoint}
+                      onDragEndMeta={handleDragEndMeta}
+                      onDragStateChange={handleDragStateChange}
+                      onSwipeStateChange={handleSwipeStateChange}
+                      dragAxisMode="free"
+                      renderMode="nestable"
+                      scrollRef={scrollRef}
+                    />
+                  </View>
                 </View>
               </View>
             ) : null}
@@ -3327,6 +3632,6 @@ export default function HomeScreen() {
       </NestableScrollContainer>
 
       {showFloatingAddButton ? <FloatingAddButton onPress={handleAddTask} /> : null}
-    </View>
+    </View >
   );
 }

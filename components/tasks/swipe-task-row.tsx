@@ -1,7 +1,7 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as Haptics from "expo-haptics";
 import React from "react";
-import { Pressable, Text, type StyleProp, View, type ViewStyle } from "react-native";
+import { Pressable, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   Easing,
@@ -49,6 +49,18 @@ const COMPACT_SUBTASK_TEXT_SIZE = 14;
 // Small delay to separate horizontal swipe intent from long-press drag.
 const SWIPE_ARM_DELAY_MS = 170;
 const DRAG_LONG_PRESS_DELAY_MS = 300;
+
+/** Convert a hex color to an rgba pastel tint. */
+function hexToPastel(hex: string | undefined, isDark: boolean): string | undefined {
+  if (!hex || hex.length < 4) return undefined;
+  const cleaned = hex.replace('#', '');
+  const r = parseInt(cleaned.length === 3 ? cleaned[0] + cleaned[0] : cleaned.substring(0, 2), 16);
+  const g = parseInt(cleaned.length === 3 ? cleaned[1] + cleaned[1] : cleaned.substring(2, 4), 16);
+  const b = parseInt(cleaned.length === 3 ? cleaned[2] + cleaned[2] : cleaned.substring(4, 6), 16);
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return undefined;
+  const alpha = isDark ? 0.22 : 0.15;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
 
 type TagChipModel = {
   key: string;
@@ -137,6 +149,8 @@ export type SwipeTaskRowProps = {
   drag: () => void;
   isActive: boolean;
   styles: SwipeTaskRowStyles;
+  isDark: boolean;
+  isLast?: boolean;
   itemSpacing?: number;
   emojiTint: string;
   emojiFallback: string;
@@ -184,6 +198,8 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   drag,
   isActive,
   styles,
+  isDark,
+  isLast = false,
   itemSpacing = 0,
   emojiTint,
   emojiFallback,
@@ -213,6 +229,14 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   swipeClipStyle,
   rowStyle,
 }: SwipeTaskRowProps) {
+  const projectBgColor = React.useMemo(
+    () => hexToPastel(project?.color, isDark),
+    [project?.color, isDark],
+  );
+  const projectRowStyle = React.useMemo<ViewStyle | undefined>(
+    () => projectBgColor ? { backgroundColor: projectBgColor } : undefined,
+    [projectBgColor],
+  );
   const translateX = useSharedValue(0);
   const direction = useSharedValue<-1 | 0 | 1>(0);
   const startOffsetX = useSharedValue(0);
@@ -586,10 +610,10 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     if (rowHeight.value <= 0) return {};
     return {
       height: rowHeight.value * p,
-      marginBottom: itemSpacing * p,
+      marginBottom: isLast ? 0 : itemSpacing * p,
       overflow: isActive ? "visible" : "hidden",
     };
-  }, [isActive, itemSpacing]);
+  }, [isActive, itemSpacing, isLast]);
 
   const clipStyle = React.useMemo(
     () => [
@@ -867,12 +891,12 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       style={[
         styles.emojiTile,
         {
-          backgroundColor: emojiTint,
-          borderColor: emojiFallback,
+          backgroundColor: projectBgColor ? "transparent" : emojiTint,
+          borderColor: projectBgColor ? "transparent" : emojiFallback,
         },
       ]}
     >
-      <Text style={styles.emojiText}>{task.emoji}</Text>
+      <Text style={[styles.emojiText, { opacity: projectBgColor ? 1 : 0.9 }]}>{task.emoji}</Text>
     </View>
   ) : null;
 
@@ -891,17 +915,20 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
           onPress={onPressComplete}
           hitSlop={10}
         >
-          <Animated.View style={[styles.actionSlotInner, leftIconStyle]}>
-            <MaterialIcons
-              name={
-                leftAction?.icon ??
-                (task.section === "completed" ? "undo" : "check")
-              }
-              size={22}
-              color="white"
-            />
-          </Animated.View>
+          <View style={styles.actionSlotInner}>
+            <Animated.View style={leftIconStyle}>
+              <MaterialIcons
+                name={
+                  leftAction?.icon ??
+                  (task.section === "completed" ? "undo" : "check")
+                }
+                size={26}
+                color="#FFFFFF"
+              />
+            </Animated.View>
+          </View>
         </Pressable>
+
         <Pressable
           style={[
             styles.actionSlot,
@@ -911,13 +938,15 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
           onPress={onPressDelete}
           hitSlop={10}
         >
-          <Animated.View style={[styles.actionSlotInner, rightIconStyle]}>
-            <MaterialIcons
-              name={rightAction?.icon ?? "delete"}
-              size={22}
-              color="white"
-            />
-          </Animated.View>
+          <View style={styles.actionSlotInner}>
+            <Animated.View style={rightIconStyle}>
+              <MaterialIcons
+                name={rightAction?.icon ?? "delete"}
+                size={26}
+                color="#FFFFFF"
+              />
+            </Animated.View>
+          </View>
         </Pressable>
 
         <GestureDetector gesture={gesture}>
@@ -943,6 +972,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
               <View
                 style={[
                   styles.row,
+                  projectRowStyle,
                   rowStyle,
                   isActive ? styles.dragRow : undefined,
                 ]}
