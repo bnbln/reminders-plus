@@ -1,6 +1,8 @@
 import { Stack, useRouter } from 'expo-router';
 import React from 'react';
 import { Platform } from 'react-native';
+
+import { AssistHeaderButton } from '@/components/assist/assist-header-button';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
@@ -28,6 +30,7 @@ export default function SearchLayout() {
         name="index"
         options={{
           title: t('tabs.search'),
+          headerLeft: () => <AssistHeaderButton />,
           headerSearchBarOptions: {
             placement: 'automatic',
             placeholder: t('search.placeholder'),

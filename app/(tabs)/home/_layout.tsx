@@ -5,6 +5,7 @@ import { SymbolView } from 'expo-symbols';
 import React from 'react';
 import { Platform, Pressable } from 'react-native';
 
+import { AssistHeaderButton } from '@/components/assist/assist-header-button';
 import { Colors } from '@/constants/theme';
 import {
     parseCompactSubtasksParam,
@@ -252,6 +253,7 @@ export default function HomeLayout() {
         name="index"
         options={{
           title: t('tabs.tasks'),
+          headerLeft: () => <AssistHeaderButton />,
           headerRight: () => <FilterMenuButton theme={theme} />,
         }}
       />

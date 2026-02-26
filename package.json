@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
+    "@react-native-ai/apple": "^0.12.0",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "8.6.0",
     "@react-native-menu/menu": "^2.0.0",
@@ -23,6 +24,7 @@
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
+    "ai": "^6.0.103",
     "expo": "^55.0.0",
     "expo-constants": "~55.0.7",
     "expo-file-system": "~55.0.9",

@@ -1,4 +1,26 @@
 PODS:
+  - AppleLLM (0.12.0):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Yoga
   - EXApplication (55.0.8):
     - ExpoModulesCore
   - EXConstants (55.0.7):
@@ -2263,6 +2285,7 @@ PODS:
   - Yoga (0.0.0)
 
 DEPENDENCIES:
+  - "AppleLLM (from `../node_modules/@react-native-ai/apple`)"
   - EXApplication (from `../node_modules/expo-application/ios`)
   - EXConstants (from `../node_modules/expo-constants/ios`)
   - Expo (from `../node_modules/expo`)
@@ -2381,6 +2404,8 @@ SPEC REPOS:
     - SDWebImageWebPCoder
 
 EXTERNAL SOURCES:
+  AppleLLM:
+    :path: "../node_modules/@react-native-ai/apple"
   EXApplication:
     :path: "../node_modules/expo-application/ios"
   EXConstants:
@@ -2594,6 +2619,7 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
 SPEC CHECKSUMS:
+  AppleLLM: 341c77649c3be1cb967d54e6debd354fe166f56a
   EXApplication: b86f81225a9cd817cfe86a79655b9829f12629db
   EXConstants: b3c63be5f8648e4ab8e6ff5099b62f629247f969
   Expo: ed8281cd5e839bd2ea70901199bf49caae4b4c1c

@@ -77,20 +77,21 @@ class AppDelegate: ExpoAppDelegate {
   private func applyReactRootViewBackground() {
     DispatchQueue.main.async { [weak self] in
       guard let self else { return }
-      guard let rootView = self.findReactRootView(in: self.window) else { return }
-      rootView.backgroundColor = UIColor.remindsAppBackground
-      rootView.isOpaque = true
+      guard let reactRootView = self.findReactRootView(in: self.window) else { return }
+      reactRootView.backgroundColor = UIColor.remindsAppBackground
+      reactRootView.isOpaque = true
     }
   }
 
-  private func findReactRootView(in window: UIWindow?) -> RCTRootView? {
+  private func findReactRootView(in window: UIWindow?) -> UIView? {
     guard let view = window?.rootViewController?.view else { return nil }
     return findReactRootView(in: view)
   }
 
-  private func findReactRootView(in view: UIView) -> RCTRootView? {
-    if let rootView = view as? RCTRootView {
-      return rootView
+  private func findReactRootView(in view: UIView) -> UIView? {
+    let className = NSStringFromClass(type(of: view))
+    if className.contains("RCTRootView") || className.contains("RCTSurfaceHostingProxyRootView") {
+      return view
     }
 
     for subview in view.subviews {

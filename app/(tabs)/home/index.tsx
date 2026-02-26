@@ -408,7 +408,6 @@ function HomeMetricsGrid({
 const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
   const isDark = theme === "dark";
   const text = Colors[theme].text;
-  const rowSurface = Colors[theme].background;
 
   // ─── Design Tokens ─────────────────────────────────
   const ACCENT = "#F4512C";
@@ -426,7 +425,7 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
   // ───────────────────────────────────────────────────
 
   const hairline = withAlpha(text, ALPHA_4);
-  const rowDivider = isDark ? "rgba(255,255,255,0.24)" : "rgba(0,0,0,0.16)";
+  const rowCardSurface = isDark ? "#1C1C1E" : "#FFFFFF";
   const tagBg = withAlpha(text, isDark ? 0.1 : 0.08);
   const tagText = withAlpha(text, ALPHA_2);
   const dangerBg = isDark ? "rgba(255,69,58,0.18)" : "rgba(255,59,48,0.14)";
@@ -915,15 +914,17 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
     row: {
       minHeight: 52,
       borderRadius: 12,
-      backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.03)",
+      backgroundColor: rowCardSurface,
       justifyContent: "center",
       paddingHorizontal: 12,
       paddingVertical: 8,
       gap: 4,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: heroCardBorder,
     },
     dragRow: {
       borderRadius: 20,
-      backgroundColor: rowSurface,
+      backgroundColor: rowCardSurface,
       borderWidth: 0,
       opacity: 1,
       overflow: "visible",

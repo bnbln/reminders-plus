@@ -1,7 +1,14 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as Haptics from "expo-haptics";
 import React from "react";
-import { Pressable, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   Easing,
@@ -23,6 +30,7 @@ import {
 } from "@/context/home-filters-store";
 import type { Project, Task } from "@/context/tasks-store";
 import { getIntlLocale, t } from "@/i18n";
+import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 
 const SWIPE_STOP = 76;
 const SWIPE_OPEN_THRESHOLD = 22;
@@ -233,9 +241,12 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     () => hexToPastel(project?.color, isDark),
     [project?.color, isDark],
   );
-  const projectRowStyle = React.useMemo<ViewStyle | undefined>(
-    () => projectBgColor ? { backgroundColor: projectBgColor } : undefined,
-    [projectBgColor],
+  const projectEmojiBorderColor = React.useMemo<string | undefined>(
+    () =>
+      project?.color
+        ? withAlpha(project.color, isDark ? 0.42 : 0.28)
+        : undefined,
+    [isDark, project?.color],
   );
   const translateX = useSharedValue(0);
   const direction = useSharedValue<-1 | 0 | 1>(0);
@@ -886,17 +897,43 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     [task.dueAt, task.dueHasTime],
   );
 
+  const hasSubtitle = React.useMemo(
+    () => !!task.subtitle?.trim(),
+    [task.subtitle],
+  );
+  const hasExtraInfo = hasSubtitle || tagChips.length > 0 || compactSubtasks.length > 0;
+  const rowContentStyle = React.useMemo(
+    () => [styles.row, rowStyle, isActive ? styles.dragRow : undefined],
+    [isActive, rowStyle, styles.dragRow, styles.row],
+  );
+  const rowSurfaceColor = React.useMemo(() => {
+    const flattened = StyleSheet.flatten(rowContentStyle);
+    const resolved = flattened?.backgroundColor;
+    if (typeof resolved === "string" && resolved.length > 0) return resolved;
+    return isDark ? "#1C1C1E" : "#FFFFFF";
+  }, [isDark, rowContentStyle]);
+  const rowTintColor = React.useMemo(
+    () =>
+      rowSurfaceColor.startsWith("#")
+        ? withAlpha(rowSurfaceColor, isDark ? 0.88 : 0.9)
+        : rowSurfaceColor,
+    [isDark, rowSurfaceColor],
+  );
+
   const emojiTileView = showTaskIcons ? (
     <View
       style={[
         styles.emojiTile,
         {
-          backgroundColor: projectBgColor ? "transparent" : emojiTint,
-          borderColor: projectBgColor ? "transparent" : emojiFallback,
+          backgroundColor: projectBgColor ?? emojiTint,
+          borderColor: projectBgColor ? projectEmojiBorderColor ?? emojiFallback : emojiFallback,
+          borderWidth: StyleSheet.hairlineWidth,
         },
       ]}
     >
-      <Text style={[styles.emojiText, { opacity: projectBgColor ? 1 : 0.9 }]}>{task.emoji}</Text>
+      <Text style={[styles.emojiText, { opacity: projectBgColor ? 1 : 0.92 }]}>
+        {task.emoji}
+      </Text>
     </View>
   ) : null;
 
@@ -969,17 +1006,16 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
                 onPressTask(task.id);
               }}
             >
-              <View
-                style={[
-                  styles.row,
-                  projectRowStyle,
-                  rowStyle,
-                  isActive ? styles.dragRow : undefined,
-                ]}
+              <GlassSurface
+                style={rowContentStyle}
+                glassEffectStyle="regular"
+                tintColor={rowTintColor}
+                fallbackBackgroundColor={rowSurfaceColor}
+                isInteractive
               >
-                <View style={styles.rowInner}>
+                <View style={[styles.rowInner, !hasExtraInfo ? { alignItems: "center" } : null]}>
                   {emojiTileView}
-                  <View style={styles.textStack}>
+                  <View style={[styles.textStack, !hasExtraInfo ? { justifyContent: "center" } : null]}>
                     <View style={styles.titleRow}>
                       <Text style={styles.rowTitle} numberOfLines={1}>
                         {task.title}
@@ -997,7 +1033,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
                     {compactSubtasksView}
                   </View>
                 </View>
-              </View>
+              </GlassSurface>
             </Pressable>
           </Animated.View>
         </GestureDetector>

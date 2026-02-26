@@ -137,6 +137,14 @@ export default function RootLayout() {
                     title: t('modal.newTask')
                   }}
                 />
+                <Stack.Screen
+                  name="assist"
+                  options={{
+                    contentStyle: themedContentStyle,
+                    title: 'Assist',
+                    headerBackButtonDisplayMode: 'minimal',
+                  }}
+                />
               </Stack>
               <StatusBar style="auto" />
             </ThemeProvider>
