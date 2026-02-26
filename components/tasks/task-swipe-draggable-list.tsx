@@ -2,6 +2,7 @@ import { useIsFocused } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import React from 'react';
 import {
+  Animated,
   LayoutAnimation,
   LayoutChangeEvent,
   View,
@@ -199,6 +200,10 @@ export type TaskSwipeDraggableListProps = {
   syncDataDuringDrag?: boolean;
   /** Disable internal list layout animations when parent drives its own transition. */
   animateDataLayoutChanges?: boolean;
+  /** Optional section reveal progress (0..1 expanded) for staggered task entry animation. */
+  revealProgress?: Animated.Value | Animated.AnimatedInterpolation<number>;
+  revealStaggerStep?: number;
+  revealTranslateY?: number;
 };
 
 export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHandle, TaskSwipeDraggableListProps>(function TaskSwipeDraggableList(
@@ -244,6 +249,9 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     sortByOrderRank,
     syncDataDuringDrag = false,
     animateDataLayoutChanges = true,
+    revealProgress,
+    revealStaggerStep = 0.055,
+    revealTranslateY = 10,
   },
   ref
 ) {
@@ -496,7 +504,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
         isSectionLastTask: sectionMeta.isSectionLastTask,
       });
 
-      return (
+      const row = (
         <SwipeTaskRow
           task={task}
           project={projectsById?.get(task.projectId)}
@@ -533,6 +541,34 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           rowStyle={rowStyleOverrides?.rowStyle}
         />
       );
+      if (!revealProgress) return row;
+
+      const safeIndex = typeof index === 'number' && Number.isFinite(index) ? Math.max(0, index) : 0;
+      const stagger = Math.max(0.01, Math.min(0.12, revealStaggerStep));
+      const start = Math.min(safeIndex * stagger, 0.8);
+      const end = Math.min(start + 0.24, 1);
+      return (
+        <Animated.View
+          style={{
+            opacity: revealProgress.interpolate({
+              inputRange: [0, start, end, 1],
+              outputRange: [0, 0, 1, 1],
+              extrapolate: 'clamp',
+            }),
+            transform: [
+              {
+                translateY: revealProgress.interpolate({
+                  inputRange: [0, start, end, 1],
+                  outputRange: [revealTranslateY, revealTranslateY, 0, 0],
+                  extrapolate: 'clamp',
+                }),
+              },
+            ],
+          }}
+        >
+          {row}
+        </Animated.View>
+      );
     },
     [
       beginSwipe,
@@ -546,6 +582,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       handlePressTask,
       handlePopInAnimationEnd,
       isFocused,
+      isDark,
       itemSpacing,
       popInTaskIdSet,
       rowScrollGestureRef,
@@ -566,6 +603,9 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       reportSwipeGestureActive,
       reportRowTouchInteraction,
       flatListData.length,
+      revealProgress,
+      revealStaggerStep,
+      revealTranslateY,
     ]
   );
 
@@ -589,7 +629,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
         isSectionLastTask: sectionMeta.isSectionLastTask,
       });
 
-      return (
+      const row = (
         <SwipeTaskRow
           task={task}
           project={projectsById?.get(task.projectId)}
@@ -626,6 +666,34 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           rowStyle={rowStyleOverrides?.rowStyle}
         />
       );
+      if (!revealProgress) return row;
+
+      const safeIndex = Math.max(0, index);
+      const stagger = Math.max(0.01, Math.min(0.12, revealStaggerStep));
+      const start = Math.min(safeIndex * stagger, 0.8);
+      const end = Math.min(start + 0.24, 1);
+      return (
+        <Animated.View
+          style={{
+            opacity: revealProgress.interpolate({
+              inputRange: [0, start, end, 1],
+              outputRange: [0, 0, 1, 1],
+              extrapolate: 'clamp',
+            }),
+            transform: [
+              {
+                translateY: revealProgress.interpolate({
+                  inputRange: [0, start, end, 1],
+                  outputRange: [revealTranslateY, revealTranslateY, 0, 0],
+                  extrapolate: 'clamp',
+                }),
+              },
+            ],
+          }}
+        >
+          {row}
+        </Animated.View>
+      );
     },
     [
       beginSwipe,
@@ -639,6 +707,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       handlePressTask,
       handlePopInAnimationEnd,
       isFocused,
+      isDark,
       itemSpacing,
       popInTaskIdSet,
       projectsById,
@@ -659,6 +728,9 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       reportSwipeGestureActive,
       reportRowTouchInteraction,
       flatListData.length,
+      revealProgress,
+      revealStaggerStep,
+      revealTranslateY,
     ]
   );
 
