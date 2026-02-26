@@ -135,6 +135,7 @@ function KanbanColumn({
 
       <TaskSwipeDraggableList
         theme={theme}
+        isDark={theme === "dark"}
         tasks={tasks}
         projectsById={projectsById}
         rowStyles={rowStyles}

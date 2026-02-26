@@ -228,6 +228,7 @@ export default function ArchiveScreen() {
           drag={() => undefined}
           isActive={false}
           styles={styles}
+          isDark={isDark}
           emojiTint={emojiTint}
           emojiFallback={emojiFallback}
           swipeCompleteBg={swipeGreenBg}
@@ -272,6 +273,7 @@ export default function ArchiveScreen() {
       emojiFallback,
       emojiTint,
       handlePressTask,
+      isDark,
       moveCompletedBackToToday,
       moveToTrash,
       projectsById,

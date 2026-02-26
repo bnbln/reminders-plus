@@ -1,12 +1,7 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import Constants from "expo-constants";
 import { Tabs, useGlobalSearchParams, useSegments } from "expo-router";
-import {
-  Icon,
-  Label,
-  NativeTabs,
-  VectorIcon,
-} from "expo-router/unstable-native-tabs";
+import { NativeTabs } from "expo-router/unstable-native-tabs";
 import React from "react";
 import { DynamicColorIOS, NativeModules, Platform, StyleSheet, View } from "react-native";
 
@@ -56,6 +51,7 @@ export default function TabLayout() {
 
   React.useEffect(() => {
     const [first, second, third] = segments;
+    const segmentList = segments as string[];
 
     // Keep project context only for the in-tab project detail route.
     if (
@@ -70,7 +66,7 @@ export default function TabLayout() {
       return;
     }
 
-    if (first === "(tabs)" && second === "home" && (third === "routines" || segments.includes("routines"))) {
+    if (first === "(tabs)" && second === "home" && (third === "routines" || segmentList.includes("routines"))) {
       clearProjectId();
       setMode("routine");
       return;
@@ -95,6 +91,7 @@ export default function TabLayout() {
     if (Platform.OS !== "ios" || !isIOS26Plus) return;
 
     const [first, second, third] = segments;
+    const segmentList = segments as string[];
     if (first === "(tabs)" && second === "explore" && third === undefined) {
       accessoryBridge?.setContext?.("project", null, null);
       return;
@@ -123,7 +120,7 @@ export default function TabLayout() {
     const isRoutinesRoute =
       first === "(tabs)" &&
       second === "home" &&
-      (third === "routines" || segments.includes("routines"));
+      (third === "routines" || segmentList.includes("routines"));
     if (isRoutinesRoute) {
       accessoryBridge?.setContext?.("routine", null, null);
       return;
@@ -234,10 +231,10 @@ export default function TabLayout() {
           }
         >
           <NativeTabs.Trigger name="home">
-            <Label>{t("tabs.tasks")}</Label>
+            <NativeTabs.Trigger.Label>{t("tabs.tasks")}</NativeTabs.Trigger.Label>
             {Platform.select({
               ios: (
-                <Icon
+                <NativeTabs.Trigger.Icon
                   sf={{
                     default: "checkmark.circle",
                     selected: "checkmark.circle.fill",
@@ -245,9 +242,9 @@ export default function TabLayout() {
                 />
               ),
               android: (
-                <Icon
+                <NativeTabs.Trigger.Icon
                   src={
-                    <VectorIcon family={MaterialIcons} name="check-circle" />
+                    <NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="check-circle" />
                   }
                 />
               ),
@@ -256,10 +253,10 @@ export default function TabLayout() {
 
           {isIOS26Plus ? (
             <NativeTabs.Trigger name="search" role="search">
-              <Label>{t("tabs.search")}</Label>
+              <NativeTabs.Trigger.Label>{t("tabs.search")}</NativeTabs.Trigger.Label>
               {Platform.select({
                 ios: (
-                  <Icon
+                  <NativeTabs.Trigger.Icon
                     sf={{
                       default: "magnifyingglass",
                       selected: "magnifyingglass",
@@ -267,18 +264,18 @@ export default function TabLayout() {
                   />
                 ),
                 android: (
-                  <Icon
-                    src={<VectorIcon family={MaterialIcons} name="search" />}
+                  <NativeTabs.Trigger.Icon
+                    src={<NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="search" />}
                   />
                 ),
               })}
             </NativeTabs.Trigger>
           ) : (
             <NativeTabs.Trigger name="search">
-              <Label>{t("tabs.search")}</Label>
+              <NativeTabs.Trigger.Label>{t("tabs.search")}</NativeTabs.Trigger.Label>
               {Platform.select({
                 ios: (
-                  <Icon
+                  <NativeTabs.Trigger.Icon
                     sf={{
                       default: "magnifyingglass",
                       selected: "magnifyingglass",
@@ -286,8 +283,8 @@ export default function TabLayout() {
                   />
                 ),
                 android: (
-                  <Icon
-                    src={<VectorIcon family={MaterialIcons} name="search" />}
+                  <NativeTabs.Trigger.Icon
+                    src={<NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="search" />}
                   />
                 ),
               })}
@@ -295,12 +292,12 @@ export default function TabLayout() {
           )}
 
           <NativeTabs.Trigger name="explore">
-            <Label>{t("tabs.projects")}</Label>
+            <NativeTabs.Trigger.Label>{t("tabs.projects")}</NativeTabs.Trigger.Label>
             {Platform.select({
-              ios: <Icon sf={{ default: "folder", selected: "folder.fill" }} />,
+              ios: <NativeTabs.Trigger.Icon sf={{ default: "folder", selected: "folder.fill" }} />,
               android: (
-                <Icon
-                  src={<VectorIcon family={MaterialIcons} name="folder" />}
+                <NativeTabs.Trigger.Icon
+                  src={<NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="folder" />}
                 />
               ),
             })}
@@ -308,12 +305,12 @@ export default function TabLayout() {
 
           {showRoutinesTab && (
             <NativeTabs.Trigger name="routines">
-              <Label>{t("home.quick.routines")}</Label>
+              <NativeTabs.Trigger.Label>{t("home.quick.routines")}</NativeTabs.Trigger.Label>
               {Platform.select({
-                ios: <Icon sf={{ default: "repeat", selected: "repeat" }} />,
+                ios: <NativeTabs.Trigger.Icon sf={{ default: "repeat", selected: "repeat" }} />,
                 android: (
-                  <Icon
-                    src={<VectorIcon family={MaterialIcons} name="repeat" />}
+                  <NativeTabs.Trigger.Icon
+                    src={<NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="repeat" />}
                   />
                 ),
               })}

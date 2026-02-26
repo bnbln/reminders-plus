@@ -101,6 +101,7 @@ export default function SearchIndex() {
   return (
     <TaskSwipeDraggableList
       theme={theme}
+      isDark={theme === 'dark'}
       tasks={results}
       projectsById={projectsById}
       rowStyles={styles}

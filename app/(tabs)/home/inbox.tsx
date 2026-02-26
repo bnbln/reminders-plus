@@ -132,6 +132,7 @@ export default function InboxScreen() {
     <View style={styles.container}>
       <TaskSwipeDraggableList
         theme={theme}
+        isDark={theme === 'dark'}
         tasks={inboxTasks}
         projectsById={projectsById}
         rowStyles={styles}

@@ -140,6 +140,7 @@ export default function TodayScreen() {
     <View style={styles.container}>
       <TaskSwipeDraggableList
         theme={theme}
+        isDark={theme === 'dark'}
         tasks={todayTasks}
         projectsById={projectsById}
         rowStyles={styles}
