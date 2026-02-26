@@ -607,9 +607,9 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
 
   const spacerAnimatedStyle = useAnimatedStyle(() => {
     const p = 1 - collapse.value;
-    if (rowHeight.value <= 0) return {};
+    const measuredRowHeight = rowHeight.value;
     return {
-      height: rowHeight.value * p,
+      height: measuredRowHeight > 0 ? measuredRowHeight * p : undefined,
       marginBottom: isLast ? 0 : itemSpacing * p,
       overflow: isActive ? "visible" : "hidden",
     };

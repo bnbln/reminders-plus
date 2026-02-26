@@ -544,22 +544,30 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       if (!revealProgress) return row;
 
       const safeIndex = typeof index === 'number' && Number.isFinite(index) ? Math.max(0, index) : 0;
-      const stagger = Math.max(0.01, Math.min(0.12, revealStaggerStep));
-      const start = Math.min(safeIndex * stagger, 0.8);
-      const end = Math.min(start + 0.24, 1);
+      const stagger = Math.max(0.02, Math.min(0.1, revealStaggerStep));
+      const start = Math.min(0.04 + safeIndex * stagger, 0.78);
+      const mid = Math.min(start + 0.16, 0.94);
+      const end = Math.min(start + 0.38, 1);
+      const translateMid = revealTranslateY * 0.55;
       return (
         <Animated.View
           style={{
             opacity: revealProgress.interpolate({
-              inputRange: [0, start, end, 1],
-              outputRange: [0, 0, 1, 1],
+              inputRange: [0, start, mid, end, 1],
+              outputRange: [0, 0, 0.45, 1, 1],
               extrapolate: 'clamp',
             }),
             transform: [
               {
                 translateY: revealProgress.interpolate({
-                  inputRange: [0, start, end, 1],
-                  outputRange: [revealTranslateY, revealTranslateY, 0, 0],
+                  inputRange: [0, start, mid, end, 1],
+                  outputRange: [
+                    revealTranslateY,
+                    revealTranslateY,
+                    translateMid,
+                    0,
+                    0,
+                  ],
                   extrapolate: 'clamp',
                 }),
               },
@@ -669,22 +677,30 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       if (!revealProgress) return row;
 
       const safeIndex = Math.max(0, index);
-      const stagger = Math.max(0.01, Math.min(0.12, revealStaggerStep));
-      const start = Math.min(safeIndex * stagger, 0.8);
-      const end = Math.min(start + 0.24, 1);
+      const stagger = Math.max(0.02, Math.min(0.1, revealStaggerStep));
+      const start = Math.min(0.04 + safeIndex * stagger, 0.78);
+      const mid = Math.min(start + 0.16, 0.94);
+      const end = Math.min(start + 0.38, 1);
+      const translateMid = revealTranslateY * 0.55;
       return (
         <Animated.View
           style={{
             opacity: revealProgress.interpolate({
-              inputRange: [0, start, end, 1],
-              outputRange: [0, 0, 1, 1],
+              inputRange: [0, start, mid, end, 1],
+              outputRange: [0, 0, 0.45, 1, 1],
               extrapolate: 'clamp',
             }),
             transform: [
               {
                 translateY: revealProgress.interpolate({
-                  inputRange: [0, start, end, 1],
-                  outputRange: [revealTranslateY, revealTranslateY, 0, 0],
+                  inputRange: [0, start, mid, end, 1],
+                  outputRange: [
+                    revealTranslateY,
+                    revealTranslateY,
+                    translateMid,
+                    0,
+                    0,
+                  ],
                   extrapolate: 'clamp',
                 }),
               },

@@ -73,6 +73,7 @@ const HERO_HEADER_OVERLAP = 268;
 const TASK_ROW_HORIZONTAL_PADDING = 12;
 const CONTENT_STACK_GAP = 10;
 const DATE_TRANSITION_DURATION = 250;
+const DATE_TRANSITION_FALLBACK_DELAY_MS = 140;
 const HOME_ONBOARDING_KEYS = {
   gestures: "reminds.home.onboarding.gestures.v1",
   dragDropTargets: "reminds.home.onboarding.dragDropTargets.v1",
@@ -266,7 +267,14 @@ type DateListTransitionState = {
 type DateRailTitleTransitionState = {
   fromTitle: string;
   toTitle: string;
+  direction: 1 | -1;
 };
+type DateSelectionSource =
+  | "press"
+  | "swipe"
+  | "momentum"
+  | "picker"
+  | "programmatic";
 
 type DragSurfaceId = "today" | "upcoming";
 type DragBounds = { x: number; y: number; width: number; height: number };
@@ -1206,6 +1214,11 @@ export default function HomeScreen() {
     getStartOfToday(),
   );
   const dateListTranslateX = React.useRef(new Animated.Value(0)).current;
+  const dateListTransitionProgress = React.useRef(new Animated.Value(1)).current;
+  const dateListTransitionItemRevealProgress = React.useRef(
+    new Animated.Value(1),
+  ).current;
+  const dateListTransitionHeight = React.useRef(new Animated.Value(0)).current;
   const dateRailTitleTransitionProgress = React.useRef(
     new Animated.Value(0),
   ).current;
@@ -1215,17 +1228,49 @@ export default function HomeScreen() {
     React.useState<DateListTransitionState | null>(null);
   const [dateRailTitleTransition, setDateRailTitleTransition] =
     React.useState<DateRailTitleTransitionState | null>(null);
+  const dateRailTitleTransitionRef =
+    React.useRef<DateRailTitleTransitionState | null>(null);
+  const dateRailResolvedTitleRef = React.useRef<string>(
+    t("common.today"),
+  );
   const [dateListHostWidth, setDateListHostWidth] =
     React.useState(viewportWidth);
   const dateListHostWidthRef = React.useRef(viewportWidth);
+  const dateListHostHeightRef = React.useRef(0);
+  const dateListTransitionHeightsRef = React.useRef({ from: 0, to: 0 });
+  const dateListTransitionReadyRef = React.useRef({ from: false, to: false });
+  const dateListTransitionStartedRef = React.useRef(false);
+  const dateListTransitionActiveTargetDateRef = React.useRef<number | null>(
+    null,
+  );
+  const dateListTransitionConfigRef = React.useRef({
+    startX: 0,
+    endX: 0,
+    fromHeight: 1,
+    toHeight: 1,
+  });
+  const dateListTransitionStartHandlerRef = React.useRef<
+    ((allowFallback: boolean) => void) | null
+  >(null);
   const dateListTransitionStartRafRef = React.useRef<number | null>(null);
+  const dateListTransitionStartTimeoutRef = React.useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+  const dateListTransitionSettleRafRef = React.useRef<number | null>(null);
   const dateRailTitleAnimationRef =
+    React.useRef<Animated.CompositeAnimation | null>(null);
+  const dateListTransitionProgressAnimationRef =
     React.useRef<Animated.CompositeAnimation | null>(null);
   const listTransitionRunningRef = React.useRef(false);
   const queuedDateStartRef = React.useRef<number | null>(null);
   const queuedDirectionRef = React.useRef<1 | -1>(1);
   const listDateStartRef = React.useRef(listDateStart);
   const selectedDateStartRef = React.useRef(selectedDateStart);
+  const lastDateSelectionRequestRef = React.useRef<{
+    dateStart: number;
+    source: DateSelectionSource;
+    at: number;
+  } | null>(null);
   React.useEffect(() => {
     listDateStartRef.current = listDateStart;
   }, [listDateStart]);
@@ -1387,6 +1432,13 @@ export default function HomeScreen() {
     () => getDynamicHeaderTitle(selectedDateStart),
     [getDynamicHeaderTitle, selectedDateStart],
   );
+  React.useEffect(() => {
+    if (dateRailTitleTransition) return;
+    dateRailResolvedTitleRef.current = dynamicHeaderTitle;
+  }, [dateRailTitleTransition, dynamicHeaderTitle]);
+  React.useEffect(() => {
+    dateRailTitleTransitionRef.current = dateRailTitleTransition;
+  }, [dateRailTitleTransition]);
   React.useLayoutEffect(() => {
     navigation.setOptions({ title: t("tabs.tasks") });
   }, [navigation]);
@@ -1479,9 +1531,19 @@ export default function HomeScreen() {
     [monthActionFormatter, selectedDateStart],
   );
   const cancelDateListTransitionStart = React.useCallback(() => {
-    if (dateListTransitionStartRafRef.current == null) return;
-    cancelAnimationFrame(dateListTransitionStartRafRef.current);
-    dateListTransitionStartRafRef.current = null;
+    if (dateListTransitionStartRafRef.current != null) {
+      cancelAnimationFrame(dateListTransitionStartRafRef.current);
+      dateListTransitionStartRafRef.current = null;
+    }
+    if (dateListTransitionStartTimeoutRef.current != null) {
+      clearTimeout(dateListTransitionStartTimeoutRef.current);
+      dateListTransitionStartTimeoutRef.current = null;
+    }
+  }, []);
+  const cancelDateListTransitionSettle = React.useCallback(() => {
+    if (dateListTransitionSettleRafRef.current == null) return;
+    cancelAnimationFrame(dateListTransitionSettleRafRef.current);
+    dateListTransitionSettleRafRef.current = null;
   }, []);
   const stopDateRailTitleAnimation = React.useCallback(() => {
     const runningAnimation = dateRailTitleAnimationRef.current;
@@ -1491,21 +1553,38 @@ export default function HomeScreen() {
   }, []);
   const resetDateRailTitleMotion = React.useCallback(() => {
     stopDateRailTitleAnimation();
+    dateRailTitleTransitionRef.current = null;
     dateRailTitleTransitionProgress.setValue(0);
     setDateRailTitleTransition(null);
-  }, [dateRailTitleTransitionProgress, stopDateRailTitleAnimation]);
+  }, [
+    dateRailTitleTransitionProgress,
+    dateRailTitleTransitionRef,
+    stopDateRailTitleAnimation,
+  ]);
   const animateDateRailTitleTransition = React.useCallback(
     (fromDateStart: number, toDateStart: number) => {
-      const fromTitle = getDynamicHeaderTitle(fromDateStart);
       const toTitle = getDynamicHeaderTitle(toDateStart);
+      const activeTransition = dateRailTitleTransitionRef.current;
+      const fromTitle =
+        activeTransition?.toTitle ??
+        dateRailResolvedTitleRef.current ??
+        getDynamicHeaderTitle(fromDateStart);
+
+      if (activeTransition && activeTransition.toTitle === toTitle) {
+        return;
+      }
 
       if (fromTitle === toTitle) {
+        dateRailResolvedTitleRef.current = toTitle;
         resetDateRailTitleMotion();
         return;
       }
 
       stopDateRailTitleAnimation();
-      setDateRailTitleTransition({ fromTitle, toTitle });
+      const direction: 1 | -1 = toDateStart >= fromDateStart ? 1 : -1;
+      const nextTransition = { fromTitle, toTitle, direction } as const;
+      dateRailTitleTransitionRef.current = nextTransition;
+      setDateRailTitleTransition(nextTransition);
       dateRailTitleTransitionProgress.setValue(0);
       const animation = Animated.timing(dateRailTitleTransitionProgress, {
         toValue: 1,
@@ -1518,12 +1597,16 @@ export default function HomeScreen() {
         if (dateRailTitleAnimationRef.current !== animation) return;
         dateRailTitleAnimationRef.current = null;
         if (!finished) return;
+        dateRailResolvedTitleRef.current = toTitle;
+        dateRailTitleTransitionRef.current = null;
         dateRailTitleTransitionProgress.setValue(0);
         setDateRailTitleTransition(null);
       });
     },
     [
+      dateRailResolvedTitleRef,
       dateRailTitleTransitionProgress,
+      dateRailTitleTransitionRef,
       getDynamicHeaderTitle,
       resetDateRailTitleMotion,
       stopDateRailTitleAnimation,
@@ -1533,6 +1616,72 @@ export default function HomeScreen() {
     dateListTranslateX.stopAnimation();
     dateListTranslateX.setValue(0);
   }, [dateListTranslateX]);
+  const stopDateListTransitionProgressAnimation = React.useCallback(() => {
+    const runningAnimation = dateListTransitionProgressAnimationRef.current;
+    if (!runningAnimation) return;
+    runningAnimation.stop();
+    dateListTransitionProgressAnimationRef.current = null;
+  }, []);
+  const applyDateListTransitionProgress = React.useCallback(
+    (rawValue: number) => {
+      const value = clamp(rawValue, 0, 1);
+      const { startX, endX, fromHeight, toHeight } =
+        dateListTransitionConfigRef.current;
+
+      dateListTranslateX.setValue(startX + (endX - startX) * value);
+      dateListTransitionHeight.setValue(
+        Math.max(1, fromHeight + (toHeight - fromHeight) * value),
+      );
+
+      const revealStart = 0.14;
+      const revealEnd = 0.98;
+      const revealLinear =
+        value <= revealStart
+          ? 0
+          : value >= revealEnd
+            ? 1
+            : (value - revealStart) / (revealEnd - revealStart);
+
+      dateListTransitionItemRevealProgress.setValue(clamp(revealLinear, 0, 1));
+    },
+    [
+      dateListTranslateX,
+      dateListTransitionHeight,
+      dateListTransitionItemRevealProgress,
+    ],
+  );
+  React.useEffect(() => {
+    const listenerId = dateListTransitionProgress.addListener(({ value }) => {
+      applyDateListTransitionProgress(value);
+    });
+    return () => {
+      dateListTransitionProgress.removeListener(listenerId);
+    };
+  }, [applyDateListTransitionProgress, dateListTransitionProgress]);
+  const resetDateListTransitionMotion = React.useCallback(() => {
+    cancelDateListTransitionStart();
+    cancelDateListTransitionSettle();
+    stopDateListTransitionProgressAnimation();
+    dateListTransitionProgress.setValue(1);
+    dateListTransitionReadyRef.current = { from: false, to: false };
+    dateListTransitionStartedRef.current = false;
+    dateListTransitionActiveTargetDateRef.current = null;
+    dateListTransitionStartHandlerRef.current = null;
+    const stableHeight = Math.max(1, dateListHostHeightRef.current || 1);
+    dateListTransitionConfigRef.current = {
+      startX: 0,
+      endX: 0,
+      fromHeight: stableHeight,
+      toHeight: stableHeight,
+    };
+    applyDateListTransitionProgress(1);
+  }, [
+    applyDateListTransitionProgress,
+    cancelDateListTransitionStart,
+    cancelDateListTransitionSettle,
+    dateListTransitionProgress,
+    stopDateListTransitionProgressAnimation,
+  ]);
   const handleDateListHostLayout = React.useCallback(
     (event: LayoutChangeEvent) => {
       const nextWidth = event.nativeEvent.layout.width;
@@ -1541,8 +1690,68 @@ export default function HomeScreen() {
       setDateListHostWidth((current) =>
         Math.abs(current - nextWidth) < 1 ? current : nextWidth,
       );
+
+      const nextHeight = Math.max(0, Math.ceil(event.nativeEvent.layout.height));
+      if (nextHeight <= 0) return;
+      dateListHostHeightRef.current = nextHeight;
+      if (!listTransitionRunningRef.current) {
+        dateListTransitionConfigRef.current = {
+          startX: 0,
+          endX: 0,
+          fromHeight: nextHeight,
+          toHeight: nextHeight,
+        };
+        applyDateListTransitionProgress(1);
+      }
     },
-    [],
+    [applyDateListTransitionProgress],
+  );
+  const handleDateListTransitionPageLayout = React.useCallback(
+    (kind: "from" | "to", event: LayoutChangeEvent) => {
+      if (!listTransitionRunningRef.current || !dateListTransitionState) return;
+
+      const nextHeight = Math.max(0, Math.ceil(event.nativeEvent.layout.height));
+      if (nextHeight <= 0) return;
+
+      const previousHeight = dateListTransitionHeightsRef.current[kind];
+      dateListTransitionReadyRef.current[kind] = true;
+      if (Math.abs(previousHeight - nextHeight) < 1) {
+        dateListTransitionStartHandlerRef.current?.(false);
+        return;
+      }
+
+      dateListTransitionHeightsRef.current[kind] = nextHeight;
+
+      if (!dateListTransitionStartedRef.current) {
+        if (kind === "from") {
+          dateListTransitionConfigRef.current = {
+            ...dateListTransitionConfigRef.current,
+            fromHeight: nextHeight,
+          };
+          applyDateListTransitionProgress(0);
+        } else {
+          dateListTransitionConfigRef.current = {
+            ...dateListTransitionConfigRef.current,
+            toHeight: nextHeight,
+          };
+        }
+      }
+
+      dateListTransitionStartHandlerRef.current?.(false);
+    },
+    [applyDateListTransitionProgress, dateListTransitionState],
+  );
+  const handleDateListFromPageLayout = React.useCallback(
+    (event: LayoutChangeEvent) => {
+      handleDateListTransitionPageLayout("from", event);
+    },
+    [handleDateListTransitionPageLayout],
+  );
+  const handleDateListToPageLayout = React.useCallback(
+    (event: LayoutChangeEvent) => {
+      handleDateListTransitionPageLayout("to", event);
+    },
+    [handleDateListTransitionPageLayout],
   );
 
   const runDateListTransition = React.useCallback(
@@ -1555,6 +1764,7 @@ export default function HomeScreen() {
       if (listTransitionRunningRef.current) return;
 
       const runCycle = () => {
+        cancelDateListTransitionSettle();
         const targetDate = queuedDateStartRef.current;
         if (targetDate == null) {
           cancelDateListTransitionStart();
@@ -1563,6 +1773,7 @@ export default function HomeScreen() {
           setDateListTransitionState(null);
           resetDateListMotion();
           resetDateRailTitleMotion();
+          resetDateListTransitionMotion();
           return;
         }
 
@@ -1575,6 +1786,7 @@ export default function HomeScreen() {
           setDateListTransitionState(null);
           resetDateListMotion();
           resetDateRailTitleMotion();
+          resetDateListTransitionMotion();
           return;
         }
 
@@ -1582,85 +1794,133 @@ export default function HomeScreen() {
         listTransitionRunningRef.current = true;
         setIsDateListTransitioning(true);
         const dir = queuedDirectionRef.current;
+        const travel = Math.max(1, dateListHostWidthRef.current);
+        const startX = dir === 1 ? 0 : -travel;
+        const endX = dir === 1 ? -travel : 0;
+        const fallbackHeight = Math.max(
+          1,
+          dateListHostHeightRef.current || dateListTransitionConfigRef.current.toHeight,
+        );
+        dateListTransitionActiveTargetDateRef.current = targetDate;
+        dateListTransitionStartedRef.current = false;
+        dateListTransitionReadyRef.current = { from: false, to: false };
+        dateListTransitionHeightsRef.current = { from: 0, to: 0 };
+        dateListTransitionConfigRef.current = {
+          startX,
+          endX,
+          fromHeight: fallbackHeight,
+          toHeight: fallbackHeight,
+        };
+        dateListTransitionProgress.setValue(0);
+        applyDateListTransitionProgress(0);
         setDateListTransitionState({
           fromDateStart,
           toDateStart: targetDate,
           direction: dir,
         });
-        const travel = Math.max(1, dateListHostWidthRef.current);
-        const startX = dir === 1 ? 0 : -travel;
-        const endX = dir === 1 ? -travel : 0;
 
-        resetDateListMotion();
-        dateListTranslateX.setValue(startX);
+        const startTransitionMotion = (allowFallback: boolean) => {
+          if (!listTransitionRunningRef.current) return;
+          if (dateListTransitionStartedRef.current) return;
+          if (dateListTransitionActiveTargetDateRef.current !== targetDate) return;
+
+          const hasFrom = dateListTransitionReadyRef.current.from;
+          const hasTo = dateListTransitionReadyRef.current.to;
+          if (!(hasFrom && hasTo) && !allowFallback) return;
+
+          const measuredFrom = hasFrom
+            ? Math.max(1, dateListTransitionHeightsRef.current.from)
+            : fallbackHeight;
+          const measuredTo = hasTo
+            ? Math.max(1, dateListTransitionHeightsRef.current.to)
+            : Math.max(1, dateListHostHeightRef.current || measuredFrom);
+
+          cancelDateListTransitionStart();
+          dateListTransitionConfigRef.current = {
+            startX,
+            endX,
+            fromHeight: measuredFrom,
+            toHeight: measuredTo,
+          };
+          applyDateListTransitionProgress(0);
+          dateListTransitionStartedRef.current = true;
+
+          stopDateListTransitionProgressAnimation();
+          const animation = Animated.timing(dateListTransitionProgress, {
+            toValue: 1,
+            duration: DATE_TRANSITION_DURATION + 90,
+            easing: Easing.inOut(Easing.cubic),
+            useNativeDriver: false,
+          });
+          dateListTransitionProgressAnimationRef.current = animation;
+          animation.start(({ finished }) => {
+            if (dateListTransitionProgressAnimationRef.current === animation) {
+              dateListTransitionProgressAnimationRef.current = null;
+            }
+            if (!finished) return;
+            if (dateListTransitionActiveTargetDateRef.current !== targetDate) return;
+
+            setListDateStart(targetDate);
+            listDateStartRef.current = targetDate;
+            dateListHostHeightRef.current = Math.max(
+              1,
+              dateListTransitionConfigRef.current.toHeight,
+            );
+            applyDateListTransitionProgress(1);
+
+            if (
+              queuedDateStartRef.current !== null &&
+              queuedDateStartRef.current !== targetDate
+            ) {
+              cancelDateListTransitionSettle();
+              listTransitionRunningRef.current = false;
+              setIsDateListTransitioning(false);
+              setDateListTransitionState(null);
+              resetDateListTransitionMotion();
+              runCycle();
+              return;
+            }
+
+            listTransitionRunningRef.current = false;
+            setDateListTransitionState(null);
+            cancelDateListTransitionSettle();
+            dateListTransitionSettleRafRef.current = requestAnimationFrame(
+              () => {
+                dateListTransitionSettleRafRef.current = requestAnimationFrame(
+                  () => {
+                    dateListTransitionSettleRafRef.current = null;
+                    setIsDateListTransitioning(false);
+                    resetDateListTransitionMotion();
+                  },
+                );
+              },
+            );
+          });
+        };
+        dateListTransitionStartHandlerRef.current = startTransitionMotion;
 
         cancelDateListTransitionStart();
-        const stageOneRaf = requestAnimationFrame(() => {
-          dateListTransitionStartRafRef.current = requestAnimationFrame(() => {
-            dateListTransitionStartRafRef.current = null;
-            Animated.timing(dateListTranslateX, {
-              toValue: endX,
-              duration: DATE_TRANSITION_DURATION,
-              easing: Easing.inOut(Easing.cubic),
-              useNativeDriver: true,
-            }).start(({ finished }) => {
-              if (!finished) {
-                listTransitionRunningRef.current = false;
-                setIsDateListTransitioning(false);
-                setDateListTransitionState(null);
-                resetDateListMotion();
-                resetDateRailTitleMotion();
-                return;
-              }
-
-              setListDateStart(targetDate);
-              listDateStartRef.current = targetDate;
-
-              if (
-                queuedDateStartRef.current !== null &&
-                queuedDateStartRef.current !== targetDate
-              ) {
-                listTransitionRunningRef.current = false;
-                setIsDateListTransitioning(false);
-                setDateListTransitionState(null);
-                runCycle();
-                return;
-              }
-
-              cancelDateListTransitionStart();
-              dateListTransitionStartRafRef.current = requestAnimationFrame(
-                () => {
-                  dateListTransitionStartRafRef.current = null;
-
-                  if (
-                    queuedDateStartRef.current !== null &&
-                    queuedDateStartRef.current !== targetDate
-                  ) {
-                    listTransitionRunningRef.current = false;
-                    setIsDateListTransitioning(false);
-                    setDateListTransitionState(null);
-                    runCycle();
-                    return;
-                  }
-
-                  listTransitionRunningRef.current = false;
-                  setIsDateListTransitioning(false);
-                  setDateListTransitionState(null);
-                },
-              );
-            });
-          });
+        dateListTransitionStartRafRef.current = requestAnimationFrame(() => {
+          dateListTransitionStartRafRef.current = null;
+          dateListTransitionStartHandlerRef.current?.(false);
         });
-        dateListTransitionStartRafRef.current = stageOneRaf;
+        dateListTransitionStartTimeoutRef.current = setTimeout(() => {
+          dateListTransitionStartTimeoutRef.current = null;
+          dateListTransitionStartHandlerRef.current?.(true);
+        }, DATE_TRANSITION_FALLBACK_DELAY_MS);
       };
 
       runCycle();
     },
     [
+      applyDateListTransitionProgress,
+      cancelDateListTransitionSettle,
       cancelDateListTransitionStart,
-      dateListTranslateX,
+      dateListTransitionProgress,
       resetDateListMotion,
+      resetDateListTransitionMotion,
       resetDateRailTitleMotion,
+      stopDateListTransitionProgressAnimation,
     ],
   );
   const setListDateWithoutTransition = React.useCallback(
@@ -1673,6 +1933,7 @@ export default function HomeScreen() {
       setDateListTransitionState(null);
       resetDateListMotion();
       resetDateRailTitleMotion();
+      resetDateListTransitionMotion();
       if (animateLayout) {
         configureSmoothListLayoutTransition();
       }
@@ -1682,13 +1943,47 @@ export default function HomeScreen() {
     [
       cancelDateListTransitionStart,
       resetDateListMotion,
+      resetDateListTransitionMotion,
       resetDateRailTitleMotion,
     ],
   );
   const selectDateWithTransition = React.useCallback(
-    (nextDateStart: number, directionHint?: 1 | -1) => {
+    (
+      nextDateStart: number,
+      directionHint?: 1 | -1,
+      source: DateSelectionSource = "programmatic",
+    ) => {
       const current = selectedDateStartRef.current;
       if (isSameLocalDay(current, nextDateStart)) return;
+      const now = Date.now();
+      const lastRequest = lastDateSelectionRequestRef.current;
+      if (
+        source === "momentum" &&
+        (dateRailTitleAnimationRef.current || listTransitionRunningRef.current)
+      ) {
+        return;
+      }
+      if (
+        source === "momentum" &&
+        lastRequest &&
+        lastRequest.source !== "momentum" &&
+        now - lastRequest.at < DATE_TRANSITION_DURATION + 220 &&
+        !isSameLocalDay(lastRequest.dateStart, nextDateStart)
+      ) {
+        return;
+      }
+      if (
+        source === "momentum" &&
+        listTransitionRunningRef.current &&
+        isSameLocalDay(nextDateStart, listDateStartRef.current)
+      ) {
+        return;
+      }
+      lastDateSelectionRequestRef.current = {
+        dateStart: nextDateStart,
+        source,
+        at: now,
+      };
       const direction: 1 | -1 =
         directionHint ?? (nextDateStart > current ? 1 : -1);
       animateDateRailTitleTransition(current, nextDateStart);
@@ -1703,6 +1998,11 @@ export default function HomeScreen() {
     (nextDateStart: number) => {
       const current = selectedDateStartRef.current;
       if (isSameLocalDay(current, nextDateStart)) return;
+      lastDateSelectionRequestRef.current = {
+        dateStart: nextDateStart,
+        source: "programmatic",
+        at: Date.now(),
+      };
       selectedDateStartRef.current = nextDateStart;
       setSelectedDateStart(nextDateStart);
       setListDateWithoutTransition(nextDateStart, false);
@@ -1714,6 +2014,7 @@ export default function HomeScreen() {
       cancelDateListTransitionStart();
       resetDateListMotion();
       resetDateRailTitleMotion();
+      resetDateListTransitionMotion();
       todayCollapseAnimationRef.current?.stop();
       upcomingCollapseAnimationRef.current?.stop();
     },
@@ -1721,13 +2022,12 @@ export default function HomeScreen() {
       cancelDateListTransitionStart,
       resetDateListMotion,
       resetDateRailTitleMotion,
-      todayCollapseAnimationRef,
-      upcomingCollapseAnimationRef,
+      resetDateListTransitionMotion,
     ],
   );
   const handleSelectDate = React.useCallback(
-    (timestamp: number) => {
-      selectDateWithTransition(timestamp);
+    (timestamp: number, source: DateSelectionSource = "press") => {
+      selectDateWithTransition(timestamp, undefined, source);
     },
     [selectDateWithTransition],
   );
@@ -1752,6 +2052,7 @@ export default function HomeScreen() {
   const dateRailScrollOffsetRef = React.useRef(
     dateRailInitialIndex * dateRailSnapInterval,
   );
+  const dateRailDraggedRef = React.useRef(false);
   const currentWeekIndexRef = React.useRef(
     Math.floor(dateRailInitialIndex / DATE_RAIL_PAGE_DAYS),
   );
@@ -1799,9 +2100,14 @@ export default function HomeScreen() {
     },
     [],
   );
+  const handleDateRailScrollBeginDrag = React.useCallback(() => {
+    dateRailDraggedRef.current = true;
+  }, []);
 
   const handleDateRailMomentumEnd = React.useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const shouldSelectFromMomentum = dateRailDraggedRef.current;
+      dateRailDraggedRef.current = false;
       const offset = event.nativeEvent.contentOffset.x;
       dateRailScrollOffsetRef.current = offset;
       const maxWeekIndex = Math.max(
@@ -1814,6 +2120,10 @@ export default function HomeScreen() {
       );
       const previousWeekIndex = currentWeekIndexRef.current;
       if (weekIndex === previousWeekIndex) return;
+      if (!shouldSelectFromMomentum) {
+        currentWeekIndexRef.current = weekIndex;
+        return;
+      }
 
       const isBackward = weekIndex < previousWeekIndex;
       const weekStartIndex = weekIndex * DATE_RAIL_PAGE_DAYS;
@@ -1827,9 +2137,9 @@ export default function HomeScreen() {
       );
       const nextDay = dateRailDays[nextIndex];
       if (!nextDay) return;
-      handleSelectDate(nextDay.timestamp);
+      selectDateWithTransition(nextDay.timestamp, undefined, "momentum");
     },
-    [dateRailDays, dateRailPageInterval, handleSelectDate],
+    [dateRailDays, dateRailPageInterval, selectDateWithTransition],
   );
   React.useEffect(() => {
     const rafId = requestAnimationFrame(measureDateRailBounds);
@@ -2079,7 +2389,7 @@ export default function HomeScreen() {
   const shiftSelectedDateBySwipe = React.useCallback(
     (delta: 1 | -1) => {
       const next = addDays(selectedDateStartRef.current, delta);
-      selectDateWithTransition(next, delta > 0 ? 1 : -1);
+      selectDateWithTransition(next, delta > 0 ? 1 : -1, "swipe");
     },
     [selectDateWithTransition],
   );
@@ -3106,6 +3416,15 @@ export default function HomeScreen() {
       inputRange: [0, 1],
       outputRange: [0, -4],
     });
+    const titleTransitionDirection = dateRailTitleTransition?.direction ?? 1;
+    const titleOutTranslateY = dateRailTitleTransitionProgress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, -10 * titleTransitionDirection],
+    });
+    const titleInTranslateY = dateRailTitleTransitionProgress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [10 * titleTransitionDirection, 0],
+    });
     return (
       <View
         ref={dateRailWrapRef}
@@ -3172,6 +3491,7 @@ export default function HomeScreen() {
                                     outputRange: [1, 0],
                                   },
                                 ),
+                                transform: [{ translateY: titleOutTranslateY }],
                               },
                             ]}
                           >
@@ -3184,6 +3504,7 @@ export default function HomeScreen() {
                               styles.dateRailTitleTextTransitionText,
                               {
                                 opacity: dateRailTitleTransitionProgress,
+                                transform: [{ translateY: titleInTranslateY }],
                               },
                             ]}
                           >
@@ -3325,6 +3646,7 @@ export default function HomeScreen() {
                         setCalendarPickerDate({ month, year });
                         handleSelectDate(
                           new Date(year, month - 1, 1).getTime(),
+                          "picker",
                         );
                       }
                     }}
@@ -3373,6 +3695,7 @@ export default function HomeScreen() {
                     accessibilityRole="button"
                     accessibilityLabel={`${day.weekday} ${day.dayOfMonth}`}
                     onPress={() => {
+                      dateRailDraggedRef.current = false;
                       closeAnyOpen();
                       handleSelectDate(day.timestamp);
                     }}
@@ -3396,6 +3719,7 @@ export default function HomeScreen() {
               getItemLayout={getDateRailItemLayout}
               onScrollToIndexFailed={handleDateRailScrollToIndexFailed}
               onScroll={handleDateRailScroll}
+              onScrollBeginDrag={handleDateRailScrollBeginDrag}
               onMomentumScrollEnd={handleDateRailMomentumEnd}
               showsHorizontalScrollIndicator={false}
               snapToOffsets={dateRailWeekSnapOffsets}
@@ -3423,6 +3747,7 @@ export default function HomeScreen() {
     getDateRailItemLayout,
     handleDateRailMomentumEnd,
     handleDateRailScroll,
+    handleDateRailScrollBeginDrag,
     handleDateRailScrollToIndexFailed,
     handleSelectDate,
     isCalendarPickerOpen,
@@ -3578,11 +3903,14 @@ export default function HomeScreen() {
                     ]}
                   >
                     <View style={styles.taskListInset}>
-                      <View
+                      <Animated.View
                         style={[
                           styles.dateListTransitionHost,
                           activeDragSurface === "today"
                             ? styles.dateListTransitionHostDragActive
+                            : null,
+                          isDateListTransitioning
+                            ? { height: dateListTransitionHeight }
                             : null,
                         ]}
                         onLayout={handleDateListHostLayout}
@@ -3606,6 +3934,7 @@ export default function HomeScreen() {
                                     styles.dateListTransitionPage,
                                     { width: dateListTransitionPageWidth },
                                   ]}
+                                  onLayout={handleDateListFromPageLayout}
                                 >
                                   <TaskSwipeDraggableList
                                     theme={theme}
@@ -3646,6 +3975,7 @@ export default function HomeScreen() {
                                     styles.dateListTransitionPage,
                                     { width: dateListTransitionPageWidth },
                                   ]}
+                                  onLayout={handleDateListToPageLayout}
                                 >
                                   <TaskSwipeDraggableList
                                     theme={theme}
@@ -3679,6 +4009,11 @@ export default function HomeScreen() {
                                     deleteTask={handleDeleteTask}
                                     renderMode="static"
                                     animateDataLayoutChanges={false}
+                                    revealProgress={
+                                      dateListTransitionItemRevealProgress
+                                    }
+                                    revealStaggerStep={0.04}
+                                    revealTranslateY={-6}
                                   />
                                 </View>
                               </>
@@ -3689,6 +4024,7 @@ export default function HomeScreen() {
                                     styles.dateListTransitionPage,
                                     { width: dateListTransitionPageWidth },
                                   ]}
+                                  onLayout={handleDateListToPageLayout}
                                 >
                                   <TaskSwipeDraggableList
                                     theme={theme}
@@ -3722,6 +4058,11 @@ export default function HomeScreen() {
                                     deleteTask={handleDeleteTask}
                                     renderMode="static"
                                     animateDataLayoutChanges={false}
+                                    revealProgress={
+                                      dateListTransitionItemRevealProgress
+                                    }
+                                    revealStaggerStep={0.04}
+                                    revealTranslateY={-6}
                                   />
                                 </View>
                                 <View
@@ -3729,6 +4070,7 @@ export default function HomeScreen() {
                                     styles.dateListTransitionPage,
                                     { width: dateListTransitionPageWidth },
                                   ]}
+                                  onLayout={handleDateListFromPageLayout}
                                 >
                                   <TaskSwipeDraggableList
                                     theme={theme}
@@ -3818,7 +4160,7 @@ export default function HomeScreen() {
                             />
                           </View>
                         )}
-                      </View>
+                      </Animated.View>
                     </View>
                   </Animated.View>
                 ) : null}
