@@ -26,7 +26,7 @@ import type { Project, Task } from '@/context/tasks-store';
 import { isIOS26OrNewer } from '@/utils/ios-version';
 
 type ThemeName = keyof typeof Colors;
-const LIST_ACTIVATION_DISTANCE_NESTED = 14;
+const LIST_ACTIVATION_DISTANCE_NESTED = 8;
 const LIST_ACTIVATION_DISTANCE_DEFAULT = 8;
 const LIST_AUTOSCROLL_SPEED = 58;
 const LIST_ANIMATION_CONFIG = {
@@ -349,6 +349,18 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     [closeAnyOpen]
   );
 
+  // Disable scrolling at native level immediately (before React re-render).
+  // This forces the RNGH scroll handler to release the current touch,
+  // allowing the library's Pan gesture to activate on the SAME touch.
+  const disableScrollForDrag = React.useCallback(() => {
+    if (internalScrollRef.current?.setNativeProps) {
+      internalScrollRef.current.setNativeProps({ scrollEnabled: false });
+    }
+    if (scrollRef?.current?.setNativeProps) {
+      scrollRef.current.setNativeProps({ scrollEnabled: false });
+    }
+  }, [scrollRef]);
+
   const handlePressTask = React.useCallback(
     (taskId: string) => {
       // First tap closes swipe if anything is open.
@@ -429,13 +441,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
         currentSection = item.sectionId;
         continue;
       }
-      let sectionId = currentSection;
-      const keyParts = item.key.split(':');
-      const suffix = keyParts[keyParts.length - 1];
-      if (suffix === 'today' || suffix === 'upcoming' || suffix === 'completed') {
-        sectionId = suffix;
-      }
-      appendTask(sectionId, item.taskId);
+      appendTask(currentSection, item.taskId);
     }
 
     const taskMeta = new Map<
@@ -472,13 +478,13 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     if (useScrollViewCompatibilityMode) return internalScrollRef;
     return undefined;
   }, [scrollRef, useScrollViewCompatibilityMode]);
-  const usesNestedScrollGestures = renderMode === 'nestable' || useScrollViewCompatibilityMode;
-  const listActivationDistance = usesNestedScrollGestures
-    ? LIST_ACTIVATION_DISTANCE_NESTED
-    : LIST_ACTIVATION_DISTANCE_DEFAULT;
   // `react - native - draggable - flatlist` only emits `onDragTouchPoint` when cross-axis drag is enabled.
   // Auto-enable it whenever callers subscribe to drag touch points.
   const allowCrossAxisDrag = dragAxisMode === "free" || !!onDragTouchPoint;
+  const usesNestedScrollGestures = renderMode === 'nestable' || useScrollViewCompatibilityMode;
+  const listActivationDistance = usesNestedScrollGestures
+    ? (allowCrossAxisDrag ? 0 : LIST_ACTIVATION_DISTANCE_NESTED)
+    : LIST_ACTIVATION_DISTANCE_DEFAULT;
   const resolvedContainerStyle: StyleProp<ViewStyle> = React.useMemo(() => {
     return [{ flex: 1, backgroundColor: Colors[theme].background, overflow: 'visible' }, containerStyle];
   }, [containerStyle, theme]);
@@ -533,6 +539,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           externalScrollRef={rowScrollGestureRef}
           onSwipeGestureActiveChange={reportSwipeGestureActive}
           onTouchInteractionChange={reportRowTouchInteraction}
+          onBeforeDrag={disableScrollForDrag}
           shouldPopIn={isFocused && popInTaskIdSet.has(task.id)}
           onPopInAnimationEnd={handlePopInAnimationEnd}
           selectedDateStart={selectedDateStart}
@@ -666,6 +673,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           externalScrollRef={rowScrollGestureRef}
           onSwipeGestureActiveChange={reportSwipeGestureActive}
           onTouchInteractionChange={reportRowTouchInteraction}
+          onBeforeDrag={disableScrollForDrag}
           shouldPopIn={isFocused && popInTaskIdSet.has(task.id)}
           onPopInAnimationEnd={handlePopInAnimationEnd}
           selectedDateStart={selectedDateStart}
@@ -805,25 +813,29 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     }) => {
       const handledExternally = onDragEndMeta?.({ data, from, to }) === true;
       if (handledExternally) {
-        const draggingTaskId = draggingTaskIdRef.current;
-        if (!draggingTaskId) {
-          setFlatListData(data);
-        } else {
-          setFlatListData((prev) =>
-            prev.filter(
-              (item) => item.kind === "header" || item.taskId !== draggingTaskId,
-            ),
-          );
-        }
+        // External handlers mutate parent data; keep local list stable and
+        // wait for parent sync to avoid transient remount flashes.
+        // Delay the drag-state reset so the drop commit's state changes
+        // propagate before the useLayoutEffect re-syncs flatListData.
+        draggingTaskIdRef.current = null;
+        placeholderIndexRef.current = -1;
+        requestAnimationFrame(() => {
+          isDraggingRef.current = false;
+          onDragStateChange?.(false);
+        });
       } else {
         setFlatListData(data);
         onReorderData?.(data);
         onReorder?.(data.filter((d) => d.kind === "task").map((d) => d.taskId));
+        draggingTaskIdRef.current = null;
+        placeholderIndexRef.current = -1;
+        // Delay drag-state reset to give parent re-render one frame to propagate,
+        // preventing the useLayoutEffect from re-syncing data and causing a flash.
+        requestAnimationFrame(() => {
+          isDraggingRef.current = false;
+          onDragStateChange?.(false);
+        });
       }
-      draggingTaskIdRef.current = null;
-      isDraggingRef.current = false;
-      placeholderIndexRef.current = -1;
-      onDragStateChange?.(false);
     },
     [onDragEndMeta, onDragStateChange, onReorder, onReorderData],
   );

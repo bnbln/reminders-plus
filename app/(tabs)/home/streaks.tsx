@@ -1,9 +1,10 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import React, { useMemo, useState } from 'react';
 import SegmentedControl from '@react-native-segmented-control/segmented-control';
-import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
+import { SFSymbol } from '@/components/ui/sfsymbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ChartDataPoint, useStreaks } from '@/hooks/use-streaks';
@@ -12,11 +13,11 @@ import { countLabel, t } from '@/i18n';
 type ThemeName = keyof typeof Colors;
 type RangeOption = '7d' | '14d' | '1m' | '1y' | 'max';
 
-// Exact styles from home/index.tsx QuickNavGrid
+// Metrics-style glass card styles
 const createStyles = (theme: ThemeName, compact: boolean) => {
   const isDark = theme === 'dark';
   const text = Colors[theme].text;
-  const hairline = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.12)';
+  const cardBorder = isDark ? 'rgba(255,255,255,0.09)' : 'rgba(17,24,28,0.09)';
   const cardBg = isDark ? '#1C1C1E' : '#F2F2F7';
   const subtitleColor = withAlpha(text, 0.62);
 
@@ -36,40 +37,31 @@ const createStyles = (theme: ThemeName, compact: boolean) => {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 12,
-      paddingVertical: compact ? 12 : 16,
+      gap: compact ? 10 : 14,
+      paddingVertical: compact ? 10 : 14,
       marginBottom: 8,
     },
-    fireContainer: {
-      position: 'relative',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    fireBadge: {
-      width: compact ? 56 : 68,
-      height: compact ? 56 : 68,
-      borderRadius: compact ? 28 : 34,
-      alignItems: 'center',
-      justifyContent: 'center',
+    heroFlame: {
+      marginTop: compact ? -2 : -4,
     },
     heroTextWrap: {
       alignItems: 'flex-start',
-      gap: 0,
+      gap: 2,
     },
     bigNumber: {
-      fontSize: compact ? 40 : 48,
+      fontSize: compact ? 54 : 64,
       fontWeight: '900',
-      letterSpacing: -1,
-      lineHeight: compact ? 42 : 48,
+      letterSpacing: -0.8,
+      lineHeight: compact ? 54 : 64,
       color: text,
     },
     heroSubtitle: {
-      fontSize: compact ? 14 : 15,
+      fontSize: compact ? 15 : 16,
       fontWeight: '700',
-      lineHeight: 19,
+      lineHeight: compact ? 19 : 20,
       color: subtitleColor,
     },
-    // QuickTile grid (exact copy from home/index.tsx)
+    // Stat card grid
     quickGridWrap: {
       marginBottom: 16,
     },
@@ -82,50 +74,45 @@ const createStyles = (theme: ThemeName, compact: boolean) => {
       width: '48.5%',
     },
     quickTile: {
-      borderRadius: 16,
+      borderRadius: 24,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hairline,
+      borderColor: cardBorder,
       overflow: 'hidden',
       backgroundColor: cardBg,
+      minHeight: 110,
     },
     quickTileInner: {
-      paddingHorizontal: 12,
-      paddingVertical: 12,
-      gap: 6,
+      paddingHorizontal: 20,
+      paddingVertical: 20,
+      justifyContent: 'center',
+      gap: 8,
     },
     quickTileIconRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
-    },
-    quickTileIconBadge: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      padding: 8,
-      overflow: 'hidden',
-      alignItems: 'center',
-      justifyContent: 'center',
+      gap: 8,
     },
     quickTileTitle: {
-      fontSize: 14,
+      fontSize: 13,
       fontWeight: '800',
-      color: text,
-      letterSpacing: 0.2,
+      color: subtitleColor,
+      letterSpacing: 0.5,
     },
     quickTileSubtitle: {
-      fontSize: 12,
-      fontWeight: '700',
-      color: subtitleColor,
+      fontSize: compact ? 18 : 22,
+      lineHeight: compact ? 22 : 26,
+      fontWeight: '800',
+      color: text,
+      letterSpacing: -0.2,
     },
     // Chart styles
     chartCard: {
-      borderRadius: 16,
+      borderRadius: 24,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hairline,
+      borderColor: cardBorder,
       overflow: 'hidden',
       backgroundColor: cardBg,
-      padding: 16,
+      padding: 20,
     },
     chartHeader: {
       marginBottom: 16,
@@ -218,7 +205,7 @@ function ChartBar({ item, max, textColor, isDark }: { item: ChartDataPoint; max:
   );
 }
 
-// QuickTile-style stat card (matches home/index.tsx exactly)
+// Metrics-style stat card with colorized icon (no icon background)
 function StatTile({
   title,
   value,
@@ -227,7 +214,6 @@ function StatTile({
   styles,
   glassTint,
   glassFallback,
-  isDark,
 }: {
   title: string;
   value: number | string;
@@ -236,11 +222,7 @@ function StatTile({
   styles: ReturnType<typeof createStyles>;
   glassTint: string;
   glassFallback: string;
-  isDark: boolean;
 }) {
-  const badgeTint = withAlpha(iconColor, isDark ? 0.22 : 0.18);
-  const badgeFallback = withAlpha(iconColor, isDark ? 0.26 : 0.18);
-
   return (
     <View style={styles.quickTilePressable}>
       <GlassSurface
@@ -251,17 +233,14 @@ function StatTile({
       >
         <View style={styles.quickTileInner}>
           <View style={styles.quickTileIconRow}>
-            <GlassSurface
-              style={styles.quickTileIconBadge}
-              glassEffectStyle="regular"
-              tintColor={badgeTint}
-              fallbackBackgroundColor={badgeFallback}
-            >
-              <MaterialIcons name={icon} size={18} color={iconColor} />
-            </GlassSurface>
+            <MaterialIcons name={icon} size={16} color={iconColor} />
+            <Text style={styles.quickTileTitle} numberOfLines={1}>
+              {title}
+            </Text>
           </View>
-          <Text style={styles.quickTileTitle}>{title}</Text>
-          <Text style={styles.quickTileSubtitle}>{value}</Text>
+          <Text style={styles.quickTileSubtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+            {value}
+          </Text>
         </View>
       </GlassSurface>
     </View>
@@ -290,8 +269,7 @@ export default function StreaksScreen() {
   const maxVal = useMemo(() => Math.max(...chartData.map(d => d.count), 5), [chartData]);
 
   const textColor = Colors[theme].text;
-  const fireColor = currentStreak > 0 ? '#F59E0B' : '#9CA3AF';
-  const fireBadgeColor = withAlpha(fireColor, isDark ? 0.24 : 0.2);
+  const fireColor = '#F97316';
 
   const tileSurfaceBg = isDark ? '#1C1C1E' : '#F2F2F7';
   const gridGlassTint = isDark ? withAlpha(tileSurfaceBg, 0.22) : tileSurfaceBg;
@@ -320,18 +298,17 @@ export default function StreaksScreen() {
     >
       {/* Hero Streak Section */}
       <View style={styles.hero}>
-        <View style={styles.fireContainer}>
-          <View
-            style={[
-              styles.fireBadge,
-              {
-                backgroundColor: fireBadgeColor,
-              }
-            ]}
-          >
-            <MaterialIcons name="local-fire-department" size={compact ? 34 : 42} color={fireColor} />
-          </View>
-        </View>
+        {Platform.OS === 'ios' ? (
+          <SFSymbol
+            name="flame.fill"
+            size={compact ? 38 : 44}
+            color={fireColor}
+            style={styles.heroFlame}
+            weight="bold"
+          />
+        ) : (
+          <MaterialIcons name="whatshot" size={compact ? 34 : 40} color={fireColor} style={styles.heroFlame} />
+        )}
         <View style={styles.heroTextWrap}>
           <Text style={styles.bigNumber}>{currentStreak}</Text>
           <Text style={styles.heroSubtitle}>
@@ -351,7 +328,6 @@ export default function StreaksScreen() {
             styles={styles}
             glassTint={gridGlassTint}
             glassFallback={gridGlassFallback}
-            isDark={isDark}
           />
           <StatTile
             title={t('streaks.stats.thisWeek')}
@@ -361,7 +337,6 @@ export default function StreaksScreen() {
             styles={styles}
             glassTint={gridGlassTint}
             glassFallback={gridGlassFallback}
-            isDark={isDark}
           />
           <StatTile
             title={t('streaks.stats.record')}
@@ -371,7 +346,6 @@ export default function StreaksScreen() {
             styles={styles}
             glassTint={gridGlassTint}
             glassFallback={gridGlassFallback}
-            isDark={isDark}
           />
           <StatTile
             title={t('streaks.stats.longest')}
@@ -381,7 +355,6 @@ export default function StreaksScreen() {
             styles={styles}
             glassTint={gridGlassTint}
             glassFallback={gridGlassFallback}
-            isDark={isDark}
           />
         </View>
       </View>

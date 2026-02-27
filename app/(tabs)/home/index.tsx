@@ -66,6 +66,10 @@ const DATE_RAIL_MIN_ITEM_WIDTH = 40;
 const DATE_RAIL_ITEM_GAP = 6;
 const DATE_RAIL_PAGE_DAYS = 7;
 const DATE_DROP_VERTICAL_PADDING = 16;
+const DATE_DROP_INTENT_DWELL_MS_FROM_TODAY = 260;
+const DATE_DROP_INTENT_DWELL_MS_FROM_UPCOMING = 180;
+const DATE_DROP_INTENT_HORIZONTAL_TRAVEL_FROM_TODAY = 28;
+const DATE_DROP_INTENT_HORIZONTAL_TRAVEL_FROM_UPCOMING = 18;
 const STREAK_PROGRESS_DAYS = 7;
 const HOME_TASK_ITEM_SPACING = 8;
 const TASK_ROW_SIDE_BLEED = 8;
@@ -425,7 +429,7 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
   // ───────────────────────────────────────────────────
 
   const hairline = withAlpha(text, ALPHA_4);
-  const rowCardSurface = isDark ? "#1C1C1E" : "#FFFFFF";
+  const rowCardSurface = isDark ? "rgba(89, 89, 89, 0.2)" : "#FFFFFF";
   const tagBg = withAlpha(text, isDark ? 0.1 : 0.08);
   const tagText = withAlpha(text, ALPHA_2);
   const dangerBg = isDark ? "rgba(255,69,58,0.18)" : "rgba(255,59,48,0.14)";
@@ -813,6 +817,9 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
       paddingHorizontal: 0,
       paddingVertical: 8,
     },
+    todayTaskContentTransparent: {
+      backgroundColor: "transparent",
+    },
     dateListTransitionHost: {
       position: "relative",
       overflow: "hidden",
@@ -1160,21 +1167,21 @@ export default function HomeScreen() {
     () =>
       isGermanLocale
         ? {
-            title: "Gesten-Tipp",
-            body: "Wische horizontal über die Liste für den Tagwechsel. Halte eine Aufgabe zum Verschieben.",
-            dismissLabel: "Schließen",
-            dragToDate: "Auf Datum ziehen",
-            dragToUndated: "Oder in Ohne Datum ablegen",
-            monthPickerLabel: "Monat wählen",
-          }
+          title: "Gesten-Tipp",
+          body: "Wische horizontal über die Liste für den Tagwechsel. Halte eine Aufgabe zum Verschieben.",
+          dismissLabel: "Schließen",
+          dragToDate: "Auf Datum ziehen",
+          dragToUndated: "Oder in Ohne Datum ablegen",
+          monthPickerLabel: "Monat wählen",
+        }
         : {
-            title: "Gesture tip",
-            body: "Swipe horizontally over the list to change day. Long-press a task to drag it.",
-            dismissLabel: "Dismiss",
-            dragToDate: "Drag to a day",
-            dragToUndated: "Or drop into Without date",
-            monthPickerLabel: "Pick month",
-          },
+          title: "Gesture tip",
+          body: "Swipe horizontally over the list to change day. Long-press a task to drag it.",
+          dismissLabel: "Dismiss",
+          dragToDate: "Drag to a day",
+          dragToUndated: "Or drop into Without date",
+          monthPickerLabel: "Pick month",
+        },
     [isGermanLocale],
   );
   const markGesturesHintSeen = React.useCallback(() => {
@@ -1215,7 +1222,9 @@ export default function HomeScreen() {
     getStartOfToday(),
   );
   const dateListTranslateX = React.useRef(new Animated.Value(0)).current;
-  const dateListTransitionProgress = React.useRef(new Animated.Value(1)).current;
+  const dateListTransitionProgress = React.useRef(
+    new Animated.Value(1),
+  ).current;
   const dateListTransitionItemRevealProgress = React.useRef(
     new Animated.Value(1),
   ).current;
@@ -1231,9 +1240,7 @@ export default function HomeScreen() {
     React.useState<DateRailTitleTransitionState | null>(null);
   const dateRailTitleTransitionRef =
     React.useRef<DateRailTitleTransitionState | null>(null);
-  const dateRailResolvedTitleRef = React.useRef<string>(
-    t("common.today"),
-  );
+  const dateRailResolvedTitleRef = React.useRef<string>(t("common.today"));
   const [dateListHostWidth, setDateListHostWidth] =
     React.useState(viewportWidth);
   const dateListHostWidthRef = React.useRef(viewportWidth);
@@ -1316,6 +1323,17 @@ export default function HomeScreen() {
   } | null>(null);
   const dragHoverDateStartRef = React.useRef<number | null>(null);
   const dragLastRailDateStartRef = React.useRef<number | null>(null);
+  const dragStartPointRef = React.useRef<{
+    absoluteX: number;
+    absoluteY: number;
+  } | null>(null);
+  const dragRailHoverIntentRef = React.useRef<{
+    dateStart: number | null;
+    enteredAt: number;
+  }>({
+    dateStart: null,
+    enteredAt: 0,
+  });
   const upcomingExpandTimerRef = React.useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
@@ -1521,7 +1539,7 @@ export default function HomeScreen() {
         title: option.title,
         state:
           Platform.OS === "ios" &&
-          isSameLocalMonth(option.monthStart, selectedDateStart)
+            isSameLocalMonth(option.monthStart, selectedDateStart)
             ? "on"
             : undefined,
       })),
@@ -1692,7 +1710,10 @@ export default function HomeScreen() {
         Math.abs(current - nextWidth) < 1 ? current : nextWidth,
       );
 
-      const nextHeight = Math.max(0, Math.ceil(event.nativeEvent.layout.height));
+      const nextHeight = Math.max(
+        0,
+        Math.ceil(event.nativeEvent.layout.height),
+      );
       if (nextHeight <= 0) return;
       dateListHostHeightRef.current = nextHeight;
       if (!listTransitionRunningRef.current) {
@@ -1711,7 +1732,10 @@ export default function HomeScreen() {
     (kind: "from" | "to", event: LayoutChangeEvent) => {
       if (!listTransitionRunningRef.current || !dateListTransitionState) return;
 
-      const nextHeight = Math.max(0, Math.ceil(event.nativeEvent.layout.height));
+      const nextHeight = Math.max(
+        0,
+        Math.ceil(event.nativeEvent.layout.height),
+      );
       if (nextHeight <= 0) return;
 
       const previousHeight = dateListTransitionHeightsRef.current[kind];
@@ -1800,7 +1824,8 @@ export default function HomeScreen() {
         const endX = dir === 1 ? -travel : 0;
         const fallbackHeight = Math.max(
           1,
-          dateListHostHeightRef.current || dateListTransitionConfigRef.current.toHeight,
+          dateListHostHeightRef.current ||
+          dateListTransitionConfigRef.current.toHeight,
         );
         dateListTransitionActiveTargetDateRef.current = targetDate;
         dateListTransitionStartedRef.current = false;
@@ -1823,7 +1848,8 @@ export default function HomeScreen() {
         const startTransitionMotion = (allowFallback: boolean) => {
           if (!listTransitionRunningRef.current) return;
           if (dateListTransitionStartedRef.current) return;
-          if (dateListTransitionActiveTargetDateRef.current !== targetDate) return;
+          if (dateListTransitionActiveTargetDateRef.current !== targetDate)
+            return;
 
           const hasFrom = dateListTransitionReadyRef.current.from;
           const hasTo = dateListTransitionReadyRef.current.to;
@@ -1859,7 +1885,8 @@ export default function HomeScreen() {
               dateListTransitionProgressAnimationRef.current = null;
             }
             if (!finished) return;
-            if (dateListTransitionActiveTargetDateRef.current !== targetDate) return;
+            if (dateListTransitionActiveTargetDateRef.current !== targetDate)
+              return;
 
             setListDateStart(targetDate);
             listDateStartRef.current = targetDate;
@@ -1925,7 +1952,11 @@ export default function HomeScreen() {
     ],
   );
   const setListDateWithoutTransition = React.useCallback(
-    (nextDateStart: number, animateLayout = true) => {
+    (
+      nextDateStart: number,
+      animateLayout = true,
+      preserveTitleMotion = false,
+    ) => {
       if (nextDateStart === listDateStartRef.current) return;
       cancelDateListTransitionStart();
       queuedDateStartRef.current = null;
@@ -1933,7 +1964,9 @@ export default function HomeScreen() {
       setIsDateListTransitioning(false);
       setDateListTransitionState(null);
       resetDateListMotion();
-      resetDateRailTitleMotion();
+      if (!preserveTitleMotion) {
+        resetDateRailTitleMotion();
+      }
       resetDateListTransitionMotion();
       if (animateLayout) {
         configureSmoothListLayoutTransition();
@@ -1947,6 +1980,26 @@ export default function HomeScreen() {
       resetDateListTransitionMotion,
       resetDateRailTitleMotion,
     ],
+  );
+  const hasTodayTasksForDateStart = React.useCallback(
+    (targetDateStart: number) => {
+      for (const task of tasks) {
+        if (task.deletedAt) continue;
+        const normalizedSection: SectionId =
+          task.section === "completed"
+            ? "completed"
+            : deriveActiveSectionFromDueAt(task.dueAt);
+        if (!homeEnabledSections.includes(normalizedSection)) continue;
+        if (normalizedSection === "completed") continue;
+        if (withNotesEnabled && !task.subtitle) continue;
+        if (!hasValidDueAt(task.dueAt)) continue;
+        if (isSameLocalDay(task.dueAt, targetDateStart)) {
+          return true;
+        }
+      }
+      return false;
+    },
+    [homeEnabledSections, tasks, withNotesEnabled],
   );
   const selectDateWithTransition = React.useCallback(
     (
@@ -1985,15 +2038,29 @@ export default function HomeScreen() {
         source,
         at: now,
       };
+      const fromHasTodayTasks = hasTodayTasksForDateStart(
+        listDateStartRef.current,
+      );
+      const toHasTodayTasks = hasTodayTasksForDateStart(nextDateStart);
       const direction: 1 | -1 =
         directionHint ?? (nextDateStart > current ? 1 : -1);
       animateDateRailTitleTransition(current, nextDateStart);
       selectedDateStartRef.current = nextDateStart;
       setSelectedDateStart(nextDateStart);
+      if (!fromHasTodayTasks && !toHasTodayTasks) {
+        setListDateWithoutTransition(nextDateStart, false, true);
+        void Haptics.selectionAsync().catch(() => undefined);
+        return;
+      }
       runDateListTransition(nextDateStart, direction);
       void Haptics.selectionAsync().catch(() => undefined);
     },
-    [animateDateRailTitleTransition, runDateListTransition],
+    [
+      animateDateRailTitleTransition,
+      hasTodayTasksForDateStart,
+      runDateListTransition,
+      setListDateWithoutTransition,
+    ],
   );
   const selectDateWithoutTransition = React.useCallback(
     (nextDateStart: number) => {
@@ -2246,15 +2313,16 @@ export default function HomeScreen() {
   const upcomingListRef = React.useRef<TaskSwipeDraggableListHandle | null>(
     null,
   );
-  const [isSwipeGestureActive, setIsSwipeGestureActive] = React.useState(false);
   const listDragActiveRef = React.useRef(false);
   const swipeGestureActiveRef = React.useRef(false);
+  const rowTouchActiveRef = React.useRef(false);
   const listTouchStartRef = React.useRef<{
     x: number;
     y: number;
     at: number;
     active: boolean;
-  }>({ x: 0, y: 0, at: 0, active: false });
+    startedOnRow: boolean;
+  }>({ x: 0, y: 0, at: 0, active: false, startedOnRow: false });
   const cancelDragSurfaceResetFrame = React.useCallback(() => {
     if (dragSurfaceResetFrameRef.current == null) return;
     cancelAnimationFrame(dragSurfaceResetFrameRef.current);
@@ -2268,10 +2336,7 @@ export default function HomeScreen() {
   const queueDropCommit = React.useCallback(
     (commit: () => void) => {
       cancelDropCommitFrame();
-      dropCommitFrameRef.current = requestAnimationFrame(() => {
-        dropCommitFrameRef.current = null;
-        commit();
-      });
+      commit();
     },
     [cancelDropCommitFrame],
   );
@@ -2327,6 +2392,7 @@ export default function HomeScreen() {
     upcomingExpandTimerRef.current = null;
   }, []);
   const clearDateDragHover = React.useCallback(() => {
+    dragRailHoverIntentRef.current = { dateStart: null, enteredAt: 0 };
     dragHoverDateStartRef.current = null;
     setDragHoveredDateStart((current) => (current == null ? current : null));
   }, []);
@@ -2355,7 +2421,13 @@ export default function HomeScreen() {
 
   const handleSwipeStateChange = React.useCallback((isSwiping: boolean) => {
     swipeGestureActiveRef.current = isSwiping;
-    setIsSwipeGestureActive(isSwiping);
+  }, []);
+
+  const handleRowTouchStateChange = React.useCallback((isTouchingRow: boolean) => {
+    rowTouchActiveRef.current = isTouchingRow;
+    if (isTouchingRow && listTouchStartRef.current.active) {
+      listTouchStartRef.current.startedOnRow = true;
+    }
   }, []);
 
   const handleDragStateChange = React.useCallback(
@@ -2403,6 +2475,7 @@ export default function HomeScreen() {
       y: touch.pageY,
       at: Date.now(),
       active: true,
+      startedOnRow: rowTouchActiveRef.current,
     };
   }, []);
 
@@ -2418,7 +2491,13 @@ export default function HomeScreen() {
         absoluteX: touch.pageX,
         absoluteY: touch.pageY,
       };
-      if (swipeGestureActiveRef.current || listDragActiveRef.current) return;
+      if (
+        start.startedOnRow ||
+        swipeGestureActiveRef.current ||
+        listDragActiveRef.current
+      ) {
+        return;
+      }
 
       const dx = touch.pageX - start.x;
       const dy = touch.pageY - start.y;
@@ -2439,6 +2518,7 @@ export default function HomeScreen() {
 
   const onListTouchCancel = React.useCallback(() => {
     listTouchStartRef.current.active = false;
+    listTouchStartRef.current.startedOnRow = false;
   }, []);
 
   const projectsById = React.useMemo(
@@ -2544,7 +2624,7 @@ export default function HomeScreen() {
       for (const task of tasksBySection[sectionId]) {
         data.push({
           type: "task",
-          key: `${task.id}:${sectionId}`,
+          key: `task-${task.id}`,
           taskId: task.id,
         });
       }
@@ -2582,7 +2662,7 @@ export default function HomeScreen() {
       (item) =>
         item.kind === "task" &&
         (visibleTaskDisplaySectionById.get(item.taskId) ?? "upcoming") ===
-          "today",
+        "today",
     );
   }, [hasTodaySection, swipeListData, visibleTaskDisplaySectionById]);
   const hasTodayTasks = todaySwipeListData.length > 0;
@@ -2605,7 +2685,7 @@ export default function HomeScreen() {
       .sort((a, b) => a.orderRank - b.orderRank)
       .map((task) => ({
         kind: "task",
-        key: `${task.id}:today`,
+        key: `task-${task.id}`,
         taskId: task.id,
       }));
     const toTodayData: TaskSwipeDraggableListItem[] = toVisibleTasks
@@ -2619,7 +2699,7 @@ export default function HomeScreen() {
       .sort((a, b) => a.orderRank - b.orderRank)
       .map((task) => ({
         kind: "task",
-        key: `${task.id}:today`,
+        key: `task-${task.id}`,
         taskId: task.id,
       }));
     return {
@@ -2641,7 +2721,7 @@ export default function HomeScreen() {
       (item) =>
         item.kind === "task" &&
         (visibleTaskDisplaySectionById.get(item.taskId) ?? "upcoming") ===
-          "upcoming",
+        "upcoming",
     );
     return upcomingTasks;
   }, [hasUpcomingSection, swipeListData, visibleTaskDisplaySectionById]);
@@ -2714,10 +2794,10 @@ export default function HomeScreen() {
       const mapped: ListItem[] = data.map((item) =>
         item.kind === "header"
           ? {
-              type: "header",
-              key: item.key,
-              sectionId: item.sectionId as SectionId,
-            }
+            type: "header",
+            key: item.key,
+            sectionId: item.sectionId as SectionId,
+          }
           : { type: "task", key: item.key, taskId: item.taskId },
       );
       applyOrderFromListData(mapped);
@@ -2766,6 +2846,8 @@ export default function HomeScreen() {
         sourceSection,
         sourceHasDueAt: hasValidDueAt(sourceTask?.dueAt),
       };
+      dragStartPointRef.current = null;
+      dragRailHoverIntentRef.current = { dateStart: null, enteredAt: 0 };
       dragLastTouchPointRef.current = null;
       cancelDragSurfaceResetFrame();
       clearUpcomingExpandTimer();
@@ -2797,6 +2879,9 @@ export default function HomeScreen() {
       if (!dragContextRef.current) return;
 
       const { absoluteX, absoluteY } = params;
+      if (!dragStartPointRef.current) {
+        dragStartPointRef.current = { absoluteX, absoluteY };
+      }
       dragLastTouchPointRef.current = { absoluteX, absoluteY };
       const isHoveringUpcomingSurface =
         dragContextRef.current.sourceSection === "today" &&
@@ -2838,6 +2923,8 @@ export default function HomeScreen() {
         absoluteY <= bounds.y + bounds.height + DATE_DROP_VERTICAL_PADDING;
 
       if (!inRailBounds) {
+        dragLastRailDateStartRef.current = null;
+        dragRailHoverIntentRef.current = { dateStart: null, enteredAt: 0 };
         if (dragHoverDateStartRef.current != null) {
           clearDateDragHover();
         }
@@ -2850,6 +2937,44 @@ export default function HomeScreen() {
       const dayIndex = clamp(rawIndex, 0, Math.max(dateRailDays.length - 1, 0));
       const targetDay = dateRailDays[dayIndex];
       if (!targetDay) return;
+      const now = Date.now();
+      const currentIntent = dragRailHoverIntentRef.current;
+      if (currentIntent.dateStart !== targetDay.timestamp) {
+        dragRailHoverIntentRef.current = {
+          dateStart: targetDay.timestamp,
+          enteredAt: now,
+        };
+      }
+
+      const dragStartPoint = dragStartPointRef.current;
+      const horizontalTravel = dragStartPoint
+        ? Math.abs(absoluteX - dragStartPoint.absoluteX)
+        : 0;
+      const dwellMs = now - dragRailHoverIntentRef.current.enteredAt;
+      const minDwellMs =
+        dragContextRef.current.sourceSection === "today"
+          ? DATE_DROP_INTENT_DWELL_MS_FROM_TODAY
+          : DATE_DROP_INTENT_DWELL_MS_FROM_UPCOMING;
+      const minHorizontalTravel =
+        dragContextRef.current.sourceSection === "today"
+          ? DATE_DROP_INTENT_HORIZONTAL_TRAVEL_FROM_TODAY
+          : DATE_DROP_INTENT_HORIZONTAL_TRAVEL_FROM_UPCOMING;
+      const isDifferentDay = !isSameLocalDay(
+        targetDay.timestamp,
+        listDateStartRef.current,
+      );
+      const hasIntentForDateDrop =
+        isDifferentDay &&
+        (horizontalTravel >= minHorizontalTravel || dwellMs >= minDwellMs);
+
+      if (!hasIntentForDateDrop) {
+        dragLastRailDateStartRef.current = null;
+        if (dragHoverDateStartRef.current != null) {
+          clearDateDragHover();
+        }
+        return;
+      }
+
       dragLastRailDateStartRef.current = targetDay.timestamp;
       if (targetDay.timestamp !== dragHoverDateStartRef.current) {
         dragHoverDateStartRef.current = targetDay.timestamp;
@@ -2985,12 +3110,12 @@ export default function HomeScreen() {
         const next = prev.map((candidate) =>
           candidate.id === taskId
             ? {
-                ...candidate,
-                section: "upcoming" as const,
-                dueAt: 0,
-                dueHasTime: false,
-                completedAt: undefined,
-              }
+              ...candidate,
+              section: "upcoming" as const,
+              dueAt: 0,
+              dueHasTime: false,
+              completedAt: undefined,
+            }
             : candidate,
         );
 
@@ -3028,12 +3153,12 @@ export default function HomeScreen() {
         const next = prev.map((candidate) =>
           candidate.id === taskId
             ? {
-                ...candidate,
-                section: toSection,
-                dueAt: nextDueAt,
-                dueHasTime: keepTime,
-                completedAt: undefined,
-              }
+              ...candidate,
+              section: toSection,
+              dueAt: nextDueAt,
+              dueHasTime: keepTime,
+              completedAt: undefined,
+            }
             : candidate,
         );
 
@@ -3073,12 +3198,10 @@ export default function HomeScreen() {
         const droppedTaskId = dragContext.taskId;
         dragLastTouchPointRef.current = null;
         queueDropCommit(() => {
-          configureSmoothListLayoutTransition();
           setCollapsedSections((prev) =>
             prev.upcoming ? { ...prev, upcoming: false } : prev,
           );
           applyDraggedTaskToUpcomingUndated(droppedTaskId);
-          queueTaskPopIn(droppedTaskId);
         });
         return true;
       }
@@ -3087,10 +3210,8 @@ export default function HomeScreen() {
         const droppedTaskId = dragContext.taskId;
         dragLastTouchPointRef.current = null;
         queueDropCommit(() => {
-          configureSmoothListLayoutTransition();
           applyDraggedTaskToDate(droppedTaskId, listDateStartRef.current);
-          queueTaskPopIn(droppedTaskId);
-          selectDateWithoutTransition(listDateStartRef.current);
+          selectDateWithoutTransition(selectedDateStartRef.current);
         });
         return true;
       }
@@ -3104,9 +3225,7 @@ export default function HomeScreen() {
 
       const droppedTaskId = dragContext.taskId;
       queueDropCommit(() => {
-        configureSmoothListLayoutTransition();
         applyDraggedTaskToDate(droppedTaskId, targetDateStart);
-        queueTaskPopIn(droppedTaskId);
         selectDateWithoutTransition(targetDateStart);
       });
       return true;
@@ -3159,9 +3278,9 @@ export default function HomeScreen() {
               ...(hasDueAt
                 ? {}
                 : {
-                    dueAt: getDueAtForSection("today"),
-                    dueHasTime: true,
-                  }),
+                  dueAt: getDueAtForSection("today"),
+                  dueHasTime: true,
+                }),
             };
           }
 
@@ -3304,8 +3423,8 @@ export default function HomeScreen() {
           accessibilityLabel={
             isCollapsible
               ? t("home.filter.toggleSection", {
-                  section: t(SECTION_TITLE_KEYS[id]),
-                })
+                section: t(SECTION_TITLE_KEYS[id]),
+              })
               : undefined
           }
           onPress={onToggle}
@@ -3317,7 +3436,10 @@ export default function HomeScreen() {
         >
           {isUpcoming ? (
             <Animated.View
-              style={{ transform: [{ scale: chipScale }], opacity: chipOpacity }}
+              style={{
+                transform: [{ scale: chipScale }],
+                opacity: chipOpacity,
+              }}
             >
               <GlassSurface
                 tintColor={withAlpha(
@@ -3340,7 +3462,10 @@ export default function HomeScreen() {
                 </View>
                 {isCollapsible ? (
                   <Animated.View
-                    style={{ transform: [{ rotate: chevronRotate }], marginTop: 2 }}
+                    style={{
+                      transform: [{ rotate: chevronRotate }],
+                      marginTop: 2,
+                    }}
                   >
                     <MaterialIcons
                       name="chevron-right"
@@ -3359,7 +3484,10 @@ export default function HomeScreen() {
               </Text>
               {isCollapsible ? (
                 <Animated.View
-                  style={{ transform: [{ rotate: chevronRotate }], marginTop: 0 }}
+                  style={{
+                    transform: [{ rotate: chevronRotate }],
+                    marginTop: 0,
+                  }}
                 >
                   <MaterialIcons
                     name="chevron-right"
@@ -3374,11 +3502,7 @@ export default function HomeScreen() {
         </Pressable>
       );
 
-      return (
-        <View style={styles.sectionHeader}>
-          {headerButton}
-        </View>
-      );
+      return <View style={styles.sectionHeader}>{headerButton}</View>;
     },
     [
       closeAnyOpen,
@@ -3476,7 +3600,7 @@ export default function HomeScreen() {
                             ]}
                           >
                             {dateRailTitleTransition.fromTitle.length >=
-                            dateRailTitleTransition.toTitle.length
+                              dateRailTitleTransition.toTitle.length
                               ? dateRailTitleTransition.fromTitle
                               : dateRailTitleTransition.toTitle}
                           </Text>
@@ -3486,12 +3610,11 @@ export default function HomeScreen() {
                               styles.dateRailTitle,
                               styles.dateRailTitleTextTransitionText,
                               {
-                                opacity: dateRailTitleTransitionProgress.interpolate(
-                                  {
+                                opacity:
+                                  dateRailTitleTransitionProgress.interpolate({
                                     inputRange: [0, 1],
                                     outputRange: [1, 0],
-                                  },
-                                ),
+                                  }),
                                 transform: [{ translateY: titleOutTranslateY }],
                               },
                             ]}
@@ -3849,7 +3972,6 @@ export default function HomeScreen() {
     <View style={styles.container}>
       <NestableScrollContainer
         ref={scrollRef}
-        scrollEnabled={!isSwipeGestureActive}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={[styles.content]}
         scrollEventThrottle={16}
@@ -3898,6 +4020,7 @@ export default function HomeScreen() {
                   <Animated.View
                     style={[
                       styles.taskContentSolid,
+                      styles.todayTaskContentTransparent,
                       {
                         opacity: todaySectionRevealProgress,
                       },
@@ -3917,8 +4040,8 @@ export default function HomeScreen() {
                         onLayout={handleDateListHostLayout}
                       >
                         {isDateListTransitioning &&
-                        dateListTransitionState &&
-                        dateListTransitionData ? (
+                          dateListTransitionState &&
+                          dateListTransitionData ? (
                           <Animated.View
                             pointerEvents="none"
                             style={[
@@ -4151,6 +4274,7 @@ export default function HomeScreen() {
                               onDragEndMeta={handleDragEndMeta}
                               onDragStateChange={handleDragStateChange}
                               onSwipeStateChange={handleSwipeStateChange}
+                              onRowTouchStateChange={handleRowTouchStateChange}
                               dragAxisMode="free"
                               renderMode="nestable"
                               scrollRef={scrollRef}
@@ -4250,9 +4374,11 @@ export default function HomeScreen() {
                       onDragEndMeta={handleDragEndMeta}
                       onDragStateChange={handleDragStateChange}
                       onSwipeStateChange={handleSwipeStateChange}
+                      onRowTouchStateChange={handleRowTouchStateChange}
                       dragAxisMode="free"
                       renderMode="nestable"
                       scrollRef={scrollRef}
+                      animateDataLayoutChanges={false}
                       revealProgress={upcomingSectionRevealProgress}
                       revealStaggerStep={0.05}
                       revealTranslateY={10}

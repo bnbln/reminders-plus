@@ -106,10 +106,12 @@ type AssistAction = {
     | 'suggest-task'
     | 'suggest-project'
     | 'create-task'
-    | 'create-project';
+    | 'create-project'
+    | 'show-more-tasks';
   candidate: AssistCandidate;
   taskDraft?: AssistTaskDraft;
   projectDraft?: AssistProjectDraft;
+  taskIdsToShow?: string[];
 };
 
 type ToolResultEntry = {
@@ -345,13 +347,28 @@ function extractFieldByAliases(text: string, aliases: readonly string[]): string
 
 function parseTaskDraftFromCommand(input: string, projects: Project[]): AssistTaskDraft | null {
   const normalized = normalizeSearchText(input);
+  const hasTaskKeyword = /\btask\b/.test(normalized);
+  const hasBlockingTaskIntent = /\b(?:oeffne|öffne|finde|suche|zeige|verschiebe|move|aktualisiere)\b/.test(
+    normalized,
+  );
+  const hasTaskCueWord = /\b(?:erstelle|erzeuge|lege|anlegen|neu(?:e|er|en|es)?|muss|soll(?:te)?|will|moechte|möchte|plane|planen|notiere|erinnere)\b/.test(
+    normalized,
+  );
+  const hasDateCue = /\b(?:heute|morgen|uebermorgen|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\b/.test(
+    normalized,
+  );
+  const hasTimeCue =
+    /\b([01]?\d|2[0-3])(?::[0-5]\d)?\s*uhr\b/.test(normalized) ||
+    /\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/.test(normalized);
+  const isProjectCreateCommand =
+    /\bprojekt\b/.test(normalized) &&
+    /\b(?:erstelle|erzeuge|lege|erstellen|anlegen|neu(?:e|er|en|es)?)\b/.test(normalized) &&
+    !hasTaskKeyword;
+  const isNaturalTaskCommand =
+    !hasTaskKeyword && !isProjectCreateCommand && hasTaskCueWord && (hasDateCue || hasTimeCue);
   const isCreateTaskCommand =
-    /\btask\b/.test(normalized) &&
-    !/\b(?:oeffne|öffne|finde|suche|zeige|verschiebe|move|aktualisiere)\b/.test(normalized) &&
-    (/\b(?:erstelle|erzeuge|lege|neu(?:e|er|en|es)?|fuer|für|um|heute|morgen|uebermorgen|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\b/.test(
-      normalized,
-    ) ||
-      /\b([01]?\d|2[0-3])(?::[0-5]\d)?\s*uhr\b/.test(normalized));
+    !hasBlockingTaskIntent &&
+    ((hasTaskKeyword && (hasTaskCueWord || hasDateCue || hasTimeCue)) || isNaturalTaskCommand);
   if (!isCreateTaskCommand) return null;
 
   const titleCandidate =
@@ -362,16 +379,29 @@ function parseTaskDraftFromCommand(input: string, projects: Project[]): AssistTa
     input.match(
       /\b(?:erstelle|erzeuge|lege)\b\s+(.+?)(?=\s+(?:im|in)\s+projekt\b|\s+mit\s+standort\b|\s+mit\s+notiz(?:en)?\b|$)/i,
     )?.[1] ??
+    input.match(
+      /\b(?:ich\s+)?(?:muss|soll(?:te)?|will|moechte|möchte|plane|planen|notiere|erinnere(?:\s+mich(?:\s+daran)?)?)\b\s+(.+)$/i,
+    )?.[1] ??
+    input.match(/^\s*(.+)$/)?.[1] ??
     '';
 
   let title = cleanExtractedText(titleCandidate.replace(/^task\s+/i, ''));
   title = cleanExtractedText(
     title.replace(
-      /^(?:fuer|für)?\s*(?:heute|morgen|uebermorgen|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\b(?:\s+\d{1,2}(?::\d{2})?\s*uhr)?\s*[:,-]?\s*/i,
+      /^(?:ich\s+)?(?:muss|soll(?:te)?|will|moechte|möchte|plane|planen|notiere|erinnere(?:\s+mich(?:\s+daran)?)?)\s+/i,
+      '',
+    ),
+  );
+  title = cleanExtractedText(
+    title.replace(
+      /^(?:fuer|für)?\s*(?:heute|morgen|uebermorgen|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\b(?:\s+(?:um\s+)?\d{1,2}(?::\d{2})?\s*uhr)?\s*[:,-]?\s*/i,
       '',
     ),
   );
   title = cleanExtractedText(title.replace(/^(?:um\s+)?\d{1,2}(?::\d{2})?\s*uhr\s*[:,-]?\s*/i, ''));
+  title = cleanExtractedText(title.replace(/\s+\b(?:im|in)\s+projekt\s+.+$/i, ''));
+  title = cleanExtractedText(title.replace(/\s+\bmit\s+standort\b\s+.+$/i, ''));
+  title = cleanExtractedText(title.replace(/\s+\bmit\s+notiz(?:en)?\b\s+.+$/i, ''));
   if (!title) return null;
 
   const projectNameRaw = cleanExtractedText(
@@ -525,13 +555,29 @@ function parseProjectDraftFromAssistantText(text: string): AssistProjectDraft | 
 
 function isLikelyCreateTaskPrompt(input: string): boolean {
   const normalized = normalizeSearchText(input);
+  const hasTaskKeyword = /\btask\b/.test(normalized);
+  const hasBlockingTaskIntent = /\b(?:oeffne|öffne|finde|suche|zeige|verschiebe|move|aktualisiere)\b/.test(
+    normalized,
+  );
+  const hasTaskCueWord = /\b(?:erstelle|erzeuge|lege|anlegen|neu(?:e|er|en|es)?|muss|soll(?:te)?|will|moechte|möchte|plane|planen|notiere|erinnere)\b/.test(
+    normalized,
+  );
+  const hasDateCue = /\b(?:heute|morgen|uebermorgen|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\b/.test(
+    normalized,
+  );
+  const hasTimeCue =
+    /\b([01]?\d|2[0-3])(?::[0-5]\d)?\s*uhr\b/.test(normalized) ||
+    /\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/.test(normalized);
+  const isProjectCreateCommand =
+    /\bprojekt\b/.test(normalized) &&
+    /\b(?:erstelle|erzeuge|lege|erstellen|anlegen|neu(?:e|er|en|es)?)\b/.test(normalized) &&
+    !hasTaskKeyword;
+  const isNaturalTaskCommand =
+    !hasTaskKeyword && !isProjectCreateCommand && hasTaskCueWord && (hasDateCue || hasTimeCue);
+
   return (
-    /\btask\b/.test(normalized) &&
-    !/\b(?:oeffne|öffne|finde|suche|zeige|verschiebe|move|aktualisiere)\b/.test(normalized) &&
-    (/\b(?:erstelle|erzeuge|lege|neu(?:e|er|en|es)?|fuer|für|um|heute|morgen|uebermorgen|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\b/.test(
-      normalized,
-    ) ||
-      /\b([01]?\d|2[0-3])(?::[0-5]\d)?\s*uhr\b/.test(normalized))
+    !hasBlockingTaskIntent &&
+    ((hasTaskKeyword && (hasTaskCueWord || hasDateCue || hasTimeCue)) || isNaturalTaskCommand)
   );
 }
 
@@ -595,6 +641,50 @@ function isKnowledgeTaskQuestion(input: string): boolean {
   return /\b(?:welche|welcher|welches|was|zeige|liste|list|gib|stehen|sind)\b/.test(normalized);
 }
 
+function wantsSingleTaskResult(input: string): boolean {
+  const normalized = normalizeSearchText(input);
+  const asksPlural = /\b(?:alle|mehrere|aufgaben|tasks|welche\s+aufgaben|welche\s+tasks)\b/.test(normalized);
+  const asksSingle =
+    /\b(?:ein(?:e|en)?|nur\s+ein(?:e|en)?|genau\s+ein(?:e|en)?|naechst(?:e|en)|nächst(?:e|en))\b/.test(
+      normalized,
+    ) || /\b(?:welche\s+aufgabe|welcher\s+task)\b/.test(normalized);
+  return asksSingle && !asksPlural;
+}
+
+function sortTasksByDeadlineRelevance(
+  candidates: AssistTaskCandidate[],
+  nowMs: number = Date.now(),
+): AssistTaskCandidate[] {
+  const safeDueAt = (value: unknown): number | null =>
+    typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
+
+  return [...candidates].sort((left, right) => {
+    const leftDue = safeDueAt(left.dueAt);
+    const rightDue = safeDueAt(right.dueAt);
+    const leftFuture = leftDue !== null && leftDue >= nowMs;
+    const rightFuture = rightDue !== null && rightDue >= nowMs;
+    if (leftFuture !== rightFuture) return leftFuture ? -1 : 1;
+
+    const leftOverdue = leftDue !== null && leftDue < nowMs;
+    const rightOverdue = rightDue !== null && rightDue < nowMs;
+    if (leftOverdue !== rightOverdue) return leftOverdue ? 1 : -1;
+
+    if (leftDue !== null && rightDue !== null) {
+      const distanceDelta = Math.abs(leftDue - nowMs) - Math.abs(rightDue - nowMs);
+      if (distanceDelta !== 0) return distanceDelta;
+    } else if (leftDue !== null) {
+      return -1;
+    } else if (rightDue !== null) {
+      return 1;
+    }
+
+    const scoreDelta = (right.score ?? 0) - (left.score ?? 0);
+    if (scoreDelta !== 0) return scoreDelta;
+
+    return (left.orderRank ?? 0) - (right.orderRank ?? 0);
+  });
+}
+
 function isKnowledgeProjectQuestion(input: string): boolean {
   const normalized = normalizeSearchText(input);
   if (!/\b(?:projekt|projekte)\b/.test(normalized)) return false;
@@ -613,7 +703,9 @@ function resolveDirectKnowledgeRequest({
   const normalized = normalizeSearchText(input);
 
   if (isKnowledgeTaskQuestion(input)) {
-    const section: SectionId | undefined = normalized.includes('heute')
+    const asksSingleTask = wantsSingleTaskResult(input);
+    const wantsNow = normalized.includes('jetzt');
+    const section: SectionId | undefined = normalized.includes('heute') || wantsNow
       ? 'today'
       : normalized.includes('erledigt')
         ? 'completed'
@@ -623,19 +715,63 @@ function resolveDirectKnowledgeRequest({
     const projectQuery = extractProjectQueryFromInput(input);
     const includeCompleted = section === 'completed' || /(?:\berledigt\b|\bcompleted\b)/.test(normalized);
 
-    const matches = findTasksLocally(tasks, projects, {
+    let matches = findTasksLocally(tasks, projects, {
       section,
       includeCompleted,
       includeDeleted: false,
       projectQuery,
       limit: 20,
     });
+    if (matches.length === 0 && wantsNow && section === 'today') {
+      matches = findTasksLocally(tasks, projects, {
+        includeCompleted,
+        includeDeleted: false,
+        projectQuery,
+        limit: 20,
+      });
+    }
 
     if (matches.length === 0) {
       if (section === 'today') {
         return { content: 'Heute stehen keine Aufgaben an.' };
       }
       return { content: 'Ich habe keine passenden Aufgaben gefunden.' };
+    }
+
+    if (asksSingleTask) {
+      const ranked = sortTasksByDeadlineRelevance(matches);
+      const primary = ranked[0];
+      if (!primary) {
+        return { content: 'Ich habe keine passende Aufgabe gefunden.' };
+      }
+
+      const remainingTaskIds = ranked.slice(1).map((entry) => entry.id).filter(Boolean);
+      const actions: AssistAction[] = [
+        {
+          type: 'open-task',
+          candidate: taskCandidateFromToolCandidate(primary),
+        },
+      ];
+      if (remainingTaskIds.length > 0) {
+        actions.push({
+          type: 'show-more-tasks',
+          candidate: {
+            kind: 'task',
+            id: `show-more-tasks:${Date.now()}`,
+            title: 'Weitere passende Aufgaben',
+            subtitle: `${remainingTaskIds.length} weitere`,
+          },
+          taskIdsToShow: remainingTaskIds,
+        });
+      }
+      const hasPrimaryDueAt = typeof primary.dueAt === 'number' && Number.isFinite(primary.dueAt) && primary.dueAt > 0;
+
+      return {
+        content: hasPrimaryDueAt
+          ? 'Ich habe den relevantesten Task mit der naechsten Deadline fuer dich ausgewaehlt.'
+          : 'Ich habe den relevantesten Task fuer dich ausgewaehlt.',
+        actions,
+      };
     }
 
     const actions: AssistAction[] = matches.map((match) => ({
@@ -1437,6 +1573,7 @@ function AssistEntityActionButton({
   colorScheme,
   onCreateTaskDraft,
   onCreateProjectDraft,
+  onShowMoreTasks,
 }: {
   messageId: string;
   action: AssistAction;
@@ -1444,6 +1581,7 @@ function AssistEntityActionButton({
   colorScheme: 'light' | 'dark';
   onCreateTaskDraft: (messageId: string, action: AssistAction) => void;
   onCreateProjectDraft: (messageId: string, action: AssistAction) => void;
+  onShowMoreTasks: (messageId: string, action: AssistAction) => void;
 }) {
   const router = useRouter();
   const isDark = colorScheme === 'dark';
@@ -1457,6 +1595,8 @@ function AssistEntityActionButton({
       ? 'Task erstellen'
       : action.type === 'create-project'
         ? 'Projekt erstellen'
+      : action.type === 'show-more-tasks'
+        ? 'Weitere anzeigen'
       : action.type === 'open-task'
       ? 'Task oeffnen'
       : action.type === 'open-project'
@@ -1472,6 +1612,10 @@ function AssistEntityActionButton({
     }
     if (action.type === 'create-project' && action.projectDraft) {
       onCreateProjectDraft(messageId, action);
+      return;
+    }
+    if (action.type === 'show-more-tasks') {
+      onShowMoreTasks(messageId, action);
       return;
     }
     if (action.candidate.kind === 'task') {
@@ -1736,6 +1880,68 @@ export default function AssistScreen() {
       router.push({ pathname: '/project/[id]', params: { id: nextProjectId } });
     },
     [router, setProjects],
+  );
+
+  const handleShowMoreTasks = React.useCallback(
+    (messageId: string, action: AssistAction) => {
+      if (action.type !== 'show-more-tasks') return;
+
+      const taskIds = Array.isArray(action.taskIdsToShow)
+        ? action.taskIdsToShow.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+        : [];
+      if (taskIds.length === 0) return;
+
+      const projectsById = new Map(
+        projectsRef.current.map((project) => [project.id, project] as const),
+      );
+      const taskById = new Map(
+        tasksRef.current.filter((task) => !task.deletedAt).map((task) => [task.id, task] as const),
+      );
+
+      const nextActions: AssistAction[] = taskIds
+        .map((taskId) => taskById.get(taskId))
+        .filter((task): task is Task => Boolean(task))
+        .map((task) => ({
+          type: 'suggest-task',
+          candidate: taskCandidateFromTask(task, projectsById),
+        }));
+
+      setMessages((prev) => {
+        const withoutShowMore = prev.map((message) => {
+          if (message.id !== messageId) return message;
+          const remainingActions = (message.actions ?? []).filter(
+            (entry) => !(entry.type === 'show-more-tasks' && entry.candidate.id === action.candidate.id),
+          );
+          return {
+            ...message,
+            actions: remainingActions.length > 0 ? remainingActions : undefined,
+          };
+        });
+
+        if (nextActions.length === 0) {
+          return [
+            ...withoutShowMore,
+            {
+              id: `${Date.now() + 1}`,
+              role: 'assistant',
+              content: 'Ich habe keine weiteren passenden Aufgaben gefunden.',
+            },
+          ];
+        }
+
+        return [
+          ...withoutShowMore,
+          {
+            id: `${Date.now() + 1}`,
+            role: 'assistant',
+            content: `Ich zeige dir ${nextActions.length} weitere passende Aufgabe${nextActions.length === 1 ? '' : 'n'}.`,
+            actions: nextActions,
+          },
+        ];
+      });
+      scrollToBottom();
+    },
+    [scrollToBottom],
   );
 
   const handleSend = React.useCallback(async () => {
@@ -2135,6 +2341,7 @@ export default function AssistScreen() {
                         tintColor={userBubbleBg}
                         onCreateTaskDraft={handleCreateTaskDraft}
                         onCreateProjectDraft={handleCreateProjectDraft}
+                        onShowMoreTasks={handleShowMoreTasks}
                       />
                     ))}
                   </View>

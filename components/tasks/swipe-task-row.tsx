@@ -6,10 +6,10 @@ import {
   StyleSheet,
   Text,
   View,
+  type GestureResponderEvent,
   type StyleProp,
   type ViewStyle,
 } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   Easing,
   Extrapolation,
@@ -23,6 +23,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
+import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import {
   getTagTitle,
   TAG_ORDER,
@@ -30,7 +31,6 @@ import {
 } from "@/context/home-filters-store";
 import type { Project, Task } from "@/context/tasks-store";
 import { getIntlLocale, t } from "@/i18n";
-import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 
 const SWIPE_STOP = 76;
 const SWIPE_OPEN_THRESHOLD = 22;
@@ -48,15 +48,12 @@ const SWIPE_HAPTIC_AND_ACTION_FINGER =
   SWIPE_STOP +
   (SWIPE_TRIGGER_FINGER - SWIPE_STOP) * SWIPE_HAPTIC_AND_ACTION_RATIO;
 const SWIPE_ACTIVE_OFFSET_X = 10;
-const SWIPE_FAIL_OFFSET_Y = 18;
-const AXIS_LOCK_THRESHOLD = 4;
-const MIN_SWIPE_X = 12;
-const MIN_SCROLL_Y = 10;
+const SWIPE_FAIL_OFFSET_Y = 10;
+const SWIPE_MIN_DRAG_X = 12;
+const SWIPE_AXIS_LOCK_BIAS = 2;
 const COMPACT_SUBTASK_ICON_SIZE = 18;
 const COMPACT_SUBTASK_TEXT_SIZE = 14;
-// Small delay to separate horizontal swipe intent from long-press drag.
-const SWIPE_ARM_DELAY_MS = 170;
-const DRAG_LONG_PRESS_DELAY_MS = 300;
+const DRAG_LONG_PRESS_DELAY_MS = 280;
 
 /** Convert a hex color to an rgba pastel tint. */
 function hexToPastel(hex: string | undefined, isDark: boolean): string | undefined {
@@ -191,6 +188,7 @@ export type SwipeTaskRowProps = {
   deleteTask: (taskId: string) => void;
   onSwipeGestureActiveChange?: (taskId: string, active: boolean) => void;
   onTouchInteractionChange?: (taskId: string, active: boolean) => void;
+  onBeforeDrag?: () => void;
   shouldPopIn?: boolean;
   onPopInAnimationEnd?: (taskId: string) => void;
   /** When set, datetime tags matching this day are suppressed (avoids redundant "Heute" chips). */
@@ -230,6 +228,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   deleteTask,
   onSwipeGestureActiveChange,
   onTouchInteractionChange,
+  onBeforeDrag,
   shouldPopIn = false,
   onPopInAnimationEnd,
   selectedDateStart,
@@ -262,16 +261,25 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   const collapse = useSharedValue(0);
   const touchStartX = useSharedValue(0);
   const touchStartY = useSharedValue(0);
-  const touchStartAt = useSharedValue(0);
   const axisDecision = useSharedValue<0 | 1>(0);
   const swipeGestureActive = useSharedValue(0);
   const thresholdHapticSent = useSharedValue(0);
+  const dragArmed = useSharedValue(0);
+  const isPressed = useSharedValue(0);
+  const suppressNextPressRef = React.useRef(false);
 
   const reportSwipeGestureActive = React.useCallback(
     (active: boolean) => {
       onSwipeGestureActiveChange?.(task.id, active);
     },
     [onSwipeGestureActiveChange, task.id],
+  );
+
+  const reportRowTouchInteraction = React.useCallback(
+    (taskId: string, active: boolean) => {
+      onTouchInteractionChange?.(taskId, active);
+    },
+    [onTouchInteractionChange],
   );
 
   const closeSelf = React.useCallback(() => {
@@ -290,6 +298,12 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       unregisterClose(task.id);
     };
   }, [closeSelf, registerClose, task.id, unregisterClose]);
+
+  React.useEffect(() => {
+    if (isActive) return;
+    dragArmed.value = 0;
+    suppressNextPressRef.current = false;
+  }, [dragArmed, isActive]);
 
   React.useEffect(() => {
     if (!shouldPopIn) return;
@@ -426,82 +440,210 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     runOnUI(dismiss)(-1);
   }, [beginSwipe, dismiss, task.id]);
 
-  const gesture = React.useMemo(() => {
-    const nativeScroll = Gesture.Native();
-
-    let pan = Gesture.Pan()
-      .enabled(!isActive)
-      .manualActivation(true)
-      .activeOffsetX([-SWIPE_ACTIVE_OFFSET_X, SWIPE_ACTIVE_OFFSET_X])
-      .failOffsetY([-SWIPE_FAIL_OFFSET_Y, SWIPE_FAIL_OFFSET_Y]);
-
-    pan = pan.onTouchesDown((event) => {
+  const handleLongPressDrag = React.useCallback(() => {
+    suppressNextPressRef.current = true;
+    runOnUI(() => {
       "worklet";
-      const touch = event.allTouches[0];
-      if (!touch) return;
-      touchStartX.value = touch.x;
-      touchStartY.value = touch.y;
-      touchStartAt.value = Date.now();
-      axisDecision.value = 0;
-      swipeGestureActive.value = 0;
-      thresholdHapticSent.value = 0;
-    });
+      dragArmed.value = 1;
+    })();
+    onTouchInteractionChange?.(task.id, false);
+    // Disable scrolling at the native level BEFORE calling drag().
+    // This forces the scroll handler to release the current touch,
+    // allowing the library's Pan gesture to activate on the SAME touch.
+    onBeforeDrag?.();
+    drag();
+  }, [drag, dragArmed, onBeforeDrag, onTouchInteractionChange, task.id]);
 
-    pan = pan.onTouchesMove((event, state) => {
-      "worklet";
-      if (axisDecision.value === 1) return;
-      const touch = event.allTouches[0];
-      if (!touch) return;
-      const dx = touch.x - touchStartX.value;
-      const dy = touch.y - touchStartY.value;
+  // ---------- JS timer approach for long-press (does NOT block native gestures) ----------
+  const longPressTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelLongPressTimer = React.useCallback(() => {
+    if (longPressTimerRef.current != null) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
+
+  const startLongPressTimer = React.useCallback(() => {
+    cancelLongPressTimer();
+    longPressTimerRef.current = setTimeout(() => {
+      longPressTimerRef.current = null;
+      handleLongPressDrag();
+    }, DRAG_LONG_PRESS_DELAY_MS);
+  }, [cancelLongPressTimer, handleLongPressDrag]);
+
+  // Cleanup timer on unmount
+  React.useEffect(() => {
+    return () => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      if (longPressTimerRef.current != null) {
+        clearTimeout(longPressTimerRef.current);
+      }
+    };
+  }, []);
+
+  // ---------- Raw touch event handlers for Tap + LongPress ----------
+  // These DON'T capture the JS responder (unlike Pressable) and DON'T create
+  // native gesture handlers (unlike RNGH Tap/LongPress). They coexist peacefully
+  // with both ScrollView and react-native-draggable-flatlist's internal handlers.
+  const rowTouchRef = React.useRef<{
+    startX: number;
+    startY: number;
+    at: number;
+    moved: boolean;
+    ended: boolean;
+  }>({ startX: 0, startY: 0, at: 0, moved: false, ended: false });
+
+  const handleRowTouchStart = React.useCallback(
+    (e: GestureResponderEvent) => {
+      if (isActive) return;
+      const touch = e.nativeEvent;
+      rowTouchRef.current = {
+        startX: touch.pageX,
+        startY: touch.pageY,
+        at: Date.now(),
+        moved: false,
+        ended: false,
+      };
+      isPressed.value = 1;
+      onTouchInteractionChange?.(task.id, true);
+      startLongPressTimer();
+    },
+    [isActive, isPressed, onTouchInteractionChange, startLongPressTimer, task.id],
+  );
+
+  const handleRowTouchMove = React.useCallback(
+    (e: GestureResponderEvent) => {
+      if (rowTouchRef.current.ended) return;
+      const touch = e.nativeEvent;
+      const dx = Math.abs(touch.pageX - rowTouchRef.current.startX);
+      const dy = Math.abs(touch.pageY - rowTouchRef.current.startY);
+      if (dx > 10 || dy > 10) {
+        rowTouchRef.current.moved = true;
+        isPressed.value = 0;
+        // Don't cancel the long press timer here — only cancel for fast movements
+        // (scroll/swipe). The pan gesture's own handlers cancel it for swipes.
+        // For vertical scroll, the scroll takes over but the timer should still fire
+        // if the user hasn't moved too far.
+        if (dx > 20 || dy > 20) {
+          cancelLongPressTimer();
+        }
+      }
+    },
+    [cancelLongPressTimer, isPressed],
+  );
+
+  const handleRowTouchEnd = React.useCallback(
+    (e: GestureResponderEvent) => {
+      if (rowTouchRef.current.ended) return;
+      rowTouchRef.current.ended = true;
+      isPressed.value = 0;
+      onTouchInteractionChange?.(task.id, false);
+      cancelLongPressTimer();
+
+      // Detect tap: quick release, minimal movement, not after a drag
+      const dt = Date.now() - rowTouchRef.current.at;
+      if (
+        !rowTouchRef.current.moved &&
+        dt < DRAG_LONG_PRESS_DELAY_MS &&
+        !suppressNextPressRef.current &&
+        !isActive &&
+        dragArmed.value !== 1
+      ) {
+        onPressTask(task.id);
+      }
+      // Reset suppress flag after the event loop
+      requestAnimationFrame(() => {
+        suppressNextPressRef.current = false;
+      });
+    },
+    [cancelLongPressTimer, dragArmed, isActive, isPressed, onPressTask, onTouchInteractionChange, task.id],
+  );
+
+  const handleRowTouchCancel = React.useCallback(() => {
+    if (rowTouchRef.current.ended) return;
+    rowTouchRef.current.ended = true;
+    isPressed.value = 0;
+    onTouchInteractionChange?.(task.id, false);
+    cancelLongPressTimer();
+  }, [cancelLongPressTimer, isPressed, onTouchInteractionChange, task.id]);
+
+  // ---------- Swipe via raw touch events ----------
+  // NO GestureDetector = no RNGH handlers on the row = library's drag Pan
+  // has full, unblocked control. Raw touch events don't capture the JS responder
+  // either, so RNGH scroll works freely.
+  const swipeRef = React.useRef<{
+    startX: number;
+    startY: number;
+    startAt: number;
+    axisLocked: "none" | "horizontal" | "vertical";
+    swiping: boolean;
+    ended: boolean;
+  }>({ startX: 0, startY: 0, startAt: 0, axisLocked: "none", swiping: false, ended: false });
+
+  const handleSwipeTouchStart = React.useCallback(
+    (e: GestureResponderEvent) => {
+      if (isActive) return;
+      const t = e.nativeEvent;
+      swipeRef.current = {
+        startX: t.pageX,
+        startY: t.pageY,
+        startAt: Date.now(),
+        axisLocked: "none",
+        swiping: false,
+        ended: false,
+      };
+      startOffsetX.value = translateX.value;
+      onTouchInteractionChange?.(task.id, true);
+      startLongPressTimer();
+    },
+    [isActive, onTouchInteractionChange, startLongPressTimer, startOffsetX, task.id, translateX],
+  );
+
+  const handleSwipeTouchMove = React.useCallback(
+    (e: GestureResponderEvent) => {
+      if (swipeRef.current.ended || isActive) return;
+      const t = e.nativeEvent;
+      const dx = t.pageX - swipeRef.current.startX;
+      const dy = t.pageY - swipeRef.current.startY;
       const absX = Math.abs(dx);
       const absY = Math.abs(dy);
-      const touchAgeMs = Date.now() - touchStartAt.value;
 
-      const horizontalIntent =
-        touchAgeMs >= SWIPE_ARM_DELAY_MS &&
-        absX > MIN_SWIPE_X &&
-        absX > absY * 1.15 + AXIS_LOCK_THRESHOLD;
-      const verticalIntent =
-        absY > MIN_SCROLL_Y && absY > absX * 1.1 + AXIS_LOCK_THRESHOLD;
-
-      if (verticalIntent) {
-        axisDecision.value = 1;
-        state.fail();
+      // Axis lock decision
+      if (swipeRef.current.axisLocked === "none") {
+        if (absY >= SWIPE_FAIL_OFFSET_Y && absY > absX + SWIPE_AXIS_LOCK_BIAS) {
+          // Vertical scroll — cancel everything, let scroll take over
+          swipeRef.current.axisLocked = "vertical";
+          cancelLongPressTimer();
+          return;
+        }
+        if (absX >= SWIPE_MIN_DRAG_X && absX > absY + SWIPE_AXIS_LOCK_BIAS) {
+          // Horizontal swipe — start swiping
+          swipeRef.current.axisLocked = "horizontal";
+          swipeRef.current.swiping = true;
+          cancelLongPressTimer();
+          thresholdHapticSent.value = 0;
+          if (swipeGestureActive.value === 0) {
+            swipeGestureActive.value = 1;
+            reportSwipeGestureActive(true);
+          }
+          rowOpacity.value = 1;
+          rowScale.value = 1;
+          swipeVisualAlpha.value = 1;
+          collapse.value = 0;
+          beginSwipe(task.id);
+        }
+        // If movement > 20px in any direction and no long press yet, cancel timer
+        if (absX > 20 || absY > 20) {
+          cancelLongPressTimer();
+        }
         return;
       }
 
-      if (horizontalIntent) {
-        axisDecision.value = 1;
-        if (swipeGestureActive.value === 0) {
-          swipeGestureActive.value = 1;
-          runOnJS(reportSwipeGestureActive)(true);
-        }
-        state.activate();
-      }
-    });
+      if (swipeRef.current.axisLocked === "vertical") return;
 
-    pan = pan.onStart(() => {
-      "worklet";
-      thresholdHapticSent.value = 0;
-      if (swipeGestureActive.value === 0) {
-        swipeGestureActive.value = 1;
-        runOnJS(reportSwipeGestureActive)(true);
-      }
-      startOffsetX.value = translateX.value;
-      // If we previously dismissed and the key was reused, ensure we're back to a clean state.
-      rowOpacity.value = 1;
-      rowScale.value = 1;
-      swipeVisualAlpha.value = 1;
-      collapse.value = 0;
-      runOnJS(beginSwipe)(task.id);
-    });
-
-    pan = pan.onUpdate((event) => {
-      "worklet";
-      let raw = startOffsetX.value + event.translationX;
-      // Safety: if we're closing an already-open side, don't allow crossing through
-      // to the opposite side in the same gesture.
+      // Drive swipe animation from JS — sets shared value which animates on UI thread
+      let raw = startOffsetX.value + dx;
       if (startOffsetX.value > 0) raw = Math.max(0, raw);
       if (startOffsetX.value < 0) raw = Math.min(0, raw);
       const sign: -1 | 0 | 1 = raw > 0 ? 1 : raw < 0 ? -1 : 0;
@@ -509,10 +651,8 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
 
       const abs = Math.abs(raw);
       const beyond = Math.max(0, abs - SWIPE_STOP);
-      // Gentle resistance to avoid wobble.
       const resisted = SWIPE_STOP + beyond * SWIPE_ELASTIC;
       const nextAbs = abs <= SWIPE_STOP ? abs : resisted;
-      // Slight smoothing for a softer feel.
       const target = nextAbs * sign;
       translateX.value = translateX.value + (target - translateX.value) * 0.55;
 
@@ -522,99 +662,116 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
         Math.abs(raw) >= SWIPE_HAPTIC_AND_ACTION_FINGER
       ) {
         thresholdHapticSent.value = 1;
-        runOnJS(emitThresholdHaptic)();
+        emitThresholdHaptic();
       }
-    });
+    },
+    [
+      beginSwipe,
+      cancelLongPressTimer,
+      collapse,
+      direction,
+      emitThresholdHaptic,
+      isActive,
+      reportSwipeGestureActive,
+      rowOpacity,
+      rowScale,
+      startOffsetX,
+      swipeGestureActive,
+      swipeVisualAlpha,
+      task.id,
+      thresholdHapticSent,
+      translateX,
+    ],
+  );
 
-    pan = pan.onEnd((event) => {
-      "worklet";
-      let raw = startOffsetX.value + event.translationX;
-      if (startOffsetX.value > 0) raw = Math.max(0, raw);
-      if (startOffsetX.value < 0) raw = Math.min(0, raw);
+  const handleSwipeTouchEnd = React.useCallback(
+    (e: GestureResponderEvent) => {
+      if (swipeRef.current.ended) return;
+      swipeRef.current.ended = true;
+      onTouchInteractionChange?.(task.id, false);
+      cancelLongPressTimer();
 
-      const sign: -1 | 0 | 1 = raw > 0 ? 1 : raw < 0 ? -1 : 0;
-      const abs = Math.abs(translateX.value);
-      const absFinger = Math.abs(raw);
-      const v = Math.max(-1200, Math.min(1200, event.velocityX));
+      if (swipeRef.current.swiping) {
+        // End swipe — snap/dismiss logic
+        const t = e.nativeEvent;
+        const dx = t.pageX - swipeRef.current.startX;
+        let raw = startOffsetX.value + dx;
+        if (startOffsetX.value > 0) raw = Math.max(0, raw);
+        if (startOffsetX.value < 0) raw = Math.min(0, raw);
+        const sign: -1 | 0 | 1 = raw > 0 ? 1 : raw < 0 ? -1 : 0;
+        const abs = Math.abs(translateX.value);
+        const absFinger = Math.abs(raw);
+        const springCfg = { damping: 34, stiffness: 420, mass: 0.9, overshootClamping: true };
 
-      const springCfg = {
-        damping: 34,
-        stiffness: 420,
-        mass: 0.9,
-        overshootClamping: true,
-        velocity: v,
-      };
-
-      // Also allow triggering based on finger travel to make "through the stop" easier,
-      // even with resistance/smoothing.
-      if (abs >= SWIPE_TRIGGER || absFinger >= SWIPE_HAPTIC_AND_ACTION_FINGER) {
-        // Trigger action, animate row off before committing.
-        direction.value = 0;
-        if (sign !== 0) dismiss(sign as -1 | 1);
+        if (abs >= SWIPE_TRIGGER || absFinger >= SWIPE_HAPTIC_AND_ACTION_FINGER) {
+          direction.value = 0;
+          if (sign !== 0) dismiss(sign as -1 | 1);
+        } else {
+          const CLOSE_SNAP = SWIPE_STOP * 0.72;
+          if (abs < CLOSE_SNAP) {
+            translateX.value = withSpring(0, springCfg);
+            direction.value = 0;
+          } else if (abs >= SWIPE_OPEN_THRESHOLD) {
+            translateX.value = withSpring(SWIPE_STOP * sign, springCfg);
+            direction.value = sign;
+          } else {
+            translateX.value = withSpring(0, springCfg);
+            direction.value = 0;
+          }
+        }
+        if (swipeGestureActive.value === 1) {
+          swipeGestureActive.value = 0;
+          reportSwipeGestureActive(false);
+        }
+        thresholdHapticSent.value = 0;
+        endSwipe(task.id);
         return;
       }
 
-      // Snap logic tuned to make returning to "closed" easy from the stop state.
-      const CLOSE_SNAP = SWIPE_STOP * 0.72;
-      if (abs < CLOSE_SNAP) {
-        translateX.value = withSpring(0, springCfg);
-        direction.value = 0;
-        return;
+      // Not swiping — detect tap
+      const dt = Date.now() - swipeRef.current.startAt;
+      if (
+        swipeRef.current.axisLocked === "none" &&
+        dt < DRAG_LONG_PRESS_DELAY_MS &&
+        !isActive
+      ) {
+        onPressTask(task.id);
       }
+      endSwipe(task.id);
+    },
+    [
+      cancelLongPressTimer,
+      direction,
+      dismiss,
+      endSwipe,
+      isActive,
+      onPressTask,
+      onTouchInteractionChange,
+      reportSwipeGestureActive,
+      startOffsetX,
+      swipeGestureActive,
+      task.id,
+      thresholdHapticSent,
+      translateX,
+    ],
+  );
 
-      if (abs >= SWIPE_OPEN_THRESHOLD) {
-        translateX.value = withSpring(SWIPE_STOP * sign, springCfg);
-        direction.value = sign;
-        return;
-      }
-
-      translateX.value = withSpring(0, springCfg);
+  const handleSwipeTouchCancel = React.useCallback(() => {
+    if (swipeRef.current.ended) return;
+    swipeRef.current.ended = true;
+    onTouchInteractionChange?.(task.id, false);
+    cancelLongPressTimer();
+    if (swipeRef.current.swiping) {
+      translateX.value = withSpring(0, { damping: 34, stiffness: 420, mass: 0.9, overshootClamping: true });
       direction.value = 0;
-    });
-
-    pan = pan.onFinalize(() => {
-      "worklet";
-      thresholdHapticSent.value = 0;
       if (swipeGestureActive.value === 1) {
         swipeGestureActive.value = 0;
-        runOnJS(reportSwipeGestureActive)(false);
+        reportSwipeGestureActive(false);
       }
-      runOnJS(endSwipe)(task.id);
-    });
-
-    // Keep native scroll and row pan simultaneous, then let offsets decide intent.
-    if (typeof (pan as any).simultaneousWithExternalGesture === "function") {
-      return externalScrollRef
-        ? (pan as any).simultaneousWithExternalGesture(
-          nativeScroll,
-          externalScrollRef,
-        )
-        : (pan as any).simultaneousWithExternalGesture(nativeScroll);
+      thresholdHapticSent.value = 0;
+      endSwipe(task.id);
     }
-    return Gesture.Simultaneous(nativeScroll, pan);
-  }, [
-    axisDecision,
-    beginSwipe,
-    collapse,
-    dismiss,
-    direction,
-    endSwipe,
-    externalScrollRef,
-    isActive,
-    rowOpacity,
-    rowScale,
-    reportSwipeGestureActive,
-    startOffsetX,
-    swipeGestureActive,
-    swipeVisualAlpha,
-    task.id,
-    thresholdHapticSent,
-    touchStartX,
-    touchStartY,
-    touchStartAt,
-    translateX,
-    emitThresholdHaptic,
-  ]);
+  }, [cancelLongPressTimer, direction, endSwipe, onTouchInteractionChange, reportSwipeGestureActive, swipeGestureActive, task.id, thresholdHapticSent, translateX]);
 
   const spacerAnimatedStyle = useAnimatedStyle(() => {
     const p = 1 - collapse.value;
@@ -699,14 +856,20 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     };
   });
 
-  const rowAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: rowOpacity.value * entryOpacity.value,
-    transform: [
-      { translateX: translateX.value },
-      { translateY: entryTranslateY.value },
-      { scale: rowScale.value * entryScale.value },
-    ],
-  }));
+  const rowAnimatedStyle = useAnimatedStyle(() => {
+    // When pressed, gracefully shrink the scale slightly and drop opacity
+    const pressedScale = isPressed.value === 1 ? 0.98 : 1;
+    const pressedOpacity = isPressed.value === 1 ? 0.9 : 1;
+
+    return {
+      opacity: rowOpacity.value * entryOpacity.value * pressedOpacity,
+      transform: [
+        { translateX: translateX.value },
+        { translateY: entryTranslateY.value },
+        { scale: rowScale.value * entryScale.value * pressedScale },
+      ],
+    };
+  });
 
   const tagChips = React.useMemo<TagChipModel[]>(() => {
     if (enabledTags.size === 0) return [];
@@ -986,57 +1149,49 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
           </View>
         </Pressable>
 
-        <GestureDetector gesture={gesture}>
-          <Animated.View style={rowAnimatedStyle}>
-            <Pressable
-              onLongPress={drag}
-              delayLongPress={DRAG_LONG_PRESS_DELAY_MS}
-              pressRetentionOffset={{ top: 8, bottom: 8, left: 6, right: 6 }}
-              onPressIn={() => {
-                onTouchInteractionChange?.(task.id, true);
-              }}
-              onPressOut={() => {
-                onTouchInteractionChange?.(task.id, false);
-              }}
-              onLayout={(e) => {
-                rowWidth.value = e.nativeEvent.layout.width;
-                rowHeight.value = e.nativeEvent.layout.height;
-              }}
-              onPress={() => {
-                onPressTask(task.id);
-              }}
+        <Animated.View
+          style={rowAnimatedStyle}
+          onTouchStart={handleSwipeTouchStart}
+          onTouchMove={handleSwipeTouchMove}
+          onTouchEnd={handleSwipeTouchEnd}
+          onTouchCancel={handleSwipeTouchCancel}
+        >
+          <Animated.View
+            onLayout={(e) => {
+              rowWidth.value = e.nativeEvent.layout.width;
+              rowHeight.value = e.nativeEvent.layout.height;
+            }}
+          >
+            <GlassSurface
+              style={rowContentStyle}
+              glassEffectStyle="regular"
+              tintColor={rowTintColor}
+              fallbackBackgroundColor={rowSurfaceColor}
+              isInteractive
             >
-              <GlassSurface
-                style={rowContentStyle}
-                glassEffectStyle="regular"
-                tintColor={rowTintColor}
-                fallbackBackgroundColor={rowSurfaceColor}
-                isInteractive
-              >
-                <View style={[styles.rowInner, !hasExtraInfo ? { alignItems: "center" } : null]}>
-                  {emojiTileView}
-                  <View style={[styles.textStack, !hasExtraInfo ? { justifyContent: "center" } : null]}>
-                    <View style={styles.titleRow}>
-                      <Text style={styles.rowTitle} numberOfLines={1}>
-                        {task.title}
+              <View style={[styles.rowInner, !hasExtraInfo ? { alignItems: "center" } : null]}>
+                {emojiTileView}
+                <View style={[styles.textStack, !hasExtraInfo ? { justifyContent: "center" } : null]}>
+                  <View style={styles.titleRow}>
+                    <Text style={styles.rowTitle} numberOfLines={1}>
+                      {task.title}
+                    </Text>
+                    {timeLabel ? (
+                      <Text style={styles.rowMeta} numberOfLines={1}>
+                        {timeLabel}
                       </Text>
-                      {timeLabel ? (
-                        <Text style={styles.rowMeta} numberOfLines={1}>
-                          {timeLabel}
-                        </Text>
-                      ) : null}
-                    </View>
-                    {task.subtitle ? (
-                      <Text style={styles.rowSubtitle}>{task.subtitle}</Text>
                     ) : null}
-                    {tagsView}
-                    {compactSubtasksView}
                   </View>
+                  {task.subtitle ? (
+                    <Text style={styles.rowSubtitle}>{task.subtitle}</Text>
+                  ) : null}
+                  {tagsView}
+                  {compactSubtasksView}
                 </View>
-              </GlassSurface>
-            </Pressable>
+              </View>
+            </GlassSurface>
           </Animated.View>
-        </GestureDetector>
+        </Animated.View>
       </View>
     </Animated.View>
   );
