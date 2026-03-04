@@ -22,7 +22,6 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { NestableScrollContainer } from "react-native-draggable-flatlist";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -63,6 +62,7 @@ type TaskAccessoryContextBridge = {
     mode: "task" | "today" | "routine" | "project" | "inProject",
     projectId?: string | null,
     projectLabel?: string | null,
+    selectedDateStart?: number | null,
   ) => void;
 };
 
@@ -75,9 +75,6 @@ const DATE_RAIL_FUTURE_DAYS = 365;
 const DATE_RAIL_MIN_ITEM_WIDTH = 40;
 const DATE_RAIL_ITEM_GAP = 6;
 const DATE_RAIL_PAGE_DAYS = 7;
-const DATE_DROP_VERTICAL_PADDING = 16;
-const DATE_DROP_INTENT_DWELL_MS_FROM_TODAY = 260;
-const DATE_DROP_INTENT_HORIZONTAL_TRAVEL_FROM_TODAY = 28;
 const STREAK_PROGRESS_DAYS = 7;
 const HOME_TASK_ITEM_SPACING = 8;
 const TASK_ROW_SIDE_BLEED = 8;
@@ -430,7 +427,7 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
       ? IOS_LIGHT_SEPARATOR
       : withAlpha(text, ALPHA_4);
   const rowCardSurface = isDark
-    ? "rgba(89, 89, 89, 0.2)"
+    ? "rgba(70, 74, 84, 0.62)"
     : IOS_LIGHT_ELEVATED_SURFACE;
   const insetSurface = isDark
     ? "rgba(255,255,255,0.06)"
@@ -460,6 +457,11 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
       paddingTop: 8,
       paddingBottom: 184,
       gap: CONTENT_STACK_GAP,
+    },
+    taskListContent: {
+      paddingHorizontal: GRID_HORIZONTAL_PADDING,
+      paddingTop: 8,
+      paddingBottom: 184,
     },
     topHeroWrap: {
       marginHorizontal: -GRID_HORIZONTAL_PADDING,
@@ -917,12 +919,17 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
     },
     itemSpacer: {
       marginBottom: 0,
+      width: "100%",
+      alignSelf: "stretch",
     },
     swipeClip: {
       borderRadius: 12,
       overflow: "hidden",
       backgroundColor: "transparent",
       marginHorizontal: 0,
+      minHeight: 52,
+      width: "100%",
+      alignSelf: "stretch",
     },
     underlay: {
       ...StyleSheet.absoluteFillObject,
@@ -949,6 +956,7 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
     },
     row: {
       minHeight: 52,
+      width: "100%",
       borderRadius: 12,
       backgroundColor: rowCardSurface,
       justifyContent: "center",
@@ -1149,18 +1157,8 @@ export default function HomeScreen() {
   const useAppleLightPalette = !isDark && Platform.OS === "ios";
   const accessoryBridge = NativeModules
     .TaskAccessoryContextBridge as TaskAccessoryContextBridge | undefined;
-  const { setMode } = useTaskCreateContext();
+  const { setMode, setPresetDateStart } = useTaskCreateContext();
   const { width: viewportWidth } = useWindowDimensions();
-
-  useFocusEffect(
-    React.useCallback(() => {
-      setMode("today");
-      if (Platform.OS === "ios" && isIOS26OrNewer()) {
-        accessoryBridge?.setContext?.("today", null, null);
-      }
-      return undefined;
-    }, [accessoryBridge, setMode]),
-  );
 
   const [isCalendarPickerOpen, setIsCalendarPickerOpen] = React.useState(false);
   const [calendarPickerDate, setCalendarPickerDate] = React.useState(() => {
@@ -1268,6 +1266,28 @@ export default function HomeScreen() {
   const [selectedDateStart, setSelectedDateStart] = React.useState(() =>
     getStartOfToday(),
   );
+  const setTodayAccessoryContext = React.useCallback((dateStart: number) => {
+    if (Platform.OS !== "ios" || !isIOS26OrNewer()) return;
+    const setContext = accessoryBridge?.setContext;
+    if (!setContext) return;
+    try {
+      (setContext as any)("today", null, null, dateStart);
+    } catch {
+      setContext("today", null, null);
+    }
+  }, [accessoryBridge]);
+  useFocusEffect(
+    React.useCallback(() => {
+      setMode("today");
+      setPresetDateStart(selectedDateStart);
+      setTodayAccessoryContext(selectedDateStart);
+      return undefined;
+    }, [selectedDateStart, setMode, setPresetDateStart, setTodayAccessoryContext]),
+  );
+  React.useEffect(() => {
+    setPresetDateStart(selectedDateStart);
+    setTodayAccessoryContext(selectedDateStart);
+  }, [selectedDateStart, setPresetDateStart, setTodayAccessoryContext]);
   const [listDateStart, setListDateStart] = React.useState(() =>
     getStartOfToday(),
   );
@@ -2079,6 +2099,7 @@ export default function HomeScreen() {
       const direction: 1 | -1 =
         directionHint ?? (nextDateStart > current ? 1 : -1);
       selectedDateStartRef.current = nextDateStart;
+      setPresetDateStart(nextDateStart);
       setSelectedDateStart(nextDateStart);
       if (!fromHasTodayTasks && !toHasTodayTasks) {
         setListDateWithoutTransition(nextDateStart, false, true);
@@ -2091,6 +2112,7 @@ export default function HomeScreen() {
     [
       hasTodayTasksForDateStart,
       runDateListTransition,
+      setPresetDateStart,
       setListDateWithoutTransition,
     ],
   );
@@ -2104,10 +2126,11 @@ export default function HomeScreen() {
         at: Date.now(),
       };
       selectedDateStartRef.current = nextDateStart;
+      setPresetDateStart(nextDateStart);
       setSelectedDateStart(nextDateStart);
       setListDateWithoutTransition(nextDateStart, false);
     },
-    [setListDateWithoutTransition],
+    [setListDateWithoutTransition, setPresetDateStart],
   );
   React.useEffect(
     () => () => {
@@ -2127,9 +2150,12 @@ export default function HomeScreen() {
   );
   const handleSelectDate = React.useCallback(
     (timestamp: number, source: DateSelectionSource = "press") => {
-      selectDateWithTransition(timestamp, undefined, source);
+      if (source) {
+        // Intentionally immediate date switching for stable drag/swipe gesture handling.
+      }
+      selectDateWithoutTransition(timestamp);
     },
-    [selectDateWithTransition],
+    [selectDateWithoutTransition],
   );
 
   const getDateRailItemLayout = React.useCallback(
@@ -2237,9 +2263,9 @@ export default function HomeScreen() {
       );
       const nextDay = dateRailDays[nextIndex];
       if (!nextDay) return;
-      selectDateWithTransition(nextDay.timestamp, undefined, "momentum");
+      selectDateWithoutTransition(nextDay.timestamp);
     },
-    [dateRailDays, dateRailPageInterval, selectDateWithTransition],
+    [dateRailDays, dateRailPageInterval, selectDateWithoutTransition],
   );
   React.useEffect(() => {
     const rafId = requestAnimationFrame(measureDateRailBounds);
@@ -2528,6 +2554,7 @@ export default function HomeScreen() {
 
   const getVisibleTasksForDateStart = React.useCallback(
     (targetDateStart: number) => {
+      const targetIsToday = isSameLocalDay(targetDateStart, todayStart);
       const base = tasks.filter((t) => {
         if (t.deletedAt) return false;
         const normalizedSection: SectionId =
@@ -2539,7 +2566,8 @@ export default function HomeScreen() {
         const dueAtIsValid = hasValidDueAt(t.dueAt);
 
         if (!dueAtIsValid) {
-          return false;
+          // Keep legacy "today" tasks visible on today even if dueAt is missing.
+          return normalizedSection === "today" && targetIsToday;
         }
 
         return isSameLocalDay(t.dueAt, targetDateStart);
@@ -2554,7 +2582,7 @@ export default function HomeScreen() {
       if (!withNotesEnabled) return normalizedBase;
       return normalizedBase.filter((t) => !!t.subtitle);
     },
-    [homeEnabledSections, tasks, withNotesEnabled],
+    [homeEnabledSections, tasks, todayStart, withNotesEnabled],
   );
   const visibleTasks = React.useMemo(
     () => getVisibleTasksForDateStart(listDateStart),
@@ -2651,16 +2679,23 @@ export default function HomeScreen() {
     measureUpcomingSurfaceBounds,
     viewportWidth,
   ]);
-  const todaySwipeListData = React.useMemo<TaskSwipeDraggableListItem[]>(() => {
-    if (!hasTodaySection) return [];
-    return swipeListData.filter(
-      (item) =>
-        item.kind === "task" &&
-        (visibleTaskDisplaySectionById.get(item.taskId) ?? "upcoming") ===
-        "today",
-    );
-  }, [hasTodaySection, swipeListData, visibleTaskDisplaySectionById]);
-  const hasTodayTasks = todaySwipeListData.length > 0;
+  const todayVisibleTasks = React.useMemo(
+    () =>
+      visibleTasks
+        .filter((task) => task.section !== "completed")
+        .sort((a, b) => a.orderRank - b.orderRank),
+    [visibleTasks],
+  );
+  const todaySwipeListData = React.useMemo<TaskSwipeDraggableListItem[]>(
+    () =>
+      todayVisibleTasks.map((task) => ({
+        kind: "task" as const,
+        key: `task-${task.id}`,
+        taskId: task.id,
+      })),
+    [todayVisibleTasks],
+  );
+  const hasTodayTasks = todayVisibleTasks.length > 0;
   const calendarEmptyState = React.useMemo(
     () => (
       <View style={styles.emptyState}>
@@ -2859,87 +2894,6 @@ export default function HomeScreen() {
       cancelDragSurfaceResetFrame,
       clearDateDragHover,
       measureDateRailBounds,
-    ],
-  );
-
-  const handleDragTouchPoint = React.useCallback(
-    (params: {
-      absoluteX: number;
-      absoluteY: number;
-      translationX: number;
-      translationY: number;
-    }) => {
-      if (!dragContextRef.current) return;
-
-      const { absoluteX, absoluteY } = params;
-      if (!dragStartPointRef.current) {
-        dragStartPointRef.current = { absoluteX, absoluteY };
-      }
-      const bounds = dateRailBoundsRef.current;
-      if (!bounds) return;
-
-      const inRailBounds =
-        absoluteX >= bounds.x &&
-        absoluteX <= bounds.x + bounds.width &&
-        absoluteY >= bounds.y - DATE_DROP_VERTICAL_PADDING &&
-        absoluteY <= bounds.y + bounds.height + DATE_DROP_VERTICAL_PADDING;
-
-      if (!inRailBounds) {
-        dragLastRailDateStartRef.current = null;
-        dragRailHoverIntentRef.current = { dateStart: null, enteredAt: 0 };
-        if (dragHoverDateStartRef.current != null) {
-          clearDateDragHover();
-        }
-        return;
-      }
-
-      const localX = clamp(absoluteX - bounds.x, 0, bounds.width);
-      const contentX = dateRailScrollOffsetRef.current + localX;
-      const rawIndex = Math.round(contentX / dateRailSnapInterval);
-      const dayIndex = clamp(rawIndex, 0, Math.max(dateRailDays.length - 1, 0));
-      const targetDay = dateRailDays[dayIndex];
-      if (!targetDay) return;
-      const now = Date.now();
-      const currentIntent = dragRailHoverIntentRef.current;
-      if (currentIntent.dateStart !== targetDay.timestamp) {
-        dragRailHoverIntentRef.current = {
-          dateStart: targetDay.timestamp,
-          enteredAt: now,
-        };
-      }
-
-      const dragStartPoint = dragStartPointRef.current;
-      const horizontalTravel = dragStartPoint
-        ? Math.abs(absoluteX - dragStartPoint.absoluteX)
-        : 0;
-      const dwellMs = now - dragRailHoverIntentRef.current.enteredAt;
-      const isDifferentDay = !isSameLocalDay(
-        targetDay.timestamp,
-        listDateStartRef.current,
-      );
-      const hasIntentForDateDrop =
-        isDifferentDay &&
-        (horizontalTravel >= DATE_DROP_INTENT_HORIZONTAL_TRAVEL_FROM_TODAY ||
-          dwellMs >= DATE_DROP_INTENT_DWELL_MS_FROM_TODAY);
-
-      if (!hasIntentForDateDrop) {
-        dragLastRailDateStartRef.current = null;
-        if (dragHoverDateStartRef.current != null) {
-          clearDateDragHover();
-        }
-        return;
-      }
-
-      dragLastRailDateStartRef.current = targetDay.timestamp;
-      if (targetDay.timestamp !== dragHoverDateStartRef.current) {
-        dragHoverDateStartRef.current = targetDay.timestamp;
-        setDragHoveredDateStart(targetDay.timestamp);
-      }
-    },
-    [
-      clearDateDragHover,
-      dateRailDays,
-      dateRailSnapInterval,
     ],
   );
 
@@ -3158,8 +3112,16 @@ export default function HomeScreen() {
   );
 
   const handleAddTask = React.useCallback(() => {
-    router.push("/task/create-modal");
-  }, [router]);
+    const activeDateStart = selectedDateStartRef.current || selectedDateStart;
+    setPresetDateStart(activeDateStart);
+    router.push({
+      pathname: "/task/create-modal",
+      params: {
+        preset: "today",
+        dateStart: String(activeDateStart),
+      },
+    });
+  }, [router, selectedDateStart, setPresetDateStart]);
 
   const renderSectionHeaderRow = React.useCallback(
     (sectionId: string) => {
@@ -3597,414 +3559,45 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <NestableScrollContainer
-        ref={scrollRef}
+      <TaskSwipeDraggableList
+        ref={todayListRef}
+        theme={theme}
+        tasks={todayVisibleTasks}
+        projectsById={projectsById}
+        isDark={isDark}
+        rowStyles={styles}
+        itemSpacing={HOME_TASK_ITEM_SPACING}
+        enabledTags={enabledTags}
+        showTaskIcons={showTagIcons}
+        showCompactSubtasks={withSubtasksEnabled}
+        selectedDateStart={listDateStart}
+        empty={!hasTodayTasks ? calendarEmptyState : null}
+        onPressTask={handlePressTask}
+        toggleComplete={handleToggleComplete}
+        toggleSubtask={handleToggleSubtask}
+        deleteTask={handleDeleteTask}
+        onReorderData={applyOrderFromTodaySegment}
+        onDragBeginTask={handleDragBeginTask}
+        onDragEndMeta={handleDragEndMeta}
+        onDragStateChange={handleDragStateChange}
+        onSwipeStateChange={handleSwipeStateChange}
+        onRowTouchStateChange={handleRowTouchStateChange}
+        renderMode="auto"
+        animateDataLayoutChanges={false}
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={[styles.content]}
-        scrollEventThrottle={16}
-        showsVerticalScrollIndicator={false}
-      >
-        {listHeader}
-
-        {hasTodaySection ? (
-          <GlassSurface
-            ref={todaySurfaceRef}
-            onLayout={measureTodaySurfaceBounds}
-            disabled={collapsedSections.today}
-            style={[
-              styles.dateTasksSurface,
-              activeDragSurface === "today"
-                ? styles.segmentSurfaceDragActive
-                : null,
-              activeDragSurface === "upcoming"
-                ? styles.segmentSurfaceDragInactive
-                : null,
-              isHoveringTodayDropZone ? styles.segmentSurfaceDropHover : null,
-              collapsedSections.today ? styles.segmentSurfaceCollapsed : null,
-            ]}
-            glassEffectStyle="regular"
-            tintColor={homeMetricsTheme.cardBackgroundColor}
-            fallbackBackgroundColor={
-              collapsedSections.today
-                ? "transparent"
-                : homeMetricsTheme.cardBackgroundColor
-            }
-          >
-            <View
-              style={[
-                styles.dateTasksSurfaceHeightFrame,
-                activeDragSurface === "today"
-                  ? styles.dateTasksSurfaceHeightFrameDragActive
-                  : null,
-                collapsedSections.today
-                  ? styles.dateTasksSurfaceHeightFrameCollapsed
-                  : null,
-              ]}
-            >
-              <View>
-                {dateRailPanel}
-
-                {!collapsedSections.today ? (
-                  <Animated.View
-                    style={[
-                      styles.taskContentSolid,
-                      styles.todayTaskContentTransparent,
-                      {
-                        opacity: todaySectionRevealProgress,
-                      },
-                    ]}
-                  >
-                    <View style={styles.taskListInset}>
-                      <Animated.View
-                        style={[
-                          styles.dateListTransitionHost,
-                          activeDragSurface === "today"
-                            ? styles.dateListTransitionHostDragActive
-                            : null,
-                          isDateListTransitioning
-                            ? { height: dateListTransitionHeight }
-                            : null,
-                        ]}
-                        onLayout={handleDateListHostLayout}
-                      >
-                        {isDateListTransitioning &&
-                          dateListTransitionState &&
-                          dateListTransitionData ? (
-                          <Animated.View
-                            pointerEvents="none"
-                            style={[
-                              styles.dateListTransitionTrack,
-                              {
-                                transform: [{ translateX: dateListTranslateX }],
-                              },
-                            ]}
-                          >
-                            {dateListTransitionState.direction === 1 ? (
-                              <>
-                                <View
-                                  style={[
-                                    styles.dateListTransitionPage,
-                                    { width: dateListTransitionPageWidth },
-                                  ]}
-                                  onLayout={handleDateListFromPageLayout}
-                                >
-                                  <TaskSwipeDraggableList
-                                    theme={theme}
-                                    tasks={
-                                      dateListTransitionData.fromVisibleTasks
-                                    }
-                                    projectsById={projectsById}
-                                    isDark={isDark}
-                                    rowStyles={styles}
-                                    itemSpacing={HOME_TASK_ITEM_SPACING}
-                                    enabledTags={enabledTags}
-                                    showTaskIcons={showTagIcons}
-                                    showCompactSubtasks={withSubtasksEnabled}
-                                    selectedDateStart={
-                                      dateListTransitionState.fromDateStart
-                                    }
-                                    data={dateListTransitionData.fromTodayData}
-                                    empty={
-                                      dateListTransitionData.fromTodayData
-                                        .length === 0
-                                        ? calendarEmptyState
-                                        : null
-                                    }
-                                    onPressTask={handlePressTask}
-                                    toggleComplete={handleToggleComplete}
-                                    toggleSubtask={handleToggleSubtask}
-                                    deleteTask={handleDeleteTask}
-                                    renderMode="static"
-                                    animateDataLayoutChanges={false}
-                                  />
-                                </View>
-                                <View
-                                  style={[
-                                    styles.dateListTransitionPage,
-                                    { width: dateListTransitionPageWidth },
-                                  ]}
-                                  onLayout={handleDateListToPageLayout}
-                                >
-                                  <TaskSwipeDraggableList
-                                    theme={theme}
-                                    tasks={
-                                      dateListTransitionData.toVisibleTasks
-                                    }
-                                    projectsById={projectsById}
-                                    isDark={isDark}
-                                    rowStyles={styles}
-                                    itemSpacing={HOME_TASK_ITEM_SPACING}
-                                    enabledTags={enabledTags}
-                                    showTaskIcons={showTagIcons}
-                                    showCompactSubtasks={withSubtasksEnabled}
-                                    selectedDateStart={
-                                      dateListTransitionState.toDateStart
-                                    }
-                                    data={dateListTransitionData.toTodayData}
-                                    empty={
-                                      dateListTransitionData.toTodayData
-                                        .length === 0
-                                        ? calendarEmptyState
-                                        : null
-                                    }
-                                    onPressTask={handlePressTask}
-                                    toggleComplete={handleToggleComplete}
-                                    toggleSubtask={handleToggleSubtask}
-                                    deleteTask={handleDeleteTask}
-                                    renderMode="static"
-                                    animateDataLayoutChanges={false}
-                                    revealProgress={
-                                      dateListTransitionItemRevealProgress
-                                    }
-                                    revealStaggerStep={0.04}
-                                    revealTranslateY={-6}
-                                  />
-                                </View>
-                              </>
-                            ) : (
-                              <>
-                                <View
-                                  style={[
-                                    styles.dateListTransitionPage,
-                                    { width: dateListTransitionPageWidth },
-                                  ]}
-                                  onLayout={handleDateListToPageLayout}
-                                >
-                                  <TaskSwipeDraggableList
-                                    theme={theme}
-                                    tasks={
-                                      dateListTransitionData.toVisibleTasks
-                                    }
-                                    projectsById={projectsById}
-                                    isDark={isDark}
-                                    rowStyles={styles}
-                                    itemSpacing={HOME_TASK_ITEM_SPACING}
-                                    enabledTags={enabledTags}
-                                    showTaskIcons={showTagIcons}
-                                    showCompactSubtasks={withSubtasksEnabled}
-                                    selectedDateStart={
-                                      dateListTransitionState.toDateStart
-                                    }
-                                    data={dateListTransitionData.toTodayData}
-                                    empty={
-                                      dateListTransitionData.toTodayData
-                                        .length === 0
-                                        ? calendarEmptyState
-                                        : null
-                                    }
-                                    onPressTask={handlePressTask}
-                                    toggleComplete={handleToggleComplete}
-                                    toggleSubtask={handleToggleSubtask}
-                                    deleteTask={handleDeleteTask}
-                                    renderMode="static"
-                                    animateDataLayoutChanges={false}
-                                    revealProgress={
-                                      dateListTransitionItemRevealProgress
-                                    }
-                                    revealStaggerStep={0.04}
-                                    revealTranslateY={-6}
-                                  />
-                                </View>
-                                <View
-                                  style={[
-                                    styles.dateListTransitionPage,
-                                    { width: dateListTransitionPageWidth },
-                                  ]}
-                                  onLayout={handleDateListFromPageLayout}
-                                >
-                                  <TaskSwipeDraggableList
-                                    theme={theme}
-                                    tasks={
-                                      dateListTransitionData.fromVisibleTasks
-                                    }
-                                    projectsById={projectsById}
-                                    isDark={isDark}
-                                    rowStyles={styles}
-                                    itemSpacing={HOME_TASK_ITEM_SPACING}
-                                    enabledTags={enabledTags}
-                                    showTaskIcons={showTagIcons}
-                                    showCompactSubtasks={withSubtasksEnabled}
-                                    selectedDateStart={
-                                      dateListTransitionState.fromDateStart
-                                    }
-                                    data={dateListTransitionData.fromTodayData}
-                                    empty={
-                                      dateListTransitionData.fromTodayData
-                                        .length === 0
-                                        ? calendarEmptyState
-                                        : null
-                                    }
-                                    onPressTask={handlePressTask}
-                                    toggleComplete={handleToggleComplete}
-                                    toggleSubtask={handleToggleSubtask}
-                                    deleteTask={handleDeleteTask}
-                                    renderMode="static"
-                                    animateDataLayoutChanges={false}
-                                  />
-                                </View>
-                              </>
-                            )}
-                          </Animated.View>
-                        ) : (
-                          <View
-                            onTouchStart={onListTouchStart}
-                            onTouchEnd={onListTouchEnd}
-                            onTouchCancel={onListTouchCancel}
-                            pointerEvents={
-                              isDateListTransitioning ? "none" : "auto"
-                            }
-                          >
-                            <TaskSwipeDraggableList
-                              ref={todayListRef}
-                              theme={theme}
-                              tasks={visibleTasks}
-                              projectsById={projectsById}
-                              isDark={isDark}
-                              rowStyles={styles}
-                              itemSpacing={HOME_TASK_ITEM_SPACING}
-                              enabledTags={enabledTags}
-                              showTaskIcons={showTagIcons}
-                              showCompactSubtasks={withSubtasksEnabled}
-                              selectedDateStart={listDateStart}
-                              data={todaySwipeListData}
-                              empty={
-                                !hasTodayTasks ? (
-                                  calendarEmptyState
-                                ) : null
-                              }
-                              onPressTask={handlePressTask}
-                              toggleComplete={handleToggleComplete}
-                              toggleSubtask={handleToggleSubtask}
-                              deleteTask={handleDeleteTask}
-                              onReorderData={applyOrderFromTodaySegment}
-                              onDragBeginTask={handleDragBeginTask}
-                              onDragTouchPoint={handleDragTouchPoint}
-                              onDragEndMeta={handleDragEndMeta}
-                              onDragStateChange={handleDragStateChange}
-                              onSwipeStateChange={handleSwipeStateChange}
-                              onRowTouchStateChange={handleRowTouchStateChange}
-                              dragAxisMode="free"
-                              renderMode="nestable"
-                              scrollRef={scrollRef}
-                              animateDataLayoutChanges={false}
-                              revealProgress={todaySectionRevealProgress}
-                              revealStaggerStep={0.05}
-                              revealTranslateY={10}
-                            />
-                          </View>
-                        )}
-                      </Animated.View>
-                    </View>
-                  </Animated.View>
-                ) : null}
-              </View>
-            </View>
-          </GlassSurface>
-        ) : null}
-
-        {hasUpcomingSection ? (
-          <GlassSurface
-            ref={upcomingSurfaceRef}
-            onLayout={measureUpcomingSurfaceBounds}
-            disabled={collapsedSections.upcoming}
-            style={[
-              styles.upcomingTasksSurface,
-              activeDragSurface === "upcoming"
-                ? styles.segmentSurfaceDragActive
-                : null,
-              activeDragSurface === "today"
-                ? styles.segmentSurfaceDragInactive
-                : null,
-              isHoveringUpcomingDropZone
-                ? styles.segmentSurfaceDropHover
-                : null,
-              collapsedSections.upcoming ? styles.segmentSurfaceCollapsed : null,
-            ]}
-            glassEffectStyle="regular"
-            tintColor={homeMetricsTheme.cardBackgroundColor}
-            fallbackBackgroundColor={
-              collapsedSections.upcoming
-                ? "transparent"
-                : homeMetricsTheme.cardBackgroundColor
-            }
-          >
-            {renderSectionHeaderRow("upcoming")}
-            {!collapsedSections.upcoming ? (
-              <Animated.View
-                style={[
-                  styles.taskContentSolid,
-                  {
-                    opacity: upcomingSectionRevealProgress,
-                    transform: [
-                      { translateY: upcomingSectionRevealTranslateY },
-                      { scale: upcomingSectionRevealScale },
-                    ],
-                  },
-                ]}
-              >
-                <View style={styles.taskListInset}>
-                  <View
-                    onTouchStart={onListTouchStart}
-                    onTouchEnd={onListTouchEnd}
-                    onTouchCancel={onListTouchCancel}
-                  >
-                    <TaskSwipeDraggableList
-                      ref={upcomingListRef}
-                      theme={theme}
-                      tasks={visibleTasks}
-                      projectsById={projectsById}
-                      isDark={isDark}
-                      rowStyles={styles}
-                      itemSpacing={HOME_TASK_ITEM_SPACING}
-                      enabledTags={enabledTags}
-                      showTaskIcons={showTagIcons}
-                      showCompactSubtasks={withSubtasksEnabled}
-                      selectedDateStart={listDateStart}
-                      data={upcomingSwipeListData}
-                      empty={
-                        !hasUpcomingTasks ? (
-                          calendarEmptyState
-                        ) : null
-                      }
-                      onPressTask={handlePressTask}
-                      toggleComplete={handleToggleComplete}
-                      toggleSubtask={handleToggleSubtask}
-                      deleteTask={handleDeleteTask}
-                      onReorderData={applyOrderFromUpcomingSegment}
-                      onDragBeginTask={handleDragBeginTask}
-                      onDragTouchPoint={handleDragTouchPoint}
-                      onDragEndMeta={handleDragEndMeta}
-                      onDragStateChange={handleDragStateChange}
-                      onSwipeStateChange={handleSwipeStateChange}
-                      onRowTouchStateChange={handleRowTouchStateChange}
-                      dragAxisMode="free"
-                      renderMode="nestable"
-                      scrollRef={scrollRef}
-                      animateDataLayoutChanges={false}
-                      revealProgress={upcomingSectionRevealProgress}
-                      revealStaggerStep={0.05}
-                      revealTranslateY={10}
-                    />
-                  </View>
-                </View>
-              </Animated.View>
-            ) : null}
-          </GlassSurface>
-        ) : null}
-
-        {archivePill}
-
-        <View
-          pointerEvents="none"
-          accessible={false}
-          importantForAccessibility="no-hide-descendants"
-          style={styles.minimizeProbeWrap}
-        >
-          {minimizeProbeRows.map((row) => (
-            <View key={`probe-${row}`} style={styles.minimizeProbeRow} />
-          ))}
-        </View>
-      </NestableScrollContainer>
+        contentContainerStyle={styles.taskListContent}
+        header={
+          <>
+            {listHeader}
+            {dateRailPanel}
+          </>
+        }
+        footer={
+          <>
+            {archivePill}
+          </>
+        }
+      />
 
       {showFloatingAddButton ? (
         <FloatingAddButton onPress={handleAddTask} />

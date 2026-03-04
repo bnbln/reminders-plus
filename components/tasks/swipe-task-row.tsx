@@ -5,23 +5,15 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
   type StyleProp,
   type ViewStyle,
 } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, {
-  Easing,
-  Extrapolation,
-  interpolate,
-  runOnJS,
-  runOnUI,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withSpring,
-  withTiming,
-} from "react-native-reanimated";
+import SwipeableItem, {
+  OpenDirection,
+  type SwipeableItemImperativeRef,
+} from "react-native-swipeable-item";
 
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import {
@@ -33,37 +25,29 @@ import type { Project, Task } from "@/context/tasks-store";
 import { getIntlLocale, t } from "@/i18n";
 
 const SWIPE_STOP = 76;
-const SWIPE_OPEN_THRESHOLD = 22;
-// Trigger should require a deliberate, stronger swipe.
-const SWIPE_TRIGGER = 132;
-const SWIPE_ELASTIC = 0.55;
-const SWIPE_HAPTIC_EARLY_RATIO = 0;
-const SWIPE_TRIGGER_FINGER =
-  SWIPE_STOP + (SWIPE_TRIGGER - SWIPE_STOP) / SWIPE_ELASTIC;
-const SWIPE_HAPTIC_AND_ACTION_RATIO = Math.max(
-  0,
-  Math.min(1, SWIPE_HAPTIC_EARLY_RATIO),
-);
-const SWIPE_HAPTIC_AND_ACTION_FINGER =
-  SWIPE_STOP +
-  (SWIPE_TRIGGER_FINGER - SWIPE_STOP) * SWIPE_HAPTIC_AND_ACTION_RATIO;
-const SWIPE_ACTIVE_OFFSET_X = 10;
-const SWIPE_FAIL_OFFSET_Y = 18;
-const AXIS_LOCK_THRESHOLD = 4;
-const MIN_SWIPE_X = 8;
-const MIN_SCROLL_Y = 10;
+const SWIPE_ACTIVATION_THRESHOLD = 10;
+const SWIPE_DAMPING = 7;
+const SWIPE_OVER_SWIPE = 12;
 const COMPACT_SUBTASK_ICON_SIZE = 18;
 const COMPACT_SUBTASK_TEXT_SIZE = 14;
-const SWIPE_ARM_DELAY_MS = 80;
 const DRAG_LONG_PRESS_DELAY_MS = 260;
 
 /** Convert a hex color to an rgba pastel tint. */
 function hexToPastel(hex: string | undefined, isDark: boolean): string | undefined {
   if (!hex || hex.length < 4) return undefined;
-  const cleaned = hex.replace('#', '');
-  const r = parseInt(cleaned.length === 3 ? cleaned[0] + cleaned[0] : cleaned.substring(0, 2), 16);
-  const g = parseInt(cleaned.length === 3 ? cleaned[1] + cleaned[1] : cleaned.substring(2, 4), 16);
-  const b = parseInt(cleaned.length === 3 ? cleaned[2] + cleaned[2] : cleaned.substring(4, 6), 16);
+  const cleaned = hex.replace("#", "");
+  const r = parseInt(
+    cleaned.length === 3 ? cleaned[0] + cleaned[0] : cleaned.substring(0, 2),
+    16,
+  );
+  const g = parseInt(
+    cleaned.length === 3 ? cleaned[1] + cleaned[1] : cleaned.substring(2, 4),
+    16,
+  );
+  const b = parseInt(
+    cleaned.length === 3 ? cleaned[2] + cleaned[2] : cleaned.substring(4, 6),
+    16,
+  );
   if (isNaN(r) || isNaN(g) || isNaN(b)) return undefined;
   const alpha = isDark ? 0.22 : 0.15;
   return `rgba(${r},${g},${b},${alpha})`;
@@ -103,10 +87,10 @@ const formatDueLabel = (dueAt: number, dueHasTime?: boolean) => {
       : dueDay.getTime() === tomorrow.getTime()
         ? t("taskDetail.relative.tomorrow")
         : new Intl.DateTimeFormat(getIntlLocale(), {
-          weekday: "short",
-          day: "2-digit",
-          month: "2-digit",
-        }).format(due);
+            weekday: "short",
+            day: "2-digit",
+            month: "2-digit",
+          }).format(due);
 
   if (!dueHasTime) return dayLabel;
 
@@ -163,7 +147,6 @@ export type SwipeTaskRowProps = {
   emojiFallback: string;
   swipeCompleteBg: string;
   swipeDeleteBg: string;
-  externalScrollRef?: React.RefObject<any>;
   leftAction?: {
     icon?: React.ComponentProps<typeof MaterialIcons>["name"];
     backgroundColor?: string;
@@ -212,7 +195,6 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   emojiFallback,
   swipeCompleteBg,
   swipeDeleteBg,
-  externalScrollRef,
   leftAction,
   rightAction,
   enabledTags,
@@ -235,6 +217,12 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   swipeClipStyle,
   rowStyle,
 }: SwipeTaskRowProps) {
+  const swipeRef = React.useRef<SwipeableItemImperativeRef | null>(null);
+  const longPressTriggeredRef = React.useRef(false);
+  const longPressTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+
   const projectBgColor = React.useMemo(
     () => hexToPastel(project?.color, isDark),
     [project?.color, isDark],
@@ -246,50 +234,33 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
         : undefined,
     [isDark, project?.color],
   );
-  const translateX = useSharedValue(0);
-  const direction = useSharedValue<-1 | 0 | 1>(0);
-  const startOffsetX = useSharedValue(0);
-  const rowWidth = useSharedValue(0);
-  const rowHeight = useSharedValue(0);
-  const rowOpacity = useSharedValue(1);
-  const rowScale = useSharedValue(1);
-  const entryOpacity = useSharedValue(1);
-  const entryScale = useSharedValue(1);
-  const entryTranslateY = useSharedValue(0);
-  const swipeVisualAlpha = useSharedValue(1);
-  const collapse = useSharedValue(0);
-  const touchStartX = useSharedValue(0);
-  const touchStartY = useSharedValue(0);
-  const touchStartAt = useSharedValue(0);
-  const axisDecision = useSharedValue<0 | 1>(0);
-  const swipeGestureActive = useSharedValue(0);
-  const thresholdHapticSent = useSharedValue(0);
-  const isPressed = useSharedValue(0);
-  const longPressTriggered = useSharedValue(0);
-  const longPressTriggeredRef = React.useRef(false);
 
-  const reportSwipeGestureActive = React.useCallback(
-    (active: boolean) => {
-      onSwipeGestureActiveChange?.(task.id, active);
-    },
-    [onSwipeGestureActiveChange, task.id],
-  );
-  const reportTouchInteraction = React.useCallback(
-    (active: boolean) => {
-      onTouchInteractionChange?.(task.id, active);
-    },
-    [onTouchInteractionChange, task.id],
-  );
+  React.useEffect(() => {
+    if (!isActive) {
+      longPressTriggeredRef.current = false;
+    }
+  }, [isActive]);
+
+  React.useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (shouldPopIn) {
+      onPopInAnimationEnd?.(task.id);
+    }
+  }, [onPopInAnimationEnd, shouldPopIn, task.id]);
 
   const closeSelf = React.useCallback(() => {
-    translateX.value = withSpring(0, {
-      damping: 34,
-      stiffness: 420,
-      mass: 0.9,
-      overshootClamping: true,
-    });
-    direction.value = 0;
-  }, [direction, translateX]);
+    void swipeRef.current?.close({ animated: true }).catch(() => undefined);
+    onSwipeGestureActiveChange?.(task.id, false);
+    endSwipe(task.id);
+  }, [endSwipe, onSwipeGestureActiveChange, task.id]);
 
   React.useEffect(() => {
     registerClose(task.id, closeSelf);
@@ -297,50 +268,6 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       unregisterClose(task.id);
     };
   }, [closeSelf, registerClose, task.id, unregisterClose]);
-
-  React.useEffect(() => {
-    if (!isActive) {
-      longPressTriggeredRef.current = false;
-      longPressTriggered.value = 0;
-    }
-  }, [isActive, longPressTriggered]);
-
-  React.useEffect(() => {
-    if (!shouldPopIn) return;
-
-    entryOpacity.value = 0;
-    entryScale.value = 0.985;
-    entryTranslateY.value = 12;
-
-    entryOpacity.value = withTiming(1, {
-      duration: 180,
-      easing: Easing.out(Easing.quad),
-    });
-
-    entryScale.value = withTiming(1, {
-      duration: 220,
-      easing: Easing.out(Easing.cubic),
-    });
-
-    entryTranslateY.value = withTiming(
-      0,
-      {
-        duration: 220,
-        easing: Easing.out(Easing.cubic),
-      },
-      (finished) => {
-        if (!finished) return;
-        if (onPopInAnimationEnd) runOnJS(onPopInAnimationEnd)(task.id);
-      },
-    );
-  }, [
-    entryOpacity,
-    entryScale,
-    entryTranslateY,
-    onPopInAnimationEnd,
-    shouldPopIn,
-    task.id,
-  ]);
 
   const commitLeft = React.useCallback(() => {
     if (leftAction) {
@@ -370,289 +297,65 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     ).catch(() => undefined);
   }, [deleteTask, rightAction, task.id]);
 
-  const emitThresholdHaptic = React.useCallback(() => {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(
-      () => undefined,
-    );
-  }, []);
-
-  const dismiss = React.useCallback(
-    (sign: -1 | 1) => {
-      "worklet";
-      const width = rowWidth.value > 0 ? rowWidth.value : 420;
-      const target = (width + 96) * sign;
-
-      swipeVisualAlpha.value = withTiming(0, {
-        duration: 140,
-        easing: Easing.out(Easing.cubic),
-      });
-      rowOpacity.value = withTiming(0, {
-        duration: 170,
-        easing: Easing.out(Easing.cubic),
-      });
-      rowScale.value = withTiming(0.985, {
-        duration: 220,
-        easing: Easing.out(Easing.cubic),
-      });
-      translateX.value = withTiming(target, {
-        duration: 240,
-        easing: Easing.out(Easing.cubic),
-      });
-      collapse.value = withDelay(
-        40,
-        withTiming(
-          1,
-          { duration: 220, easing: Easing.out(Easing.cubic) },
-          (finished) => {
-            if (!finished) return;
-            if (sign > 0) {
-              runOnJS(commitLeft)();
-            } else {
-              runOnJS(commitRight)();
-            }
-            runOnJS(endSwipe)(task.id);
-          },
-        ),
-      );
-    },
-    [
-      collapse,
-      commitLeft,
-      commitRight,
-      endSwipe,
-      rowOpacity,
-      rowScale,
-      rowWidth,
-      swipeVisualAlpha,
-      task.id,
-      translateX,
-    ],
-  );
-
   const onPressComplete = React.useCallback(() => {
-    // Close any other open rows before acting.
     beginSwipe(task.id);
-    runOnUI(dismiss)(1);
-  }, [beginSwipe, dismiss, task.id]);
+    void swipeRef.current?.close({ animated: true }).catch(() => undefined);
+    commitLeft();
+  }, [beginSwipe, commitLeft, task.id]);
 
   const onPressDelete = React.useCallback(() => {
     beginSwipe(task.id);
-    runOnUI(dismiss)(-1);
-  }, [beginSwipe, dismiss, task.id]);
+    void swipeRef.current?.close({ animated: true }).catch(() => undefined);
+    commitRight();
+  }, [beginSwipe, commitRight, task.id]);
 
   const handleLongPressDrag = React.useCallback(() => {
-    if (isActive) return;
+    if (isActive || longPressTriggeredRef.current) return;
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
     longPressTriggeredRef.current = true;
-    longPressTriggered.value = 1;
-    isPressed.value = 0;
     onTouchInteractionChange?.(task.id, false);
     drag();
-  }, [
-    drag,
-    isActive,
-    isPressed,
-    longPressTriggered,
-    onTouchInteractionChange,
-    task.id,
-  ]);
+  }, [drag, isActive, onTouchInteractionChange, task.id]);
 
-  const gesture = React.useMemo(() => {
-    const nativeScroll = Gesture.Native();
-
-    let pan = Gesture.Pan()
-      .enabled(!isActive)
-      .manualActivation(true)
-      .activeOffsetX([-SWIPE_ACTIVE_OFFSET_X, SWIPE_ACTIVE_OFFSET_X])
-      .failOffsetY([-SWIPE_FAIL_OFFSET_Y, SWIPE_FAIL_OFFSET_Y]);
-
-    pan = pan.onTouchesDown((event) => {
-      "worklet";
-      const touch = event.allTouches[0];
-      if (!touch) return;
-      touchStartX.value = touch.x;
-      touchStartY.value = touch.y;
-      touchStartAt.value = Date.now();
-      axisDecision.value = 0;
-      swipeGestureActive.value = 0;
-      thresholdHapticSent.value = 0;
-      longPressTriggered.value = 0;
-    });
-
-    pan = pan.onTouchesMove((event, state) => {
-      "worklet";
-      if (longPressTriggered.value === 1) {
-        state.fail();
-        return;
-      }
-      if (axisDecision.value === 1) return;
-      const touch = event.allTouches[0];
-      if (!touch) return;
-      const dx = touch.x - touchStartX.value;
-      const dy = touch.y - touchStartY.value;
-      const absX = Math.abs(dx);
-      const absY = Math.abs(dy);
-      const touchAgeMs = Date.now() - touchStartAt.value;
-
-      const horizontalIntent =
-        touchAgeMs >= SWIPE_ARM_DELAY_MS &&
-        absX > MIN_SWIPE_X &&
-        absX > absY * 1.15 + AXIS_LOCK_THRESHOLD;
-      const verticalIntent =
-        absY > MIN_SCROLL_Y && absY > absX * 1.1 + AXIS_LOCK_THRESHOLD;
-
-      if (verticalIntent) {
-        axisDecision.value = 1;
-        state.fail();
-        return;
-      }
-
-      if (horizontalIntent) {
-        axisDecision.value = 1;
-        if (swipeGestureActive.value === 0) {
-          swipeGestureActive.value = 1;
-          runOnJS(reportSwipeGestureActive)(true);
-        }
-        state.activate();
-      }
-    });
-
-    pan = pan.onStart(() => {
-      "worklet";
-      thresholdHapticSent.value = 0;
-      if (swipeGestureActive.value === 0) {
-        swipeGestureActive.value = 1;
-        runOnJS(reportSwipeGestureActive)(true);
-      }
-      startOffsetX.value = translateX.value;
-      rowOpacity.value = 1;
-      rowScale.value = 1;
-      swipeVisualAlpha.value = 1;
-      collapse.value = 0;
-      runOnJS(beginSwipe)(task.id);
-    });
-
-    pan = pan.onUpdate((event) => {
-      "worklet";
-      let raw = startOffsetX.value + event.translationX;
-      if (startOffsetX.value > 0) raw = Math.max(0, raw);
-      if (startOffsetX.value < 0) raw = Math.min(0, raw);
-      const sign: -1 | 0 | 1 = raw > 0 ? 1 : raw < 0 ? -1 : 0;
-      direction.value = sign;
-
-      const abs = Math.abs(raw);
-      const beyond = Math.max(0, abs - SWIPE_STOP);
-      const resisted = SWIPE_STOP + beyond * SWIPE_ELASTIC;
-      const nextAbs = abs <= SWIPE_STOP ? abs : resisted;
-      const target = nextAbs * sign;
-      translateX.value = translateX.value + (target - translateX.value) * 0.55;
-
-      if (
-        thresholdHapticSent.value === 0 &&
-        sign !== 0 &&
-        Math.abs(raw) >= SWIPE_HAPTIC_AND_ACTION_FINGER
-      ) {
-        thresholdHapticSent.value = 1;
-        runOnJS(emitThresholdHaptic)();
-      }
-    });
-
-    pan = pan.onEnd((event) => {
-      "worklet";
-      let raw = startOffsetX.value + event.translationX;
-      if (startOffsetX.value > 0) raw = Math.max(0, raw);
-      if (startOffsetX.value < 0) raw = Math.min(0, raw);
-
-      const sign: -1 | 0 | 1 = raw > 0 ? 1 : raw < 0 ? -1 : 0;
-      const abs = Math.abs(translateX.value);
-      const absFinger = Math.abs(raw);
-      const v = Math.max(-1200, Math.min(1200, event.velocityX));
-      const springCfg = {
-        damping: 34,
-        stiffness: 420,
-        mass: 0.9,
-        overshootClamping: true,
-        velocity: v,
-      };
-
-      if (abs >= SWIPE_TRIGGER || absFinger >= SWIPE_HAPTIC_AND_ACTION_FINGER) {
-        direction.value = 0;
-        if (sign !== 0) dismiss(sign as -1 | 1);
-        return;
-      }
-
-      const CLOSE_SNAP = SWIPE_STOP * 0.72;
-      if (abs < CLOSE_SNAP) {
-        translateX.value = withSpring(0, springCfg);
-        direction.value = 0;
-        return;
-      }
-
-      if (abs >= SWIPE_OPEN_THRESHOLD) {
-        translateX.value = withSpring(SWIPE_STOP * sign, springCfg);
-        direction.value = sign;
-        return;
-      }
-
-      translateX.value = withSpring(0, springCfg);
-      direction.value = 0;
-    });
-
-    pan = pan.onFinalize(() => {
-      "worklet";
-      thresholdHapticSent.value = 0;
-      if (swipeGestureActive.value === 1) {
-        swipeGestureActive.value = 0;
-        runOnJS(reportSwipeGestureActive)(false);
-      }
-      longPressTriggered.value = 0;
-      runOnJS(reportTouchInteraction)(false);
-      runOnJS(endSwipe)(task.id);
-    });
-
-    if (typeof (pan as any).simultaneousWithExternalGesture === "function") {
-      return externalScrollRef
-        ? (pan as any).simultaneousWithExternalGesture(
-          nativeScroll,
-          externalScrollRef,
-        )
-        : (pan as any).simultaneousWithExternalGesture(nativeScroll);
+  const armLongPressDrag = React.useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
     }
-    return Gesture.Simultaneous(nativeScroll, pan);
-  }, [
-    axisDecision,
-    beginSwipe,
-    collapse,
-    dismiss,
-    direction,
-    endSwipe,
-    externalScrollRef,
-    isActive,
-    longPressTriggered,
-    rowOpacity,
-    rowScale,
-    reportSwipeGestureActive,
-    reportTouchInteraction,
-    startOffsetX,
-    swipeGestureActive,
-    swipeVisualAlpha,
-    task.id,
-    thresholdHapticSent,
-    touchStartAt,
-    touchStartX,
-    touchStartY,
-    translateX,
-    emitThresholdHaptic,
-  ]);
 
-  const spacerAnimatedStyle = useAnimatedStyle(() => {
-    const p = 1 - collapse.value;
-    const measuredRowHeight = rowHeight.value;
-    return {
-      height: measuredRowHeight > 0 ? measuredRowHeight * p : undefined,
-      marginBottom: isLast ? 0 : itemSpacing * p,
-      overflow: isActive ? "visible" : "hidden",
-    };
-  }, [isActive, itemSpacing, isLast]);
+    longPressTimerRef.current = setTimeout(() => {
+      longPressTimerRef.current = null;
+      handleLongPressDrag();
+    }, DRAG_LONG_PRESS_DELAY_MS);
+  }, [handleLongPressDrag]);
+
+  const clearLongPressDrag = React.useCallback(() => {
+    if (!longPressTimerRef.current) return;
+    clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = null;
+  }, []);
+
+  const handleSwipeChange = React.useCallback(
+    ({
+      openDirection,
+      snapPoint,
+    }: {
+      openDirection: OpenDirection;
+      snapPoint: number;
+    }) => {
+      const isOpen = openDirection !== OpenDirection.NONE && snapPoint > 0;
+      if (isOpen) {
+        beginSwipe(task.id);
+      } else {
+        endSwipe(task.id);
+      }
+      onSwipeGestureActiveChange?.(task.id, isOpen);
+    },
+    [beginSwipe, endSwipe, onSwipeGestureActiveChange, task.id],
+  );
 
   const clipStyle = React.useMemo(
     () => [
@@ -663,96 +366,46 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     [isActive, styles.swipeClip, swipeClipStyle],
   );
 
-  const underlayGreenStyle = useAnimatedStyle(() => {
-    const tx = translateX.value;
-    const visible = tx > 0 ? Math.min(1, tx / SWIPE_STOP) : 0;
-    const boost =
-      tx > SWIPE_STOP
-        ? Math.min(1, (tx - SWIPE_STOP) / (SWIPE_TRIGGER - SWIPE_STOP))
-        : 0;
-    return {
-      opacity: visible * swipeVisualAlpha.value,
-      backgroundColor: leftAction?.backgroundColor ?? swipeCompleteBg,
-      transform: [{ scaleX: 1 + boost * 0.03 }],
-    };
-  }, [leftAction?.backgroundColor, swipeCompleteBg]);
+  const spacerStyle = React.useMemo(
+    () => [
+      styles.itemSpacer,
+      itemSpacerStyle,
+      {
+        marginBottom: isLast ? 0 : itemSpacing,
+        overflow: isActive ? ("visible" as const) : ("hidden" as const),
+      },
+    ],
+    [isActive, isLast, itemSpacing, itemSpacerStyle, styles.itemSpacer],
+  );
 
-  const underlayRedStyle = useAnimatedStyle(() => {
-    const tx = translateX.value;
-    const visible = tx < 0 ? Math.min(1, -tx / SWIPE_STOP) : 0;
-    const boost =
-      tx < -SWIPE_STOP
-        ? Math.min(1, (-tx - SWIPE_STOP) / (SWIPE_TRIGGER - SWIPE_STOP))
-        : 0;
-    return {
-      opacity: visible * swipeVisualAlpha.value,
-      backgroundColor: rightAction?.backgroundColor ?? swipeDeleteBg,
-      transform: [{ scaleX: 1 + boost * 0.03 }],
-    };
-  }, [rightAction?.backgroundColor, swipeDeleteBg]);
-
-  const leftIconStyle = useAnimatedStyle(() => {
-    const tx = translateX.value;
-    if (tx <= 0) return { opacity: 0 };
-    const p = Math.min(1, tx / SWIPE_STOP);
-    const armed =
-      tx >= SWIPE_TRIGGER
-        ? 1
-        : Math.max(0, (tx - SWIPE_STOP) / (SWIPE_TRIGGER - SWIPE_STOP));
-    const scale = interpolate(p, [0, 1], [0.92, 1], Extrapolation.CLAMP);
-    const bump = interpolate(armed, [0, 1], [0, 0.08], Extrapolation.CLAMP);
-    return {
-      opacity:
-        interpolate(p, [0, 0.12, 1], [0, 1, 1], Extrapolation.CLAMP) *
-        swipeVisualAlpha.value,
-      transform: [{ scale: scale + bump }],
-    };
-  });
-
-  const rightIconStyle = useAnimatedStyle(() => {
-    const tx = translateX.value;
-    if (tx >= 0) return { opacity: 0 };
-    const abs = Math.min(1, -tx / SWIPE_STOP);
-    const armed =
-      -tx >= SWIPE_TRIGGER
-        ? 1
-        : Math.max(0, (-tx - SWIPE_STOP) / (SWIPE_TRIGGER - SWIPE_STOP));
-    const scale = interpolate(abs, [0, 1], [0.92, 1], Extrapolation.CLAMP);
-    const bump = interpolate(armed, [0, 1], [0, 0.08], Extrapolation.CLAMP);
-    return {
-      opacity:
-        interpolate(abs, [0, 0.12, 1], [0, 1, 1], Extrapolation.CLAMP) *
-        swipeVisualAlpha.value,
-      transform: [{ scale: scale + bump }],
-    };
-  });
-
-  const rowAnimatedStyle = useAnimatedStyle(() => {
-    // When pressed, gracefully shrink the scale slightly and drop opacity
-    const pressedScale = isPressed.value === 1 ? 0.98 : 1;
-    const pressedOpacity = isPressed.value === 1 ? 0.9 : 1;
-
-    return {
-      opacity: rowOpacity.value * entryOpacity.value * pressedOpacity,
-      transform: [
-        { translateX: translateX.value },
-        { translateY: entryTranslateY.value },
-        { scale: rowScale.value * entryScale.value * pressedScale },
-      ],
-    };
-  });
+  const rowContentStyle = React.useMemo(
+    () => [styles.row, rowStyle, isActive ? styles.dragRow : undefined],
+    [isActive, rowStyle, styles.dragRow, styles.row],
+  );
+  const rowSurfaceColor = React.useMemo(() => {
+    const flattened = StyleSheet.flatten(rowContentStyle);
+    const resolved = flattened?.backgroundColor;
+    if (typeof resolved === "string" && resolved.length > 0) return resolved;
+    return isDark ? "#1C1C1E" : "#FFFFFF";
+  }, [isDark, rowContentStyle]);
+  const rowTintColor = React.useMemo(
+    () =>
+      rowSurfaceColor.startsWith("#")
+        ? withAlpha(rowSurfaceColor, isDark ? 0.88 : 0.9)
+        : rowSurfaceColor,
+    [isDark, rowSurfaceColor],
+  );
 
   const tagChips = React.useMemo<TagChipModel[]>(() => {
     if (enabledTags.size === 0) return [];
 
     const chips: TagChipModel[] = [];
-
     const now = Date.now();
+
     const isOverdue = (() => {
       if (task.section === "completed") return false;
       if (!Number.isFinite(task.dueAt) || task.dueAt <= 0) return false;
 
-      // If the task has no explicit time, treat it as due "by end of day".
       if (task.dueHasTime === false) {
         const due = new Date(task.dueAt);
         const startOfNextDay = new Date(
@@ -767,9 +420,9 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
         return now >= startOfNextDay;
       }
 
-      // Has time (or unknown): overdue once the timestamp passed.
       return task.dueAt < now;
     })();
+
     const hashtags = extractHashtags(
       [task.title, task.subtitle, task.notes].filter(Boolean).join(" "),
     );
@@ -790,7 +443,6 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
 
       if (tagId === "datetime") {
         if (!Number.isFinite(task.dueAt) || task.dueAt <= 0) continue;
-        // Suppress redundant date chip when it matches the currently viewed day.
         if (selectedDateStart != null && selectedDateStart > 0) {
           const dueDay = new Date(task.dueAt);
           const selDay = new Date(selectedDateStart);
@@ -935,24 +587,9 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     () => !!task.subtitle?.trim(),
     [task.subtitle],
   );
-  const hasExtraInfo = hasSubtitle || tagChips.length > 0 || compactSubtasks.length > 0;
-  const rowContentStyle = React.useMemo(
-    () => [styles.row, rowStyle, isActive ? styles.dragRow : undefined],
-    [isActive, rowStyle, styles.dragRow, styles.row],
-  );
-  const rowSurfaceColor = React.useMemo(() => {
-    const flattened = StyleSheet.flatten(rowContentStyle);
-    const resolved = flattened?.backgroundColor;
-    if (typeof resolved === "string" && resolved.length > 0) return resolved;
-    return isDark ? "#1C1C1E" : "#FFFFFF";
-  }, [isDark, rowContentStyle]);
-  const rowTintColor = React.useMemo(
-    () =>
-      rowSurfaceColor.startsWith("#")
-        ? withAlpha(rowSurfaceColor, isDark ? 0.88 : 0.9)
-        : rowSurfaceColor,
-    [isDark, rowSurfaceColor],
-  );
+
+  const hasExtraInfo =
+    hasSubtitle || tagChips.length > 0 || compactSubtasks.length > 0;
 
   const emojiTileView = showTaskIcons ? (
     <View
@@ -960,7 +597,9 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
         styles.emojiTile,
         {
           backgroundColor: projectBgColor ?? emojiTint,
-          borderColor: projectBgColor ? projectEmojiBorderColor ?? emojiFallback : emojiFallback,
+          borderColor: projectBgColor
+            ? projectEmojiBorderColor ?? emojiFallback
+            : emojiFallback,
           borderWidth: StyleSheet.hairlineWidth,
         },
       ]}
@@ -971,35 +610,14 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     </View>
   ) : null;
 
-  return (
-    <Animated.View style={[styles.itemSpacer, itemSpacerStyle, spacerAnimatedStyle]}>
-      <View style={clipStyle}>
-        <Animated.View style={[styles.underlay, underlayGreenStyle]} />
-        <Animated.View style={[styles.underlay, underlayRedStyle]} />
-
-        <Pressable
-          style={[
-            styles.actionSlot,
-            styles.actionSlotLeft,
-            { width: SWIPE_STOP },
-          ]}
-          onPress={onPressComplete}
-          hitSlop={10}
-        >
-          <View style={styles.actionSlotInner}>
-            <Animated.View style={leftIconStyle}>
-              <MaterialIcons
-                name={
-                  leftAction?.icon ??
-                  (task.section === "completed" ? "undo" : "check")
-                }
-                size={26}
-                color="#FFFFFF"
-              />
-            </Animated.View>
-          </View>
-        </Pressable>
-
+  const renderUnderlayLeft = React.useCallback(
+    () => (
+      <View
+        style={[
+          styles.underlay,
+          { backgroundColor: rightAction?.backgroundColor ?? swipeDeleteBg },
+        ]}
+      >
         <Pressable
           style={[
             styles.actionSlot,
@@ -1010,74 +628,148 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
           hitSlop={10}
         >
           <View style={styles.actionSlotInner}>
-            <Animated.View style={rightIconStyle}>
-              <MaterialIcons
-                name={rightAction?.icon ?? "delete"}
-                size={26}
-                color="#FFFFFF"
-              />
-            </Animated.View>
+            <MaterialIcons
+              name={rightAction?.icon ?? "delete"}
+              size={26}
+              color="#FFFFFF"
+            />
           </View>
         </Pressable>
-
-        <GestureDetector gesture={gesture}>
-          <Animated.View style={rowAnimatedStyle}>
-            <Pressable
-              onLongPress={handleLongPressDrag}
-              delayLongPress={DRAG_LONG_PRESS_DELAY_MS}
-              pressRetentionOffset={{ top: 20, bottom: 20, left: 20, right: 20 }}
-              onPressIn={() => {
-                isPressed.value = 1;
-                onTouchInteractionChange?.(task.id, true);
-              }}
-              onPressOut={() => {
-                isPressed.value = 0;
-                onTouchInteractionChange?.(task.id, false);
-              }}
-              onLayout={(e) => {
-                rowWidth.value = e.nativeEvent.layout.width;
-                rowHeight.value = e.nativeEvent.layout.height;
-              }}
-              onPress={() => {
-                if (longPressTriggeredRef.current) {
-                  longPressTriggeredRef.current = false;
-                  return;
-                }
-                onPressTask(task.id);
-              }}
-            >
-              <GlassSurface
-                style={rowContentStyle}
-                glassEffectStyle="regular"
-                tintColor={rowTintColor}
-                fallbackBackgroundColor={rowSurfaceColor}
-                isInteractive
-              >
-                <View style={[styles.rowInner, !hasExtraInfo ? { alignItems: "center" } : null]}>
-                  {emojiTileView}
-                  <View style={[styles.textStack, !hasExtraInfo ? { justifyContent: "center" } : null]}>
-                    <View style={styles.titleRow}>
-                      <Text style={styles.rowTitle} numberOfLines={1}>
-                        {task.title}
-                      </Text>
-                      {timeLabel ? (
-                        <Text style={styles.rowMeta} numberOfLines={1}>
-                          {timeLabel}
-                        </Text>
-                      ) : null}
-                    </View>
-                    {task.subtitle ? (
-                      <Text style={styles.rowSubtitle}>{task.subtitle}</Text>
-                    ) : null}
-                    {tagsView}
-                    {compactSubtasksView}
-                  </View>
-                </View>
-              </GlassSurface>
-            </Pressable>
-          </Animated.View>
-        </GestureDetector>
       </View>
-    </Animated.View>
+    ),
+    [
+      onPressDelete,
+      rightAction?.backgroundColor,
+      rightAction?.icon,
+      styles.actionSlot,
+      styles.actionSlotInner,
+      styles.actionSlotRight,
+      styles.underlay,
+      swipeDeleteBg,
+    ],
+  );
+
+  const renderUnderlayRight = React.useCallback(
+    () => (
+      <View
+        style={[
+          styles.underlay,
+          { backgroundColor: leftAction?.backgroundColor ?? swipeCompleteBg },
+        ]}
+      >
+        <Pressable
+          style={[
+            styles.actionSlot,
+            styles.actionSlotLeft,
+            { width: SWIPE_STOP },
+          ]}
+          onPress={onPressComplete}
+          hitSlop={10}
+        >
+          <View style={styles.actionSlotInner}>
+            <MaterialIcons
+              name={
+                leftAction?.icon ??
+                (task.section === "completed" ? "undo" : "check")
+              }
+              size={26}
+              color="#FFFFFF"
+            />
+          </View>
+        </Pressable>
+      </View>
+    ),
+    [
+      leftAction?.backgroundColor,
+      leftAction?.icon,
+      onPressComplete,
+      styles.actionSlot,
+      styles.actionSlotInner,
+      styles.actionSlotLeft,
+      styles.underlay,
+      swipeCompleteBg,
+      task.section,
+    ],
+  );
+
+  return (
+    <View style={spacerStyle}>
+      <View style={clipStyle}>
+        <SwipeableItem
+          ref={swipeRef}
+          item={task}
+          swipeEnabled={!isActive}
+          activationThreshold={SWIPE_ACTIVATION_THRESHOLD}
+          swipeDamping={SWIPE_DAMPING}
+          overSwipe={SWIPE_OVER_SWIPE}
+          snapPointsLeft={[SWIPE_STOP]}
+          snapPointsRight={[SWIPE_STOP]}
+          onChange={handleSwipeChange}
+          renderUnderlayLeft={renderUnderlayLeft}
+          renderUnderlayRight={renderUnderlayRight}
+        >
+          <TouchableOpacity
+            onLongPress={handleLongPressDrag}
+            delayLongPress={DRAG_LONG_PRESS_DELAY_MS}
+            activeOpacity={0.9}
+            style={{ width: "100%", alignSelf: "stretch" }}
+            onPressIn={() => {
+              onTouchInteractionChange?.(task.id, true);
+              armLongPressDrag();
+            }}
+            onPressOut={() => {
+              clearLongPressDrag();
+              onTouchInteractionChange?.(task.id, false);
+            }}
+            onPress={() => {
+              if (longPressTriggeredRef.current) {
+                longPressTriggeredRef.current = false;
+                return;
+              }
+              onPressTask(task.id);
+            }}
+          >
+            <GlassSurface
+              style={rowContentStyle}
+              glassEffectStyle="regular"
+              tintColor={rowTintColor}
+              fallbackBackgroundColor={rowSurfaceColor}
+              isInteractive
+            >
+              <View
+                style={[
+                  styles.rowInner,
+                  !hasExtraInfo ? { alignItems: "center" } : null,
+                ]}
+              >
+                {emojiTileView}
+                <View
+                  style={[
+                    styles.textStack,
+                    !hasExtraInfo ? { justifyContent: "center" } : null,
+                  ]}
+                >
+                  <View style={styles.titleRow}>
+                    <Text style={styles.rowTitle} numberOfLines={1}>
+                      {task.title}
+                    </Text>
+                    {timeLabel ? (
+                      <Text style={styles.rowMeta} numberOfLines={1}>
+                        {timeLabel}
+                      </Text>
+                    ) : null}
+                  </View>
+                  {task.subtitle ? (
+                    <Text style={styles.rowSubtitle}>{task.subtitle}</Text>
+                  ) : null}
+                  {tagsView}
+                  {compactSubtasksView}
+                </View>
+              </View>
+            </GlassSurface>
+          </TouchableOpacity>
+        </SwipeableItem>
+      </View>
+    </View>
   );
 });

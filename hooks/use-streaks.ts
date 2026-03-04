@@ -47,7 +47,6 @@ export function useStreaks(): StreakStats {
         const intlLocale = getIntlLocale();
         const weekdayShortFormatter = new Intl.DateTimeFormat(intlLocale, { weekday: 'short' });
         const monthShortFormatter = new Intl.DateTimeFormat(intlLocale, { month: 'short' });
-        const monthNarrowFormatter = new Intl.DateTimeFormat(intlLocale, { month: 'narrow' });
         // 1. Filter completed tasks
         const completedTasks = tasks.filter((t) => !!t.completedAt);
 
@@ -126,8 +125,10 @@ export function useStreaks(): StreakStats {
                     const d = new Date(now);
                     d.setDate(d.getDate() - i);
                     const dStr = toLocalISODate(d.getTime());
+                    const dayOfMonth = d.getDate();
+                    const monthTickLabel = dayOfMonth === 1 || dayOfMonth % 5 === 0 ? `${dayOfMonth}.` : '';
                     data.push({
-                        label: weekdayShortFormatter.format(d).replace(/\.$/u, ''),
+                        label: range === '1m' ? monthTickLabel : weekdayShortFormatter.format(d).replace(/\.$/u, ''),
                         count: completionsByDate.get(dStr) || 0,
                         dateStr: dStr,
                         isToday: i === 0,
@@ -176,6 +177,8 @@ export function useStreaks(): StreakStats {
 
                 // Iterate months from first to now
                 let curr = new Date(first.getFullYear(), first.getMonth(), 1);
+                let monthIndex = 0;
+                const maxLabelEvery = 4;
                 while (curr <= now) {
                     const tM = curr.getMonth();
                     const tY = curr.getFullYear();
@@ -186,13 +189,17 @@ export function useStreaks(): StreakStats {
                             sum += count;
                         }
                     }
+                    const isLastMonth = tY === now.getFullYear() && tM === now.getMonth();
+                    const shouldShowLabel = monthIndex % maxLabelEvery === 0 || isLastMonth;
+                    const shortYear = String(tY).slice(-2);
                     data.push({
-                        label: monthNarrowFormatter.format(curr),
+                        label: shouldShowLabel ? `${tM + 1}/${shortYear}` : '',
                         count: sum,
                         dateStr: `${tY}-${tM}`,
                         type: 'month'
                     });
                     curr.setMonth(curr.getMonth() + 1);
+                    monthIndex += 1;
                 }
             }
 

@@ -20,6 +20,7 @@ type TaskAccessoryContextBridge = {
     mode: "task" | "today" | "routine" | "project" | "inProject",
     projectId?: string | null,
     projectLabel?: string | null,
+    selectedDateStart?: number | null,
   ) => void;
 };
 
@@ -29,7 +30,7 @@ export default function TabLayout() {
   const isIOS26Plus = isIOS26OrNewer();
   const segments = useSegments();
   const { id: routeIdParam } = useGlobalSearchParams<{ id?: string | string[] }>();
-  const { setProjectId, clearProjectId, setMode } = useTaskCreateContext();
+  const { setProjectId, clearProjectId, setMode, clearPresetDateStart } = useTaskCreateContext();
   const { projects } = useTasksStore();
   const accessoryBridge = NativeModules
     .TaskAccessoryContextBridge as TaskAccessoryContextBridge | undefined;
@@ -71,6 +72,7 @@ export default function TabLayout() {
     ) {
       setProjectId(routeProjectId);
       setMode("inProject");
+      clearPresetDateStart();
       return;
     }
 
@@ -82,6 +84,7 @@ export default function TabLayout() {
     if (isRoutinesRoute) {
       clearProjectId();
       setMode("routine");
+      clearPresetDateStart();
       return;
     }
 
@@ -94,6 +97,7 @@ export default function TabLayout() {
     if (first === "(tabs)" && second === "explore") {
       clearProjectId();
       setMode("project");
+      clearPresetDateStart();
       return;
     }
 
@@ -103,8 +107,9 @@ export default function TabLayout() {
     if (first === "(tabs)") {
       clearProjectId();
       setMode("task");
+      clearPresetDateStart();
     }
-  }, [clearProjectId, routeProjectExists, routeProjectId, segments, setMode, setProjectId]);
+  }, [clearPresetDateStart, clearProjectId, routeProjectExists, routeProjectId, segments, setMode, setProjectId]);
 
   React.useEffect(() => {
     if (Platform.OS !== "ios" || !isIOS26Plus) return;

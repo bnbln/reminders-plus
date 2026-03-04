@@ -23,6 +23,7 @@ type TaskAccessoryContextBridge = {
     mode: 'task' | 'today' | 'routine' | 'project' | 'inProject',
     projectId?: string | null,
     projectLabel?: string | null,
+    selectedDateStart?: number | null,
   ) => void;
 };
 
@@ -42,7 +43,7 @@ export default function TodayScreen() {
   const theme = useColorScheme() ?? 'light';
   const accessoryBridge = NativeModules
     .TaskAccessoryContextBridge as TaskAccessoryContextBridge | undefined;
-  const { setMode } = useTaskCreateContext();
+  const { setMode, setPresetDateStart } = useTaskCreateContext();
   const showFloatingAddButton = Platform.OS === 'ios' && !isIOS26OrNewer();
   const params = useLocalSearchParams<{ withNotes?: string; withSubtasks?: string }>();
   const withNotesEnabled = params.withNotes === '1';
@@ -54,15 +55,34 @@ export default function TodayScreen() {
       : params.withSubtasks === '1';
   const { tasks, setTasks, projects } = useTasksStore();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const setTodayAccessoryContext = React.useCallback((dateStart: number) => {
+    if (Platform.OS !== 'ios' || !isIOS26OrNewer()) return;
+    const setContext = accessoryBridge?.setContext;
+    if (!setContext) return;
+    try {
+      (setContext as any)('today', null, null, dateStart);
+    } catch {
+      setContext('today', null, null);
+    }
+  }, [accessoryBridge]);
 
   useFocusEffect(
     React.useCallback(() => {
       setMode('today');
-      if (Platform.OS === 'ios' && isIOS26OrNewer()) {
-        accessoryBridge?.setContext?.('today', null, null);
-      }
+      const now = new Date();
+      const selectedDateStart = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+        0,
+        0,
+        0,
+        0,
+      ).getTime();
+      setPresetDateStart(selectedDateStart);
+      setTodayAccessoryContext(selectedDateStart);
       return undefined;
-    }, [accessoryBridge, setMode]),
+    }, [setMode, setPresetDateStart, setTodayAccessoryContext]),
   );
 
   const projectsById = React.useMemo(() => new Map(projects.map((p) => [p.id, p] as const)), [projects]);
@@ -156,7 +176,7 @@ export default function TodayScreen() {
   );
 
   const handleAddTask = React.useCallback(() => {
-    router.push('/task/create-modal');
+    router.push({ pathname: '/task/create-modal', params: { preset: 'today' } });
   }, [router]);
 
   return (

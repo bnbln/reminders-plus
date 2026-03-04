@@ -1,24 +1,31 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import React, { useMemo, useState } from 'react';
-import SegmentedControl from '@react-native-segmented-control/segmented-control';
-import { Platform, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import SegmentedControl from "@react-native-segmented-control/segmented-control";
+import React, { useMemo, useState } from "react";
+import {
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
 
-import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
-import { SFSymbol } from '@/components/ui/sfsymbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { ChartDataPoint, useStreaks } from '@/hooks/use-streaks';
-import { countLabel, t } from '@/i18n';
+import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
+import { SFSymbol } from "@/components/ui/sfsymbol";
+import { Colors } from "@/constants/theme";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { ChartDataPoint, useStreaks } from "@/hooks/use-streaks";
+import { countLabel, t } from "@/i18n";
 
 type ThemeName = keyof typeof Colors;
-type RangeOption = '7d' | '14d' | '1m' | '1y' | 'max';
+type RangeOption = "7d" | "14d" | "1m" | "1y" | "max";
 
 // Metrics-style glass card styles
 const createStyles = (theme: ThemeName, compact: boolean) => {
-  const isDark = theme === 'dark';
+  const isDark = theme === "dark";
   const text = Colors[theme].text;
-  const cardBorder = isDark ? 'rgba(255,255,255,0.09)' : 'rgba(17,24,28,0.09)';
-  const cardBg = isDark ? '#1C1C1E' : '#F2F2F7';
+  const cardBorder = isDark ? "rgba(255,255,255,0.09)" : "rgba(17,24,28,0.09)";
+  const cardBg = isDark ? "#1C1C1E" : "#F2F2F7";
   const subtitleColor = withAlpha(text, 0.62);
 
   return StyleSheet.create({
@@ -34,9 +41,9 @@ const createStyles = (theme: ThemeName, compact: boolean) => {
     },
     // Hero section
     hero: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
       gap: compact ? 10 : 14,
       paddingVertical: compact ? 10 : 14,
       marginBottom: 8,
@@ -45,19 +52,19 @@ const createStyles = (theme: ThemeName, compact: boolean) => {
       marginTop: compact ? -2 : -4,
     },
     heroTextWrap: {
-      alignItems: 'flex-start',
+      alignItems: "flex-start",
       gap: 2,
     },
     bigNumber: {
       fontSize: compact ? 54 : 64,
-      fontWeight: '900',
+      fontWeight: "900",
       letterSpacing: -0.8,
       lineHeight: compact ? 54 : 64,
       color: text,
     },
     heroSubtitle: {
       fontSize: compact ? 15 : 16,
-      fontWeight: '700',
+      fontWeight: "700",
       lineHeight: compact ? 19 : 20,
       color: subtitleColor,
     },
@@ -66,42 +73,42 @@ const createStyles = (theme: ThemeName, compact: boolean) => {
       marginBottom: 16,
     },
     quickGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
+      flexDirection: "row",
+      flexWrap: "wrap",
       gap: 10,
     },
     quickTilePressable: {
-      width: '48.5%',
+      width: "48.5%",
     },
     quickTile: {
       borderRadius: 24,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: cardBorder,
-      overflow: 'hidden',
+      overflow: "hidden",
       backgroundColor: cardBg,
       minHeight: 110,
     },
     quickTileInner: {
       paddingHorizontal: 20,
       paddingVertical: 20,
-      justifyContent: 'center',
+      justifyContent: "center",
       gap: 8,
     },
     quickTileIconRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
       gap: 8,
     },
     quickTileTitle: {
       fontSize: 13,
-      fontWeight: '800',
+      fontWeight: "800",
       color: subtitleColor,
-      letterSpacing: 0.5,
+      letterSpacing: 0.2,
     },
     quickTileSubtitle: {
       fontSize: compact ? 18 : 22,
       lineHeight: compact ? 22 : 26,
-      fontWeight: '800',
+      fontWeight: "700",
       color: text,
       letterSpacing: -0.2,
     },
@@ -110,7 +117,7 @@ const createStyles = (theme: ThemeName, compact: boolean) => {
       borderRadius: 24,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: cardBorder,
-      overflow: 'hidden',
+      overflow: "hidden",
       backgroundColor: cardBg,
       padding: 20,
     },
@@ -120,7 +127,7 @@ const createStyles = (theme: ThemeName, compact: boolean) => {
     },
     cardTitle: {
       fontSize: 14,
-      fontWeight: '800',
+      fontWeight: "800",
       color: text,
       letterSpacing: 0.2,
     },
@@ -128,52 +135,62 @@ const createStyles = (theme: ThemeName, compact: boolean) => {
       height: 36,
     },
     chartBody: {
-      flexDirection: 'row',
-      alignItems: 'flex-end',
-      justifyContent: 'space-between',
+      flexDirection: "row",
+      alignItems: "flex-end",
+      justifyContent: "space-between",
       height: 120,
       paddingTop: 8,
     },
     barContainer: {
       flex: 1,
-      alignItems: 'center',
-      height: '100%',
-      justifyContent: 'flex-end',
+      alignItems: "center",
+      height: "100%",
+      justifyContent: "flex-end",
       gap: 6,
     },
     barTrack: {
-      width: '55%',
-      height: '100%',
-      justifyContent: 'flex-end',
+      width: "55%",
+      height: "100%",
+      justifyContent: "flex-end",
       borderRadius: 999,
     },
     barFill: {
-      width: '100%',
+      width: "100%",
       borderRadius: 999,
       minHeight: 4,
     },
     barLabel: {
       fontSize: 10,
-      fontWeight: '700',
-      textAlign: 'center',
+      fontWeight: "700",
+      textAlign: "center",
       width: 26,
     },
     emptyChart: {
       flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      height: '100%',
+      alignItems: "center",
+      justifyContent: "center",
+      height: "100%",
     },
   });
 };
 
-function ChartBar({ item, max, textColor, isDark }: { item: ChartDataPoint; max: number; textColor: string; isDark: boolean }) {
+function ChartBar({
+  item,
+  max,
+  textColor,
+  isDark,
+}: {
+  item: ChartDataPoint;
+  max: number;
+  textColor: string;
+  isDark: boolean;
+}) {
   const heightPercent = max > 0 ? (item.count / max) * 100 : 0;
-  const barHeight = item.count > 0 ? `${Math.max(8, heightPercent)}%` : '0%';
+  const barHeight = item.count > 0 ? `${Math.max(8, heightPercent)}%` : "0%";
   const isZero = item.count === 0;
-  const barColor = item.isToday ? '#EF4444' : withAlpha(textColor, 0.6);
+  const barColor = item.isToday ? "#EF4444" : withAlpha(textColor, 0.6);
 
-  const styles = createStyles(isDark ? 'dark' : 'light', false);
+  const styles = createStyles(isDark ? "dark" : "light", false);
 
   return (
     <View style={styles.barContainer}>
@@ -185,7 +202,7 @@ function ChartBar({ item, max, textColor, isDark }: { item: ChartDataPoint; max:
               height: barHeight as any,
               backgroundColor: isZero ? withAlpha(textColor, 0.08) : barColor,
             },
-            isZero && { height: 4 }
+            isZero && { height: 4 },
           ]}
         />
       </View>
@@ -193,9 +210,9 @@ function ChartBar({ item, max, textColor, isDark }: { item: ChartDataPoint; max:
         style={[
           styles.barLabel,
           {
-            color: item.isToday ? '#EF4444' : withAlpha(textColor, 0.45),
-            fontWeight: item.isToday ? '800' : '700'
-          }
+            color: item.isToday ? "#EF4444" : withAlpha(textColor, 0.45),
+            fontWeight: item.isToday ? "800" : "700",
+          },
         ]}
         numberOfLines={1}
       >
@@ -238,7 +255,12 @@ function StatTile({
               {title}
             </Text>
           </View>
-          <Text style={styles.quickTileSubtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+          <Text
+            style={styles.quickTileSubtitle}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.6}
+          >
             {value}
           </Text>
         </View>
@@ -249,8 +271,8 @@ function StatTile({
 
 export default function StreaksScreen() {
   const { width } = useWindowDimensions();
-  const theme = useColorScheme() ?? 'light';
-  const isDark = theme === 'dark';
+  const theme = useColorScheme() ?? "light";
+  const isDark = theme === "dark";
   const compact = width < 390;
   const styles = useMemo(() => createStyles(theme, compact), [compact, theme]);
 
@@ -260,32 +282,38 @@ export default function StreaksScreen() {
     todayCompletedCount,
     last7DaysCount,
     mostTasksInOneDay,
-    getChartData
+    getChartData,
   } = useStreaks();
 
-  const [range, setRange] = useState<RangeOption>('14d');
+  const [range, setRange] = useState<RangeOption>("14d");
 
   const chartData = useMemo(() => getChartData(range), [range, getChartData]);
-  const maxVal = useMemo(() => Math.max(...chartData.map(d => d.count), 5), [chartData]);
+  const maxVal = useMemo(
+    () => Math.max(...chartData.map((d) => d.count), 5),
+    [chartData],
+  );
 
   const textColor = Colors[theme].text;
-  const fireColor = '#F97316';
+  const fireColor = "#F97316";
 
-  const tileSurfaceBg = isDark ? '#1C1C1E' : '#F2F2F7';
+  const tileSurfaceBg = isDark ? "#1C1C1E" : "#F2F2F7";
   const gridGlassTint = isDark ? withAlpha(tileSurfaceBg, 0.22) : tileSurfaceBg;
   const gridGlassFallback = tileSurfaceBg;
-  const chartGlassTint = withAlpha(Colors[theme].background, isDark ? 0.18 : 0.28);
+  const chartGlassTint = withAlpha(
+    Colors[theme].background,
+    isDark ? 0.18 : 0.28,
+  );
   const chartGlassFallback = tileSurfaceBg;
   const ranges: { label: string; value: RangeOption }[] = [
-    { label: t('streaks.range.7d'), value: '7d' },
-    { label: t('streaks.range.14d'), value: '14d' },
-    { label: t('streaks.range.1m'), value: '1m' },
-    { label: t('streaks.range.1y'), value: '1y' },
-    { label: t('streaks.range.max'), value: 'max' },
+    { label: t("streaks.range.7d"), value: "7d" },
+    { label: t("streaks.range.14d"), value: "14d" },
+    { label: t("streaks.range.1m"), value: "1m" },
+    { label: t("streaks.range.1y"), value: "1y" },
+    { label: t("streaks.range.max"), value: "max" },
   ];
   const activeRangeIndex = Math.max(
     ranges.findIndex((item) => item.value === range),
-    0
+    0,
   );
 
   return (
@@ -298,7 +326,7 @@ export default function StreaksScreen() {
     >
       {/* Hero Streak Section */}
       <View style={styles.hero}>
-        {Platform.OS === 'ios' ? (
+        {Platform.OS === "ios" ? (
           <SFSymbol
             name="flame.fill"
             size={compact ? 38 : 44}
@@ -307,12 +335,19 @@ export default function StreaksScreen() {
             weight="bold"
           />
         ) : (
-          <MaterialIcons name="whatshot" size={compact ? 34 : 40} color={fireColor} style={styles.heroFlame} />
+          <MaterialIcons
+            name="whatshot"
+            size={compact ? 34 : 40}
+            color={fireColor}
+            style={styles.heroFlame}
+          />
         )}
         <View style={styles.heroTextWrap}>
           <Text style={styles.bigNumber}>{currentStreak}</Text>
           <Text style={styles.heroSubtitle}>
-            {currentStreak === 1 ? t('streaks.hero.one') : t('streaks.hero.other')}
+            {currentStreak === 1
+              ? t("streaks.hero.one")
+              : t("streaks.hero.other")}
           </Text>
         </View>
       </View>
@@ -321,8 +356,12 @@ export default function StreaksScreen() {
       <View style={styles.quickGridWrap}>
         <View style={styles.quickGrid}>
           <StatTile
-            title={t('streaks.stats.today')}
-            value={countLabel(todayCompletedCount, 'streaks.count.tasks.one', 'streaks.count.tasks.other')}
+            title={t("streaks.stats.today")}
+            value={countLabel(
+              todayCompletedCount,
+              "streaks.count.tasks.one",
+              "streaks.count.tasks.other",
+            )}
             icon="check-circle"
             iconColor="#10B981"
             styles={styles}
@@ -330,8 +369,12 @@ export default function StreaksScreen() {
             glassFallback={gridGlassFallback}
           />
           <StatTile
-            title={t('streaks.stats.thisWeek')}
-            value={countLabel(last7DaysCount, 'streaks.count.tasks.one', 'streaks.count.tasks.other')}
+            title={t("streaks.stats.thisWeek")}
+            value={countLabel(
+              last7DaysCount,
+              "streaks.count.tasks.one",
+              "streaks.count.tasks.other",
+            )}
             icon="date-range"
             iconColor="#3B82F6"
             styles={styles}
@@ -339,8 +382,8 @@ export default function StreaksScreen() {
             glassFallback={gridGlassFallback}
           />
           <StatTile
-            title={t('streaks.stats.record')}
-            value={t('streaks.count.inOneDay', { count: mostTasksInOneDay })}
+            title={t("streaks.stats.record")}
+            value={t("streaks.count.inOneDay", { count: mostTasksInOneDay })}
             icon="emoji-events"
             iconColor="#F59E0B"
             styles={styles}
@@ -348,8 +391,12 @@ export default function StreaksScreen() {
             glassFallback={gridGlassFallback}
           />
           <StatTile
-            title={t('streaks.stats.longest')}
-            value={countLabel(longestStreak, 'streaks.count.days.one', 'streaks.count.days.other')}
+            title={t("streaks.stats.longest")}
+            value={countLabel(
+              longestStreak,
+              "streaks.count.days.one",
+              "streaks.count.days.other",
+            )}
             icon="local-fire-department"
             iconColor="#EF4444"
             styles={styles}
@@ -367,7 +414,7 @@ export default function StreaksScreen() {
         fallbackBackgroundColor={chartGlassFallback}
       >
         <View style={styles.chartHeader}>
-          <Text style={styles.cardTitle}>{t('streaks.chart.activity')}</Text>
+          <Text style={styles.cardTitle}>{t("streaks.chart.activity")}</Text>
           {/* Segmented Control */}
           <SegmentedControl
             style={styles.segmentedControl}
@@ -394,7 +441,15 @@ export default function StreaksScreen() {
           ))}
           {chartData.length === 0 && (
             <View style={styles.emptyChart}>
-              <Text style={{ color: withAlpha(textColor, 0.5), fontSize: 12, fontWeight: '700' }}>{t('streaks.chart.noData')}</Text>
+              <Text
+                style={{
+                  color: withAlpha(textColor, 0.5),
+                  fontSize: 12,
+                  fontWeight: "700",
+                }}
+              >
+                {t("streaks.chart.noData")}
+              </Text>
             </View>
           )}
         </View>

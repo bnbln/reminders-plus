@@ -473,23 +473,11 @@ export default function CreateTaskModal() {
       if (draftTask.dueAt > 0) {
         const isDueToday = isSameLocalDay(draftTask.dueAt, Date.now());
         const dueLabel = isDueToday
-          ? (draftTask.dueHasTime
-            ? `${t('taskDetail.relative.today')}, ${formatDate(draftTask.dueAt, {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}`
-            : t('taskDetail.relative.today'))
-          : (draftTask.dueHasTime
-            ? formatDate(draftTask.dueAt, {
-              day: '2-digit',
-              month: 'short',
-              hour: '2-digit',
-              minute: '2-digit',
-            })
-            : formatDate(draftTask.dueAt, {
-              day: '2-digit',
-              month: 'short',
-            }));
+          ? t('taskDetail.relative.today')
+          : formatDate(draftTask.dueAt, {
+            day: '2-digit',
+            month: 'short',
+          });
 
         tags.push({
           key: 'date',

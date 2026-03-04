@@ -12,7 +12,6 @@ import { GestureHandlerRootView, ScrollView } from "react-native-gesture-handler
 import Animated, {
   useAnimatedScrollHandler,
   useSharedValue,
-  type SharedValue,
 } from "react-native-reanimated";
 
 import type { SwipeTaskRowStyles } from "@/components/tasks/swipe-task-row";
@@ -71,7 +70,6 @@ function KanbanColumn({
   section,
   tasks,
   isDragSource,
-  crossAxisExternalOffset,
   columnBackgroundColor,
   columnBottomPadding,
   boardScrollRef,
@@ -87,12 +85,10 @@ function KanbanColumn({
   onDragStateChange,
   onSwipeStateChange,
   onRowTouchStateChange,
-  onDragTouchPoint,
 }: {
   section: SectionId;
   tasks: Task[];
   isDragSource: boolean;
-  crossAxisExternalOffset: SharedValue<number>;
   columnBackgroundColor: string;
   columnBottomPadding: number;
   boardScrollRef: React.RefObject<ScrollView | null>;
@@ -108,7 +104,6 @@ function KanbanColumn({
   onDragStateChange: (isDragging: boolean) => void;
   onSwipeStateChange: (isSwiping: boolean) => void;
   onRowTouchStateChange: (isTouching: boolean) => void;
-  onDragTouchPoint: (absoluteX: number) => void;
 }) {
   return (
     <View
@@ -161,9 +156,6 @@ function KanbanColumn({
         onDragStateChange={onDragStateChange}
         onSwipeStateChange={onSwipeStateChange}
         onRowTouchStateChange={onRowTouchStateChange}
-        onDragTouchPoint={({ absoluteX }) => onDragTouchPoint(absoluteX)}
-        dragAxisMode="free"
-        crossAxisExternalOffset={crossAxisExternalOffset}
       />
     </View>
   );
@@ -415,16 +407,6 @@ export default function ProjectDetailScreen() {
       }
     },
     [resolveSectionFromBoardContentX, startAutoScroll, stopAutoScroll, updateHoverSection],
-  );
-
-  const handleDragTouchPoint = React.useCallback(
-    (absoluteX: number) => {
-      if (typeof absoluteX !== "number" || !Number.isFinite(absoluteX)) {
-        return;
-      }
-      applyDragPointerX(absoluteX - boardPageXRef.current);
-    },
-    [applyDragPointerX],
   );
 
   const onReorderSection = React.useCallback(
@@ -814,7 +796,6 @@ export default function ProjectDetailScreen() {
               section={section}
               tasks={tasksBySection[section]}
               isDragSource={activeDragSourceSection === section}
-              crossAxisExternalOffset={boardOffsetXShared}
               columnBackgroundColor={columnBackgroundColor}
               columnBottomPadding={columnBottomPadding}
               boardScrollRef={boardScrollRef}
@@ -847,7 +828,6 @@ export default function ProjectDetailScreen() {
                   stopAutoScroll();
                 }
               }}
-              onDragTouchPoint={handleDragTouchPoint}
               onSwipeStateChange={(isSwiping) =>
                 handleSectionSwipeStateChange(section, isSwiping)
               }

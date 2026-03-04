@@ -1,33 +1,23 @@
-import { useIsFocused } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import React from 'react';
 import {
   Animated,
   LayoutAnimation,
   LayoutChangeEvent,
-  View,
   type StyleProp,
   type ViewStyle
 } from "react-native";
-import DraggableFlatList, {
-  NestableDraggableFlatList,
-  NestableScrollContainer,
-  RenderItemParams,
-} from 'react-native-draggable-flatlist';
-import type { SharedValue } from 'react-native-reanimated';
+import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist';
 
 import type { SwipeTaskRowStyles } from '@/components/tasks/swipe-task-row';
 import { SwipeTaskRow } from '@/components/tasks/swipe-task-row';
 import { withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
 import type { TagId } from '@/context/home-filters-store';
-import { useTaskCreateContext } from '@/context/task-create-context';
 import type { Project, Task } from '@/context/tasks-store';
-import { isIOS26OrNewer } from '@/utils/ios-version';
 
 type ThemeName = keyof typeof Colors;
-const LIST_ACTIVATION_DISTANCE_NESTED = 22;
-const LIST_ACTIVATION_DISTANCE_DEFAULT = 12;
+const LIST_ACTIVATION_DISTANCE_DEFAULT = 0;
 const LIST_AUTOSCROLL_SPEED = 58;
 const LIST_ANIMATION_CONFIG = {
   damping: 26,
@@ -102,15 +92,13 @@ export type TaskSwipeDraggableListProps = {
   projectsById?: Map<string, Project>;
   rowStyles: SwipeTaskRowStyles;
   itemSpacing?: number;
-  /**
-   * Optional scroll ref for coordinating gestures with an outer scroll container.
-   */
+  /** Legacy prop: ignored in simplified list mode. */
   scrollRef?: React.RefObject<any>;
   /**
    * Rendering mode for the list.
-   * - `auto` (default): DraggableFlatList on most platforms, ScrollView on iOS 26+.
+   * - `auto` (default): DraggableFlatList.
    * - `static`: Render list content only; caller owns the scroll container.
-   * - `nestable`: Render a NestableDraggableFlatList for use inside a NestableScrollContainer.
+   * - `nestable`: legacy alias of `auto`.
    */
   renderMode?: 'auto' | 'static' | 'nestable';
 
@@ -139,17 +127,6 @@ export type TaskSwipeDraggableListProps = {
   onDragStateChange?: (isDragging: boolean) => void;
   onSwipeStateChange?: (isSwiping: boolean) => void;
   onRowTouchStateChange?: (isTouchingRow: boolean) => void;
-  /**
-   * Horizontal outer board offset used to compensate active drag X while board auto-scrolls.
-   * Only used together with `dragAxisMode = "free"`.
-   */
-  crossAxisExternalOffset?: SharedValue<number>;
-  /**
-   * Drag axis behavior:
-   * - `vertical` (default): classic sortable list drag.
-   * - `free`: keep vertical reorder, but let the active item follow finger on X too.
-   */
-  dragAxisMode?: "vertical" | "free";
 
   header?: React.ReactElement | null;
   footer?: React.ReactElement | null;
@@ -174,12 +151,6 @@ export type TaskSwipeDraggableListProps = {
     from: number;
     to: number;
   }) => boolean | void;
-  onDragTouchPoint?: (params: {
-    absoluteX: number;
-    absoluteY: number;
-    translationX: number;
-    translationY: number;
-  }) => void;
   getTaskRowStyleOverrides?: (params: {
     task: Task;
     sectionId: string | null;
@@ -213,7 +184,6 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     projectsById,
     rowStyles,
     itemSpacing,
-    scrollRef,
     renderMode = 'auto',
     data,
     renderHeaderRow,
@@ -226,8 +196,6 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     onDragStateChange,
     onSwipeStateChange,
     onRowTouchStateChange,
-    crossAxisExternalOffset,
-    dragAxisMode = "vertical",
     header,
     footer,
     empty,
@@ -243,11 +211,10 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     onReorderData,
     onDragBeginTask,
     onDragEndMeta,
-    onDragTouchPoint,
     getTaskRowStyleOverrides,
     keyForTask,
     sortByOrderRank,
-    syncDataDuringDrag = false,
+    syncDataDuringDrag = true,
     animateDataLayoutChanges = true,
     revealProgress,
     revealStaggerStep = 0.055,
@@ -255,9 +222,6 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   },
   ref
 ) {
-  const isFocused = useIsFocused();
-  const { popInTaskIds, consumeTaskPopIn } = useTaskCreateContext();
-
   const emojiTint = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.12 : 0.22), [isDark, theme]);
   const emojiFallback = React.useMemo(
     () => withAlpha(Colors[theme].background, isDark ? 0.52 : 0.74),
@@ -269,7 +233,6 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
 
   const enabledTagsResolved = React.useMemo(() => enabledTags ?? new Set<TagId>(), [enabledTags]);
   const showTaskIconsResolved = React.useMemo(() => showTaskIcons ?? true, [showTaskIcons]);
-  const popInTaskIdSet = React.useMemo(() => new Set(popInTaskIds), [popInTaskIds]);
 
   const isDraggingRef = React.useRef(false);
   const placeholderIndexRef = React.useRef<number>(-1);
@@ -278,7 +241,6 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   const closeByIdRef = React.useRef(new Map<string, () => void>());
   const swipingTaskIdsRef = React.useRef(new Set<string>());
   const touchingTaskIdsRef = React.useRef(new Set<string>());
-  const internalScrollRef = React.useRef<any>(null);
 
   const registerClose = React.useCallback((taskId: string, close: () => void) => {
     closeByIdRef.current.set(taskId, close);
@@ -361,13 +323,6 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     [closeAnyOpen, onPressTask]
   );
 
-  const handlePopInAnimationEnd = React.useCallback(
-    (taskId: string) => {
-      consumeTaskPopIn(taskId);
-    },
-    [consumeTaskPopIn]
-  );
-
   const beginSwipe = React.useCallback((taskId: string) => {
     for (const [id, close] of closeByIdRef.current.entries()) {
       if (id !== taskId) close();
@@ -394,7 +349,22 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     return tasksSorted.map((t) => ({ kind: 'task', key: makeKey(t), taskId: t.id }));
   }, [keyForTask, tasksSorted]);
 
-  const resolvedData = data ?? listData;
+  const resolvedData = React.useMemo<TaskSwipeDraggableListItem[]>(() => {
+    const base = data ?? listData;
+    if (base.length === 0) return base;
+
+    let hasDanglingTaskReference = false;
+    const sanitized: TaskSwipeDraggableListItem[] = [];
+    for (const item of base) {
+      if (item.kind === 'header' || tasksById.has(item.taskId)) {
+        sanitized.push(item);
+      } else {
+        hasDanglingTaskReference = true;
+      }
+    }
+
+    return hasDanglingTaskReference ? sanitized : base;
+  }, [data, listData, tasksById]);
 
   const [flatListData, setFlatListData] = React.useState<TaskSwipeDraggableListItem[]>(() => resolvedData);
 
@@ -453,26 +423,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     return taskMeta;
   }, [flatListData]);
 
-  // Native tab-bar minimize-on-scroll currently tracks ScrollView reliably on iOS 26,
-  // but not DraggableFlatList. Keep a ScrollView path for iOS 26 to preserve native minimize behavior.
-  const useScrollViewCompatibilityMode = isIOS26OrNewer();
-  const rowScrollGestureRef = React.useMemo(() => {
-    if (scrollRef) return scrollRef;
-    if (useScrollViewCompatibilityMode) return internalScrollRef;
-    return undefined;
-  }, [scrollRef, useScrollViewCompatibilityMode]);
-  const simultaneousHandlers = React.useMemo(() => {
-    if (scrollRef) return scrollRef;
-    if (useScrollViewCompatibilityMode) return internalScrollRef;
-    return undefined;
-  }, [scrollRef, useScrollViewCompatibilityMode]);
-  // `react - native - draggable - flatlist` only emits `onDragTouchPoint` when cross-axis drag is enabled.
-  // Auto-enable it whenever callers subscribe to drag touch points.
-  const allowCrossAxisDrag = dragAxisMode === "free" || !!onDragTouchPoint;
-  const usesNestedScrollGestures = renderMode === 'nestable' || useScrollViewCompatibilityMode;
-  const listActivationDistance = usesNestedScrollGestures
-    ? LIST_ACTIVATION_DISTANCE_NESTED
-    : LIST_ACTIVATION_DISTANCE_DEFAULT;
+  const listActivationDistance = LIST_ACTIVATION_DISTANCE_DEFAULT;
   const resolvedContainerStyle: StyleProp<ViewStyle> = React.useMemo(() => {
     return [{ flex: 1, backgroundColor: Colors[theme].background, overflow: 'visible' }, containerStyle];
   }, [containerStyle, theme]);
@@ -524,11 +475,9 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           toggleComplete={toggleComplete}
           toggleSubtask={toggleSubtask}
           deleteTask={deleteTask}
-          externalScrollRef={rowScrollGestureRef}
           onSwipeGestureActiveChange={reportSwipeGestureActive}
           onTouchInteractionChange={reportRowTouchInteraction}
-          shouldPopIn={isFocused && popInTaskIdSet.has(task.id)}
-          onPopInAnimationEnd={handlePopInAnimationEnd}
+          shouldPopIn={false}
           selectedDateStart={selectedDateStart}
           itemSpacerStyle={rowStyleOverrides?.itemSpacerStyle}
           swipeClipStyle={rowStyleOverrides?.swipeClipStyle}
@@ -582,12 +531,8 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       endSwipe,
       getTaskRowStyleOverrides,
       handlePressTask,
-      handlePopInAnimationEnd,
-      isFocused,
       isDark,
       itemSpacing,
-      popInTaskIdSet,
-      rowScrollGestureRef,
       renderHeaderRow,
       projectsById,
       rowStyles,
@@ -657,11 +602,9 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           toggleComplete={toggleComplete}
           toggleSubtask={toggleSubtask}
           deleteTask={deleteTask}
-          externalScrollRef={rowScrollGestureRef}
           onSwipeGestureActiveChange={reportSwipeGestureActive}
           onTouchInteractionChange={reportRowTouchInteraction}
-          shouldPopIn={isFocused && popInTaskIdSet.has(task.id)}
-          onPopInAnimationEnd={handlePopInAnimationEnd}
+          shouldPopIn={false}
           selectedDateStart={selectedDateStart}
           itemSpacerStyle={rowStyleOverrides?.itemSpacerStyle}
           swipeClipStyle={rowStyleOverrides?.swipeClipStyle}
@@ -715,14 +658,10 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       endSwipe,
       getTaskRowStyleOverrides,
       handlePressTask,
-      handlePopInAnimationEnd,
-      isFocused,
       isDark,
       itemSpacing,
-      popInTaskIdSet,
       projectsById,
       registerClose,
-      rowScrollGestureRef,
       renderHeaderRow,
       rowStyles,
       selectedDateStart,
@@ -797,7 +736,11 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       from: number;
       to: number;
     }) => {
-      const handledExternally = onDragEndMeta?.({ data, from, to }) === true;
+      const nextData = data.filter(
+        (item) => item.kind === "header" || tasksById.has(item.taskId),
+      );
+      const handledExternally =
+        onDragEndMeta?.({ data: nextData, from, to }) === true;
       if (handledExternally) {
         // External handlers mutate parent data; keep local list stable and
         // wait for parent sync to avoid transient remount flashes.
@@ -810,9 +753,11 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           onDragStateChange?.(false);
         });
       } else {
-        setFlatListData(data);
-        onReorderData?.(data);
-        onReorder?.(data.filter((d) => d.kind === "task").map((d) => d.taskId));
+        setFlatListData(nextData);
+        onReorderData?.(nextData);
+        onReorder?.(
+          nextData.filter((d) => d.kind === "task").map((d) => d.taskId),
+        );
         draggingTaskIdRef.current = null;
         placeholderIndexRef.current = -1;
         // Delay drag-state reset to give parent re-render one frame to propagate,
@@ -823,7 +768,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
         });
       }
     },
-    [onDragEndMeta, onDragStateChange, onReorder, onReorderData],
+    [onDragEndMeta, onDragStateChange, onReorder, onReorderData, tasksById],
   );
 
   const dragListProps = {
@@ -835,7 +780,6 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     ListFooterComponent: footer ?? null,
     ListEmptyComponent: empty ?? null,
     contentContainerStyle,
-    simultaneousHandlers,
     activationDistance: listActivationDistance,
     autoscrollSpeed: LIST_AUTOSCROLL_SPEED,
     animationConfig: LIST_ANIMATION_CONFIG,
@@ -846,33 +790,10 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     },
     onRelease: handleDragRelease,
     onDragEnd: handleDragEnd,
-    onDragTouchPoint,
-    allowCrossAxisDrag,
-    crossAxisExternalOffset,
   };
 
   if (renderMode === 'static') {
     return renderListContent();
-  }
-
-  if (renderMode === 'nestable') {
-    return <NestableDraggableFlatList {...dragListProps} />;
-  }
-
-  if (useScrollViewCompatibilityMode) {
-    return (
-      <View style={resolvedContainerStyle}>
-        <NestableScrollContainer
-          ref={internalScrollRef}
-          style={{ flex: 1, overflow: "visible" }}
-          contentInsetAdjustmentBehavior={contentInsetAdjustmentBehavior ?? 'automatic'}
-          alwaysBounceVertical
-          showsVerticalScrollIndicator={false}
-        >
-          <NestableDraggableFlatList {...dragListProps} />
-        </NestableScrollContainer>
-      </View>
-    );
   }
 
   return (

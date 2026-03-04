@@ -31,8 +31,7 @@ export default function InboxScreen() {
   const router = useRouter();
   const theme = useColorScheme() ?? 'light';
   const showFloatingAddButton = Platform.OS === 'ios' && !isIOS26OrNewer();
-  const params = useLocalSearchParams<{ withNotes?: string; withSubtasks?: string }>();
-  const withNotesEnabled = params.withNotes === '1';
+  const params = useLocalSearchParams<{ withSubtasks?: string }>();
 
   const { enabledTags, showTagIcons, showCompactSubtasks } = useHomeFilters();
   const withSubtasksEnabled =
@@ -54,11 +53,8 @@ export default function InboxScreen() {
 
   const inboxTasks = React.useMemo(() => {
     const base = tasks.filter(isInboxTask);
-    if (!withNotesEnabled) return base.sort((a, b) => a.orderRank - b.orderRank);
-    return base
-      .filter((t) => !!t.subtitle)
-      .sort((a, b) => a.orderRank - b.orderRank);
-  }, [tasks, withNotesEnabled]);
+    return base.sort((a, b) => a.orderRank - b.orderRank);
+  }, [tasks]);
 
   const onPressTask = React.useCallback(
     (taskId: string) => {
