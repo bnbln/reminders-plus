@@ -24,7 +24,6 @@ import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
 import { useTaskCreateContext } from '@/context/task-create-context';
 import {
-  getDueAtForSection,
   useTasksStore,
   type RoutineType,
   type SectionId,
@@ -170,8 +169,7 @@ export default function CreateTaskModal() {
   const initialDraftDueAt = React.useMemo(() => {
     if (!shouldPresetToday || todayPresetDateStart <= 0) return 0;
     return alignDueAtToLocalDay(todayPresetDateStart, {
-      sourceDueAt: getDueAtForSection('today'),
-      keepTime: true,
+      keepTime: false,
     });
   }, [shouldPresetToday, todayPresetDateStart]);
   const initialDraftSection = React.useMemo<SectionId>(() => {
@@ -346,19 +344,17 @@ export default function CreateTaskModal() {
     didInitTodayPresetRef.current = true;
 
     const draftId = ensureDraftTask();
-    const dueAt = todayPresetDateStart > 0
-      ? alignDueAtToLocalDay(todayPresetDateStart, {
-        sourceDueAt: getDueAtForSection('today'),
-        keepTime: true,
-      })
-      : getDueAtForSection('today');
+    const dueAt = alignDueAtToLocalDay(
+      todayPresetDateStart > 0 ? todayPresetDateStart : getStartOfLocalDayMs(),
+      { keepTime: false }
+    );
     setTasks((prev) =>
       prev.map((task) =>
         task.id === draftId
           ? {
               ...task,
               dueAt,
-              dueHasTime: true,
+              dueHasTime: false,
               section: deriveActiveSectionFromDueAt(dueAt),
             }
           : task

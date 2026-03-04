@@ -1,60 +1,154 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React from 'react';
-import { LayoutAnimation, Platform, StyleSheet, Text, View } from 'react-native';
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React from "react";
+import {
+  LayoutAnimation,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
-import { TaskSwipeDraggableList } from '@/components/tasks/task-swipe-draggable-list';
-import { FloatingAddButton } from '@/components/ui/floating-add-button';
-import { withAlpha } from '@/components/ui/glass-surface';
-import { Colors } from '@/constants/theme';
-import { useHomeFilters } from '@/context/home-filters-store';
-import { getDueAtForSection, getNextRoutineDate, type Task, useTasksStore } from '@/context/tasks-store';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { t } from '@/i18n';
-import { isIOS26OrNewer } from '@/utils/ios-version';
-import { deriveActiveSectionFromDueAt, hasValidDueAt } from '@/utils/task-dates';
+import {
+  TaskSwipeDraggableList,
+  type TaskSwipeDraggableListItem,
+} from "@/components/tasks/task-swipe-draggable-list";
+import { FloatingAddButton } from "@/components/ui/floating-add-button";
+import { withAlpha } from "@/components/ui/glass-surface";
+import { Colors } from "@/constants/theme";
+import { useHomeFilters } from "@/context/home-filters-store";
+import {
+  getDueAtForSection,
+  getNextRoutineDate,
+  type Task,
+  useTasksStore,
+} from "@/context/tasks-store";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { t } from "@/i18n";
+import { isIOS26OrNewer } from "@/utils/ios-version";
+import {
+  deriveActiveSectionFromDueAt,
+  hasValidDueAt,
+} from "@/utils/task-dates";
 
 const HOME_TASK_ITEM_SPACING = 8;
-const IOS_LIGHT_BASE_BACKGROUND = '#F2F2F7';
-const IOS_LIGHT_ELEVATED_SURFACE = '#FFFFFF';
+const IOS_LIGHT_BASE_BACKGROUND = "#F2F2F7";
+const IOS_LIGHT_ELEVATED_SURFACE = "#FFFFFF";
 const HOME_TASK_ROW_SURFACE_LIGHT = IOS_LIGHT_ELEVATED_SURFACE;
-const HOME_TASK_ROW_SURFACE_DARK = 'rgba(89, 89, 89, 0.2)';
+const HOME_TASK_ROW_SURFACE_DARK = "rgba(89, 89, 89, 0.2)";
+const SECTION_SIDE_INSET = 0;
+
+type InboxSectionId = "overdue" | "withoutDate";
 
 function hasNoDueDate(task: Task) {
   const dueAt = (task as { dueAt?: unknown }).dueAt;
-  return typeof dueAt !== 'number' || !Number.isFinite(dueAt) || dueAt <= 0;
+  return typeof dueAt !== "number" || !Number.isFinite(dueAt) || dueAt <= 0;
+}
+
+function isOverdue(task: Task, nowMs: number) {
+  if (!hasValidDueAt(task.dueAt)) return false;
+  if (task.dueHasTime === false) {
+    const due = new Date(task.dueAt);
+    const startOfNextDay = new Date(
+      due.getFullYear(),
+      due.getMonth(),
+      due.getDate() + 1,
+      0,
+      0,
+      0,
+      0,
+    ).getTime();
+    return nowMs >= startOfNextDay;
+  }
+  return task.dueAt < nowMs;
 }
 
 export default function InboxScreen() {
   const router = useRouter();
-  const theme = useColorScheme() ?? 'light';
-  const isDark = theme === 'dark';
-  const screenBackground = isDark ? Colors[theme].background : IOS_LIGHT_BASE_BACKGROUND;
-  const showFloatingAddButton = Platform.OS === 'ios' && !isIOS26OrNewer();
+  const theme = useColorScheme() ?? "light";
+  const isDark = theme === "dark";
+  const screenBackground = isDark
+    ? Colors[theme].background
+    : IOS_LIGHT_BASE_BACKGROUND;
+  const showFloatingAddButton = Platform.OS === "ios" && !isIOS26OrNewer();
   const params = useLocalSearchParams<{ withSubtasks?: string }>();
 
   const { enabledTags, showTagIcons, showCompactSubtasks } = useHomeFilters();
   const withSubtasksEnabled =
     params.withSubtasks === undefined
       ? showCompactSubtasks
-      : params.withSubtasks === '1';
+      : params.withSubtasks === "1";
   const { tasks, setTasks, projects } = useTasksStore();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const [collapsedSections, setCollapsedSections] = React.useState<
+    Record<InboxSectionId, boolean>
+  >({
+    overdue: false,
+    withoutDate: false,
+  });
 
   const projectsById = React.useMemo(
     () => new Map(projects.map((p) => [p.id, p] as const)),
     [projects],
   );
 
-  const inboxTasks = React.useMemo(() => {
-    const visible = tasks.filter(
-      (task) => !task.deletedAt && task.section !== 'completed' && hasNoDueDate(task),
-    );
+  const nowMs = Date.now();
+  const activeTasks = React.useMemo(
+    () =>
+      tasks.filter((task) => !task.deletedAt && task.section !== "completed"),
+    [tasks],
+  );
+
+  const overdueTasks = React.useMemo(() => {
+    const visible = activeTasks.filter((task) => isOverdue(task, nowMs));
     return [...visible].sort((a, b) => a.orderRank - b.orderRank);
-  }, [tasks]);
+  }, [activeTasks, nowMs]);
+
+  const withoutDateTasks = React.useMemo(() => {
+    const visible = activeTasks.filter((task) => hasNoDueDate(task));
+    return [...visible].sort((a, b) => a.orderRank - b.orderRank);
+  }, [activeTasks]);
+
+  const tasksForList = React.useMemo(
+    () => [...overdueTasks, ...withoutDateTasks],
+    [overdueTasks, withoutDateTasks],
+  );
+
+  const swipeListData = React.useMemo<TaskSwipeDraggableListItem[]>(() => {
+    const data: TaskSwipeDraggableListItem[] = [
+      { kind: "header", key: "h-overdue", sectionId: "overdue" },
+    ];
+
+    if (!collapsedSections.overdue) {
+      for (const task of overdueTasks) {
+        data.push({ kind: "task", key: `task-${task.id}`, taskId: task.id });
+      }
+    }
+
+    data.push({
+      kind: "header",
+      key: "h-withoutDate",
+      sectionId: "withoutDate",
+    });
+
+    if (!collapsedSections.withoutDate) {
+      for (const task of withoutDateTasks) {
+        data.push({ kind: "task", key: `task-${task.id}`, taskId: task.id });
+      }
+    }
+
+    return data;
+  }, [
+    collapsedSections.overdue,
+    collapsedSections.withoutDate,
+    overdueTasks,
+    withoutDateTasks,
+  ]);
 
   const onPressTask = React.useCallback(
     (taskId: string) => {
-      router.push({ pathname: '/task/[id]', params: { id: taskId } });
+      router.push({ pathname: "/task/[id]", params: { id: taskId } });
     },
     [router],
   );
@@ -73,11 +167,11 @@ export default function InboxScreen() {
         return prev.map((candidate): Task => {
           if (candidate.id !== taskId) return candidate;
 
-          if (fromSection === 'completed') {
+          if (fromSection === "completed") {
             const hasDueAt = hasValidDueAt(candidate.dueAt);
             const toSection = hasDueAt
               ? deriveActiveSectionFromDueAt(candidate.dueAt)
-              : 'today';
+              : "today";
             return {
               ...candidate,
               section: toSection,
@@ -85,7 +179,7 @@ export default function InboxScreen() {
               ...(hasDueAt
                 ? {}
                 : {
-                    dueAt: getDueAtForSection('today'),
+                    dueAt: getDueAtForSection("today"),
                     dueHasTime: true,
                   }),
             };
@@ -116,7 +210,7 @@ export default function InboxScreen() {
 
           return {
             ...candidate,
-            section: 'completed',
+            section: "completed",
             completedAt: now,
           };
         });
@@ -163,39 +257,163 @@ export default function InboxScreen() {
   );
 
   const applyOrderFromListData = React.useCallback(
-    (orderedTaskIds: string[]) => {
-      const orderIndex = new Map(orderedTaskIds.map((id, index) => [id, index] as const));
-      setTasks((prev) =>
-        prev.map((task) => {
-          const index = orderIndex.get(task.id);
-          if (index === undefined) return task;
-          return { ...task, orderRank: (index + 1) * 1000 };
-        }),
-      );
+    (data: TaskSwipeDraggableListItem[]) => {
+      const bySection: Record<InboxSectionId, string[]> = {
+        overdue: [],
+        withoutDate: [],
+      };
+
+      let currentSection: InboxSectionId = "overdue";
+      for (const item of data) {
+        if (item.kind === "header") {
+          currentSection =
+            item.sectionId === "withoutDate" ? "withoutDate" : "overdue";
+          continue;
+        }
+        bySection[currentSection].push(item.taskId);
+      }
+
+      setTasks((prev) => {
+        const byId = new Map(prev.map((task) => [task.id, task] as const));
+        (Object.keys(bySection) as InboxSectionId[]).forEach((sectionId) => {
+          bySection[sectionId].forEach((taskId, index) => {
+            const existing = byId.get(taskId);
+            if (!existing) return;
+            byId.set(taskId, { ...existing, orderRank: (index + 1) * 1000 });
+          });
+        });
+        return prev.map((task) => byId.get(task.id) ?? task);
+      });
     },
     [setTasks],
   );
 
+  const toggleSectionCollapsed = React.useCallback(
+    (sectionId: InboxSectionId) => {
+      setCollapsedSections((prev) => ({
+        ...prev,
+        [sectionId]: !prev[sectionId],
+      }));
+    },
+    [],
+  );
+
+  const renderSectionHeaderRow = React.useCallback(
+    (sectionId: string) => {
+      const id: InboxSectionId =
+        sectionId === "withoutDate" ? "withoutDate" : "overdue";
+      const isCollapsed = collapsedSections[id];
+      const count =
+        id === "overdue" ? overdueTasks.length : withoutDateTasks.length;
+      const title =
+        id === "overdue" ? t("tags.overdue") : t("home.section.withoutDate");
+      const isOverdueSection = id === "overdue";
+      const chevronColor = isOverdueSection
+        ? isDark
+          ? "#FF453A"
+          : "#FF3B30"
+        : withAlpha(Colors[theme].text, 0.48);
+
+      return (
+        <View style={styles.sectionHeader}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: !isCollapsed }}
+            onPress={() => toggleSectionCollapsed(id)}
+            style={({ pressed }) => [
+              styles.sectionHeaderButton,
+              pressed ? styles.sectionHeaderButtonPressed : null,
+            ]}
+          >
+            <View style={styles.sectionTitleWrap}>
+              <Text
+                style={[
+                  styles.sectionTitle,
+                  isOverdueSection ? styles.sectionTitleDanger : null,
+                ]}
+              >
+                {title}
+              </Text>
+              <View
+                style={[
+                  styles.sectionCountBadge,
+                  isOverdueSection ? styles.sectionCountBadgeDanger : null,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.sectionCountBadgeText,
+                    isOverdueSection
+                      ? styles.sectionCountBadgeTextDanger
+                      : null,
+                  ]}
+                >
+                  {count}
+                </Text>
+              </View>
+            </View>
+            <MaterialIcons
+              name="expand-more"
+              size={20}
+              color={chevronColor}
+              style={[
+                styles.sectionChevron,
+                { transform: [{ rotate: isCollapsed ? "0deg" : "180deg" }] },
+              ]}
+            />
+          </Pressable>
+        </View>
+      );
+    },
+    [
+      collapsedSections,
+      overdueTasks.length,
+      styles.sectionChevron,
+      styles.sectionCountBadge,
+      styles.sectionCountBadgeText,
+      styles.sectionCountBadgeTextDanger,
+      styles.sectionCountBadgeDanger,
+      styles.sectionHeader,
+      styles.sectionHeaderButton,
+      styles.sectionHeaderButtonPressed,
+      styles.sectionTitle,
+      styles.sectionTitleDanger,
+      styles.sectionTitleWrap,
+      isDark,
+      theme,
+      toggleSectionCollapsed,
+      withoutDateTasks.length,
+    ],
+  );
+
   const handleAddTask = React.useCallback(() => {
-    router.push('/task/create-modal');
+    router.push("/task/create-modal");
   }, [router]);
+
+  const hasAnyTask = overdueTasks.length > 0 || withoutDateTasks.length > 0;
 
   return (
     <View style={styles.container}>
       <TaskSwipeDraggableList
         theme={theme}
         isDark={isDark}
-        tasks={inboxTasks}
+        tasks={tasksForList}
+        data={swipeListData}
+        renderHeaderRow={renderSectionHeaderRow}
         projectsById={projectsById}
         rowStyles={styles}
         itemSpacing={HOME_TASK_ITEM_SPACING}
         containerStyle={{ backgroundColor: screenBackground }}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={styles.content}
-        empty={
-          <View style={styles.empty}>
-            <Text style={styles.emptyText}>{t('inbox.empty')}</Text>
-          </View>
+        animateDataLayoutChanges={false}
+        empty={null}
+        footer={
+          hasAnyTask ? null : (
+            <View style={styles.empty}>
+              <Text style={styles.emptyText}>{t("inbox.empty")}</Text>
+            </View>
+          )
         }
         enabledTags={enabledTags}
         showTaskIcons={showTagIcons}
@@ -204,37 +422,41 @@ export default function InboxScreen() {
         toggleComplete={toggleComplete}
         toggleSubtask={toggleSubtask}
         deleteTask={deleteTask}
-        onReorder={applyOrderFromListData}
+        onReorderData={applyOrderFromListData}
       />
 
-      {showFloatingAddButton ? <FloatingAddButton onPress={handleAddTask} /> : null}
+      {showFloatingAddButton ? (
+        <FloatingAddButton onPress={handleAddTask} />
+      ) : null}
     </View>
   );
 }
 
 const createStyles = (theme: keyof typeof Colors) => {
-  const isDark = theme === 'dark';
-  const useAppleLightPalette = !isDark && Platform.OS === 'ios';
+  const isDark = theme === "dark";
+  const useAppleLightPalette = !isDark && Platform.OS === "ios";
   const text = Colors[theme].text;
 
   const ALPHA_3 = 0.48;
-  const WEIGHT_HEADING = '700' as const;
-  const WEIGHT_BODY = '600' as const;
-  const WEIGHT_SUBTLE = '500' as const;
+  const WEIGHT_HEADING = "700" as const;
+  const WEIGHT_BODY = "600" as const;
+  const WEIGHT_SUBTLE = "500" as const;
   const RADIUS_PILL = 999;
 
-  const screenBackground = isDark ? Colors[theme].background : IOS_LIGHT_BASE_BACKGROUND;
+  const screenBackground = isDark
+    ? Colors[theme].background
+    : IOS_LIGHT_BASE_BACKGROUND;
   const rowCardSurface = isDark
     ? HOME_TASK_ROW_SURFACE_DARK
     : HOME_TASK_ROW_SURFACE_LIGHT;
   const heroCardBorder = isDark
-    ? 'rgba(255,255,255,0.09)'
+    ? "rgba(255,255,255,0.09)"
     : useAppleLightPalette
-      ? 'rgba(60,60,67,0.18)'
-      : 'rgba(17,24,28,0.09)';
+      ? "rgba(60,60,67,0.18)"
+      : "rgba(17,24,28,0.09)";
   const rowMetaText = withAlpha(text, ALPHA_3);
-  const dangerBg = isDark ? 'rgba(255,69,58,0.18)' : 'rgba(255,59,48,0.14)';
-  const dangerBorder = isDark ? 'rgba(255,69,58,0.32)' : 'rgba(255,59,48,0.26)';
+  const dangerBg = isDark ? "rgba(255,69,58,0.18)" : "rgba(255,59,48,0.14)";
+  const dangerBorder = isDark ? "rgba(255,69,58,0.32)" : "rgba(255,59,48,0.26)";
 
   return StyleSheet.create({
     container: {
@@ -246,49 +468,113 @@ const createStyles = (theme: keyof typeof Colors) => {
       paddingTop: 8,
       paddingBottom: 184,
     },
+    sectionHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginTop: 12,
+      marginBottom: 6,
+      paddingHorizontal: SECTION_SIDE_INSET,
+    },
+    sectionHeaderButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      width: "100%",
+      paddingVertical: 6,
+      paddingHorizontal: 8,
+    },
+    sectionHeaderButtonPressed: {
+      opacity: 0.84,
+    },
+    sectionTitleWrap: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
+    sectionTitle: {
+      fontSize: 12,
+      lineHeight: 16,
+      fontWeight: WEIGHT_HEADING,
+      letterSpacing: 0.8,
+      textTransform: "uppercase",
+      color: text,
+      opacity: ALPHA_3,
+    },
+    sectionTitleDanger: {
+      color: isDark ? "#FF453A" : "#FF3B30",
+      opacity: 0.92,
+    },
+    sectionChevron: {
+      opacity: ALPHA_3,
+    },
+    sectionCountBadge: {
+      minWidth: 22,
+      height: 22,
+      borderRadius: 11,
+      paddingHorizontal: 4,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: withAlpha(text, isDark ? 0.18 : 0.1),
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: withAlpha(text, isDark ? 0.34 : 0.2),
+    },
+    sectionCountBadgeDanger: {
+      backgroundColor: dangerBg,
+      borderColor: dangerBorder,
+    },
+    sectionCountBadgeText: {
+      fontSize: 12,
+      lineHeight: 14,
+      fontWeight: WEIGHT_HEADING,
+      color: withAlpha(text, isDark ? 0.84 : 0.66),
+      textAlign: "center",
+    },
+    sectionCountBadgeTextDanger: {
+      color: isDark ? "#FFB4AD" : "#B42318",
+    },
     itemSpacer: {
       marginBottom: 0,
-      width: '100%',
-      alignSelf: 'stretch',
+      width: "100%",
+      alignSelf: "stretch",
     },
     swipeClip: {
       borderRadius: 12,
-      overflow: 'hidden',
-      backgroundColor: 'transparent',
+      overflow: "hidden",
+      backgroundColor: "transparent",
       marginHorizontal: 0,
       minHeight: 52,
-      width: '100%',
-      alignSelf: 'stretch',
+      width: "100%",
+      alignSelf: "stretch",
     },
     underlay: {
       ...StyleSheet.absoluteFillObject,
     },
     actionSlot: {
-      position: 'absolute',
+      position: "absolute",
       top: 0,
       bottom: 0,
-      justifyContent: 'center',
+      justifyContent: "center",
     },
     actionSlotLeft: {
       left: 0,
-      alignItems: 'center',
+      alignItems: "center",
     },
     actionSlotRight: {
       right: 0,
-      alignItems: 'center',
+      alignItems: "center",
     },
     actionSlotInner: {
       flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      alignSelf: 'stretch',
+      alignItems: "center",
+      justifyContent: "center",
+      alignSelf: "stretch",
     },
     row: {
       minHeight: 52,
-      width: '100%',
+      width: "100%",
       borderRadius: 12,
       backgroundColor: rowCardSurface,
-      justifyContent: 'center',
+      justifyContent: "center",
       paddingHorizontal: 12,
       paddingVertical: 8,
       gap: 4,
@@ -300,29 +586,29 @@ const createStyles = (theme: keyof typeof Colors) => {
       backgroundColor: rowCardSurface,
       borderWidth: 0,
       opacity: 1,
-      overflow: 'visible',
+      overflow: "visible",
       zIndex: 80,
       elevation: 28,
-      shadowColor: '#000000',
+      shadowColor: "#000000",
       shadowOpacity: isDark ? 0.24 : 0.12,
       shadowRadius: 14,
       shadowOffset: { width: 0, height: 8 },
     },
     rowInner: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
+      flexDirection: "row",
+      alignItems: "flex-start",
       gap: 10,
     },
     emojiTile: {
       width: 36,
       height: 36,
       borderRadius: 10,
-      alignItems: 'center',
-      justifyContent: 'center',
-      overflow: 'hidden',
+      alignItems: "center",
+      justifyContent: "center",
+      overflow: "hidden",
       borderWidth: 0,
       marginTop: 0,
-      backgroundColor: 'transparent',
+      backgroundColor: "transparent",
     },
     emojiText: {
       fontSize: 24,
@@ -332,8 +618,8 @@ const createStyles = (theme: keyof typeof Colors) => {
       gap: 2,
     },
     titleRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
       gap: 10,
     },
     rowTitle: {
@@ -358,25 +644,25 @@ const createStyles = (theme: keyof typeof Colors) => {
       color: withAlpha(text, 0.32),
     },
     tagRow: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
+      flexDirection: "row",
+      flexWrap: "wrap",
       gap: 6,
       marginTop: 2,
     },
     tagChip: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
       gap: 3,
-      maxWidth: '100%',
+      maxWidth: "100%",
       paddingVertical: 2,
       paddingHorizontal: 8,
       borderRadius: RADIUS_PILL,
       borderWidth: 0,
       backgroundColor: isDark
-        ? 'rgba(255,255,255,0.12)'
+        ? "rgba(255,255,255,0.12)"
         : useAppleLightPalette
           ? IOS_LIGHT_BASE_BACKGROUND
-          : 'rgba(255,255,255,0.85)',
+          : "rgba(255,255,255,0.85)",
     },
     tagChipDanger: {
       backgroundColor: dangerBg,
@@ -387,7 +673,7 @@ const createStyles = (theme: keyof typeof Colors) => {
       lineHeight: 14,
       fontWeight: WEIGHT_HEADING,
       letterSpacing: 0.2,
-      textTransform: 'uppercase',
+      textTransform: "uppercase",
       color: isDark ? withAlpha(text, 0.7) : withAlpha(text, 0.5),
       maxWidth: 220,
     },
@@ -395,8 +681,8 @@ const createStyles = (theme: keyof typeof Colors) => {
       minHeight: 188,
       paddingVertical: 40,
       paddingHorizontal: 16,
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems: "center",
+      justifyContent: "center",
       gap: 10,
     },
     emptyText: {

@@ -29,6 +29,7 @@ import { LinearGradient } from "expo-linear-gradient";
 
 import {
   TaskSwipeDraggableList,
+  type TaskDragGestureUpdateParams,
   type TaskSwipeDraggableListHandle,
   type TaskSwipeDraggableListItem,
 } from "@/components/tasks/task-swipe-draggable-list";
@@ -84,6 +85,7 @@ const TASK_ROW_HORIZONTAL_PADDING = 12;
 const CONTENT_STACK_GAP = 10;
 const DATE_TRANSITION_DURATION = 250;
 const DATE_TRANSITION_FALLBACK_DELAY_MS = 140;
+const DRAG_RAIL_HOVER_INTENT_MS = 80;
 const IOS_LIGHT_BASE_BACKGROUND = "#F2F2F7"; // systemGroupedBackground
 const IOS_LIGHT_ELEVATED_SURFACE = "#FFFFFF"; // secondarySystemGroupedBackground
 const IOS_LIGHT_INSET_SURFACE = "#EBEBF0"; // tertiarySystemFill-like
@@ -762,6 +764,18 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
       borderRadius: 12,
       backgroundColor: "transparent",
     },
+    dateRailDayDropCandidate: {
+      borderWidth: 1.5,
+      borderColor: withAlpha(ACCENT, 0.92),
+      backgroundColor: isDark
+        ? "rgba(244,81,44,0.16)"
+        : "rgba(244,81,44,0.14)",
+    },
+    dateRailDayDropReady: {
+      borderWidth: 1.5,
+      borderColor: ACCENT,
+      backgroundColor: ACCENT,
+    },
     dateRailDaySelected: {
       backgroundColor: ACCENT,
     },
@@ -781,6 +795,12 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
     dateRailDayNumWeekend: {
       color: withAlpha(text, ALPHA_3),
     },
+    dateRailDayNumDropCandidate: {
+      color: withAlpha(ACCENT, 0.98),
+    },
+    dateRailDayNumDropReady: {
+      color: "#FFFFFF",
+    },
     dateRailDow: {
       color: isDark ? "rgba(255,255,255,0.8)" : "#64748B",
       fontSize: 10,
@@ -788,6 +808,12 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
       fontWeight: WEIGHT_BODY,
       letterSpacing: 0.35,
       textTransform: "uppercase",
+    },
+    dateRailDowDropCandidate: {
+      color: withAlpha(ACCENT, 0.95),
+    },
+    dateRailDowDropReady: {
+      color: "#FFFFFF",
     },
     dateRailDowSelected: {
       color: "#FFFFFF",
@@ -1414,10 +1440,12 @@ export default function HomeScreen() {
   const [dragHoveredDateStart, setDragHoveredDateStart] = React.useState<
     number | null
   >(null);
-  const [activeDragSurface, setActiveDragSurface] =
-    React.useState<DragSurfaceId | null>(null);
-  const showDropTargetGuides =
-    showDragDropTargetsHint && activeDragSurface !== null;
+  const [dragDetectedDateStart, setDragDetectedDateStart] = React.useState<
+    number | null
+  >(null);
+  const [, setIsDragPointOverDateRail] = React.useState(false);
+  const [, setDragDropDebugReason] = React.useState("idle");
+  const [, setActiveDragSurface] = React.useState<DragSurfaceId | null>(null);
   const dragContextRef = React.useRef<{
     taskId: string;
   } | null>(null);
@@ -1436,6 +1464,7 @@ export default function HomeScreen() {
   });
   const dragSurfaceResetFrameRef = React.useRef<number | null>(null);
   const dropCommitFrameRef = React.useRef<number | null>(null);
+  const railBoundsMeasureFrameRef = React.useRef<number | null>(null);
   const upcomingSurfaceRef = React.useRef<View | null>(null);
   const upcomingSurfaceBoundsRef = React.useRef<DragBounds | null>(null);
   const todaySurfaceRef = React.useRef<View | null>(null);
@@ -2204,7 +2233,14 @@ export default function HomeScreen() {
   ).current;
   const dateRailRef = React.useRef<FlatList<DateRailDay> | any>(null);
   const dateRailWrapRef = React.useRef<View | null>(null);
+  const dateRailListRef = React.useRef<View | null>(null);
   const dateRailBoundsRef = React.useRef<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const dateRailListBoundsRef = React.useRef<{
     x: number;
     y: number;
     width: number;
@@ -2215,6 +2251,24 @@ export default function HomeScreen() {
   );
   const dateRailDraggedRef = React.useRef(false);
   const dateRailLastCenterIndexRef = React.useRef(dateRailInitialIndex);
+  const scrollDateRailToDateStart = React.useCallback(
+    (targetDateStart: number, animated = false) => {
+      const targetIndex = dateRailDays.findIndex((day) =>
+        isSameLocalDay(day.timestamp, targetDateStart),
+      );
+      if (targetIndex < 0) return false;
+
+      dateRailLastCenterIndexRef.current = targetIndex;
+      dateRailScrollOffsetRef.current = targetIndex * dateRailSnapInterval;
+      dateRailRef.current?.scrollToIndex({
+        index: targetIndex,
+        animated,
+        viewPosition: 0.5,
+      });
+      return true;
+    },
+    [dateRailDays, dateRailSnapInterval],
+  );
   const handleDateRailScrollToIndexFailed = React.useCallback(() => {
     requestAnimationFrame(() => {
       dateRailRef.current?.scrollToIndex({
@@ -2243,6 +2297,32 @@ export default function HomeScreen() {
       },
     );
   }, []);
+  const measureDateRailListBounds = React.useCallback(() => {
+    const node =
+      // @ts-ignore - some refs expose getNode
+      dateRailListRef.current?.getNode?.() ?? dateRailListRef.current;
+    if (!node || typeof node.measureInWindow !== "function") return;
+    node.measureInWindow(
+      (x: number, y: number, width: number, height: number) => {
+        if (
+          !Number.isFinite(x) ||
+          !Number.isFinite(y) ||
+          !Number.isFinite(width) ||
+          !Number.isFinite(height)
+        ) {
+          return;
+        }
+        dateRailListBoundsRef.current = { x, y, width, height };
+      },
+    );
+  }, []);
+  const scheduleMeasureDateRailListBounds = React.useCallback(() => {
+    if (railBoundsMeasureFrameRef.current != null) return;
+    railBoundsMeasureFrameRef.current = requestAnimationFrame(() => {
+      railBoundsMeasureFrameRef.current = null;
+      measureDateRailListBounds();
+    });
+  }, [measureDateRailListBounds]);
   const handleDateRailScroll = React.useMemo(
     () =>
       Animated.event(
@@ -2287,9 +2367,18 @@ export default function HomeScreen() {
     [],
   );
   React.useEffect(() => {
-    const rafId = requestAnimationFrame(measureDateRailBounds);
-    return () => cancelAnimationFrame(rafId);
-  }, [measureDateRailBounds, viewportWidth]);
+    const rafId = requestAnimationFrame(() => {
+      measureDateRailBounds();
+      measureDateRailListBounds();
+    });
+    return () => {
+      cancelAnimationFrame(rafId);
+      if (railBoundsMeasureFrameRef.current != null) {
+        cancelAnimationFrame(railBoundsMeasureFrameRef.current);
+        railBoundsMeasureFrameRef.current = null;
+      }
+    };
+  }, [measureDateRailBounds, measureDateRailListBounds, viewportWidth]);
 
   const [collapsedSections, setCollapsedSections] = React.useState<
     Record<"today" | "upcoming", boolean>
@@ -2467,7 +2556,200 @@ export default function HomeScreen() {
     dragRailHoverIntentRef.current = { dateStart: null, enteredAt: 0 };
     dragHoverDateStartRef.current = null;
     setDragHoveredDateStart((current) => (current == null ? current : null));
+    setDragDetectedDateStart((current) => (current == null ? current : null));
+    setIsDragPointOverDateRail(false);
+    setDragDropDebugReason("idle");
   }, []);
+  const getTouchPointFromEvent = React.useCallback(
+    (event: GestureResponderEvent) => {
+      const touch =
+        event.nativeEvent.touches?.[0] ?? event.nativeEvent.changedTouches?.[0];
+      if (!touch) return null;
+      if (!Number.isFinite(touch.pageX) || !Number.isFinite(touch.pageY)) {
+        return null;
+      }
+      return {
+        x: touch.pageX,
+        y: touch.pageY,
+      };
+    },
+    [],
+  );
+  const updateDateRailDragHoverFromPoint = React.useCallback(
+    (
+      point: { x: number; y: number },
+      options?: { force?: boolean; source?: "touch" | "gesture" },
+    ) => {
+      scheduleMeasureDateRailListBounds();
+      const force = options?.force === true;
+      const source = options?.source ?? "touch";
+      if (!dragContextRef.current) {
+        setDragDropDebugReason(`${source}-no-context`);
+        return;
+      }
+      if (!force && !listDragActiveRef.current) {
+        setDragDropDebugReason(`${source}-not-dragging`);
+        return;
+      }
+      const bounds = dateRailListBoundsRef.current;
+      if (!bounds) {
+        setDragDropDebugReason(`${source}-no-rail-bounds`);
+        return;
+      }
+
+      const isInsideDayRail =
+        point.x >= bounds.x &&
+        point.x <= bounds.x + bounds.width &&
+        point.y >= bounds.y &&
+        point.y <= bounds.y + bounds.height;
+      if (!isInsideDayRail) {
+        dragLastRailDateStartRef.current = null;
+        setIsDragPointOverDateRail(false);
+        setDragDetectedDateStart((current) => (current == null ? current : null));
+        clearDateDragHover();
+        setDragDropDebugReason(`${source}-outside-rail`);
+        return;
+      }
+      setIsDragPointOverDateRail(true);
+
+      const localX = point.x - bounds.x;
+      const contentX =
+        dateRailScrollOffsetRef.current + localX - dateRailSidePadding;
+      const targetIndex = clamp(
+        Math.round(contentX / dateRailSnapInterval),
+        0,
+        dateRailDays.length - 1,
+      );
+      const targetDateStart = dateRailDays[targetIndex]?.timestamp;
+      if (!Number.isFinite(targetDateStart)) {
+        setDragDropDebugReason(`${source}-invalid-target`);
+        return;
+      }
+
+      const previousDateStart = dragLastRailDateStartRef.current;
+      if (previousDateStart !== targetDateStart) {
+        void Haptics.selectionAsync().catch(() => undefined);
+      }
+      dragLastRailDateStartRef.current = targetDateStart;
+      setDragDetectedDateStart((current) =>
+        current === targetDateStart ? current : targetDateStart,
+      );
+      setDragDropDebugReason(
+        force ? `${source}-inside-force` : `${source}-inside`,
+      );
+      const now = Date.now();
+      const currentIntent = dragRailHoverIntentRef.current;
+
+      if (force) {
+        if (currentIntent.dateStart !== targetDateStart) {
+          dragRailHoverIntentRef.current = {
+            dateStart: targetDateStart,
+            enteredAt: now,
+          };
+        }
+        dragHoverDateStartRef.current = targetDateStart;
+        setDragHoveredDateStart((current) =>
+          current === targetDateStart ? current : targetDateStart,
+        );
+        return;
+      }
+
+      if (currentIntent.dateStart !== targetDateStart) {
+        dragRailHoverIntentRef.current = {
+          dateStart: targetDateStart,
+          enteredAt: now,
+        };
+        dragHoverDateStartRef.current = null;
+        setDragHoveredDateStart((current) => (current == null ? current : null));
+        return;
+      }
+
+      if (now - currentIntent.enteredAt < DRAG_RAIL_HOVER_INTENT_MS) return;
+
+      dragHoverDateStartRef.current = targetDateStart;
+      setDragHoveredDateStart((current) =>
+        current === targetDateStart ? current : targetDateStart,
+      );
+    },
+    [
+      clearDateDragHover,
+      dateRailDays,
+      dateRailSidePadding,
+      dateRailSnapInterval,
+      scheduleMeasureDateRailListBounds,
+    ],
+  );
+  const updateDateRailDragHoverFromTouch = React.useCallback(
+    (event: GestureResponderEvent, options?: { force?: boolean }) => {
+      const point = getTouchPointFromEvent(event);
+      if (!point) {
+        setDragDropDebugReason("touch-no-touch-point");
+        return;
+      }
+      updateDateRailDragHoverFromPoint(point, {
+        force: options?.force,
+        source: "touch",
+      });
+    },
+    [getTouchPointFromEvent, updateDateRailDragHoverFromPoint],
+  );
+  const handleDragGestureUpdate = React.useCallback(
+    (params: TaskDragGestureUpdateParams) => {
+      const { absoluteX, absoluteY, phase } = params;
+      if (!Number.isFinite(absoluteX) || !Number.isFinite(absoluteY)) {
+        setDragDropDebugReason("gesture-invalid-point");
+        return;
+      }
+      updateDateRailDragHoverFromPoint(
+        { x: absoluteX, y: absoluteY },
+        { source: "gesture", force: phase === "end" },
+      );
+    },
+    [updateDateRailDragHoverFromPoint],
+  );
+  const handleListDragTouchMove = React.useCallback(
+    (event: GestureResponderEvent) => {
+      updateDateRailDragHoverFromTouch(event);
+    },
+    [updateDateRailDragHoverFromTouch],
+  );
+  const handleListDragTouchEnd = React.useCallback(
+    (event: GestureResponderEvent) => {
+      updateDateRailDragHoverFromTouch(event, { force: true });
+    },
+    [updateDateRailDragHoverFromTouch],
+  );
+  const handleListDragTouchCancel = React.useCallback(() => {
+    if (!dragContextRef.current) return;
+    dragLastRailDateStartRef.current = null;
+    clearDateDragHover();
+  }, [clearDateDragHover]);
+  const handleGlobalDragTouchMove = React.useCallback(
+    (event: GestureResponderEvent) => {
+      if (!listDragActiveRef.current || !dragContextRef.current) return;
+      updateDateRailDragHoverFromTouch(event);
+    },
+    [updateDateRailDragHoverFromTouch],
+  );
+  const handleGlobalDragTouchEnd = React.useCallback(
+    (event: GestureResponderEvent) => {
+      if (!dragContextRef.current) return;
+      updateDateRailDragHoverFromTouch(event, { force: true });
+    },
+    [updateDateRailDragHoverFromTouch],
+  );
+  const handleGlobalDragTouchCancel = React.useCallback(() => {
+    if (!dragContextRef.current) return;
+    dragLastRailDateStartRef.current = null;
+    clearDateDragHover();
+  }, [clearDateDragHover]);
+  const handleTaskListScrollOffsetChange = React.useCallback(
+    (_scrollOffset: number) => {
+      if (!dragContextRef.current && !listDragActiveRef.current) return;
+      scheduleMeasureDateRailListBounds();
+    },
+    [scheduleMeasureDateRailListBounds],
+  );
 
   const closeAnyOpen = React.useCallback(() => {
     todayListRef.current?.closeAnyOpen();
@@ -2493,6 +2775,7 @@ export default function HomeScreen() {
       if (isDragging) {
         cancelDragSurfaceResetFrame();
         measureDateRailBounds();
+        measureDateRailListBounds();
         return;
       }
       cancelDragSurfaceResetFrame();
@@ -2504,7 +2787,12 @@ export default function HomeScreen() {
         clearDateDragHover();
       }
     },
-    [cancelDragSurfaceResetFrame, clearDateDragHover, measureDateRailBounds],
+    [
+      cancelDragSurfaceResetFrame,
+      clearDateDragHover,
+      measureDateRailBounds,
+      measureDateRailListBounds,
+    ],
   );
 
   const shiftSelectedDateBySwipe = React.useCallback(
@@ -2904,8 +3192,14 @@ export default function HomeScreen() {
       setActiveDragSurface("today");
       clearDateDragHover();
       measureDateRailBounds();
+      measureDateRailListBounds();
     },
-    [cancelDragSurfaceResetFrame, clearDateDragHover, measureDateRailBounds],
+    [
+      cancelDragSurfaceResetFrame,
+      clearDateDragHover,
+      measureDateRailBounds,
+      measureDateRailListBounds,
+    ],
   );
 
   const applyDraggedTaskToDate = React.useCallback(
@@ -2975,6 +3269,7 @@ export default function HomeScreen() {
       queueDropCommit(() => {
         applyDraggedTaskToDate(droppedTaskId, targetDateStart);
         selectDateWithoutTransition(targetDateStart);
+        scrollDateRailToDateStart(targetDateStart);
       });
       return true;
     },
@@ -2983,6 +3278,7 @@ export default function HomeScreen() {
       clearDateDragHover,
       queueDropCommit,
       selectDateWithoutTransition,
+      scrollDateRailToDateStart,
     ],
   );
 
@@ -3392,13 +3688,18 @@ export default function HomeScreen() {
           </Modal>
 
           <View
+            ref={dateRailListRef}
             style={styles.dateRailListContainer}
             onLayout={(e) => {
               const w = e.nativeEvent.layout.width;
               if (w > 0 && Math.abs(w - dateRailContainerWidth) > 1) {
                 setDateRailContainerWidth(w);
               }
+              measureDateRailListBounds();
             }}
+            onTouchMove={handleGlobalDragTouchMove}
+            onTouchEnd={handleGlobalDragTouchEnd}
+            onTouchCancel={handleGlobalDragTouchCancel}
           >
             <LinearGradient
               colors={[screenBackground, withAlpha(screenBackground, 0)]}
@@ -3413,16 +3714,26 @@ export default function HomeScreen() {
               keyExtractor={(day: DateRailDay) => day.key}
               renderItem={({ item: day, index }: { item: DateRailDay; index: number }) => {
                 const isToday = day.isToday;
+                const isDragCandidate =
+                  dragDetectedDateStart != null &&
+                  isSameLocalDay(day.timestamp, dragDetectedDateStart);
+                const isDropHover =
+                  dragHoveredDateStart != null &&
+                  isSameLocalDay(day.timestamp, dragHoveredDateStart);
 
                 const dayNumStyle = [
                   styles.dateRailDayNum,
                   day.isWeekend ? styles.dateRailDayNumWeekend : null,
                   isToday ? styles.dateRailDayNumToday : null,
+                  isDragCandidate ? styles.dateRailDayNumDropCandidate : null,
+                  isDropHover ? styles.dateRailDayNumDropReady : null,
                 ];
 
                 const dayDowStyle = [
                   styles.dateRailDow,
                   day.isWeekend ? styles.dateRailDowWeekend : null,
+                  isDragCandidate ? styles.dateRailDowDropCandidate : null,
+                  isDropHover ? styles.dateRailDowDropReady : null,
                 ];
 
                 return (
@@ -3442,6 +3753,8 @@ export default function HomeScreen() {
                     }}
                     style={({ pressed }) => [
                       styles.dateRailDay,
+                      isDragCandidate ? styles.dateRailDayDropCandidate : null,
+                      isDropHover ? styles.dateRailDayDropReady : null,
                       { opacity: pressed ? 0.8 : 1 },
                     ]}
                   >
@@ -3555,7 +3868,10 @@ export default function HomeScreen() {
     dateRailDays,
     dateRailSidePadding,
     dateRailSnapInterval,
+    dateRailScrollX,
     dateRailTitleMotion,
+    dragDetectedDateStart,
+    dragHoveredDateStart,
     dynamicHeaderTitle,
     firstVisibleSection,
     getDateRailItemLayout,
@@ -3563,15 +3879,20 @@ export default function HomeScreen() {
     handleDateRailScroll,
     handleDateRailScrollBeginDrag,
     handleDateRailScrollToIndexFailed,
+    handleGlobalDragTouchCancel,
+    handleGlobalDragTouchEnd,
+    handleGlobalDragTouchMove,
     glassSurfacePalette,
     handleSelectDate,
     isCalendarPickerOpen,
     isDark,
     measureDateRailBounds,
+    measureDateRailListBounds,
     screenBackground,
     styles,
     theme,
     dateRailContainerWidth,
+    dateRailInitialIndex,
   ]);
 
   const listHeader = React.useMemo(() => {
@@ -3661,7 +3982,13 @@ export default function HomeScreen() {
   ]);
 
   return (
-    <View style={styles.container}>
+    <View
+      style={styles.container}
+      onTouchMove={handleGlobalDragTouchMove}
+      onTouchEnd={handleGlobalDragTouchEnd}
+      onTouchEndCapture={handleGlobalDragTouchEnd}
+      onTouchCancel={handleGlobalDragTouchCancel}
+    >
       <TaskSwipeDraggableList
         ref={todayListRef}
         theme={theme}
@@ -3683,6 +4010,11 @@ export default function HomeScreen() {
         onDragBeginTask={handleDragBeginTask}
         onDragEndMeta={handleDragEndMeta}
         onDragStateChange={handleDragStateChange}
+        onDragGestureUpdate={handleDragGestureUpdate}
+        onScrollOffsetChange={handleTaskListScrollOffsetChange}
+        onListTouchMove={handleListDragTouchMove}
+        onListTouchEnd={handleListDragTouchEnd}
+        onListTouchCancel={handleListDragTouchCancel}
         onSwipeStateChange={handleSwipeStateChange}
         onRowTouchStateChange={handleRowTouchStateChange}
         renderMode="auto"

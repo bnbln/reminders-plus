@@ -4,6 +4,7 @@ import {
   Animated,
   LayoutAnimation,
   LayoutChangeEvent,
+  type GestureResponderEvent,
   type StyleProp,
   type ViewStyle
 } from "react-native";
@@ -29,6 +30,14 @@ const LIST_ANIMATION_CONFIG = {
 export type TaskSwipeDraggableListItem =
   | { kind: 'task'; key: string; taskId: string }
   | { kind: 'header'; key: string; sectionId: string };
+
+export type TaskDragGestureUpdateParams = {
+  phase: "begin" | "update" | "end";
+  absoluteX: number;
+  absoluteY: number;
+  translationX: number;
+  translationY: number;
+};
 
 export type TaskSwipeDraggableListHandle = {
   closeAnyOpen: () => void;
@@ -120,6 +129,10 @@ export type TaskSwipeDraggableListProps = {
    * `react - native - draggable - flatlist` exposes scroll via `onScrollOffsetChange` (number), not `onScroll`.
    */
   onScrollOffsetChange?: (scrollOffset: number) => void;
+  onListTouchMove?: (event: GestureResponderEvent) => void;
+  onListTouchEnd?: (event: GestureResponderEvent) => void;
+  onListTouchCancel?: (event: GestureResponderEvent) => void;
+  onDragGestureUpdate?: (params: TaskDragGestureUpdateParams) => void;
 
   /**
    * Reports drag state changes so callers can avoid treating drag as scroll.
@@ -193,6 +206,10 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     onLayout,
     contentInsetAdjustmentBehavior,
     onScrollOffsetChange,
+    onListTouchMove,
+    onListTouchEnd,
+    onListTouchCancel,
+    onDragGestureUpdate,
     onDragStateChange,
     onSwipeStateChange,
     onRowTouchStateChange,
@@ -790,6 +807,10 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     },
     onRelease: handleDragRelease,
     onDragEnd: handleDragEnd,
+    onTouchMove: onListTouchMove,
+    onTouchEnd: onListTouchEnd,
+    onTouchCancel: onListTouchCancel,
+    onDragGestureUpdate,
   };
 
   if (renderMode === 'static') {
