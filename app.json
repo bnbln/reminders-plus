@@ -11,6 +11,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.reminds",
       "infoPlist": {
+        "CFBundleDisplayName": "Reminders+",
         "NSCalendarsUsageDescription": "Wir importieren Termine aus Apple Kalender in deine App.",
         "NSCalendarsFullAccessUsageDescription": "Wir importieren Termine aus Apple Kalender in deine App.",
         "NSRemindersUsageDescription": "Wir importieren Erinnerungen aus Apple Erinnerungen in deine App.",
@@ -64,6 +65,8 @@
         }
       ],
       "@react-native-community/datetimepicker",
+      "./plugins/with-custom-icon",
+      "./plugins/with-android-app-name",
       "expo-font",
       "expo-image",
       "expo-web-browser"

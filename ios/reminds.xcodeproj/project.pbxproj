@@ -15,6 +15,7 @@
 		A1C7F2D53D9A4B1E8C7F2301 /* TaskAccessoryContextBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = A1C7F2D43D9A4B1E8C7F2301 /* TaskAccessoryContextBridge.m */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
+		62B2C128021F41A68EBE4D66 /* Reminder+.icon in Resources */ = {isa = PBXBuildFile; fileRef = 744BC80286F442E395B64A4D /* Reminder+.icon */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -32,6 +33,7 @@
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = reminds/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* reminds-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "reminds-Bridging-Header.h"; path = "reminds/reminds-Bridging-Header.h"; sourceTree = "<group>"; };
 		F45E905FFA679E56B278FA31 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = reminds/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		744BC80286F442E395B64A4D /* Reminder+.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = "Reminder+.icon"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -86,6 +88,7 @@
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
 				E032742C17917D85D8E939DA /* Pods */,
 				B65BE575866B6A5CEDE602B3 /* ExpoModulesProviders */,
+				744BC80286F442E395B64A4D /* Reminder+.icon */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -202,6 +205,7 @@
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
 				335C3CBDE108721FE0842F3B /* PrivacyInfo.xcprivacy in Resources */,
+				62B2C128021F41A68EBE4D66 /* Reminder+.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -349,7 +353,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 4FB1D35A320B4126CFF83087 /* Pods-reminds.debug.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = "Reminder+";
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = reminds/reminds.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
@@ -375,7 +379,7 @@
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
 				PRODUCT_BUNDLE_IDENTIFIER = com.anonymous.reminds;
-				PRODUCT_NAME = reminds;
+				PRODUCT_NAME = "reminds";
 				SWIFT_OBJC_BRIDGING_HEADER = "reminds/reminds-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -388,7 +392,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 3138CF7B98F7506EDA9CCC6C /* Pods-reminds.release.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = "Reminder+";
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = reminds/reminds.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
@@ -409,7 +413,7 @@
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
 				PRODUCT_BUNDLE_IDENTIFIER = com.anonymous.reminds;
-				PRODUCT_NAME = reminds;
+				PRODUCT_NAME = "reminds";
 				SWIFT_OBJC_BRIDGING_HEADER = "reminds/reminds-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
