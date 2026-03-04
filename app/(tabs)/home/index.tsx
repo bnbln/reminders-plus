@@ -22,18 +22,18 @@ import {
   View,
 } from "react-native";
 
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import {
   DatePicker as ExpoSwiftUIDatePicker,
   Host as ExpoSwiftUIHost,
 } from "@expo/ui/swift-ui";
 import { datePickerStyle as expoSwiftDatePickerStyleModifier } from "@expo/ui/swift-ui/modifiers";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
 
 import {
-  TaskSwipeDraggableList,
   type TaskDragGestureUpdateParams,
+  TaskSwipeDraggableList,
   type TaskSwipeDraggableListHandle,
   type TaskSwipeDraggableListItem,
 } from "@/components/tasks/task-swipe-draggable-list";
@@ -99,7 +99,7 @@ const IOS_LIGHT_SEPARATOR = "rgba(60, 60, 67, 0.22)"; // separator
 const IOS_LIGHT_TINT_FILL = "rgba(118, 118, 128, 0.2)"; // quaternarySystemFill-like
 // Customize task row surfaces here:
 const HOME_TASK_ROW_SURFACE_LIGHT = IOS_LIGHT_ELEVATED_SURFACE;
-const HOME_TASK_ROW_SURFACE_DARK = "rgba(89, 89, 89, 0.2)";
+const HOME_TASK_ROW_SURFACE_DARK = "rgba(35, 35, 35, 0.2)";
 const HOME_ONBOARDING_KEYS = {
   gestures: "reminds.home.onboarding.gestures.v1",
   dragDropTargets: "reminds.home.onboarding.dragDropTargets.v1",
@@ -141,9 +141,7 @@ async function markOnboardingSeen(key: string): Promise<void> {
   }
 }
 
-const configureSmoothListLayoutTransition = (
-  enabled: boolean = true,
-) => {
+const configureSmoothListLayoutTransition = (enabled: boolean = true) => {
   if (!enabled) return;
   LayoutAnimation.configureNext({
     duration: 280,
@@ -1308,21 +1306,21 @@ export default function HomeScreen() {
     () =>
       isGermanLocale
         ? {
-          title: "Gesten-Tipp",
-          body: "Wische horizontal über die Liste für den Tagwechsel. Halte eine Aufgabe zum Verschieben.",
-          dismissLabel: "Schließen",
-          dragToDate: "Auf Datum ziehen",
-          dragToUndated: "Oder in Ohne Datum ablegen",
-          monthPickerLabel: "Monat wählen",
-        }
+            title: "Gesten-Tipp",
+            body: "Wische horizontal über die Liste für den Tagwechsel. Halte eine Aufgabe zum Verschieben.",
+            dismissLabel: "Schließen",
+            dragToDate: "Auf Datum ziehen",
+            dragToUndated: "Oder in Ohne Datum ablegen",
+            monthPickerLabel: "Monat wählen",
+          }
         : {
-          title: "Gesture tip",
-          body: "Swipe horizontally over the list to change day. Long-press a task to drag it.",
-          dismissLabel: "Dismiss",
-          dragToDate: "Drag to a day",
-          dragToUndated: "Or drop into Without date",
-          monthPickerLabel: "Pick month",
-        },
+            title: "Gesture tip",
+            body: "Swipe horizontally over the list to change day. Long-press a task to drag it.",
+            dismissLabel: "Dismiss",
+            dragToDate: "Drag to a day",
+            dragToUndated: "Or drop into Without date",
+            monthPickerLabel: "Pick month",
+          },
     [isGermanLocale],
   );
   const markGesturesHintSeen = React.useCallback(() => {
@@ -1729,7 +1727,7 @@ export default function HomeScreen() {
         title: option.title,
         state:
           Platform.OS === "ios" &&
-            isSameLocalMonth(option.monthStart, selectedDateStart)
+          isSameLocalMonth(option.monthStart, selectedDateStart)
             ? "on"
             : undefined,
       })),
@@ -1989,7 +1987,7 @@ export default function HomeScreen() {
         const fallbackHeight = Math.max(
           1,
           dateListHostHeightRef.current ||
-          dateListTransitionConfigRef.current.toHeight,
+            dateListTransitionConfigRef.current.toHeight,
         );
         dateListTransitionActiveTargetDateRef.current = targetDate;
         dateListTransitionStartedRef.current = false;
@@ -2410,9 +2408,11 @@ export default function HomeScreen() {
             dateRailScrollOffsetRef.current = nextOffset;
             const centerIndex = Math.round(nextOffset / dateRailSnapInterval);
             const nextIndex = clamp(centerIndex, 0, dateRailDays.length - 1);
-            const lockedTargetIndex = dateRailSelectionLockTargetIndexRef.current;
+            const lockedTargetIndex =
+              dateRailSelectionLockTargetIndexRef.current;
             if (lockedTargetIndex != null) {
-              const lockActive = Date.now() <= dateRailSelectionLockUntilRef.current;
+              const lockActive =
+                Date.now() <= dateRailSelectionLockUntilRef.current;
               if (nextIndex !== lockedTargetIndex && lockActive) {
                 return;
               }
@@ -2765,7 +2765,9 @@ export default function HomeScreen() {
           enteredAt: now,
         };
         dragHoverDateStartRef.current = null;
-        setDragHoveredDateStart((current) => (current == null ? current : null));
+        setDragHoveredDateStart((current) =>
+          current == null ? current : null,
+        );
         return;
       }
 
@@ -3173,7 +3175,7 @@ export default function HomeScreen() {
       (item) =>
         item.kind === "task" &&
         (visibleTaskDisplaySectionById.get(item.taskId) ?? "upcoming") ===
-        "upcoming",
+          "upcoming",
     );
     return upcomingTasks;
   }, [hasUpcomingSection, swipeListData, visibleTaskDisplaySectionById]);
@@ -3246,10 +3248,10 @@ export default function HomeScreen() {
       const mapped: ListItem[] = data.map((item) =>
         item.kind === "header"
           ? {
-            type: "header",
-            key: item.key,
-            sectionId: item.sectionId as SectionId,
-          }
+              type: "header",
+              key: item.key,
+              sectionId: item.sectionId as SectionId,
+            }
           : { type: "task", key: item.key, taskId: item.taskId },
       );
       applyOrderFromListData(mapped);
@@ -3330,12 +3332,12 @@ export default function HomeScreen() {
         const next = prev.map((candidate) =>
           candidate.id === taskId
             ? {
-              ...candidate,
-              section: toSection,
-              dueAt: nextDueAt,
-              dueHasTime: keepTime,
-              completedAt: undefined,
-            }
+                ...candidate,
+                section: toSection,
+                dueAt: nextDueAt,
+                dueHasTime: keepTime,
+                completedAt: undefined,
+              }
             : candidate,
         );
 
@@ -3423,9 +3425,9 @@ export default function HomeScreen() {
               ...(hasDueAt
                 ? {}
                 : {
-                  dueAt: getDueAtForSection("today"),
-                  dueHasTime: true,
-                }),
+                    dueAt: getDueAtForSection("today"),
+                    dueHasTime: true,
+                  }),
             };
           }
 
@@ -3578,8 +3580,8 @@ export default function HomeScreen() {
           accessibilityLabel={
             isCollapsible
               ? t("home.filter.toggleSection", {
-                section: t(SECTION_TITLE_KEYS[id]),
-              })
+                  section: t(SECTION_TITLE_KEYS[id]),
+                })
               : undefined
           }
           onPress={onToggle}
@@ -3941,7 +3943,9 @@ export default function HomeScreen() {
               }}
               pointerEvents="none"
             >
-              <View style={[styles.dateRailCenterIndicator, { overflow: "hidden" }]}>
+              <View
+                style={[styles.dateRailCenterIndicator, { overflow: "hidden" }]}
+              >
                 <Animated.View
                   style={{
                     flexDirection: "row",
@@ -3980,7 +3984,12 @@ export default function HomeScreen() {
                         <Text style={dayDowStyle}>{day.weekday}</Text>
                         <Text style={dayNumStyle}>{day.dayOfMonth}</Text>
                         {day.eventCount > 0 && (
-                          <View style={[styles.dateRailEventIndicator, { backgroundColor: "#FFFFFF" }]} />
+                          <View
+                            style={[
+                              styles.dateRailEventIndicator,
+                              { backgroundColor: "#FFFFFF" },
+                            ]}
+                          />
                         )}
                       </View>
                     );
@@ -4141,6 +4150,7 @@ export default function HomeScreen() {
         showTaskIcons={showTagIcons}
         showCompactSubtasks={withSubtasksEnabled}
         dragCompactPreview={isDragOverCalendarHeader}
+        followHorizontalDrag={isDragOverCalendarHeader}
         selectedDateStart={listDateStart}
         empty={!hasTodayTasks ? calendarEmptyState : null}
         onPressTask={handlePressTask}

@@ -1,13 +1,7 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
-import {
-  Dimensions,
-  Platform,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Dimensions, Platform, StyleSheet, Text, View } from "react-native";
 import {
   GestureHandlerRootView,
   ScrollView as GHScrollView,
@@ -37,7 +31,12 @@ import {
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
 import { isIOS26OrNewer } from "@/utils/ios-version";
-import { deriveActiveSectionFromDueAt, hasValidDueAt } from "@/utils/task-dates";
+import {
+  alignDueAtToLocalDay,
+  deriveActiveSectionFromDueAt,
+  getStartOfLocalDayMs,
+  hasValidDueAt,
+} from "@/utils/task-dates";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const COLUMN_WIDTH = SCREEN_WIDTH * 0.78; // Narrower to show peers
@@ -51,6 +50,7 @@ const EDGE_AUTO_SCROLL_ZONE = 112;
 const EDGE_AUTO_SCROLL_MAX_STEP = 20;
 const EDGE_AUTO_SCROLL_MIN_STEP = 2;
 const DRAG_ACCENT = "#F4512C";
+const PROJECT_ROW_SWIPE_ACTIVATION_THRESHOLD = 22;
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
@@ -59,7 +59,11 @@ const AnimatedBoardScrollView = Animated.createAnimatedComponent(GHScrollView);
 
 const SNAP_OFFSETS = [
   0,
-  BOARD_SIDE_PADDING + COLUMN_WIDTH + COLUMN_GAP + COLUMN_WIDTH / 2 - SCREEN_WIDTH / 2,
+  BOARD_SIDE_PADDING +
+    COLUMN_WIDTH +
+    COLUMN_GAP +
+    COLUMN_WIDTH / 2 -
+    SCREEN_WIDTH / 2,
   BOARD_SIDE_PADDING +
     2 * (COLUMN_WIDTH + COLUMN_GAP) +
     COLUMN_WIDTH -
@@ -90,6 +94,7 @@ function KanbanColumn({
   theme,
   styles,
   rowStyles,
+  dragTranslateXCompensation,
   enabledTags,
   showTagIcons,
   showCompactSubtasks,
@@ -100,9 +105,6 @@ function KanbanColumn({
   onDragBeginTask,
   onDragStateChange,
   onDragGestureUpdate,
-  onListTouchMove,
-  onListTouchEnd,
-  onListTouchCancel,
   onSwipeStateChange,
   onRowTouchStateChange,
 }: {
@@ -117,6 +119,7 @@ function KanbanColumn({
   theme: ThemeName;
   styles: ReturnType<typeof createStyles>;
   rowStyles: SwipeTaskRowStyles;
+  dragTranslateXCompensation: number;
   enabledTags: Set<TagId>;
   showTagIcons: boolean;
   showCompactSubtasks: boolean;
@@ -127,9 +130,6 @@ function KanbanColumn({
   onDragBeginTask: (taskId: string) => void;
   onDragStateChange: (isDragging: boolean) => void;
   onDragGestureUpdate: (params: TaskDragGestureUpdateParams) => void;
-  onListTouchMove?: (event: any) => void;
-  onListTouchEnd?: (event: any) => void;
-  onListTouchCancel?: () => void;
   onSwipeStateChange: (isSwiping: boolean) => void;
   onRowTouchStateChange: (isTouching: boolean) => void;
 }) {
@@ -193,6 +193,8 @@ function KanbanColumn({
         showTaskIcons={showTagIcons}
         showCompactSubtasks={showCompactSubtasks}
         followHorizontalDrag
+        dragTranslateXCompensation={dragTranslateXCompensation}
+        rowSwipeActivationThreshold={PROJECT_ROW_SWIPE_ACTIVATION_THRESHOLD}
         contentContainerStyle={[
           styles.columnContent,
           { paddingBottom: columnBottomPadding },
@@ -207,13 +209,12 @@ function KanbanColumn({
         onPressTask={onPressTask}
         toggleComplete={toggleComplete}
         deleteTask={deleteTask}
-        onReorder={(orderedTaskIds) => onReorderSection(section, orderedTaskIds)}
+        onReorder={(orderedTaskIds) =>
+          onReorderSection(section, orderedTaskIds)
+        }
         onDragBeginTask={onDragBeginTask}
         onDragStateChange={onDragStateChange}
         onDragGestureUpdate={onDragGestureUpdate}
-        onListTouchMove={onListTouchMove}
-        onListTouchEnd={onListTouchEnd}
-        onListTouchCancel={onListTouchCancel}
         onSwipeStateChange={onSwipeStateChange}
         onRowTouchStateChange={onRowTouchStateChange}
       />
@@ -239,13 +240,18 @@ export default function ProjectDetailScreen() {
   const dragPointerXRef = React.useRef<number | null>(null);
   const dragTranslationXRef = React.useRef(0);
   const dragHoverSectionRef = React.useRef<SectionId | null>(null);
+  const dragDropSectionRef = React.useRef<SectionId | null>(null);
+  const dragBoardOffsetStartRef = React.useRef<number>(SNAP_OFFSETS[1] ?? 0);
   const isBoardDraggingRef = React.useRef(false);
   const autoScrollVelocityRef = React.useRef(0);
   const autoScrollFrameRef = React.useRef<number | null>(null);
   const previousProjectIdRef = React.useRef<string | undefined>(undefined);
   const previousProjectTaskIdsRef = React.useRef<Set<string>>(new Set());
   const pendingAddTaskScrollRef = React.useRef(false);
-  const dragContextRef = React.useRef<{ taskId: string; sourceSection: SectionId } | null>(null);
+  const dragContextRef = React.useRef<{
+    taskId: string;
+    sourceSection: SectionId;
+  } | null>(null);
   const swipingSectionsRef = React.useRef(new Set<SectionId>());
   const touchingSectionsRef = React.useRef(new Set<SectionId>());
   const boardScrollLockedRef = React.useRef(false);
@@ -254,6 +260,8 @@ export default function ProjectDetailScreen() {
     React.useState<SectionId | null>(null);
   const [activeDropSection, setActiveDropSection] =
     React.useState<SectionId | null>(null);
+  const [dragTranslateXCompensation, setDragTranslateXCompensation] =
+    React.useState(0);
 
   const projectsById = React.useMemo(
     () => new Map(projects.map((p) => [p.id, p] as const)),
@@ -302,7 +310,19 @@ export default function ProjectDetailScreen() {
   const updateHoverSection = React.useCallback((next: SectionId | null) => {
     if (dragHoverSectionRef.current === next) return;
     dragHoverSectionRef.current = next;
+    dragDropSectionRef.current = next;
     setActiveDropSection((current) => (current === next ? current : next));
+  }, []);
+
+  const updateDragTranslateXCompensation = React.useCallback((offsetX: number) => {
+    if (!isBoardDraggingRef.current || !Number.isFinite(offsetX)) {
+      setDragTranslateXCompensation((current) => (current === 0 ? current : 0));
+      return;
+    }
+    const nextCompensation = offsetX - dragBoardOffsetStartRef.current;
+    setDragTranslateXCompensation((current) =>
+      Math.abs(current - nextCompensation) < 0.5 ? current : nextCompensation
+    );
   }, []);
 
   const resolveSectionFromBoardContentX = React.useCallback(
@@ -324,8 +344,16 @@ export default function ProjectDetailScreen() {
       // Keep horizontal switching intentional and one column per drag step.
       const stepThreshold = Math.max(96, span * 0.42);
       const indexShift =
-        translationX >= stepThreshold ? 1 : translationX <= -stepThreshold ? -1 : 0;
-      const shiftedIndex = clamp(sourceIndex + indexShift, 0, SECTIONS.length - 1);
+        translationX >= stepThreshold
+          ? 1
+          : translationX <= -stepThreshold
+            ? -1
+            : 0;
+      const shiftedIndex = clamp(
+        sourceIndex + indexShift,
+        0,
+        SECTIONS.length - 1,
+      );
       return SECTIONS[shiftedIndex] ?? sourceSection;
     },
     [],
@@ -361,35 +389,37 @@ export default function ProjectDetailScreen() {
     const nextOffset = event?.nativeEvent?.contentOffset?.x;
     if (typeof nextOffset === "number" && Number.isFinite(nextOffset)) {
       boardOffsetXRef.current = nextOffset;
+      updateDragTranslateXCompensation(nextOffset);
     }
-  }, []);
+  }, [updateDragTranslateXCompensation]);
 
-  const applyBoardScrollLock = React.useCallback((locked: boolean) => {
-    if (boardScrollLockedRef.current === locked) return;
-    boardScrollLockedRef.current = locked;
-    setIsBoardScrollLocked((prev) => (prev === locked ? prev : locked));
+  const applyBoardScrollLock = React.useCallback(
+    (locked: boolean) => {
+      if (boardScrollLockedRef.current === locked) return;
+      boardScrollLockedRef.current = locked;
+      setIsBoardScrollLocked((prev) => (prev === locked ? prev : locked));
 
-    const scrollNode =
-      // @ts-ignore - some scroll refs expose getNode
-      boardScrollRef.current?.getNode?.() ?? boardScrollRef.current;
-    if (scrollNode?.setNativeProps) {
-      scrollNode.setNativeProps({ scrollEnabled: !locked });
-    }
-
-    // Stop ongoing board movement immediately when a row interaction starts.
-    if (locked) {
-      const currentX = boardOffsetXShared.value;
-      if (typeof currentX === "number" && Number.isFinite(currentX)) {
-        boardOffsetXRef.current = currentX;
+      const scrollNode =
+        // @ts-ignore - some scroll refs expose getNode
+        boardScrollRef.current?.getNode?.() ?? boardScrollRef.current;
+      if (scrollNode?.setNativeProps) {
+        scrollNode.setNativeProps({ scrollEnabled: !locked });
       }
-      boardScrollRef.current?.scrollTo({ x: currentX, animated: false });
-    }
-  }, [boardOffsetXShared]);
+
+      // Stop ongoing board movement immediately when a row interaction starts.
+      if (locked) {
+        const currentX = boardOffsetXShared.value;
+        if (typeof currentX === "number" && Number.isFinite(currentX)) {
+          boardOffsetXRef.current = currentX;
+        }
+        boardScrollRef.current?.scrollTo({ x: currentX, animated: false });
+      }
+    },
+    [boardOffsetXShared],
+  );
 
   const syncBoardScrollLock = React.useCallback(() => {
-    const shouldLock =
-      isBoardDraggingRef.current ||
-      swipingSectionsRef.current.size > 0;
+    const shouldLock = isBoardDraggingRef.current;
     applyBoardScrollLock(shouldLock);
   }, [applyBoardScrollLock]);
 
@@ -439,16 +469,24 @@ export default function ProjectDetailScreen() {
         boardOffsetXRef.current = nextOffset;
         boardOffsetXShared.value = nextOffset;
         boardScrollRef.current?.scrollTo({ x: nextOffset, animated: false });
+        updateDragTranslateXCompensation(nextOffset);
         const pointerX = dragPointerXRef.current;
         if (typeof pointerX === "number" && Number.isFinite(pointerX)) {
-          updateHoverSection(resolveSectionFromBoardContentX(nextOffset + pointerX));
+          updateHoverSection(
+            resolveSectionFromBoardContentX(nextOffset + pointerX),
+          );
         }
       }
 
       autoScrollFrameRef.current = requestAnimationFrame(tick);
     };
     autoScrollFrameRef.current = requestAnimationFrame(tick);
-  }, [boardOffsetXShared, resolveSectionFromBoardContentX, updateHoverSection]);
+  }, [
+    boardOffsetXShared,
+    resolveSectionFromBoardContentX,
+    updateDragTranslateXCompensation,
+    updateHoverSection,
+  ]);
 
   const applyDragPointerX = React.useCallback(
     (pointerX: number, preferredSection?: SectionId) => {
@@ -465,12 +503,14 @@ export default function ProjectDetailScreen() {
           0,
           1,
         );
-        velocity =
-          -(EDGE_AUTO_SCROLL_MIN_STEP +
-            strength * (EDGE_AUTO_SCROLL_MAX_STEP - EDGE_AUTO_SCROLL_MIN_STEP));
+        velocity = -(
+          EDGE_AUTO_SCROLL_MIN_STEP +
+          strength * (EDGE_AUTO_SCROLL_MAX_STEP - EDGE_AUTO_SCROLL_MIN_STEP)
+        );
       } else if (pointerX >= SCREEN_WIDTH - EDGE_AUTO_SCROLL_ZONE) {
         const strength = clamp(
-          (pointerX - (SCREEN_WIDTH - EDGE_AUTO_SCROLL_ZONE)) / EDGE_AUTO_SCROLL_ZONE,
+          (pointerX - (SCREEN_WIDTH - EDGE_AUTO_SCROLL_ZONE)) /
+            EDGE_AUTO_SCROLL_ZONE,
           0,
           1,
         );
@@ -488,7 +528,12 @@ export default function ProjectDetailScreen() {
         startAutoScroll();
       }
     },
-    [resolveSectionFromBoardContentX, startAutoScroll, stopAutoScroll, updateHoverSection],
+    [
+      resolveSectionFromBoardContentX,
+      startAutoScroll,
+      stopAutoScroll,
+      updateHoverSection,
+    ],
   );
   const handleBoardDragGestureUpdate = React.useCallback(
     (params: TaskDragGestureUpdateParams) => {
@@ -533,14 +578,20 @@ export default function ProjectDetailScreen() {
   const onReorderSection = React.useCallback(
     (section: SectionId, orderedTaskIds: string[]) => {
       const dropSection = (() => {
+        if (dragDropSectionRef.current) return dragDropSectionRef.current;
         if (dragHoverSectionRef.current) return dragHoverSectionRef.current;
 
         const pointerX = dragPointerXRef.current;
         if (typeof pointerX === "number" && Number.isFinite(pointerX)) {
-          return resolveSectionFromBoardContentX(boardOffsetXRef.current + pointerX);
+          return resolveSectionFromBoardContentX(
+            boardOffsetXRef.current + pointerX,
+          );
         }
 
-        if (dragContextRef.current && Number.isFinite(dragTranslationXRef.current)) {
+        if (
+          dragContextRef.current &&
+          Number.isFinite(dragTranslationXRef.current)
+        ) {
           return resolveSectionFromTranslationX(
             dragContextRef.current.sourceSection,
             dragTranslationXRef.current,
@@ -566,6 +617,7 @@ export default function ProjectDetailScreen() {
           }),
         );
         dragContextRef.current = null;
+        dragDropSectionRef.current = null;
         dragPointerXRef.current = null;
         dragTranslationXRef.current = 0;
         updateHoverSection(null);
@@ -573,6 +625,7 @@ export default function ProjectDetailScreen() {
         isBoardDraggingRef.current = false;
         syncBoardScrollLock();
         setActiveDragSourceSection(null);
+        setDragTranslateXCompensation(0);
         return;
       }
 
@@ -587,7 +640,9 @@ export default function ProjectDetailScreen() {
           return prev;
         }
 
-        const sourceIds = orderedTaskIds.filter((taskId) => taskId !== draggedTaskId);
+        const sourceIds = orderedTaskIds.filter(
+          (taskId) => taskId !== draggedTaskId,
+        );
         const targetIds = prev
           .filter(
             (candidate) =>
@@ -599,27 +654,54 @@ export default function ProjectDetailScreen() {
           .sort((a, b) => (a.orderRank ?? 0) - (b.orderRank ?? 0))
           .map((candidate) => candidate.id);
 
-        const sourceOrderIndex = new Map(sourceIds.map((taskId, idx) => [taskId, idx] as const));
-        const targetOrderIndex = new Map(
-          [draggedTaskId, ...targetIds].map((taskId, idx) => [taskId, idx] as const),
+        const sourceOrderIndex = new Map(
+          sourceIds.map((taskId, idx) => [taskId, idx] as const),
         );
+        const targetOrderIndex = new Map(
+          [draggedTaskId, ...targetIds].map(
+            (taskId, idx) => [taskId, idx] as const,
+          ),
+        );
+        const completionTimestamp = Date.now();
+        const targetDayStartMs = getStartOfLocalDayMs();
 
         return prev.map((task) => {
           if (task.id === draggedTaskId) {
-            const needsDueAt =
-              (dropSection === "today" || dropSection === "upcoming") &&
-              (!Number.isFinite(task.dueAt) || task.dueAt <= 0);
+            const nextOrderRank = ((targetOrderIndex.get(task.id) ?? 0) + 1) * 1000;
+            if (dropSection === "completed") {
+              return {
+                ...task,
+                section: "completed",
+                completedAt: completionTimestamp,
+                orderRank: nextOrderRank,
+              };
+            }
+
+            if (dropSection === "today") {
+              const keepTime =
+                task.dueHasTime === true ||
+                (task.dueHasTime !== false && hasValidDueAt(task.dueAt));
+              const nextDueAt = alignDueAtToLocalDay(targetDayStartMs, {
+                sourceDueAt: task.dueAt,
+                keepTime,
+              });
+              return {
+                ...task,
+                section: deriveActiveSectionFromDueAt(nextDueAt),
+                dueAt: nextDueAt,
+                dueHasTime: keepTime,
+                completedAt: undefined,
+                orderRank: nextOrderRank,
+              };
+            }
+
             return {
               ...task,
-              section: dropSection,
-              completedAt: dropSection === "completed" ? Date.now() : undefined,
-              ...(needsDueAt
-                ? {
-                    dueAt: getDueAtForSection(dropSection),
-                    dueHasTime: dropSection === "today",
-                  }
-                : {}),
-              orderRank: ((targetOrderIndex.get(task.id) ?? 0) + 1) * 1000,
+              section: "upcoming",
+              dueAt: 0,
+              dueHasTime: false,
+              completedAt: undefined,
+              orderRank: nextOrderRank,
             };
           }
 
@@ -643,6 +725,7 @@ export default function ProjectDetailScreen() {
         });
       });
       dragContextRef.current = null;
+      dragDropSectionRef.current = null;
       dragPointerXRef.current = null;
       dragTranslationXRef.current = 0;
       updateHoverSection(null);
@@ -650,6 +733,7 @@ export default function ProjectDetailScreen() {
       isBoardDraggingRef.current = false;
       syncBoardScrollLock();
       setActiveDragSourceSection(null);
+      setDragTranslateXCompensation(0);
     },
     [
       id,
@@ -749,28 +833,28 @@ export default function ProjectDetailScreen() {
     [setTasks],
   );
 
-  const handleBoardTouch = React.useCallback((event: any) => {
-    if (!dragContextRef.current) return;
-    const nativeEvent = event?.nativeEvent;
-    const touch = nativeEvent?.touches?.[0] ?? nativeEvent?.changedTouches?.[0];
-    const pageX =
-      typeof touch?.pageX === "number"
-        ? touch.pageX
-        : typeof nativeEvent?.pageX === "number"
-          ? nativeEvent.pageX
-          : null;
-    const pointerX =
-      typeof pageX === "number" && Number.isFinite(pageX)
-        ? pageX - boardPageXRef.current
-        : typeof touch?.locationX === "number"
-          ? touch.locationX
-          : typeof nativeEvent?.locationX === "number"
-            ? nativeEvent.locationX
+  const handleBoardTouch = React.useCallback(
+    (event: any) => {
+      if (!dragContextRef.current || !isBoardDraggingRef.current) return;
+      const nativeEvent = event?.nativeEvent;
+      const touch =
+        nativeEvent?.touches?.[0] ?? nativeEvent?.changedTouches?.[0];
+      const pageX =
+        typeof touch?.pageX === "number"
+          ? touch.pageX
+          : typeof nativeEvent?.pageX === "number"
+            ? nativeEvent.pageX
             : null;
-    if (typeof pointerX === "number" && Number.isFinite(pointerX)) {
-      applyDragPointerX(clamp(pointerX, 0, SCREEN_WIDTH));
-    }
-  }, [applyDragPointerX]);
+      const pointerX =
+        typeof pageX === "number" && Number.isFinite(pageX)
+          ? pageX - boardPageXRef.current
+          : null;
+      if (typeof pointerX === "number" && Number.isFinite(pointerX)) {
+        applyDragPointerX(clamp(pointerX, 0, SCREEN_WIDTH));
+      }
+    },
+    [applyDragPointerX],
+  );
 
   const handleAddTask = React.useCallback(() => {
     pendingAddTaskScrollRef.current = true;
@@ -792,6 +876,7 @@ export default function ProjectDetailScreen() {
       swipingSections.clear();
       touchingSections.clear();
       boardScrollLockedRef.current = false;
+      setDragTranslateXCompensation(0);
       const scrollNode =
         // @ts-ignore - some scroll refs expose getNode
         boardRef?.getNode?.() ?? boardRef;
@@ -863,7 +948,9 @@ export default function ProjectDetailScreen() {
   const columnBottomPadding = isIOS26Plus ? 96 : 20;
 
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: Colors[theme].background }}>
+    <GestureHandlerRootView
+      style={{ flex: 1, backgroundColor: Colors[theme].background }}
+    >
       <View style={styles.container}>
         <Stack.Screen
           options={{
@@ -928,6 +1015,7 @@ export default function ProjectDetailScreen() {
           onTouchCancel={() => {
             dragPointerXRef.current = null;
             stopAutoScroll();
+            setDragTranslateXCompensation(0);
           }}
           scrollEventThrottle={16}
         >
@@ -948,6 +1036,11 @@ export default function ProjectDetailScreen() {
               theme={theme}
               styles={styles}
               rowStyles={rowStyles}
+              dragTranslateXCompensation={
+                activeDragSourceSection === section
+                  ? dragTranslateXCompensation
+                  : 0
+              }
               enabledTags={enabledTags}
               showTagIcons={showTagIcons}
               showCompactSubtasks={showCompactSubtasks}
@@ -958,11 +1051,17 @@ export default function ProjectDetailScreen() {
               onDragBeginTask={(taskId) => {
                 dragPointerXRef.current = null;
                 dragTranslationXRef.current = 0;
+                dragDropSectionRef.current = section;
                 dragContextRef.current = { taskId, sourceSection: section };
                 const currentOffset = boardOffsetXShared.value;
-                if (typeof currentOffset === "number" && Number.isFinite(currentOffset)) {
+                if (
+                  typeof currentOffset === "number" &&
+                  Number.isFinite(currentOffset)
+                ) {
                   boardOffsetXRef.current = currentOffset;
+                  dragBoardOffsetStartRef.current = currentOffset;
                 }
+                setDragTranslateXCompensation(0);
                 setActiveDragSourceSection(section);
                 updateBoardPageX();
                 updateHoverSection(section);
@@ -978,13 +1077,6 @@ export default function ProjectDetailScreen() {
                 }
               }}
               onDragGestureUpdate={handleBoardDragGestureUpdate}
-              onListTouchMove={handleBoardTouch}
-              onListTouchEnd={handleBoardTouch}
-              onListTouchCancel={() => {
-                if (!dragContextRef.current) return;
-                dragPointerXRef.current = null;
-                stopAutoScroll();
-              }}
               onSwipeStateChange={(isSwiping) =>
                 handleSectionSwipeStateChange(section, isSwiping)
               }
@@ -994,7 +1086,9 @@ export default function ProjectDetailScreen() {
             />
           ))}
         </AnimatedBoardScrollView>
-        {showFloatingAddButton ? <FloatingAddButton onPress={handleAddTask} /> : null}
+        {showFloatingAddButton ? (
+          <FloatingAddButton onPress={handleAddTask} />
+        ) : null}
       </View>
     </GestureHandlerRootView>
   );

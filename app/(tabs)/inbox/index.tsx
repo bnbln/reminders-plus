@@ -37,7 +37,7 @@ const HOME_TASK_ITEM_SPACING = 8;
 const IOS_LIGHT_BASE_BACKGROUND = "#F2F2F7";
 const IOS_LIGHT_ELEVATED_SURFACE = "#FFFFFF";
 const HOME_TASK_ROW_SURFACE_LIGHT = IOS_LIGHT_ELEVATED_SURFACE;
-const HOME_TASK_ROW_SURFACE_DARK = "rgba(89, 89, 89, 0.2)";
+const HOME_TASK_ROW_SURFACE_DARK = "rgba(35, 35, 35, 0.2)";
 const SECTION_SIDE_INSET = 0;
 
 type InboxSectionId = "overdue" | "withoutDate";
@@ -381,11 +381,7 @@ export default function InboxScreen() {
       `inbox:${rowLayoutSeed}:o${collapsedSections.overdue ? 1 : 0}:w${
         collapsedSections.withoutDate ? 1 : 0
       }`,
-    [
-      collapsedSections.overdue,
-      collapsedSections.withoutDate,
-      rowLayoutSeed,
-    ],
+    [collapsedSections.overdue, collapsedSections.withoutDate, rowLayoutSeed],
   );
 
   return (

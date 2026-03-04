@@ -1,54 +1,68 @@
-import { Stack, useRouter } from 'expo-router';
-import React from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   Host as ExpoSwiftUIHost,
   Picker as ExpoSwiftUIPicker,
   Text as ExpoSwiftUIText,
-} from '@expo/ui/swift-ui';
+} from "@expo/ui/swift-ui";
 import {
   pickerStyle as expoSwiftPickerStyleModifier,
   tag as expoSwiftTagModifier,
-} from '@expo/ui/swift-ui/modifiers';
+} from "@expo/ui/swift-ui/modifiers";
+import { Stack, useRouter } from "expo-router";
+import React from "react";
+import {
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
-import { TaskSwipeDraggableList } from '@/components/tasks/task-swipe-draggable-list';
-import { withAlpha } from '@/components/ui/glass-surface';
-import { Colors } from '@/constants/theme';
-import { useHomeFilters } from '@/context/home-filters-store';
-import { getDueAtForSection, type Task, useTasksStore } from '@/context/tasks-store';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { t } from '@/i18n';
-import { deriveActiveSectionFromDueAt, hasValidDueAt } from '@/utils/task-dates';
+import { TaskSwipeDraggableList } from "@/components/tasks/task-swipe-draggable-list";
+import { withAlpha } from "@/components/ui/glass-surface";
+import { Colors } from "@/constants/theme";
+import { useHomeFilters } from "@/context/home-filters-store";
+import {
+  getDueAtForSection,
+  type Task,
+  useTasksStore,
+} from "@/context/tasks-store";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { t } from "@/i18n";
+import {
+  deriveActiveSectionFromDueAt,
+  hasValidDueAt,
+} from "@/utils/task-dates";
 
-type TabId = 'completed' | 'trash';
+type TabId = "completed" | "trash";
 
 const ARCHIVE_TASK_ITEM_SPACING = 8;
-const IOS_LIGHT_BASE_BACKGROUND = '#F2F2F7';
-const IOS_LIGHT_ELEVATED_SURFACE = '#FFFFFF';
+const IOS_LIGHT_BASE_BACKGROUND = "#F2F2F7";
+const IOS_LIGHT_ELEVATED_SURFACE = "#FFFFFF";
 const HOME_TASK_ROW_SURFACE_LIGHT = IOS_LIGHT_ELEVATED_SURFACE;
-const HOME_TASK_ROW_SURFACE_DARK = 'rgba(89, 89, 89, 0.2)';
+const HOME_TASK_ROW_SURFACE_DARK = "rgba(35, 35, 35, 0.2)";
 
 export default function ArchiveScreen() {
   const router = useRouter();
-  const theme = useColorScheme() ?? 'light';
-  const isDark = theme === 'dark';
+  const theme = useColorScheme() ?? "light";
+  const isDark = theme === "dark";
   const styles = React.useMemo(() => createStyles(theme), [theme]);
-  const shouldUseNativeExpoSegmentedPicker = Platform.OS === 'ios';
+  const shouldUseNativeExpoSegmentedPicker = Platform.OS === "ios";
 
   const { enabledTags, showTagIcons, showCompactSubtasks } = useHomeFilters();
   const { tasks, setTasks, projects } = useTasksStore();
 
   const projectsById = React.useMemo(
     () => new Map(projects.map((project) => [project.id, project] as const)),
-    [projects]
+    [projects],
   );
 
   const completed = React.useMemo(
     () =>
       tasks
-        .filter((task) => task.section === 'completed' && !task.deletedAt)
+        .filter((task) => task.section === "completed" && !task.deletedAt)
         .sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0)),
-    [tasks]
+    [tasks],
   );
 
   const trashed = React.useMemo(
@@ -56,22 +70,22 @@ export default function ArchiveScreen() {
       tasks
         .filter((task) => !!task.deletedAt)
         .sort((a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0)),
-    [tasks]
+    [tasks],
   );
 
   const [tab, setTab] = React.useState<TabId>(() => {
-    if (completed.length > 0) return 'completed';
-    if (trashed.length > 0) return 'trash';
-    return 'completed';
+    if (completed.length > 0) return "completed";
+    if (trashed.length > 0) return "trash";
+    return "completed";
   });
 
-  const listTasks = tab === 'completed' ? completed : trashed;
+  const listTasks = tab === "completed" ? completed : trashed;
 
   const onPressTask = React.useCallback(
     (taskId: string) => {
-      router.push({ pathname: '/task/[id]', params: { id: taskId } });
+      router.push({ pathname: "/task/[id]", params: { id: taskId } });
     },
-    [router]
+    [router],
   );
 
   const moveCompletedBackToToday = React.useCallback(
@@ -83,15 +97,19 @@ export default function ArchiveScreen() {
         const hasDueAt = hasValidDueAt(current.dueAt);
         const restoredSection = hasDueAt
           ? deriveActiveSectionFromDueAt(current.dueAt)
-          : 'today';
+          : "today";
 
         const activeInSection = prev
           .filter(
             (task) =>
-              task.section === restoredSection && !task.deletedAt && task.id !== taskId
+              task.section === restoredSection &&
+              !task.deletedAt &&
+              task.id !== taskId,
           )
           .sort((a, b) => a.orderRank - b.orderRank);
-        const minRank = activeInSection.length ? activeInSection[0]!.orderRank : 1000;
+        const minRank = activeInSection.length
+          ? activeInSection[0]!.orderRank
+          : 1000;
         const nextRank = Math.max(0, minRank - 1000);
 
         return prev.map((task) => {
@@ -103,7 +121,7 @@ export default function ArchiveScreen() {
             ...(hasDueAt
               ? {}
               : {
-                  dueAt: getDueAtForSection('today'),
+                  dueAt: getDueAtForSection("today"),
                   dueHasTime: true,
                 }),
             orderRank: nextRank,
@@ -111,58 +129,58 @@ export default function ArchiveScreen() {
         });
       });
     },
-    [setTasks]
+    [setTasks],
   );
 
   const restoreFromTrash = React.useCallback(
     (taskId: string) => {
       setTasks((prev) =>
         prev.map((task) =>
-          task.id === taskId ? { ...task, deletedAt: undefined } : task
-        )
+          task.id === taskId ? { ...task, deletedAt: undefined } : task,
+        ),
       );
     },
-    [setTasks]
+    [setTasks],
   );
 
   const moveToTrash = React.useCallback(
     (taskId: string) => {
       setTasks((prev) =>
         prev.map((task) =>
-          task.id === taskId ? { ...task, deletedAt: Date.now() } : task
-        )
+          task.id === taskId ? { ...task, deletedAt: Date.now() } : task,
+        ),
       );
     },
-    [setTasks]
+    [setTasks],
   );
 
   const deleteForever = React.useCallback(
     (taskId: string) => {
       setTasks((prev) => prev.filter((task) => task.id !== taskId));
     },
-    [setTasks]
+    [setTasks],
   );
 
   const enabledTagsSeed = React.useMemo(
-    () => Array.from(enabledTags).sort().join(','),
-    [enabledTags]
+    () => Array.from(enabledTags).sort().join(","),
+    [enabledTags],
   );
   const rowLayoutSeed = React.useMemo(
     () =>
       `${enabledTagsSeed}|icons:${showTagIcons ? 1 : 0}|subtasks:${showCompactSubtasks ? 1 : 0}`,
-    [enabledTagsSeed, showCompactSubtasks, showTagIcons]
+    [enabledTagsSeed, showCompactSubtasks, showTagIcons],
   );
   const keyForTask = React.useCallback(
     (task: Task) =>
-      `task-${task.id}:${tab}:${rowLayoutSeed}:${task.subtitle?.length ?? 0}:${task.subtasks?.length ?? 0}:${task.notes?.length ?? 0}:${task.dueAt}:${task.dueHasTime ? 1 : 0}:${task.completedAt ?? 0}:${task.deletedAt ?? 0}:${task.color ?? ''}`,
-    [rowLayoutSeed, tab]
+      `task-${task.id}:${tab}:${rowLayoutSeed}:${task.subtitle?.length ?? 0}:${task.subtasks?.length ?? 0}:${task.notes?.length ?? 0}:${task.dueAt}:${task.dueHasTime ? 1 : 0}:${task.completedAt ?? 0}:${task.deletedAt ?? 0}:${task.color ?? ""}`,
+    [rowLayoutSeed, tab],
   );
   const listRenderKey = React.useMemo(
     () =>
       `archive:${tab}:${rowLayoutSeed}:${listTasks
         .map((task) => keyForTask(task))
-        .join('|')}`,
-    [keyForTask, listTasks, rowLayoutSeed, tab]
+        .join("|")}`,
+    [keyForTask, listTasks, rowLayoutSeed, tab],
   );
 
   const listHeader = React.useMemo(() => {
@@ -173,14 +191,15 @@ export default function ArchiveScreen() {
             <ExpoSwiftUIPicker<TabId>
               selection={tab}
               onSelectionChange={(nextValue) =>
-                setTab(nextValue === 'trash' ? 'trash' : 'completed')
+                setTab(nextValue === "trash" ? "trash" : "completed")
               }
-              modifiers={[expoSwiftPickerStyleModifier('segmented')]}>
-              <ExpoSwiftUIText modifiers={[expoSwiftTagModifier('completed')]}>
-                {t('archive.tab.completed')}
+              modifiers={[expoSwiftPickerStyleModifier("segmented")]}
+            >
+              <ExpoSwiftUIText modifiers={[expoSwiftTagModifier("completed")]}>
+                {t("archive.tab.completed")}
               </ExpoSwiftUIText>
-              <ExpoSwiftUIText modifiers={[expoSwiftTagModifier('trash')]}>
-                {t('archive.tab.trash')}
+              <ExpoSwiftUIText modifiers={[expoSwiftTagModifier("trash")]}>
+                {t("archive.tab.trash")}
               </ExpoSwiftUIText>
             </ExpoSwiftUIPicker>
           </ExpoSwiftUIHost>
@@ -193,28 +212,40 @@ export default function ArchiveScreen() {
         <View style={styles.segmentWrap}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={t('archive.tab.completed')}
-            onPress={() => setTab('completed')}
+            accessibilityLabel={t("archive.tab.completed")}
+            onPress={() => setTab("completed")}
             style={({ pressed }) => [
               styles.segment,
-              tab === 'completed' && styles.segmentActive,
+              tab === "completed" && styles.segmentActive,
               pressed && { opacity: 0.9 },
-            ]}>
-            <Text style={[styles.segmentText, tab === 'completed' && styles.segmentTextActive]}>
-              {t('archive.tab.completed')}
+            ]}
+          >
+            <Text
+              style={[
+                styles.segmentText,
+                tab === "completed" && styles.segmentTextActive,
+              ]}
+            >
+              {t("archive.tab.completed")}
             </Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={t('archive.tab.trash')}
-            onPress={() => setTab('trash')}
+            accessibilityLabel={t("archive.tab.trash")}
+            onPress={() => setTab("trash")}
             style={({ pressed }) => [
               styles.segment,
-              tab === 'trash' && styles.segmentActive,
+              tab === "trash" && styles.segmentActive,
               pressed && { opacity: 0.9 },
-            ]}>
-            <Text style={[styles.segmentText, tab === 'trash' && styles.segmentTextActive]}>
-              {t('archive.tab.trash')}
+            ]}
+          >
+            <Text
+              style={[
+                styles.segmentText,
+                tab === "trash" && styles.segmentTextActive,
+              ]}
+            >
+              {t("archive.tab.trash")}
             </Text>
           </Pressable>
         </View>
@@ -225,11 +256,13 @@ export default function ArchiveScreen() {
   return (
     <View style={styles.screen}>
       <Stack.Screen
-        options={{
-          title: t('archive.title'),
-          headerTitle: t('archive.title'),
-          headerBackButtonDisplayMode: 'minimal',
-        } as any}
+        options={
+          {
+            title: t("archive.title"),
+            headerTitle: t("archive.title"),
+            headerBackButtonDisplayMode: "minimal",
+          } as any
+        }
       />
 
       <ScrollView
@@ -237,7 +270,8 @@ export default function ArchiveScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+      >
         <TaskSwipeDraggableList
           renderMode="static"
           animateDataLayoutChanges={false}
@@ -252,14 +286,14 @@ export default function ArchiveScreen() {
           empty={
             <View style={styles.empty}>
               <Text style={styles.emptyTitle}>
-                {tab === 'completed'
-                  ? t('archive.empty.completedTitle')
-                  : t('archive.empty.trashTitle')}
+                {tab === "completed"
+                  ? t("archive.empty.completedTitle")
+                  : t("archive.empty.trashTitle")}
               </Text>
               <Text style={styles.emptySubtitle}>
-                {tab === 'completed'
-                  ? t('archive.empty.completedBody')
-                  : t('archive.empty.trashBody')}
+                {tab === "completed"
+                  ? t("archive.empty.completedBody")
+                  : t("archive.empty.trashBody")}
               </Text>
             </View>
           }
@@ -267,8 +301,10 @@ export default function ArchiveScreen() {
           showTaskIcons={showTagIcons}
           showCompactSubtasks={showCompactSubtasks}
           onPressTask={onPressTask}
-          toggleComplete={tab === 'trash' ? restoreFromTrash : moveCompletedBackToToday}
-          deleteTask={tab === 'trash' ? deleteForever : moveToTrash}
+          toggleComplete={
+            tab === "trash" ? restoreFromTrash : moveCompletedBackToToday
+          }
+          deleteTask={tab === "trash" ? deleteForever : moveToTrash}
           sortByOrderRank={false}
         />
       </ScrollView>
@@ -277,25 +313,27 @@ export default function ArchiveScreen() {
 }
 
 const createStyles = (theme: keyof typeof Colors) => {
-  const isDark = theme === 'dark';
-  const useAppleLightPalette = !isDark && Platform.OS === 'ios';
+  const isDark = theme === "dark";
+  const useAppleLightPalette = !isDark && Platform.OS === "ios";
   const text = Colors[theme].text;
   const rowCardSurface = isDark
     ? HOME_TASK_ROW_SURFACE_DARK
     : HOME_TASK_ROW_SURFACE_LIGHT;
   const heroCardBorder = isDark
-    ? 'rgba(255,255,255,0.09)'
+    ? "rgba(255,255,255,0.09)"
     : useAppleLightPalette
-      ? 'rgba(60,60,67,0.18)'
-      : 'rgba(17,24,28,0.09)';
+      ? "rgba(60,60,67,0.18)"
+      : "rgba(17,24,28,0.09)";
   const rowMetaText = withAlpha(text, 0.48);
-  const dangerBg = isDark ? 'rgba(255,69,58,0.18)' : 'rgba(255,59,48,0.14)';
-  const dangerBorder = isDark ? 'rgba(255,69,58,0.32)' : 'rgba(255,59,48,0.26)';
+  const dangerBg = isDark ? "rgba(255,69,58,0.18)" : "rgba(255,59,48,0.14)";
+  const dangerBorder = isDark ? "rgba(255,69,58,0.32)" : "rgba(255,59,48,0.26)";
 
   return StyleSheet.create({
     screen: {
       flex: 1,
-      backgroundColor: isDark ? Colors[theme].background : IOS_LIGHT_BASE_BACKGROUND,
+      backgroundColor: isDark
+        ? Colors[theme].background
+        : IOS_LIGHT_BASE_BACKGROUND,
     },
     scroll: {
       flex: 1,
@@ -311,21 +349,21 @@ const createStyles = (theme: keyof typeof Colors) => {
     },
     segmentSwiftHost: {
       minHeight: 34,
-      justifyContent: 'center',
+      justifyContent: "center",
     },
     segmentWrap: {
-      flexDirection: 'row',
+      flexDirection: "row",
       borderRadius: 999,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
-      overflow: 'hidden',
+      borderColor: isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)",
+      overflow: "hidden",
     },
     segment: {
       flex: 1,
       paddingVertical: 9,
       paddingHorizontal: 10,
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems: "center",
+      justifyContent: "center",
     },
     segmentActive: {
       backgroundColor: withAlpha(text, isDark ? 0.16 : 0.08),
@@ -333,7 +371,7 @@ const createStyles = (theme: keyof typeof Colors) => {
     segmentText: {
       fontSize: 12,
       lineHeight: 16,
-      fontWeight: '700',
+      fontWeight: "700",
       color: withAlpha(text, 0.7),
     },
     segmentTextActive: {
@@ -342,47 +380,47 @@ const createStyles = (theme: keyof typeof Colors) => {
 
     itemSpacer: {
       marginBottom: 0,
-      width: '100%',
-      alignSelf: 'stretch',
+      width: "100%",
+      alignSelf: "stretch",
     },
     swipeClip: {
       borderRadius: 12,
-      overflow: 'hidden',
-      backgroundColor: 'transparent',
+      overflow: "hidden",
+      backgroundColor: "transparent",
       marginHorizontal: 0,
       minHeight: 52,
-      width: '100%',
-      alignSelf: 'stretch',
+      width: "100%",
+      alignSelf: "stretch",
     },
     underlay: {
       ...StyleSheet.absoluteFillObject,
     },
     actionSlot: {
-      position: 'absolute',
+      position: "absolute",
       top: 0,
       bottom: 0,
-      justifyContent: 'center',
+      justifyContent: "center",
     },
     actionSlotLeft: {
       left: 0,
-      alignItems: 'center',
+      alignItems: "center",
     },
     actionSlotRight: {
       right: 0,
-      alignItems: 'center',
+      alignItems: "center",
     },
     actionSlotInner: {
       flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      alignSelf: 'stretch',
+      alignItems: "center",
+      justifyContent: "center",
+      alignSelf: "stretch",
     },
     row: {
       minHeight: 52,
-      width: '100%',
+      width: "100%",
       borderRadius: 12,
       backgroundColor: rowCardSurface,
-      justifyContent: 'center',
+      justifyContent: "center",
       paddingHorizontal: 12,
       paddingVertical: 8,
       gap: 4,
@@ -394,29 +432,29 @@ const createStyles = (theme: keyof typeof Colors) => {
       backgroundColor: rowCardSurface,
       borderWidth: 0,
       opacity: 1,
-      overflow: 'visible',
+      overflow: "visible",
       zIndex: 80,
       elevation: 28,
-      shadowColor: '#000000',
+      shadowColor: "#000000",
       shadowOpacity: isDark ? 0.24 : 0.12,
       shadowRadius: 14,
       shadowOffset: { width: 0, height: 8 },
     },
     rowInner: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
+      flexDirection: "row",
+      alignItems: "flex-start",
       gap: 10,
     },
     emojiTile: {
       width: 36,
       height: 36,
       borderRadius: 10,
-      alignItems: 'center',
-      justifyContent: 'center',
-      overflow: 'hidden',
+      alignItems: "center",
+      justifyContent: "center",
+      overflow: "hidden",
       borderWidth: 0,
       marginTop: 0,
-      backgroundColor: 'transparent',
+      backgroundColor: "transparent",
     },
     emojiText: {
       fontSize: 24,
@@ -426,51 +464,51 @@ const createStyles = (theme: keyof typeof Colors) => {
       gap: 2,
     },
     titleRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
       gap: 10,
     },
     rowTitle: {
       flex: 1,
       fontSize: 16,
       lineHeight: 20,
-      fontWeight: '700',
+      fontWeight: "700",
       color: text,
       letterSpacing: -0.2,
     },
     rowMeta: {
       fontSize: 10,
       lineHeight: 14,
-      fontWeight: '600',
+      fontWeight: "600",
       color: rowMetaText,
       letterSpacing: 0.1,
     },
     rowSubtitle: {
       fontSize: 12,
       lineHeight: 16,
-      fontWeight: '500',
+      fontWeight: "500",
       color: withAlpha(text, 0.32),
     },
     tagRow: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
+      flexDirection: "row",
+      flexWrap: "wrap",
       gap: 6,
       marginTop: 2,
     },
     tagChip: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
       gap: 3,
-      maxWidth: '100%',
+      maxWidth: "100%",
       paddingVertical: 2,
       paddingHorizontal: 8,
       borderRadius: 999,
       borderWidth: 0,
       backgroundColor: isDark
-        ? 'rgba(255,255,255,0.12)'
+        ? "rgba(255,255,255,0.12)"
         : useAppleLightPalette
           ? IOS_LIGHT_BASE_BACKGROUND
-          : 'rgba(255,255,255,0.85)',
+          : "rgba(255,255,255,0.85)",
     },
     tagChipDanger: {
       backgroundColor: dangerBg,
@@ -479,32 +517,32 @@ const createStyles = (theme: keyof typeof Colors) => {
     tagChipText: {
       fontSize: 10,
       lineHeight: 14,
-      fontWeight: '700',
+      fontWeight: "700",
       letterSpacing: 0.2,
-      textTransform: 'uppercase',
+      textTransform: "uppercase",
       color: isDark ? withAlpha(text, 0.7) : withAlpha(text, 0.5),
       maxWidth: 220,
     },
 
     empty: {
       minHeight: 220,
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems: "center",
+      justifyContent: "center",
       gap: 6,
       paddingHorizontal: 8,
     },
     emptyTitle: {
       fontSize: 15,
       lineHeight: 20,
-      fontWeight: '700',
+      fontWeight: "700",
       color: text,
     },
     emptySubtitle: {
       fontSize: 14,
       lineHeight: 18,
-      fontWeight: '600',
+      fontWeight: "600",
       color: withAlpha(text, 0.65),
-      textAlign: 'center',
+      textAlign: "center",
     },
   });
 };

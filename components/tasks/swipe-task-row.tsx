@@ -2,6 +2,7 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as Haptics from "expo-haptics";
 import React from "react";
 import {
+  Animated,
   LayoutChangeEvent,
   Pressable,
   StyleSheet,
@@ -221,8 +222,12 @@ export type SwipeTaskRowProps = {
   swipeClipStyle?: StyleProp<ViewStyle>;
   rowStyle?: StyleProp<ViewStyle>;
   dragCompactPreview?: boolean;
-  activeDragTranslateX?: number;
+  activeDragTranslateX?:
+    | Animated.Value
+    | Animated.AnimatedAddition<number>
+    | null;
   followHorizontalDrag?: boolean;
+  swipeActivationThreshold?: number;
 };
 
 export const SwipeTaskRow = React.memo(function SwipeTaskRow({
@@ -260,8 +265,9 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   swipeClipStyle,
   rowStyle,
   dragCompactPreview = false,
-  activeDragTranslateX = 0,
+  activeDragTranslateX = null,
   followHorizontalDrag = false,
+  swipeActivationThreshold,
 }: SwipeTaskRowProps) {
   const swipeRef = React.useRef<SwipeableItemImperativeRef | null>(null);
   const longPressTriggeredRef = React.useRef(false);
@@ -526,7 +532,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       if (!isActive || !followHorizontalDrag) {
         return null;
       }
-      if (!Number.isFinite(activeDragTranslateX)) return null;
+      if (!activeDragTranslateX) return null;
       const anchorX =
         shouldUseCompactDragPreview &&
         typeof dragPressInLocalX === "number" &&
@@ -534,7 +540,10 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
           ? dragPressInLocalX - DRAG_COMPACT_PREVIEW_SIZE / 2
           : 0;
       return {
-        transform: [{ translateX: activeDragTranslateX + anchorX }],
+        transform:
+          anchorX === 0
+            ? [{ translateX: activeDragTranslateX }]
+            : [{ translateX: activeDragTranslateX }, { translateX: anchorX }],
       };
     },
     [
@@ -869,7 +878,11 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
           ref={swipeRef}
           item={task}
           swipeEnabled={!isActive}
-          activationThreshold={SWIPE_ACTIVATION_THRESHOLD}
+          activationThreshold={
+            typeof swipeActivationThreshold === "number"
+              ? swipeActivationThreshold
+              : SWIPE_ACTIVATION_THRESHOLD
+          }
           swipeDamping={SWIPE_DAMPING}
           overSwipe={SWIPE_OVER_SWIPE}
           snapPointsLeft={[SWIPE_STOP, SWIPE_TRIGGER_SNAP]}
@@ -878,7 +891,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
           renderUnderlayLeft={renderUnderlayLeft}
           renderUnderlayRight={renderUnderlayRight}
         >
-          <View style={activeDragPreviewOffsetStyle}>
+          <Animated.View style={activeDragPreviewOffsetStyle}>
             <TouchableOpacity
               onLongPress={handleLongPressDrag}
               delayLongPress={DRAG_LONG_PRESS_DELAY_MS}
@@ -961,7 +974,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
                 </View>
               </GlassSurface>
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         </SwipeableItem>
       </View>
     </View>
