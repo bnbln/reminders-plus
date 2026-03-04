@@ -1,9 +1,18 @@
 import { Stack, useRouter } from 'expo-router';
 import React from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Host as ExpoSwiftUIHost,
+  Picker as ExpoSwiftUIPicker,
+  Text as ExpoSwiftUIText,
+} from '@expo/ui/swift-ui';
+import {
+  pickerStyle as expoSwiftPickerStyleModifier,
+  tag as expoSwiftTagModifier,
+} from '@expo/ui/swift-ui/modifiers';
 
-import { SwipeTaskRow } from '@/components/tasks/swipe-task-row';
-import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
+import { TaskSwipeDraggableList } from '@/components/tasks/task-swipe-draggable-list';
+import { withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
 import { useHomeFilters } from '@/context/home-filters-store';
 import { getDueAtForSection, type Task, useTasksStore } from '@/context/tasks-store';
@@ -13,36 +22,40 @@ import { deriveActiveSectionFromDueAt, hasValidDueAt } from '@/utils/task-dates'
 
 type TabId = 'completed' | 'trash';
 
-function formatCountLabel(count: number) {
-  return count === 1 ? t('archive.count.one', { count }) : t('archive.count.other', { count });
-}
+const ARCHIVE_TASK_ITEM_SPACING = 8;
+const IOS_LIGHT_BASE_BACKGROUND = '#F2F2F7';
+const IOS_LIGHT_ELEVATED_SURFACE = '#FFFFFF';
+const HOME_TASK_ROW_SURFACE_LIGHT = IOS_LIGHT_ELEVATED_SURFACE;
+const HOME_TASK_ROW_SURFACE_DARK = 'rgba(89, 89, 89, 0.2)';
 
 export default function ArchiveScreen() {
   const router = useRouter();
   const theme = useColorScheme() ?? 'light';
   const isDark = theme === 'dark';
   const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const shouldUseNativeExpoSegmentedPicker = Platform.OS === 'ios';
 
-  const { enabledTags, showTagIcons } = useHomeFilters();
-
-  const emojiTint = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.12 : 0.22), [isDark, theme]);
-  const emojiFallback = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.52 : 0.74), [isDark, theme]);
-
-  const swipeGreenBg = React.useMemo(() => (isDark ? '#30D158' : '#34C759'), [isDark]);
-  const swipeRedBg = React.useMemo(() => (isDark ? '#FF453A' : '#FF3B30'), [isDark]);
-
+  const { enabledTags, showTagIcons, showCompactSubtasks } = useHomeFilters();
   const { tasks, setTasks, projects } = useTasksStore();
-  const projectsById = React.useMemo(() => new Map(projects.map((p) => [p.id, p] as const)), [projects]);
+
+  const projectsById = React.useMemo(
+    () => new Map(projects.map((project) => [project.id, project] as const)),
+    [projects]
+  );
 
   const completed = React.useMemo(
-    () => tasks
-      .filter((t) => t.section === 'completed' && !t.deletedAt)
-      .sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0)),
+    () =>
+      tasks
+        .filter((task) => task.section === 'completed' && !task.deletedAt)
+        .sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0)),
     [tasks]
   );
 
   const trashed = React.useMemo(
-    () => tasks.filter((t) => !!t.deletedAt).sort((a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0)),
+    () =>
+      tasks
+        .filter((task) => !!task.deletedAt)
+        .sort((a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0)),
     [tasks]
   );
 
@@ -52,77 +65,39 @@ export default function ArchiveScreen() {
     return 'completed';
   });
 
+  const listTasks = tab === 'completed' ? completed : trashed;
+
   const onPressTask = React.useCallback(
     (taskId: string) => {
-      router.push(`/task/${taskId}`);
+      router.push({ pathname: '/task/[id]', params: { id: taskId } });
     },
     [router]
-  );
-
-  const openTaskIdRef = React.useRef<string | null>(null);
-  const closersRef = React.useRef(new Map<string, () => void>());
-  const beginSwipe = React.useCallback((taskId: string) => {
-    const open = openTaskIdRef.current;
-    if (open && open !== taskId) {
-      const close = closersRef.current.get(open);
-      close?.();
-    }
-    openTaskIdRef.current = taskId;
-  }, []);
-
-  const endSwipe = React.useCallback((taskId: string) => {
-    if (openTaskIdRef.current === taskId) openTaskIdRef.current = null;
-  }, []);
-
-  const registerClose = React.useCallback((taskId: string, close: () => void) => {
-    closersRef.current.set(taskId, close);
-  }, []);
-
-  const unregisterClose = React.useCallback((taskId: string) => {
-    closersRef.current.delete(taskId);
-    if (openTaskIdRef.current === taskId) openTaskIdRef.current = null;
-  }, []);
-
-  const closeAnyOpen = React.useCallback(() => {
-    const open = openTaskIdRef.current;
-    if (!open) return;
-    const close = closersRef.current.get(open);
-    close?.();
-    openTaskIdRef.current = null;
-  }, []);
-
-  const handlePressTask = React.useCallback(
-    (taskId: string) => {
-      // First tap closes swipe if anything is open.
-      if (openTaskIdRef.current) {
-        closeAnyOpen();
-        return;
-      }
-      onPressTask(taskId);
-    },
-    [closeAnyOpen, onPressTask]
   );
 
   const moveCompletedBackToToday = React.useCallback(
     (taskId: string) => {
       setTasks((prev) => {
-        const current = prev.find((t) => t.id === taskId);
+        const current = prev.find((task) => task.id === taskId);
         if (!current) return prev;
+
         const hasDueAt = hasValidDueAt(current.dueAt);
         const restoredSection = hasDueAt
           ? deriveActiveSectionFromDueAt(current.dueAt)
           : 'today';
 
         const activeInSection = prev
-          .filter((t) => t.section === restoredSection && !t.deletedAt && t.id !== taskId)
+          .filter(
+            (task) =>
+              task.section === restoredSection && !task.deletedAt && task.id !== taskId
+          )
           .sort((a, b) => a.orderRank - b.orderRank);
         const minRank = activeInSection.length ? activeInSection[0]!.orderRank : 1000;
         const nextRank = Math.max(0, minRank - 1000);
 
-        return prev.map((t) => {
-          if (t.id !== taskId) return t;
+        return prev.map((task) => {
+          if (task.id !== taskId) return task;
           return {
-            ...t,
+            ...task,
             section: restoredSection,
             completedAt: undefined,
             ...(hasDueAt
@@ -141,152 +116,111 @@ export default function ArchiveScreen() {
 
   const restoreFromTrash = React.useCallback(
     (taskId: string) => {
-      setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, deletedAt: undefined } : t)));
+      setTasks((prev) =>
+        prev.map((task) =>
+          task.id === taskId ? { ...task, deletedAt: undefined } : task
+        )
+      );
     },
     [setTasks]
   );
 
   const moveToTrash = React.useCallback(
     (taskId: string) => {
-      setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, deletedAt: Date.now() } : t)));
+      setTasks((prev) =>
+        prev.map((task) =>
+          task.id === taskId ? { ...task, deletedAt: Date.now() } : task
+        )
+      );
     },
     [setTasks]
   );
 
   const deleteForever = React.useCallback(
     (taskId: string) => {
-      setTasks((prev) => prev.filter((t) => t.id !== taskId));
+      setTasks((prev) => prev.filter((task) => task.id !== taskId));
     },
     [setTasks]
   );
 
-  const data = tab === 'completed' ? completed : trashed;
-
-  const title = tab === 'completed' ? t('archive.tab.completed') : t('archive.tab.trash');
-  const subtitle =
-    tab === 'completed'
-      ? formatCountLabel(completed.length)
-      : formatCountLabel(trashed.length);
+  const enabledTagsSeed = React.useMemo(
+    () => Array.from(enabledTags).sort().join(','),
+    [enabledTags]
+  );
+  const rowLayoutSeed = React.useMemo(
+    () =>
+      `${enabledTagsSeed}|icons:${showTagIcons ? 1 : 0}|subtasks:${showCompactSubtasks ? 1 : 0}`,
+    [enabledTagsSeed, showCompactSubtasks, showTagIcons]
+  );
+  const keyForTask = React.useCallback(
+    (task: Task) =>
+      `task-${task.id}:${tab}:${rowLayoutSeed}:${task.subtitle?.length ?? 0}:${task.subtasks?.length ?? 0}:${task.notes?.length ?? 0}:${task.dueAt}:${task.dueHasTime ? 1 : 0}:${task.completedAt ?? 0}:${task.deletedAt ?? 0}:${task.color ?? ''}`,
+    [rowLayoutSeed, tab]
+  );
+  const listRenderKey = React.useMemo(
+    () =>
+      `archive:${tab}:${rowLayoutSeed}:${listTasks
+        .map((task) => keyForTask(task))
+        .join('|')}`,
+    [keyForTask, listTasks, rowLayoutSeed, tab]
+  );
 
   const listHeader = React.useMemo(() => {
+    if (shouldUseNativeExpoSegmentedPicker) {
+      return (
+        <View style={styles.header}>
+          <ExpoSwiftUIHost matchContents style={styles.segmentSwiftHost}>
+            <ExpoSwiftUIPicker<TabId>
+              selection={tab}
+              onSelectionChange={(nextValue) =>
+                setTab(nextValue === 'trash' ? 'trash' : 'completed')
+              }
+              modifiers={[expoSwiftPickerStyleModifier('segmented')]}>
+              <ExpoSwiftUIText modifiers={[expoSwiftTagModifier('completed')]}>
+                {t('archive.tab.completed')}
+              </ExpoSwiftUIText>
+              <ExpoSwiftUIText modifiers={[expoSwiftTagModifier('trash')]}>
+                {t('archive.tab.trash')}
+              </ExpoSwiftUIText>
+            </ExpoSwiftUIPicker>
+          </ExpoSwiftUIHost>
+        </View>
+      );
+    }
+
     return (
       <View style={styles.header}>
-        <View style={styles.headerMeta}>
-          <Text style={styles.titleText}>{title}</Text>
-          <Text style={styles.subtitleText}>{subtitle}</Text>
-        </View>
-
-        <GlassSurface
-          tintColor={withAlpha(Colors[theme].background, isDark ? 0.14 : 0.22)}
-          fallbackBackgroundColor={withAlpha(Colors[theme].background, isDark ? 0.86 : 0.92)}
-          style={styles.segmentWrap}>
+        <View style={styles.segmentWrap}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t('archive.tab.completed')}
-            onPress={() => {
-              closeAnyOpen();
-              setTab('completed');
-            }}
-            style={({ pressed }) => [styles.segment, tab === 'completed' && styles.segmentActive, pressed && { opacity: 0.9 }]}>
+            onPress={() => setTab('completed')}
+            style={({ pressed }) => [
+              styles.segment,
+              tab === 'completed' && styles.segmentActive,
+              pressed && { opacity: 0.9 },
+            ]}>
             <Text style={[styles.segmentText, tab === 'completed' && styles.segmentTextActive]}>
-              {`${t('archive.tab.completed')} (${completed.length})`}
+              {t('archive.tab.completed')}
             </Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t('archive.tab.trash')}
-            onPress={() => {
-              closeAnyOpen();
-              setTab('trash');
-            }}
-            style={({ pressed }) => [styles.segment, tab === 'trash' && styles.segmentActive, pressed && { opacity: 0.9 }]}>
+            onPress={() => setTab('trash')}
+            style={({ pressed }) => [
+              styles.segment,
+              tab === 'trash' && styles.segmentActive,
+              pressed && { opacity: 0.9 },
+            ]}>
             <Text style={[styles.segmentText, tab === 'trash' && styles.segmentTextActive]}>
-              {`${t('archive.tab.trash')} (${trashed.length})`}
+              {t('archive.tab.trash')}
             </Text>
           </Pressable>
-        </GlassSurface>
+        </View>
       </View>
     );
-  }, [
-    closeAnyOpen,
-    completed.length,
-    isDark,
-    styles,
-    tab,
-    theme,
-    title,
-    subtitle,
-    trashed.length,
-  ]);
-
-  const renderRow = React.useCallback(
-    ({ item }: { item: Task }) => {
-      return (
-        <SwipeTaskRow
-          task={item}
-          project={projectsById.get(item.projectId)}
-          drag={() => undefined}
-          isActive={false}
-          styles={styles}
-          isDark={isDark}
-          emojiTint={emojiTint}
-          emojiFallback={emojiFallback}
-          swipeCompleteBg={swipeGreenBg}
-          swipeDeleteBg={swipeRedBg}
-          leftAction={
-            tab === 'trash'
-              ? {
-                  icon: 'restore',
-                  backgroundColor: swipeGreenBg,
-                  onTrigger: (taskId) => restoreFromTrash(taskId),
-                }
-              : undefined
-          }
-          rightAction={
-            tab === 'trash'
-              ? {
-                  icon: 'delete-forever',
-                  backgroundColor: swipeRedBg,
-                  onTrigger: (taskId) => deleteForever(taskId),
-                }
-              : undefined
-          }
-          enabledTags={enabledTags}
-          showTaskIcons={showTagIcons}
-          beginSwipe={beginSwipe}
-          endSwipe={endSwipe}
-          registerClose={registerClose}
-          unregisterClose={unregisterClose}
-          closeAnyOpen={closeAnyOpen}
-          onPressTask={handlePressTask}
-          toggleComplete={(taskId) => moveCompletedBackToToday(taskId)}
-          deleteTask={(taskId) => moveToTrash(taskId)}
-        />
-      );
-    },
-    [
-      beginSwipe,
-      closeAnyOpen,
-      deleteForever,
-      endSwipe,
-      enabledTags,
-      emojiFallback,
-      emojiTint,
-      handlePressTask,
-      isDark,
-      moveCompletedBackToToday,
-      moveToTrash,
-      projectsById,
-      registerClose,
-      restoreFromTrash,
-      showTagIcons,
-      styles,
-      tab,
-      unregisterClose,
-      swipeGreenBg,
-      swipeRedBg,
-    ]
-  );
+  }, [shouldUseNativeExpoSegmentedPicker, styles, tab]);
 
   return (
     <View style={styles.screen}>
@@ -294,55 +228,77 @@ export default function ArchiveScreen() {
         options={{
           title: t('archive.title'),
           headerTitle: t('archive.title'),
-          //headerBackTitle: ' ',
           headerBackButtonDisplayMode: 'minimal',
-          //headerTransparent: true,
-          //headerShadowVisible: false,
-          //headerStyle: { backgroundColor: 'transparent' },
-          //headerBackButtonDisplayMode: 'minimal',
         } as any}
       />
 
-      <FlatList
-        data={data}
-        keyExtractor={(t) => `${t.id}:${tab}`}
-        renderItem={renderRow}
-        ListHeaderComponent={listHeader}
+      <ScrollView
+        key={listRenderKey}
+        style={styles.scroll}
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>{tab === 'completed' ? t('archive.empty.completedTitle') : t('archive.empty.trashTitle')}</Text>
-            <Text style={styles.emptySubtitle}>
-              {tab === 'completed'
-                ? t('archive.empty.completedBody')
-                : t('archive.empty.trashBody')}
-            </Text>
-          </View>
-        }
-      />
+        showsVerticalScrollIndicator={false}>
+        <TaskSwipeDraggableList
+          renderMode="static"
+          animateDataLayoutChanges={false}
+          theme={theme}
+          isDark={isDark}
+          tasks={listTasks}
+          keyForTask={keyForTask}
+          projectsById={projectsById}
+          rowStyles={styles}
+          itemSpacing={ARCHIVE_TASK_ITEM_SPACING}
+          header={listHeader}
+          empty={
+            <View style={styles.empty}>
+              <Text style={styles.emptyTitle}>
+                {tab === 'completed'
+                  ? t('archive.empty.completedTitle')
+                  : t('archive.empty.trashTitle')}
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                {tab === 'completed'
+                  ? t('archive.empty.completedBody')
+                  : t('archive.empty.trashBody')}
+              </Text>
+            </View>
+          }
+          enabledTags={enabledTags}
+          showTaskIcons={showTagIcons}
+          showCompactSubtasks={showCompactSubtasks}
+          onPressTask={onPressTask}
+          toggleComplete={tab === 'trash' ? restoreFromTrash : moveCompletedBackToToday}
+          deleteTask={tab === 'trash' ? deleteForever : moveToTrash}
+          sortByOrderRank={false}
+        />
+      </ScrollView>
     </View>
   );
 }
 
 const createStyles = (theme: keyof typeof Colors) => {
   const isDark = theme === 'dark';
+  const useAppleLightPalette = !isDark && Platform.OS === 'ios';
   const text = Colors[theme].text;
-  const rowSurface = Colors[theme].background;
-  const hairline = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)';
-
-  const rowDivider = isDark ? 'rgba(255,255,255,0.24)' : 'rgba(0,0,0,0.16)';
-  const tagBg = withAlpha(text, isDark ? 0.10 : 0.08);
-  const tagText = withAlpha(text, 0.78);
+  const rowCardSurface = isDark
+    ? HOME_TASK_ROW_SURFACE_DARK
+    : HOME_TASK_ROW_SURFACE_LIGHT;
+  const heroCardBorder = isDark
+    ? 'rgba(255,255,255,0.09)'
+    : useAppleLightPalette
+      ? 'rgba(60,60,67,0.18)'
+      : 'rgba(17,24,28,0.09)';
+  const rowMetaText = withAlpha(text, 0.48);
   const dangerBg = isDark ? 'rgba(255,69,58,0.18)' : 'rgba(255,59,48,0.14)';
   const dangerBorder = isDark ? 'rgba(255,69,58,0.32)' : 'rgba(255,59,48,0.26)';
-  const rowMetaText = withAlpha(text, isDark ? 0.5 : 0.42);
 
   return StyleSheet.create({
     screen: {
       flex: 1,
-      backgroundColor: Colors[theme].background,
+      backgroundColor: isDark ? Colors[theme].background : IOS_LIGHT_BASE_BACKGROUND,
+    },
+    scroll: {
+      flex: 1,
     },
     content: {
       paddingHorizontal: 16,
@@ -351,33 +307,17 @@ const createStyles = (theme: keyof typeof Colors) => {
     },
 
     header: {
-      gap: 10,
       marginBottom: 12,
     },
-    headerMeta: {
-      flex: 1,
-      gap: 3,
+    segmentSwiftHost: {
+      minHeight: 34,
+      justifyContent: 'center',
     },
-
-    titleText: {
-      fontSize: 24,
-      lineHeight: 30,
-      fontWeight: '700',
-      letterSpacing: -0.1,
-      color: text,
-    },
-    subtitleText: {
-      fontSize: 13,
-      lineHeight: 18,
-      fontWeight: '600',
-      color: withAlpha(text, 0.7),
-    },
-
     segmentWrap: {
       flexDirection: 'row',
       borderRadius: 999,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hairline,
+      borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
       overflow: 'hidden',
     },
     segment: {
@@ -400,14 +340,19 @@ const createStyles = (theme: keyof typeof Colors) => {
       color: text,
     },
 
-    // --- shared task row styles (same contract as Home SwipeTaskRow) ---
     itemSpacer: {
       marginBottom: 0,
+      width: '100%',
+      alignSelf: 'stretch',
     },
     swipeClip: {
       borderRadius: 12,
       overflow: 'hidden',
-      backgroundColor: rowSurface,
+      backgroundColor: 'transparent',
+      marginHorizontal: 0,
+      minHeight: 52,
+      width: '100%',
+      alignSelf: 'stretch',
     },
     underlay: {
       ...StyleSheet.absoluteFillObject,
@@ -427,28 +372,35 @@ const createStyles = (theme: keyof typeof Colors) => {
       alignItems: 'center',
     },
     actionSlotInner: {
-      width: 40,
-      height: 40,
-      borderRadius: 999,
+      flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
+      alignSelf: 'stretch',
     },
     row: {
-      minHeight: 60,
-      borderRadius: 0,
-      backgroundColor: rowSurface,
+      minHeight: 52,
+      width: '100%',
+      borderRadius: 12,
+      backgroundColor: rowCardSurface,
       justifyContent: 'center',
-      paddingHorizontal: 8,
+      paddingHorizontal: 12,
       paddingVertical: 8,
       gap: 4,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: rowDivider,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: heroCardBorder,
     },
     dragRow: {
-      borderRadius: 0,
-      backgroundColor: rowSurface,
+      borderRadius: 20,
+      backgroundColor: rowCardSurface,
       borderWidth: 0,
       opacity: 1,
+      overflow: 'visible',
+      zIndex: 80,
+      elevation: 28,
+      shadowColor: '#000000',
+      shadowOpacity: isDark ? 0.24 : 0.12,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 8 },
     },
     rowInner: {
       flexDirection: 'row',
@@ -456,17 +408,18 @@ const createStyles = (theme: keyof typeof Colors) => {
       gap: 10,
     },
     emojiTile: {
-      width: 30,
-      height: 30,
+      width: 36,
+      height: 36,
       borderRadius: 10,
       alignItems: 'center',
       justifyContent: 'center',
       overflow: 'hidden',
-      borderWidth: StyleSheet.hairlineWidth,
-      marginTop: 1,
+      borderWidth: 0,
+      marginTop: 0,
+      backgroundColor: 'transparent',
     },
     emojiText: {
-      fontSize: 17,
+      fontSize: 24,
     },
     textStack: {
       flex: 1,
@@ -480,23 +433,23 @@ const createStyles = (theme: keyof typeof Colors) => {
     rowTitle: {
       flex: 1,
       fontSize: 16,
-      lineHeight: 21,
+      lineHeight: 20,
       fontWeight: '700',
       color: text,
       letterSpacing: -0.2,
     },
     rowMeta: {
-      fontSize: 11,
+      fontSize: 10,
       lineHeight: 14,
-      fontWeight: '700',
+      fontWeight: '600',
       color: rowMetaText,
-      letterSpacing: 0.15,
+      letterSpacing: 0.1,
     },
     rowSubtitle: {
-      fontSize: 13,
-      lineHeight: 17,
-      fontWeight: '600',
-      color: withAlpha(text, 0.72),
+      fontSize: 12,
+      lineHeight: 16,
+      fontWeight: '500',
+      color: withAlpha(text, 0.32),
     },
     tagRow: {
       flexDirection: 'row',
@@ -507,32 +460,38 @@ const createStyles = (theme: keyof typeof Colors) => {
     tagChip: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
+      gap: 3,
       maxWidth: '100%',
-      paddingVertical: 4,
+      paddingVertical: 2,
       paddingHorizontal: 8,
       borderRadius: 999,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hairline,
-      backgroundColor: tagBg,
+      borderWidth: 0,
+      backgroundColor: isDark
+        ? 'rgba(255,255,255,0.12)'
+        : useAppleLightPalette
+          ? IOS_LIGHT_BASE_BACKGROUND
+          : 'rgba(255,255,255,0.85)',
     },
     tagChipDanger: {
       backgroundColor: dangerBg,
       borderColor: dangerBorder,
     },
     tagChipText: {
-      fontSize: 12,
-      lineHeight: 16,
+      fontSize: 10,
+      lineHeight: 14,
       fontWeight: '700',
-      color: tagText,
+      letterSpacing: 0.2,
+      textTransform: 'uppercase',
+      color: isDark ? withAlpha(text, 0.7) : withAlpha(text, 0.5),
       maxWidth: 220,
     },
 
     empty: {
-      paddingTop: 22,
-      paddingHorizontal: 8,
+      minHeight: 220,
       alignItems: 'center',
+      justifyContent: 'center',
       gap: 6,
+      paddingHorizontal: 8,
     },
     emptyTitle: {
       fontSize: 15,

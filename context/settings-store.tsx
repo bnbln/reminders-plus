@@ -21,9 +21,32 @@ export const ACCENT_COLORS = [
 
 export type AccentColorId = (typeof ACCENT_COLORS)[number]["id"];
 
+export type AppBadgeMode =
+  | "dueToday"
+  | "overdueOnly"
+  | "allOpenTasks"
+  | "completedToday"
+  | "hidden";
+
+export const APP_BADGE_MODES: readonly AppBadgeMode[] = [
+  "dueToday",
+  "overdueOnly",
+  "allOpenTasks",
+  "completedToday",
+  "hidden",
+] as const;
+
+export const DEFAULT_APP_BADGE_MODE: AppBadgeMode = "dueToday";
+export const DEFAULT_DAILY_SUMMARY_MINUTES = 20 * 60;
+
 type PersistedSettings = {
   appearanceMode: AppearanceMode;
   accentColor: AccentColorId;
+  hapticsEnabled: boolean;
+  reduceMotionEnabled: boolean;
+  appBadgeMode: AppBadgeMode;
+  dailySummaryEnabled: boolean;
+  dailySummaryMinutes: number;
 };
 
 type SettingsSnapshot = PersistedSettings & {
@@ -35,6 +58,11 @@ const STORAGE_KEY = "reminds.settings.v1";
 const DEFAULT_SETTINGS: PersistedSettings = {
   appearanceMode: "adaptive",
   accentColor: "blue",
+  hapticsEnabled: true,
+  reduceMotionEnabled: false,
+  appBadgeMode: DEFAULT_APP_BADGE_MODE,
+  dailySummaryEnabled: false,
+  dailySummaryMinutes: DEFAULT_DAILY_SUMMARY_MINUTES,
 };
 
 const ACCENT_COLOR_VALUE_BY_ID = ACCENT_COLORS.reduce(
@@ -67,10 +95,31 @@ function isAccentColorId(value: unknown): value is AccentColorId {
   return ACCENT_COLORS.some((color) => color.id === value);
 }
 
+function isAppBadgeMode(value: unknown): value is AppBadgeMode {
+  return APP_BADGE_MODES.some((mode) => mode === value);
+}
+
+function normalizeDailySummaryMinutes(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return DEFAULT_DAILY_SUMMARY_MINUTES;
+  }
+  const rounded = Math.round(value);
+  const normalized = ((rounded % 1440) + 1440) % 1440;
+  return normalized;
+}
+
 function sanitizeStoredSettings(value: unknown): PersistedSettings | null {
   if (!value || typeof value !== "object") return null;
   const appearanceMode = (value as { appearanceMode?: unknown }).appearanceMode;
   const accentColor = (value as { accentColor?: unknown }).accentColor;
+  const hapticsEnabled = (value as { hapticsEnabled?: unknown }).hapticsEnabled;
+  const reduceMotionEnabled = (value as { reduceMotionEnabled?: unknown })
+    .reduceMotionEnabled;
+  const appBadgeMode = (value as { appBadgeMode?: unknown }).appBadgeMode;
+  const dailySummaryEnabled = (value as { dailySummaryEnabled?: unknown })
+    .dailySummaryEnabled;
+  const dailySummaryMinutes = (value as { dailySummaryMinutes?: unknown })
+    .dailySummaryMinutes;
   return {
     appearanceMode: isAppearanceMode(appearanceMode)
       ? appearanceMode
@@ -78,6 +127,22 @@ function sanitizeStoredSettings(value: unknown): PersistedSettings | null {
     accentColor: isAccentColorId(accentColor)
       ? accentColor
       : DEFAULT_SETTINGS.accentColor,
+    hapticsEnabled:
+      typeof hapticsEnabled === "boolean"
+        ? hapticsEnabled
+        : DEFAULT_SETTINGS.hapticsEnabled,
+    reduceMotionEnabled:
+      typeof reduceMotionEnabled === "boolean"
+        ? reduceMotionEnabled
+        : DEFAULT_SETTINGS.reduceMotionEnabled,
+    appBadgeMode: isAppBadgeMode(appBadgeMode)
+      ? appBadgeMode
+      : DEFAULT_SETTINGS.appBadgeMode,
+    dailySummaryEnabled:
+      typeof dailySummaryEnabled === "boolean"
+        ? dailySummaryEnabled
+        : DEFAULT_SETTINGS.dailySummaryEnabled,
+    dailySummaryMinutes: normalizeDailySummaryMinutes(dailySummaryMinutes),
   };
 }
 
@@ -174,6 +239,11 @@ function updateSettings(next: PersistedSettings) {
   const hasChanged =
     snapshot.appearanceMode !== next.appearanceMode ||
     snapshot.accentColor !== next.accentColor ||
+    snapshot.hapticsEnabled !== next.hapticsEnabled ||
+    snapshot.reduceMotionEnabled !== next.reduceMotionEnabled ||
+    snapshot.appBadgeMode !== next.appBadgeMode ||
+    snapshot.dailySummaryEnabled !== next.dailySummaryEnabled ||
+    snapshot.dailySummaryMinutes !== next.dailySummaryMinutes ||
     !snapshot.hasHydrated;
   if (!hasChanged) return;
 
@@ -199,6 +269,16 @@ function patchSettings(partial: Partial<PersistedSettings>) {
   updateSettings({
     appearanceMode: partial.appearanceMode ?? snapshot.appearanceMode,
     accentColor: partial.accentColor ?? snapshot.accentColor,
+    hapticsEnabled: partial.hapticsEnabled ?? snapshot.hapticsEnabled,
+    reduceMotionEnabled:
+      partial.reduceMotionEnabled ?? snapshot.reduceMotionEnabled,
+    appBadgeMode: partial.appBadgeMode ?? snapshot.appBadgeMode,
+    dailySummaryEnabled:
+      partial.dailySummaryEnabled ?? snapshot.dailySummaryEnabled,
+    dailySummaryMinutes:
+      partial.dailySummaryMinutes !== undefined
+        ? normalizeDailySummaryMinutes(partial.dailySummaryMinutes)
+        : snapshot.dailySummaryMinutes,
   });
 }
 
@@ -230,6 +310,10 @@ export function getAccentColorValue(accentColorId: AccentColorId): string {
   );
 }
 
+export function getAppSettingsSnapshot() {
+  return snapshot;
+}
+
 export function useAppSettings() {
   const state = React.useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
@@ -245,9 +329,43 @@ export function useAppSettings() {
     patchSettings({ accentColor });
   }, []);
 
+  const setHapticsEnabled = React.useCallback((hapticsEnabled: boolean) => {
+    patchSettings({ hapticsEnabled });
+  }, []);
+
+  const setReduceMotionEnabled = React.useCallback(
+    (reduceMotionEnabled: boolean) => {
+      patchSettings({ reduceMotionEnabled });
+    },
+    [],
+  );
+
+  const setAppBadgeMode = React.useCallback((appBadgeMode: AppBadgeMode) => {
+    patchSettings({ appBadgeMode });
+  }, []);
+
+  const setDailySummaryEnabled = React.useCallback(
+    (dailySummaryEnabled: boolean) => {
+      patchSettings({ dailySummaryEnabled });
+    },
+    [],
+  );
+
+  const setDailySummaryMinutes = React.useCallback(
+    (dailySummaryMinutes: number) => {
+      patchSettings({ dailySummaryMinutes });
+    },
+    [],
+  );
+
   return {
     ...state,
     setAppearanceMode,
     setAccentColor,
+    setHapticsEnabled,
+    setReduceMotionEnabled,
+    setAppBadgeMode,
+    setDailySummaryEnabled,
+    setDailySummaryMinutes,
   };
 }

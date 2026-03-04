@@ -11,6 +11,10 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.reminds",
       "infoPlist": {
+        "NSCalendarsUsageDescription": "Wir importieren Termine aus Apple Kalender in deine App.",
+        "NSCalendarsFullAccessUsageDescription": "Wir importieren Termine aus Apple Kalender in deine App.",
+        "NSRemindersUsageDescription": "Wir importieren Erinnerungen aus Apple Erinnerungen in deine App.",
+        "NSRemindersFullAccessUsageDescription": "Wir importieren Erinnerungen aus Apple Erinnerungen in deine App.",
         "NSLocationWhenInUseUsageDescription": "Wir verwenden deinen Standort, um den aktuellen Ort für den Task vorzuschlagen.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Wir verwenden deinen Standort, um den aktuellen Ort für den Task vorzuschlagen."
       }
@@ -27,7 +31,9 @@
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION"
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.READ_CALENDAR",
+        "android.permission.WRITE_CALENDAR"
       ],
       "package": "com.anonymous.reminds"
     },
@@ -38,6 +44,13 @@
     "plugins": [
       "expo-router",
       "expo-location",
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Wir importieren Termine aus Apple Kalender in deine App.",
+          "remindersPermission": "Wir importieren Erinnerungen aus Apple Erinnerungen in deine App."
+        }
+      ],
       [
         "expo-splash-screen",
         {

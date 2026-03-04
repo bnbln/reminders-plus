@@ -282,6 +282,8 @@ const DE_TRANSLATIONS: TranslationDict = {
     'tags.keywords': 'Schlagwörter',
 
     'notification.due': 'Fällig',
+    'notification.dailySummary.title': 'Tageszusammenfassung',
+    'notification.dailySummary.body': '{{dueToday}} heute fällig · {{overdue}} überfällig · {{open}} offen · {{completedToday}} erledigt',
 
     'seed.project.work': 'Arbeit',
     'seed.project.home': 'Zuhause',
@@ -547,6 +549,8 @@ const EN_TRANSLATIONS: TranslationDict = {
     'tags.keywords': 'Keywords',
 
     'notification.due': 'Due',
+    'notification.dailySummary.title': 'Daily summary',
+    'notification.dailySummary.body': '{{dueToday}} due today · {{overdue}} overdue · {{open}} open · {{completedToday}} completed today',
 
     'seed.project.work': 'Work',
     'seed.project.home': 'Home',

@@ -15,7 +15,9 @@ import { SwipeTaskRow } from '@/components/tasks/swipe-task-row';
 import { withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
 import type { TagId } from '@/context/home-filters-store';
+import { useAppSettings } from '@/context/settings-store';
 import type { Project, Task } from '@/context/tasks-store';
+import { triggerImpactHaptic } from '@/utils/haptics';
 
 type ThemeName = keyof typeof Colors;
 const LIST_ACTIVATION_DISTANCE_DEFAULT = 0;
@@ -101,7 +103,7 @@ export type TaskSwipeDraggableListProps = {
   projectsById?: Map<string, Project>;
   rowStyles: SwipeTaskRowStyles;
   itemSpacing?: number;
-  /** Legacy prop: ignored in simplified list mode. */
+  /** Optional outer scroll ref for gesture coordination (e.g. horizontal parent scroll). */
   scrollRef?: React.RefObject<any>;
   /**
    * Rendering mode for the list.
@@ -150,6 +152,8 @@ export type TaskSwipeDraggableListProps = {
   showCompactSubtasks?: boolean;
   /** While dragging, switches the active drag preview into compact icon mode. */
   dragCompactPreview?: boolean;
+  /** While dragging, apply horizontal translation to the active row preview. */
+  followHorizontalDrag?: boolean;
   /** When set, datetime tags matching this day are suppressed in task rows. */
   selectedDateStart?: number;
 
@@ -199,6 +203,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     projectsById,
     rowStyles,
     itemSpacing,
+    scrollRef,
     renderMode = 'auto',
     data,
     renderHeaderRow,
@@ -222,6 +227,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     showTaskIcons,
     showCompactSubtasks = false,
     dragCompactPreview = false,
+    followHorizontalDrag = false,
     selectedDateStart,
     onPressTask,
     toggleComplete,
@@ -242,6 +248,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   },
   ref
 ) {
+  const { reduceMotionEnabled } = useAppSettings();
   const emojiTint = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.12 : 0.22), [isDark, theme]);
   const emojiFallback = React.useMemo(
     () => withAlpha(Colors[theme].background, isDark ? 0.52 : 0.74),
@@ -394,12 +401,17 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
 
     setFlatListData((current) => {
       if (areListItemsEqual(current, resolvedData)) return current;
-      if (animateDataLayoutChanges) {
+      if (animateDataLayoutChanges && !reduceMotionEnabled) {
         configureListDataLayoutAnimation();
       }
       return resolvedData;
     });
-  }, [animateDataLayoutChanges, resolvedData, syncDataDuringDrag]);
+  }, [
+    animateDataLayoutChanges,
+    reduceMotionEnabled,
+    resolvedData,
+    syncDataDuringDrag,
+  ]);
 
   const taskSectionMetaById = React.useMemo(() => {
     const bySection = new Map<string, string[]>();
@@ -445,6 +457,10 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   }, [flatListData]);
 
   const listActivationDistance = LIST_ACTIVATION_DISTANCE_DEFAULT;
+  const simultaneousHandlers = React.useMemo(
+    () => scrollRef ?? undefined,
+    [scrollRef]
+  );
   const resolvedContainerStyle: StyleProp<ViewStyle> = React.useMemo(() => {
     return [{ flex: 1, backgroundColor: Colors[theme].background, overflow: 'visible' }, containerStyle];
   }, [containerStyle, theme]);
@@ -489,6 +505,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           showCompactSubtasks={showCompactSubtasks}
           dragCompactPreview={dragCompactPreview}
           activeDragTranslateX={activeDragTranslationX}
+          followHorizontalDrag={followHorizontalDrag}
           beginSwipe={beginSwipe}
           endSwipe={endSwipe}
           registerClose={registerClose}
@@ -507,7 +524,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           rowStyle={rowStyleOverrides?.rowStyle}
         />
       );
-      if (!revealProgress) return row;
+      if (!revealProgress || reduceMotionEnabled) return row;
 
       const safeIndex = typeof index === 'number' && Number.isFinite(index) ? Math.max(0, index) : 0;
       const stagger = Math.max(0.02, Math.min(0.1, revealStaggerStep));
@@ -564,6 +581,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       showTaskIconsResolved,
       showCompactSubtasks,
       dragCompactPreview,
+      followHorizontalDrag,
       activeDragTranslationX,
       swipeCompleteBg,
       swipeDeleteBg,
@@ -578,6 +596,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       revealProgress,
       revealStaggerStep,
       revealTranslateY,
+      reduceMotionEnabled,
     ]
   );
 
@@ -620,6 +639,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           showCompactSubtasks={showCompactSubtasks}
           dragCompactPreview={dragCompactPreview}
           activeDragTranslateX={0}
+          followHorizontalDrag={followHorizontalDrag}
           beginSwipe={beginSwipe}
           endSwipe={endSwipe}
           registerClose={registerClose}
@@ -638,7 +658,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           rowStyle={rowStyleOverrides?.rowStyle}
         />
       );
-      if (!revealProgress) return row;
+      if (!revealProgress || reduceMotionEnabled) return row;
 
       const safeIndex = Math.max(0, index);
       const stagger = Math.max(0.02, Math.min(0.1, revealStaggerStep));
@@ -695,6 +715,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       showTaskIconsResolved,
       showCompactSubtasks,
       dragCompactPreview,
+      followHorizontalDrag,
       swipeCompleteBg,
       swipeDeleteBg,
       taskSectionMetaById,
@@ -708,6 +729,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       revealProgress,
       revealStaggerStep,
       revealTranslateY,
+      reduceMotionEnabled,
     ]
   );
 
@@ -742,9 +764,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       } else {
         draggingTaskIdRef.current = null;
       }
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(
-        () => undefined,
-      );
+      triggerImpactHaptic(Haptics.ImpactFeedbackStyle.Medium);
     },
     [
       closeAnyOpen,
@@ -756,9 +776,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   );
 
   const handleDragRelease = React.useCallback(() => {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
-      () => undefined,
-    );
+    triggerImpactHaptic(Haptics.ImpactFeedbackStyle.Light);
   }, []);
 
   const handleDragGestureUpdateInternal = React.useCallback(
@@ -842,9 +860,10 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     ListFooterComponent: footer ?? null,
     ListEmptyComponent: empty ?? null,
     contentContainerStyle,
+    simultaneousHandlers,
     activationDistance: listActivationDistance,
     autoscrollSpeed: LIST_AUTOSCROLL_SPEED,
-    animationConfig: LIST_ANIMATION_CONFIG,
+    animationConfig: reduceMotionEnabled ? undefined : LIST_ANIMATION_CONFIG,
     dragItemOverflow: true,
     onDragBegin: handleDragBegin,
     onPlaceholderIndexChange: (index: number) => {
@@ -868,12 +887,13 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       style={{ flex: 1, overflow: "visible" }}
       containerStyle={resolvedContainerStyle}
       contentContainerStyle={contentContainerStyle}
+      removeClippedSubviews={false}
       contentInsetAdjustmentBehavior={contentInsetAdjustmentBehavior ?? 'automatic'}
       onScrollOffsetChange={onScrollOffsetChange}
       showsVerticalScrollIndicator={false}
       activationDistance={listActivationDistance}
       autoscrollSpeed={LIST_AUTOSCROLL_SPEED}
-      animationConfig={LIST_ANIMATION_CONFIG}
+      animationConfig={reduceMotionEnabled ? undefined : LIST_ANIMATION_CONFIG}
       dragItemOverflow
       onDragBegin={handleDragBegin}
       onPlaceholderIndexChange={(index) => {

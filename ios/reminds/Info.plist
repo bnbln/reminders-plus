@@ -51,6 +51,14 @@
     <string>Allow $(PRODUCT_NAME) to access your location</string>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>Wir verwenden deinen Standort, um den aktuellen Ort für den Task vorzuschlagen.</string>
+    <key>NSCalendarsUsageDescription</key>
+    <string>Wir importieren Termine aus Apple Kalender in deine App.</string>
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>Wir importieren Termine aus Apple Kalender in deine App.</string>
+    <key>NSRemindersUsageDescription</key>
+    <string>Wir importieren Erinnerungen aus Apple Erinnerungen in deine App.</string>
+    <key>NSRemindersFullAccessUsageDescription</key>
+    <string>Wir importieren Erinnerungen aus Apple Erinnerungen in deine App.</string>
     <key>NSUserActivityTypes</key>
     <array>
       <string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>

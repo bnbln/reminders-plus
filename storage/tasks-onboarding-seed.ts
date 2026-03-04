@@ -30,29 +30,16 @@ export async function markCompletedOnboardingSeed(): Promise<void> {
 
 function getTodayDueAt() {
   const now = new Date();
-  const preferred = new Date(
+  const dueAt = new Date(
     now.getFullYear(),
     now.getMonth(),
     now.getDate(),
-    Math.min(23, Math.max(8, now.getHours() + 1)),
+    12,
     0,
     0,
     0,
   );
-  return preferred.getTime();
-}
-
-function getTomorrowDueAt() {
-  const now = new Date();
-  const startOfToday = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-  );
-  const tomorrow = new Date(startOfToday);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(11, 0, 0, 0);
-  return tomorrow.getTime();
+  return dueAt.getTime();
 }
 
 export function createOnboardingSeedData(): {
@@ -60,6 +47,7 @@ export function createOnboardingSeedData(): {
   tasks: Task[];
 } {
   const now = Date.now();
+  const todayDueAt = getTodayDueAt();
 
   const projects: Project[] = [
     { id: "p-work", name: t("seed.project.work"), color: "#0A84FF", icon: "briefcase.fill" },
@@ -79,8 +67,8 @@ export function createOnboardingSeedData(): {
       subtitle: t("seed.task.swipeLeft.subtitle"),
       emoji: "👈",
       projectId: "p-home",
-      dueAt: getTodayDueAt(),
-      dueHasTime: true,
+      dueAt: todayDueAt,
+      dueHasTime: false,
       section: "today",
       orderRank: 1000,
       location: undefined,
@@ -95,8 +83,8 @@ export function createOnboardingSeedData(): {
       subtitle: t("seed.task.swipeRight.subtitle"),
       emoji: "👉",
       projectId: "p-home",
-      dueAt: getTodayDueAt(),
-      dueHasTime: true,
+      dueAt: todayDueAt,
+      dueHasTime: false,
       section: "today",
       orderRank: 2000,
       location: undefined,
@@ -111,10 +99,10 @@ export function createOnboardingSeedData(): {
       subtitle: t("seed.task.drag.subtitle"),
       emoji: "↕️",
       projectId: "p-work",
-      dueAt: 0,
+      dueAt: todayDueAt,
       dueHasTime: false,
-      section: "upcoming",
-      orderRank: 1000,
+      section: "today",
+      orderRank: 3000,
       location: undefined,
       notes: undefined,
       subtasks: undefined,
@@ -127,10 +115,10 @@ export function createOnboardingSeedData(): {
       subtitle: t("seed.task.details.subtitle"),
       emoji: "🔎",
       projectId: "p-selfcare",
-      dueAt: getTomorrowDueAt(),
+      dueAt: todayDueAt,
       dueHasTime: false,
-      section: "upcoming",
-      orderRank: 2000,
+      section: "today",
+      orderRank: 4000,
       location: undefined,
       notes: undefined,
       subtasks: undefined,

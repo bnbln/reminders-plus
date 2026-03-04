@@ -12,7 +12,12 @@ import { Platform, Pressable } from "react-native";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 
-type ProfileMenuActionId = "profile" | "status" | "streaks" | "settings";
+type ProfileMenuActionId =
+  | "profile"
+  | "status"
+  | "streaks"
+  | "archive"
+  | "settings";
 
 function ProfileMenuIcon({ theme }: { theme: keyof typeof Colors }) {
   const color = Colors[theme].text;
@@ -61,6 +66,12 @@ export function ProfileHeaderMenuButton() {
           image: Platform.OS === "ios" ? "flame.fill" : undefined,
           imageColor: Platform.OS === "ios" ? imageColor : undefined,
         },
+        {
+          id: "archive",
+          title: "Archiv",
+          image: Platform.OS === "ios" ? "archivebox.fill" : undefined,
+          imageColor: Platform.OS === "ios" ? imageColor : undefined,
+        },
       ],
     };
 
@@ -96,6 +107,11 @@ export function ProfileHeaderMenuButton() {
 
       if (actionId === "streaks") {
         router.push("/(tabs)/home/streaks");
+        return;
+      }
+
+      if (actionId === "archive") {
+        router.push("/home/archive");
         return;
       }
 

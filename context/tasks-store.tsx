@@ -1,7 +1,12 @@
 import React from "react";
 import { AppState } from "react-native";
 
-import { syncTaskDueNotifications } from "@/notifications/tasks-notifications";
+import { useAppSettings } from "@/context/settings-store";
+import {
+  syncAppBadgeCount,
+  syncDailySummaryNotification,
+  syncTaskDueNotifications,
+} from "@/notifications/tasks-notifications";
 import {
   createOnboardingSeedData,
   hasCompletedOnboardingSeed,
@@ -560,6 +565,12 @@ type TasksContextValue = {
 const TasksContext = React.createContext<TasksContextValue | null>(null);
 
 export function TasksProvider({ children }: { children: React.ReactNode }) {
+  const {
+    hasHydrated: hasSettingsHydrated,
+    appBadgeMode,
+    dailySummaryEnabled,
+    dailySummaryMinutes,
+  } = useAppSettings();
   const [tasks, setTasksState] = React.useState<Task[]>([]);
   const setTasks = React.useCallback<React.Dispatch<React.SetStateAction<Task[]>>>(
     (value) => {
@@ -688,6 +699,63 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
       clearTimeout(handle);
     };
   }, [projects, tasks]);
+
+  // Keep iOS app badge and daily summary in sync with tasks + settings.
+  React.useEffect(() => {
+    if (!hydratedRef.current) return;
+    if (!persistEnabledRef.current) return;
+    if (!hasSettingsHydrated) return;
+
+    const handle = setTimeout(() => {
+      void syncAppBadgeCount({ tasks, appBadgeMode });
+      void syncDailySummaryNotification({
+        tasks,
+        enabled: dailySummaryEnabled,
+        minutesOfDay: dailySummaryMinutes,
+      });
+    }, 750);
+
+    return () => {
+      clearTimeout(handle);
+    };
+  }, [
+    appBadgeMode,
+    dailySummaryEnabled,
+    dailySummaryMinutes,
+    hasSettingsHydrated,
+    tasks,
+  ]);
+
+  // Re-apply badge + summary when the app becomes active again.
+  React.useEffect(() => {
+    if (!hydratedRef.current) return;
+    if (!persistEnabledRef.current) return;
+    if (!hasSettingsHydrated) return;
+
+    const run = () => {
+      void syncAppBadgeCount({ tasks, appBadgeMode });
+      void syncDailySummaryNotification({
+        tasks,
+        enabled: dailySummaryEnabled,
+        minutesOfDay: dailySummaryMinutes,
+      });
+    };
+
+    const appStateSub = AppState.addEventListener("change", (nextState) => {
+      if (nextState !== "active") return;
+      run();
+    });
+
+    return () => {
+      appStateSub.remove();
+    };
+  }, [
+    appBadgeMode,
+    dailySummaryEnabled,
+    dailySummaryMinutes,
+    hasSettingsHydrated,
+    tasks,
+  ]);
 
   const value = React.useMemo(
     () => ({ tasks, setTasks, projects, setProjects }),

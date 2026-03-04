@@ -1,7 +1,6 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { type MenuAction } from "@react-native-menu/menu";
 import { useFocusEffect } from "@react-navigation/native";
-import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import React from "react";
 import {
@@ -55,6 +54,7 @@ import {
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useStreaks } from "@/hooks/use-streaks";
 import { getIntlLocale, t } from "@/i18n";
+import { triggerSelectionHaptic } from "@/utils/haptics";
 import { isIOS26OrNewer } from "@/utils/ios-version";
 import {
   alignDueAtToLocalDay,
@@ -141,7 +141,10 @@ async function markOnboardingSeen(key: string): Promise<void> {
   }
 }
 
-const configureSmoothListLayoutTransition = () => {
+const configureSmoothListLayoutTransition = (
+  enabled: boolean = true,
+) => {
+  if (!enabled) return;
   LayoutAnimation.configureNext({
     duration: 280,
     create: {
@@ -1247,7 +1250,7 @@ export default function HomeScreen() {
     | TaskAccessoryContextBridge
     | undefined;
   const { setMode, setPresetDateStart } = useTaskCreateContext();
-  const { accentColor } = useAppSettings();
+  const { accentColor, reduceMotionEnabled } = useAppSettings();
   const { width: viewportWidth } = useWindowDimensions();
 
   const [isCalendarPickerOpen, setIsCalendarPickerOpen] = React.useState(false);
@@ -1767,6 +1770,10 @@ export default function HomeScreen() {
       return;
     }
     lastAnimatedTitleDateRef.current = selectedDateStart;
+    if (reduceMotionEnabled) {
+      resetDateRailTitleMotion();
+      return;
+    }
     stopDateRailTitleAnimation();
     dateRailTitleMotion.setValue(0);
     const animation = Animated.timing(dateRailTitleMotion, {
@@ -1781,7 +1788,13 @@ export default function HomeScreen() {
         dateRailTitleAnimationRef.current = null;
       }
     });
-  }, [dateRailTitleMotion, selectedDateStart, stopDateRailTitleAnimation]);
+  }, [
+    dateRailTitleMotion,
+    reduceMotionEnabled,
+    resetDateRailTitleMotion,
+    selectedDateStart,
+    stopDateRailTitleAnimation,
+  ]);
   const resetDateListMotion = React.useCallback(() => {
     dateListTranslateX.stopAnimation();
     dateListTranslateX.setValue(0);
@@ -2120,7 +2133,7 @@ export default function HomeScreen() {
       }
       resetDateListTransitionMotion();
       if (animateLayout) {
-        configureSmoothListLayoutTransition();
+        configureSmoothListLayoutTransition(!reduceMotionEnabled);
       }
       setListDateStart(nextDateStart);
       listDateStartRef.current = nextDateStart;
@@ -2130,6 +2143,7 @@ export default function HomeScreen() {
       resetDateListMotion,
       resetDateListTransitionMotion,
       resetDateRailTitleMotion,
+      reduceMotionEnabled,
     ],
   );
   const hasTodayTasksForDateStart = React.useCallback(
@@ -2198,16 +2212,22 @@ export default function HomeScreen() {
       selectedDateStartRef.current = nextDateStart;
       setPresetDateStart(nextDateStart);
       setSelectedDateStart(nextDateStart);
+      if (reduceMotionEnabled) {
+        setListDateWithoutTransition(nextDateStart, false, true);
+        triggerSelectionHaptic();
+        return;
+      }
       if (!fromHasTodayTasks && !toHasTodayTasks) {
         setListDateWithoutTransition(nextDateStart, false, true);
-        void Haptics.selectionAsync().catch(() => undefined);
+        triggerSelectionHaptic();
         return;
       }
       runDateListTransition(nextDateStart, direction);
-      void Haptics.selectionAsync().catch(() => undefined);
+      triggerSelectionHaptic();
     },
     [
       hasTodayTasksForDateStart,
+      reduceMotionEnabled,
       runDateListTransition,
       setPresetDateStart,
       setListDateWithoutTransition,
@@ -2401,7 +2421,7 @@ export default function HomeScreen() {
             }
             if (nextIndex !== dateRailLastCenterIndexRef.current) {
               dateRailLastCenterIndexRef.current = nextIndex;
-              Haptics.selectionAsync();
+              triggerSelectionHaptic();
             }
             const nextDay = dateRailDays[nextIndex];
             if (nextDay) {
@@ -2502,6 +2522,11 @@ export default function HomeScreen() {
       animationRef: React.MutableRefObject<Animated.CompositeAnimation | null>,
     ) => {
       animationRef.current?.stop();
+      if (reduceMotionEnabled) {
+        value.setValue(toCollapsed ? 1 : 0);
+        animationRef.current = null;
+        return;
+      }
       const animation = Animated.spring(value, {
         toValue: toCollapsed ? 1 : 0,
         friction: 10,
@@ -2516,7 +2541,7 @@ export default function HomeScreen() {
         }
       });
     },
-    [],
+    [reduceMotionEnabled],
   );
   React.useEffect(() => {
     if (!collapsedSections.today || !isCalendarPickerOpen) return;
@@ -2708,7 +2733,7 @@ export default function HomeScreen() {
 
       const previousDateStart = dragLastRailDateStartRef.current;
       if (previousDateStart !== targetDateStart) {
-        void Haptics.selectionAsync().catch(() => undefined);
+        triggerSelectionHaptic();
       }
       dragLastRailDateStartRef.current = targetDateStart;
       setDragDetectedDateStart((current) =>
@@ -3371,7 +3396,9 @@ export default function HomeScreen() {
 
   const handleToggleComplete = React.useCallback(
     (taskId: string) => {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      if (!reduceMotionEnabled) {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      }
       setTasks((prev) => {
         const task = prev.find((t) => t.id === taskId);
         if (!task) return prev;
@@ -3456,12 +3483,14 @@ export default function HomeScreen() {
         return reseededBoth;
       });
     },
-    [reseedSection, setTasks],
+    [reseedSection, reduceMotionEnabled, setTasks],
   );
 
   const handleDeleteTask = React.useCallback(
     (taskId: string) => {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      if (!reduceMotionEnabled) {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      }
       setTasks((prev) => {
         const task = prev.find((t) => t.id === taskId);
         if (!task) return prev;
@@ -3470,7 +3499,7 @@ export default function HomeScreen() {
         );
       });
     },
-    [setTasks],
+    [reduceMotionEnabled, setTasks],
   );
 
   const handleToggleSubtask = React.useCallback(
@@ -3533,7 +3562,7 @@ export default function HomeScreen() {
         if (!isCollapsible) return;
         closeAnyOpen();
         if (id === "upcoming") {
-          configureSmoothListLayoutTransition();
+          configureSmoothListLayoutTransition(!reduceMotionEnabled);
         }
         setCollapsedSections((prev) => ({
           ...prev,
@@ -3627,6 +3656,7 @@ export default function HomeScreen() {
     [
       closeAnyOpen,
       glassSurfacePalette,
+      reduceMotionEnabled,
       todayCollapseProgress,
       upcomingCollapseProgress,
       withoutDateCount,
@@ -3854,7 +3884,7 @@ export default function HomeScreen() {
                     onPress={() => {
                       dateRailDraggedRef.current = false;
                       closeAnyOpen();
-                      Haptics.selectionAsync();
+                      triggerSelectionHaptic();
                       scrollDateRailToDateStart(day.timestamp, true, true);
                       handleSelectDate(day.timestamp, "press");
                     }}

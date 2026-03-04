@@ -2,6 +2,7 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as Haptics from "expo-haptics";
 import React from "react";
 import {
+  LayoutChangeEvent,
   Pressable,
   StyleSheet,
   Text,
@@ -23,6 +24,7 @@ import {
 } from "@/context/home-filters-store";
 import type { Project, Task } from "@/context/tasks-store";
 import { getIntlLocale, t } from "@/i18n";
+import { triggerNotificationHaptic } from "@/utils/haptics";
 
 const SWIPE_STOP = 76;
 const SWIPE_TRIGGER_SNAP = 152;
@@ -220,6 +222,7 @@ export type SwipeTaskRowProps = {
   rowStyle?: StyleProp<ViewStyle>;
   dragCompactPreview?: boolean;
   activeDragTranslateX?: number;
+  followHorizontalDrag?: boolean;
 };
 
 export const SwipeTaskRow = React.memo(function SwipeTaskRow({
@@ -258,12 +261,14 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   rowStyle,
   dragCompactPreview = false,
   activeDragTranslateX = 0,
+  followHorizontalDrag = false,
 }: SwipeTaskRowProps) {
   const swipeRef = React.useRef<SwipeableItemImperativeRef | null>(null);
   const longPressTriggeredRef = React.useRef(false);
   const [dragPressInLocalX, setDragPressInLocalX] = React.useState<
     number | null
   >(null);
+  const [measuredRowHeight, setMeasuredRowHeight] = React.useState(0);
   const longPressTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -314,6 +319,14 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     }
   }, [onPopInAnimationEnd, shouldPopIn, task.id]);
 
+  const handleRowLayout = React.useCallback((event: LayoutChangeEvent) => {
+    const nextHeight = event.nativeEvent.layout.height;
+    if (!Number.isFinite(nextHeight) || nextHeight <= 0) return;
+    setMeasuredRowHeight((current) =>
+      Math.abs(current - nextHeight) < 0.5 ? current : nextHeight,
+    );
+  }, []);
+
   const closeSelf = React.useCallback(() => {
     void swipeRef.current?.close({ animated: true }).catch(() => undefined);
     onSwipeGestureActiveChange?.(task.id, false);
@@ -330,29 +343,25 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   const commitLeft = React.useCallback(() => {
     if (leftAction) {
       leftAction.onTrigger(task.id);
-      void Haptics.notificationAsync(
+      triggerNotificationHaptic(
         leftAction.haptic ?? Haptics.NotificationFeedbackType.Success,
-      ).catch(() => undefined);
+      );
       return;
     }
     toggleComplete(task.id);
-    void Haptics.notificationAsync(
-      Haptics.NotificationFeedbackType.Success,
-    ).catch(() => undefined);
+    triggerNotificationHaptic(Haptics.NotificationFeedbackType.Success);
   }, [leftAction, task.id, toggleComplete]);
 
   const commitRight = React.useCallback(() => {
     if (rightAction) {
       rightAction.onTrigger(task.id);
-      void Haptics.notificationAsync(
+      triggerNotificationHaptic(
         rightAction.haptic ?? Haptics.NotificationFeedbackType.Warning,
-      ).catch(() => undefined);
+      );
       return;
     }
     deleteTask(task.id);
-    void Haptics.notificationAsync(
-      Haptics.NotificationFeedbackType.Warning,
-    ).catch(() => undefined);
+    triggerNotificationHaptic(Haptics.NotificationFeedbackType.Warning);
   }, [deleteTask, rightAction, task.id]);
 
   const onPressComplete = React.useCallback(() => {
@@ -443,21 +452,23 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     () => [
       styles.swipeClip,
       swipeClipStyle,
+      measuredRowHeight > 0 ? { minHeight: measuredRowHeight } : null,
       isActive ? { overflow: "visible" as const } : null,
     ],
-    [isActive, styles.swipeClip, swipeClipStyle],
+    [isActive, measuredRowHeight, styles.swipeClip, swipeClipStyle],
   );
 
   const spacerStyle = React.useMemo(
     () => [
       styles.itemSpacer,
       itemSpacerStyle,
+      measuredRowHeight > 0 ? { minHeight: measuredRowHeight } : null,
       {
         marginBottom: isLast ? 0 : itemSpacing,
-        overflow: isActive ? ("visible" as const) : ("hidden" as const),
+        overflow: "visible" as const,
       },
     ],
-    [isActive, isLast, itemSpacing, itemSpacerStyle, styles.itemSpacer],
+    [isLast, itemSpacing, itemSpacerStyle, measuredRowHeight, styles.itemSpacer],
   );
 
   const rowContentStyle = React.useMemo(
@@ -512,21 +523,27 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   );
   const activeDragPreviewOffsetStyle = React.useMemo(
     () => {
-      if (
-        !shouldUseCompactDragPreview ||
-        !Number.isFinite(activeDragTranslateX)
-      ) {
+      if (!isActive || !followHorizontalDrag) {
         return null;
       }
+      if (!Number.isFinite(activeDragTranslateX)) return null;
       const anchorX =
-        typeof dragPressInLocalX === "number" && Number.isFinite(dragPressInLocalX)
+        shouldUseCompactDragPreview &&
+        typeof dragPressInLocalX === "number" &&
+        Number.isFinite(dragPressInLocalX)
           ? dragPressInLocalX - DRAG_COMPACT_PREVIEW_SIZE / 2
           : 0;
       return {
         transform: [{ translateX: activeDragTranslateX + anchorX }],
       };
     },
-    [activeDragTranslateX, dragPressInLocalX, shouldUseCompactDragPreview],
+    [
+      activeDragTranslateX,
+      dragPressInLocalX,
+      followHorizontalDrag,
+      isActive,
+      shouldUseCompactDragPreview,
+    ],
   );
 
   const tagChips = React.useMemo<TagChipModel[]>(() => {
@@ -866,6 +883,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
               onLongPress={handleLongPressDrag}
               delayLongPress={DRAG_LONG_PRESS_DELAY_MS}
               activeOpacity={0.9}
+              onLayout={handleRowLayout}
               style={
                 shouldUseCompactDragPreview
                   ? {
