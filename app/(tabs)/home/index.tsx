@@ -78,6 +78,11 @@ const TASK_ROW_HORIZONTAL_PADDING = 12;
 const CONTENT_STACK_GAP = 10;
 const DATE_TRANSITION_DURATION = 250;
 const DATE_TRANSITION_FALLBACK_DELAY_MS = 140;
+const IOS_LIGHT_BASE_BACKGROUND = "#F2F2F7"; // systemGroupedBackground
+const IOS_LIGHT_ELEVATED_SURFACE = "#FFFFFF"; // secondarySystemGroupedBackground
+const IOS_LIGHT_INSET_SURFACE = "#EBEBF0"; // tertiarySystemFill-like
+const IOS_LIGHT_SEPARATOR = "rgba(60, 60, 67, 0.22)"; // separator
+const IOS_LIGHT_TINT_FILL = "rgba(118, 118, 128, 0.2)"; // quaternarySystemFill-like
 const HOME_ONBOARDING_KEYS = {
   gestures: "reminds.home.onboarding.gestures.v1",
   dragDropTargets: "reminds.home.onboarding.dragDropTargets.v1",
@@ -411,6 +416,7 @@ function HomeMetricsGrid({
 
 const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
   const isDark = theme === "dark";
+  const useAppleLightPalette = !isDark && Platform.OS === "ios";
   const text = Colors[theme].text;
 
   // ─── Design Tokens ─────────────────────────────────
@@ -428,8 +434,22 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
   const RADIUS_PILL = 999;
   // ───────────────────────────────────────────────────
 
-  const hairline = withAlpha(text, ALPHA_4);
-  const rowCardSurface = isDark ? "rgba(89, 89, 89, 0.2)" : "#FFFFFF";
+  const screenBackground = useAppleLightPalette
+    ? IOS_LIGHT_BASE_BACKGROUND
+    : Colors[theme].background;
+  const hairline = isDark
+    ? withAlpha(text, ALPHA_4)
+    : useAppleLightPalette
+      ? IOS_LIGHT_SEPARATOR
+      : withAlpha(text, ALPHA_4);
+  const rowCardSurface = isDark
+    ? "rgba(89, 89, 89, 0.2)"
+    : IOS_LIGHT_ELEVATED_SURFACE;
+  const insetSurface = isDark
+    ? "rgba(255,255,255,0.06)"
+    : useAppleLightPalette
+      ? IOS_LIGHT_INSET_SURFACE
+      : "rgba(0,0,0,0.04)";
   const tagBg = withAlpha(text, isDark ? 0.1 : 0.08);
   const tagText = withAlpha(text, ALPHA_2);
   const dangerBg = isDark ? "rgba(255,69,58,0.18)" : "rgba(255,59,48,0.14)";
@@ -438,13 +458,15 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
   const dayBubbleSize = Math.max(30, Math.min(40, dateRailItemWidth - 14));
   const heroCardBorder = isDark
     ? "rgba(255,255,255,0.09)"
-    : "rgba(17,24,28,0.09)";
+    : useAppleLightPalette
+      ? "rgba(60,60,67,0.18)"
+      : "rgba(17,24,28,0.09)";
   const heroCardRadius = 18;
 
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: Colors[theme].background,
+      backgroundColor: screenBackground,
     },
     content: {
       paddingHorizontal: GRID_HORIZONTAL_PADDING,
@@ -602,7 +624,7 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
     },
     dateRailTitleViewport: {
       width: "100%",
-      overflow: "hidden",
+      overflow: "visible",
       alignItems: "center",
       justifyContent: "center",
     },
@@ -708,7 +730,7 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
       paddingTop: 6,
       paddingBottom: 6,
       borderRadius: 12,
-      backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
+      backgroundColor: insetSurface,
     },
     dateRailDaySelected: {
       backgroundColor: ACCENT,
@@ -767,6 +789,9 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
     dateTasksSurfaceHeightFrame: {
       overflow: "hidden",
     },
+    dateTasksSurfaceHeightFrameCollapsed: {
+      overflow: "visible",
+    },
     dateTasksSurfaceHeightFrameDragActive: {
       overflow: "visible",
     },
@@ -781,6 +806,11 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
     },
     upcomingTasksSurfaceCollapsed: {
       marginTop: 4,
+    },
+    segmentSurfaceCollapsed: {
+      borderWidth: 0,
+      borderColor: "transparent",
+      overflow: "visible",
     },
     segmentSurfaceDragActive: {
       overflow: "visible",
@@ -812,7 +842,7 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
       marginTop: 0,
       marginBottom: 0,
       borderRadius: 18,
-      backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
+      backgroundColor: insetSurface,
       overflow: "hidden",
       paddingHorizontal: 0,
       paddingVertical: 8,
@@ -1008,7 +1038,9 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
       borderWidth: 0,
       backgroundColor: isDark
         ? "rgba(255,255,255,0.12)"
-        : "rgba(255,255,255,0.85)",
+        : useAppleLightPalette
+          ? IOS_LIGHT_BASE_BACKGROUND
+          : "rgba(255,255,255,0.85)",
     },
     tagChipDanger: {
       backgroundColor: dangerBg,
@@ -1109,6 +1141,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const theme = useColorScheme() ?? "light";
   const isDark = theme === "dark";
+  const useAppleLightPalette = !isDark && Platform.OS === "ios";
   const { width: viewportWidth } = useWindowDimensions();
 
   const [isCalendarPickerOpen, setIsCalendarPickerOpen] = React.useState(false);
@@ -1385,15 +1418,58 @@ export default function HomeScreen() {
     };
   }, [completionPercentage, currentStreak, router]);
 
+  const glassSurfacePalette = React.useMemo(() => {
+    if (isDark) {
+      return {
+        chipTint: withAlpha(Colors[theme].background, 0.18),
+        chipFallback: withAlpha(Colors[theme].background, 0.86),
+        calendarTint: withAlpha(Colors[theme].background, 0.3),
+        calendarFallback: withAlpha(Colors[theme].background, 0.86),
+        popoverTint: withAlpha(Colors[theme].background, 0.22),
+        popoverFallback: withAlpha(Colors[theme].background, 0.88),
+      };
+    }
+
+    if (useAppleLightPalette) {
+      return {
+        chipTint: IOS_LIGHT_TINT_FILL,
+        chipFallback: IOS_LIGHT_INSET_SURFACE,
+        calendarTint: "rgba(118, 118, 128, 0.24)",
+        calendarFallback: IOS_LIGHT_INSET_SURFACE,
+        popoverTint: "rgba(118, 118, 128, 0.22)",
+        popoverFallback: IOS_LIGHT_ELEVATED_SURFACE,
+      };
+    }
+
+    return {
+      chipTint: withAlpha(Colors[theme].background, 0.28),
+      chipFallback: withAlpha(Colors[theme].background, 0.92),
+      calendarTint: withAlpha(Colors[theme].background, 0.4),
+      calendarFallback: withAlpha(Colors[theme].background, 0.92),
+      popoverTint: withAlpha(Colors[theme].background, 0.32),
+      popoverFallback: withAlpha(Colors[theme].background, 0.94),
+    };
+  }, [isDark, theme, useAppleLightPalette]);
+
   const homeMetricsTheme = React.useMemo<HomeMetricsTheme>(() => {
     return {
-      topSurface: Colors[theme].background,
-      cardBackgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
-      borderColor: isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.12)",
+      topSurface: useAppleLightPalette
+        ? IOS_LIGHT_BASE_BACKGROUND
+        : Colors[theme].background,
+      cardBackgroundColor: isDark ? "#1C1C1E" : IOS_LIGHT_ELEVATED_SURFACE,
+      borderColor: isDark
+        ? "rgba(255,255,255,0.14)"
+        : useAppleLightPalette
+          ? IOS_LIGHT_SEPARATOR
+          : "rgba(0,0,0,0.12)",
       primaryText: isDark ? "#FFFFFF" : "#000000",
-      mutedText: "#94A3B8",
+      mutedText: isDark
+        ? "#94A3B8"
+        : useAppleLightPalette
+          ? "#8E8E93"
+          : "#94A3B8",
     };
-  }, [isDark, theme]);
+  }, [isDark, theme, useAppleLightPalette]);
 
   const homeEnabledSections = React.useMemo(() => {
     const withoutCompleted = enabledSections.filter((s) => s !== "completed");
@@ -3442,14 +3518,8 @@ export default function HomeScreen() {
               }}
             >
               <GlassSurface
-                tintColor={withAlpha(
-                  Colors[theme].background,
-                  isDark ? 0.18 : 0.28,
-                )}
-                fallbackBackgroundColor={withAlpha(
-                  Colors[theme].background,
-                  isDark ? 0.86 : 0.92,
-                )}
+                tintColor={glassSurfacePalette.chipTint}
+                fallbackBackgroundColor={glassSurfacePalette.chipFallback}
                 style={styles.dateRailTitleRow}
               >
                 <Text style={styles.dateRailTitle}>
@@ -3506,7 +3576,7 @@ export default function HomeScreen() {
     },
     [
       closeAnyOpen,
-      isDark,
+      glassSurfacePalette,
       todayCollapseProgress,
       upcomingCollapseProgress,
       withoutDateCount,
@@ -3579,14 +3649,8 @@ export default function HomeScreen() {
                   }}
                 >
                   <GlassSurface
-                    tintColor={withAlpha(
-                      Colors[theme].background,
-                      isDark ? 0.18 : 0.28,
-                    )}
-                    fallbackBackgroundColor={withAlpha(
-                      Colors[theme].background,
-                      isDark ? 0.86 : 0.92,
-                    )}
+                    tintColor={glassSurfacePalette.chipTint}
+                    fallbackBackgroundColor={glassSurfacePalette.chipFallback}
                     style={styles.dateRailTitleRow}
                   >
                     <View style={styles.dateRailTitleTextViewport}>
@@ -3676,14 +3740,8 @@ export default function HomeScreen() {
               }}
             >
               <GlassSurface
-                tintColor={withAlpha(
-                  Colors[theme].background,
-                  isDark ? 0.3 : 0.4,
-                )}
-                fallbackBackgroundColor={withAlpha(
-                  Colors[theme].background,
-                  isDark ? 0.86 : 0.92,
-                )}
+                tintColor={glassSurfacePalette.calendarTint}
+                fallbackBackgroundColor={glassSurfacePalette.calendarFallback}
                 style={styles.calendarButton}
                 isInteractive={true}
               >
@@ -3740,14 +3798,8 @@ export default function HomeScreen() {
               }}
             >
               <GlassSurface
-                tintColor={withAlpha(
-                  Colors[theme].background,
-                  isDark ? 0.22 : 0.32,
-                )}
-                fallbackBackgroundColor={withAlpha(
-                  Colors[theme].background,
-                  isDark ? 0.88 : 0.94,
-                )}
+                tintColor={glassSurfacePalette.popoverTint}
+                fallbackBackgroundColor={glassSurfacePalette.popoverFallback}
                 style={styles.calendarPopover}
                 isInteractive={true}
               >
@@ -3873,6 +3925,7 @@ export default function HomeScreen() {
     handleDateRailScroll,
     handleDateRailScrollBeginDrag,
     handleDateRailScrollToIndexFailed,
+    glassSurfacePalette,
     handleSelectDate,
     isCalendarPickerOpen,
     isDateListTransitioning,
@@ -3946,14 +3999,8 @@ export default function HomeScreen() {
           style={({ pressed }) => [pressed && { opacity: 0.92 }]}
         >
           <GlassSurface
-            tintColor={withAlpha(
-              Colors[theme].background,
-              isDark ? 0.18 : 0.28,
-            )}
-            fallbackBackgroundColor={withAlpha(
-              Colors[theme].background,
-              isDark ? 0.86 : 0.92,
-            )}
+            tintColor={glassSurfacePalette.chipTint}
+            fallbackBackgroundColor={glassSurfacePalette.chipFallback}
             style={styles.archivePill}
           >
             <MaterialIcons
@@ -3966,7 +4013,14 @@ export default function HomeScreen() {
         </Pressable>
       </View>
     );
-  }, [areCollapsibleSectionsCollapsed, isDark, router, styles, tasks, theme]);
+  }, [
+    areCollapsibleSectionsCollapsed,
+    glassSurfacePalette,
+    router,
+    styles,
+    tasks,
+    theme,
+  ]);
 
   return (
     <View style={styles.container}>
@@ -3993,9 +4047,7 @@ export default function HomeScreen() {
                 ? styles.segmentSurfaceDragInactive
                 : null,
               isHoveringTodayDropZone ? styles.segmentSurfaceDropHover : null,
-              collapsedSections.today
-                ? { borderWidth: 0, borderColor: "transparent" }
-                : null,
+              collapsedSections.today ? styles.segmentSurfaceCollapsed : null,
             ]}
             glassEffectStyle="regular"
             tintColor={homeMetricsTheme.cardBackgroundColor}
@@ -4010,6 +4062,9 @@ export default function HomeScreen() {
                 styles.dateTasksSurfaceHeightFrame,
                 activeDragSurface === "today"
                   ? styles.dateTasksSurfaceHeightFrameDragActive
+                  : null,
+                collapsedSections.today
+                  ? styles.dateTasksSurfaceHeightFrameCollapsed
                   : null,
               ]}
             >
@@ -4310,9 +4365,7 @@ export default function HomeScreen() {
               isHoveringUpcomingDropZone
                 ? styles.segmentSurfaceDropHover
                 : null,
-              collapsedSections.upcoming
-                ? { borderWidth: 0, borderColor: "transparent" }
-                : null,
+              collapsedSections.upcoming ? styles.segmentSurfaceCollapsed : null,
             ]}
             glassEffectStyle="regular"
             tintColor={homeMetricsTheme.cardBackgroundColor}
