@@ -17,7 +17,7 @@ import { isIOS26OrNewer } from "@/utils/ios-version";
 
 type TaskAccessoryContextBridge = {
   setContext?: (
-    mode: "task" | "routine" | "project" | "inProject",
+    mode: "task" | "today" | "routine" | "project" | "inProject",
     projectId?: string | null,
     projectLabel?: string | null,
   ) => void;
@@ -51,6 +51,15 @@ export default function TabLayout() {
   React.useEffect(() => {
     const [first, second, third] = segments;
     const segmentList = segments as string[];
+    const isHomeStackRoute =
+      first === "(tabs)" && (second === undefined || second === "home");
+    const isTodayRoute =
+      isHomeStackRoute &&
+      (third === undefined ||
+        third === "index" ||
+        third === "today" ||
+        third === "archive" ||
+        third === "streaks");
 
     // Keep project context only for the in-tab project detail route.
     if (
@@ -76,6 +85,12 @@ export default function TabLayout() {
       return;
     }
 
+    if (isTodayRoute) {
+      clearProjectId();
+      setMode("today");
+      return;
+    }
+
     if (first === "(tabs)" && second === "explore") {
       clearProjectId();
       setMode("project");
@@ -96,6 +111,15 @@ export default function TabLayout() {
 
     const [first, second, third] = segments;
     const segmentList = segments as string[];
+    const isHomeStackRoute =
+      first === "(tabs)" && (second === undefined || second === "home");
+    const isTodayRoute =
+      isHomeStackRoute &&
+      (third === undefined ||
+        third === "index" ||
+        third === "today" ||
+        third === "archive" ||
+        third === "streaks");
     if (first === "(tabs)" && second === "explore" && third === undefined) {
       accessoryBridge?.setContext?.("project", null, null);
       return;
@@ -128,6 +152,11 @@ export default function TabLayout() {
         (third === "routines" || segmentList.includes("routines")));
     if (isRoutinesRoute) {
       accessoryBridge?.setContext?.("routine", null, null);
+      return;
+    }
+
+    if (isTodayRoute) {
+      accessoryBridge?.setContext?.("today", null, null);
       return;
     }
 

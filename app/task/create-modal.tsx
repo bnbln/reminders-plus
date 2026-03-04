@@ -23,10 +23,22 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
 import { useTaskCreateContext } from '@/context/task-create-context';
-import { useTasksStore, type RoutineType, type SectionId, type Task } from '@/context/tasks-store';
+import {
+  getDueAtForSection,
+  useTasksStore,
+  type RoutineType,
+  type SectionId,
+  type Task,
+} from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { formatDate, t } from '@/i18n';
-import { deriveActiveSectionFromDueAt, hasValidDueAt } from '@/utils/task-dates';
+import {
+  alignDueAtToLocalDay,
+  deriveActiveSectionFromDueAt,
+  getStartOfLocalDayMs,
+  hasValidDueAt,
+  isSameLocalDay,
+} from '@/utils/task-dates';
 
 const createTaskId = () => `t-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
@@ -83,16 +95,23 @@ export default function CreateTaskModal() {
     projectId: projectIdParam,
     draftId: draftIdParam,
     preset: presetParam,
+    dateStart: dateStartParam,
   } = useLocalSearchParams<{
     projectId?: string | string[];
     draftId?: string | string[];
     preset?: string | string[];
+    dateStart?: string | string[];
   }>();
   const theme = useColorScheme() ?? 'light';
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
-  const { projectId: focusedProjectId, mode: taskCreateMode, queueTaskPopIn } = useTaskCreateContext();
+  const {
+    projectId: focusedProjectId,
+    mode: taskCreateMode,
+    presetDateStart,
+    queueTaskPopIn,
+  } = useTaskCreateContext();
 
   const { tasks, projects, setTasks } = useTasksStore();
   const routeDraftId = React.useMemo(() => {
@@ -110,8 +129,26 @@ export default function CreateTaskModal() {
     if (typeof rawPreset !== 'string') return '';
     return rawPreset.trim().toLowerCase();
   }, [presetParam]);
+  const routePresetDateStart = React.useMemo(() => {
+    const rawDateStart = Array.isArray(dateStartParam) ? dateStartParam[0] : dateStartParam;
+    if (typeof rawDateStart !== 'string') return 0;
+    const parsed = Number.parseInt(rawDateStart.trim(), 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+    return getStartOfLocalDayMs(parsed);
+  }, [dateStartParam]);
   const shouldPresetRoutine =
     routePreset === 'routine' || routePreset === 'routines' || taskCreateMode === 'routine';
+  const shouldPresetToday =
+    routePreset === 'today' ||
+    routePresetDateStart > 0 ||
+    presetDateStart > 0 ||
+    taskCreateMode === 'today';
+  const todayPresetDateStart = React.useMemo(() => {
+    if (routePresetDateStart > 0) return routePresetDateStart;
+    if (presetDateStart > 0) return getStartOfLocalDayMs(presetDateStart);
+    if (!shouldPresetToday) return 0;
+    return getStartOfLocalDayMs();
+  }, [presetDateStart, routePresetDateStart, shouldPresetToday]);
   const routeProjectIdIsValid = React.useMemo(
     () =>
       routeProjectId.length > 0 &&
@@ -130,6 +167,17 @@ export default function CreateTaskModal() {
     );
     return focusedProjectExists ? normalizedFocusedProjectId : '';
   }, [focusedProjectId, projects, routeProjectId, routeProjectIdIsValid]);
+  const initialDraftDueAt = React.useMemo(() => {
+    if (!shouldPresetToday || todayPresetDateStart <= 0) return 0;
+    return alignDueAtToLocalDay(todayPresetDateStart, {
+      sourceDueAt: getDueAtForSection('today'),
+      keepTime: true,
+    });
+  }, [shouldPresetToday, todayPresetDateStart]);
+  const initialDraftSection = React.useMemo<SectionId>(() => {
+    if (!hasValidDueAt(initialDraftDueAt)) return 'upcoming';
+    return deriveActiveSectionFromDueAt(initialDraftDueAt);
+  }, [initialDraftDueAt]);
 
   const [title, setTitle] = React.useState('');
   const [isMenuExpanded, setMenuExpanded] = React.useState(false);
@@ -143,6 +191,8 @@ export default function CreateTaskModal() {
   const draftIdRef = React.useRef<string | null>(null);
   const isCreatedRef = React.useRef(false);
   const isNavigatingToChildModalRef = React.useRef(false);
+  const isSyncingDraftRouteParamRef = React.useRef(false);
+  const draftRouteParamSyncTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftTask = React.useMemo<Task | undefined>(() => {
     const draftId = draftIdRef.current ?? routeDraftId;
     if (!draftId) return undefined;
@@ -150,10 +200,26 @@ export default function CreateTaskModal() {
   }, [routeDraftId, tasks]);
 
   React.useEffect(() => {
+    return () => {
+      if (draftRouteParamSyncTimeoutRef.current != null) {
+        clearTimeout(draftRouteParamSyncTimeoutRef.current);
+        draftRouteParamSyncTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  React.useEffect(() => {
     if (draftIdRef.current || !routeDraftId) return;
     const draftFromRoute = tasks.find((task) => task.id === routeDraftId);
     if (!draftFromRoute) return;
     draftIdRef.current = routeDraftId;
+    if (isSyncingDraftRouteParamRef.current) {
+      isSyncingDraftRouteParamRef.current = false;
+      if (draftRouteParamSyncTimeoutRef.current != null) {
+        clearTimeout(draftRouteParamSyncTimeoutRef.current);
+        draftRouteParamSyncTimeoutRef.current = null;
+      }
+    }
   }, [routeDraftId, tasks]);
 
   React.useEffect(() => {
@@ -172,13 +238,41 @@ export default function CreateTaskModal() {
   React.useEffect(() => {
     return () => {
       const idToDelete = draftIdRef.current ?? routeDraftId;
-      if (!isCreatedRef.current && idToDelete && !isNavigatingToChildModalRef.current) {
+      if (
+        !isCreatedRef.current &&
+        idToDelete &&
+        !isNavigatingToChildModalRef.current &&
+        !isSyncingDraftRouteParamRef.current
+      ) {
         // Use functional update to avoid stale closure if we depended on 'tasks' directly,
         // though setStates are stable.
         setTasks((prev) => prev.filter((t) => t.id !== idToDelete));
       }
     };
   }, [routeDraftId, setTasks]);
+
+  const persistDraftIdParam = React.useCallback((draftId: string) => {
+    isSyncingDraftRouteParamRef.current = true;
+    if (draftRouteParamSyncTimeoutRef.current != null) {
+      clearTimeout(draftRouteParamSyncTimeoutRef.current);
+      draftRouteParamSyncTimeoutRef.current = null;
+    }
+    draftRouteParamSyncTimeoutRef.current = setTimeout(() => {
+      isSyncingDraftRouteParamRef.current = false;
+      draftRouteParamSyncTimeoutRef.current = null;
+    }, 1200);
+    const applyParam = () => {
+      try {
+        router.setParams({ draftId });
+      } catch (error) {
+        if (__DEV__) {
+          console.warn('[task/create-modal] Could not persist draftId route param yet.', error);
+        }
+      }
+    };
+
+    requestAnimationFrame(applyParam);
+  }, [router]);
 
   const ensureDraftTask = React.useCallback(() => {
     const upsertHiddenDraftTask = (id: string) => {
@@ -190,9 +284,9 @@ export default function CreateTaskModal() {
             title: title || '',
             emoji: '📝',
             projectId: initialProjectId,
-            dueAt: 0,
-            dueHasTime: false,
-            section: 'upcoming',
+            dueAt: initialDraftDueAt,
+            dueHasTime: hasValidDueAt(initialDraftDueAt),
+            section: initialDraftSection,
             orderRank: 0, // will be fixed on create
             deletedAt: Date.now(), // Hidden
           },
@@ -216,11 +310,11 @@ export default function CreateTaskModal() {
 
     const nextId = createTaskId();
     draftIdRef.current = nextId;
-    router.setParams({ draftId: nextId });
     upsertHiddenDraftTask(nextId);
+    persistDraftIdParam(nextId);
 
     return nextId;
-  }, [initialProjectId, routeDraftId, router, setTasks, tasks, title]);
+  }, [initialDraftDueAt, initialDraftSection, initialProjectId, persistDraftIdParam, routeDraftId, setTasks, tasks, title]);
 
   const didInitRoutinePresetRef = React.useRef(false);
   React.useEffect(() => {
@@ -245,6 +339,32 @@ export default function CreateTaskModal() {
       )
     );
   }, [ensureDraftTask, setTasks, shouldPresetRoutine]);
+
+  const didInitTodayPresetRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!shouldPresetToday || didInitTodayPresetRef.current) return;
+    didInitTodayPresetRef.current = true;
+
+    const draftId = ensureDraftTask();
+    const dueAt = todayPresetDateStart > 0
+      ? alignDueAtToLocalDay(todayPresetDateStart, {
+        sourceDueAt: getDueAtForSection('today'),
+        keepTime: true,
+      })
+      : getDueAtForSection('today');
+    setTasks((prev) =>
+      prev.map((task) =>
+        task.id === draftId
+          ? {
+              ...task,
+              dueAt,
+              dueHasTime: true,
+              section: deriveActiveSectionFromDueAt(dueAt),
+            }
+          : task
+      )
+    );
+  }, [ensureDraftTask, setTasks, shouldPresetToday, todayPresetDateStart]);
 
   // Keep draft title in sync so if we navigate away and back, we don't lose it
   // (Optional, but good if we want "Draft" persistence while modal is open to sub-screens)
@@ -351,17 +471,25 @@ export default function CreateTaskModal() {
 
     if (draftTask) {
       if (draftTask.dueAt > 0) {
-        const dueLabel = draftTask.dueHasTime
-          ? formatDate(draftTask.dueAt, {
-            day: '2-digit',
-            month: 'short',
-            hour: '2-digit',
-            minute: '2-digit',
-          })
-          : formatDate(draftTask.dueAt, {
-            day: '2-digit',
-            month: 'short',
-          });
+        const isDueToday = isSameLocalDay(draftTask.dueAt, Date.now());
+        const dueLabel = isDueToday
+          ? (draftTask.dueHasTime
+            ? `${t('taskDetail.relative.today')}, ${formatDate(draftTask.dueAt, {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}`
+            : t('taskDetail.relative.today'))
+          : (draftTask.dueHasTime
+            ? formatDate(draftTask.dueAt, {
+              day: '2-digit',
+              month: 'short',
+              hour: '2-digit',
+              minute: '2-digit',
+            })
+            : formatDate(draftTask.dueAt, {
+              day: '2-digit',
+              month: 'short',
+            }));
 
         tags.push({
           key: 'date',

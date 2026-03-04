@@ -26,8 +26,8 @@ import type { Project, Task } from '@/context/tasks-store';
 import { isIOS26OrNewer } from '@/utils/ios-version';
 
 type ThemeName = keyof typeof Colors;
-const LIST_ACTIVATION_DISTANCE_NESTED = 8;
-const LIST_ACTIVATION_DISTANCE_DEFAULT = 8;
+const LIST_ACTIVATION_DISTANCE_NESTED = 22;
+const LIST_ACTIVATION_DISTANCE_DEFAULT = 12;
 const LIST_AUTOSCROLL_SPEED = 58;
 const LIST_ANIMATION_CONFIG = {
   damping: 26,
@@ -349,18 +349,6 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     [closeAnyOpen]
   );
 
-  // Disable scrolling at native level immediately (before React re-render).
-  // This forces the RNGH scroll handler to release the current touch,
-  // allowing the library's Pan gesture to activate on the SAME touch.
-  const disableScrollForDrag = React.useCallback(() => {
-    if (internalScrollRef.current?.setNativeProps) {
-      internalScrollRef.current.setNativeProps({ scrollEnabled: false });
-    }
-    if (scrollRef?.current?.setNativeProps) {
-      scrollRef.current.setNativeProps({ scrollEnabled: false });
-    }
-  }, [scrollRef]);
-
   const handlePressTask = React.useCallback(
     (taskId: string) => {
       // First tap closes swipe if anything is open.
@@ -483,7 +471,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   const allowCrossAxisDrag = dragAxisMode === "free" || !!onDragTouchPoint;
   const usesNestedScrollGestures = renderMode === 'nestable' || useScrollViewCompatibilityMode;
   const listActivationDistance = usesNestedScrollGestures
-    ? (allowCrossAxisDrag ? 0 : LIST_ACTIVATION_DISTANCE_NESTED)
+    ? LIST_ACTIVATION_DISTANCE_NESTED
     : LIST_ACTIVATION_DISTANCE_DEFAULT;
   const resolvedContainerStyle: StyleProp<ViewStyle> = React.useMemo(() => {
     return [{ flex: 1, backgroundColor: Colors[theme].background, overflow: 'visible' }, containerStyle];
@@ -539,7 +527,6 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           externalScrollRef={rowScrollGestureRef}
           onSwipeGestureActiveChange={reportSwipeGestureActive}
           onTouchInteractionChange={reportRowTouchInteraction}
-          onBeforeDrag={disableScrollForDrag}
           shouldPopIn={isFocused && popInTaskIdSet.has(task.id)}
           onPopInAnimationEnd={handlePopInAnimationEnd}
           selectedDateStart={selectedDateStart}
@@ -673,7 +660,6 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           externalScrollRef={rowScrollGestureRef}
           onSwipeGestureActiveChange={reportSwipeGestureActive}
           onTouchInteractionChange={reportRowTouchInteraction}
-          onBeforeDrag={disableScrollForDrag}
           shouldPopIn={isFocused && popInTaskIdSet.has(task.id)}
           onPopInAnimationEnd={handlePopInAnimationEnd}
           selectedDateStart={selectedDateStart}

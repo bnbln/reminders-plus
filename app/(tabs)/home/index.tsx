@@ -1,5 +1,6 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { type MenuAction } from "@react-native-menu/menu";
+import { useFocusEffect } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import React from "react";
@@ -11,6 +12,7 @@ import {
   LayoutAnimation,
   type LayoutChangeEvent,
   Modal,
+  NativeModules,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   Platform,
@@ -56,6 +58,14 @@ import {
 } from "@/utils/task-dates";
 
 type ThemeName = keyof typeof Colors;
+type TaskAccessoryContextBridge = {
+  setContext?: (
+    mode: "task" | "today" | "routine" | "project" | "inProject",
+    projectId?: string | null,
+    projectLabel?: string | null,
+  ) => void;
+};
+
 const GRID_HORIZONTAL_PADDING = 16;
 const GRID_GAP = 10;
 const SECTION_SIDE_INSET = 0;
@@ -67,9 +77,7 @@ const DATE_RAIL_ITEM_GAP = 6;
 const DATE_RAIL_PAGE_DAYS = 7;
 const DATE_DROP_VERTICAL_PADDING = 16;
 const DATE_DROP_INTENT_DWELL_MS_FROM_TODAY = 260;
-const DATE_DROP_INTENT_DWELL_MS_FROM_UPCOMING = 180;
 const DATE_DROP_INTENT_HORIZONTAL_TRAVEL_FROM_TODAY = 28;
-const DATE_DROP_INTENT_HORIZONTAL_TRAVEL_FROM_UPCOMING = 18;
 const STREAK_PROGRESS_DAYS = 7;
 const HOME_TASK_ITEM_SPACING = 8;
 const TASK_ROW_SIDE_BLEED = 8;
@@ -281,21 +289,6 @@ type DateSelectionSource =
 
 type DragSurfaceId = "today" | "upcoming";
 type DragBounds = { x: number; y: number; width: number; height: number };
-
-const isPointNearBounds = (
-  bounds: DragBounds | null,
-  x: number,
-  y: number,
-  inset: { top: number; right: number; bottom: number; left: number },
-) => {
-  if (!bounds) return false;
-  return (
-    x >= bounds.x - inset.left &&
-    x <= bounds.x + bounds.width + inset.right &&
-    y >= bounds.y - inset.top &&
-    y <= bounds.y + bounds.height + inset.bottom
-  );
-};
 
 const isSameLocalMonth = (left: number, right: number) => {
   const l = new Date(left);
@@ -1154,7 +1147,20 @@ export default function HomeScreen() {
   const theme = useColorScheme() ?? "light";
   const isDark = theme === "dark";
   const useAppleLightPalette = !isDark && Platform.OS === "ios";
+  const accessoryBridge = NativeModules
+    .TaskAccessoryContextBridge as TaskAccessoryContextBridge | undefined;
+  const { setMode } = useTaskCreateContext();
   const { width: viewportWidth } = useWindowDimensions();
+
+  useFocusEffect(
+    React.useCallback(() => {
+      setMode("today");
+      if (Platform.OS === "ios" && isIOS26OrNewer()) {
+        accessoryBridge?.setContext?.("today", null, null);
+      }
+      return undefined;
+    }, [accessoryBridge, setMode]),
+  );
 
   const [isCalendarPickerOpen, setIsCalendarPickerOpen] = React.useState(false);
   const [calendarPickerDate, setCalendarPickerDate] = React.useState(() => {
@@ -1191,7 +1197,6 @@ export default function HomeScreen() {
     [dateRailItemWidth, theme],
   );
   const { tasks, setTasks, projects } = useTasksStore();
-  const { queueTaskPopIn } = useTaskCreateContext();
   const { enabledTags, showTagIcons, showCompactSubtasks } = useHomeFilters();
   const locale = React.useMemo(() => getIntlLocale().toLowerCase(), []);
   const isGermanLocale = locale.startsWith("de");
@@ -1357,8 +1362,6 @@ export default function HomeScreen() {
     showDragDropTargetsHint && activeDragSurface !== null;
   const dragContextRef = React.useRef<{
     taskId: string;
-    sourceSection: SectionId;
-    sourceHasDueAt: boolean;
   } | null>(null);
   const dragHoverDateStartRef = React.useRef<number | null>(null);
   const dragLastRailDateStartRef = React.useRef<number | null>(null);
@@ -1373,24 +1376,14 @@ export default function HomeScreen() {
     dateStart: null,
     enteredAt: 0,
   });
-  const upcomingExpandTimerRef = React.useRef<ReturnType<
-    typeof setTimeout
-  > | null>(null);
   const dragSurfaceResetFrameRef = React.useRef<number | null>(null);
   const dropCommitFrameRef = React.useRef<number | null>(null);
   const upcomingSurfaceRef = React.useRef<View | null>(null);
   const upcomingSurfaceBoundsRef = React.useRef<DragBounds | null>(null);
   const todaySurfaceRef = React.useRef<View | null>(null);
   const todaySurfaceBoundsRef = React.useRef<DragBounds | null>(null);
-  const [isHoveringUpcomingDropZone, setIsHoveringUpcomingDropZone] =
-    React.useState(false);
-  const [isHoveringTodayDropZone, setIsHoveringTodayDropZone] =
-    React.useState(false);
-  const dragLastTouchPointRef = React.useRef<{
-    absoluteX: number;
-    absoluteY: number;
-  } | null>(null);
-
+  const isHoveringUpcomingDropZone = false;
+  const isHoveringTodayDropZone = false;
   const completionPercentage = React.useMemo(() => {
     let todayTotal = 0;
     let todayCompleted = 0;
@@ -2425,11 +2418,6 @@ export default function HomeScreen() {
     },
     [cancelDragSurfaceResetFrame, cancelDropCommitFrame],
   );
-  const clearUpcomingExpandTimer = React.useCallback(() => {
-    if (upcomingExpandTimerRef.current == null) return;
-    clearTimeout(upcomingExpandTimerRef.current);
-    upcomingExpandTimerRef.current = null;
-  }, []);
   const clearDateDragHover = React.useCallback(() => {
     dragRailHoverIntentRef.current = { dateStart: null, enteredAt: 0 };
     dragHoverDateStartRef.current = null;
@@ -2440,24 +2428,6 @@ export default function HomeScreen() {
     todayListRef.current?.closeAnyOpen();
     upcomingListRef.current?.closeAnyOpen();
   }, []);
-  const scheduleUpcomingExpandOnHover = React.useCallback(() => {
-    if (!collapsedSections.upcoming) {
-      clearUpcomingExpandTimer();
-      return;
-    }
-    if (upcomingExpandTimerRef.current != null) return;
-    upcomingExpandTimerRef.current = setTimeout(() => {
-      upcomingExpandTimerRef.current = null;
-      setCollapsedSections((prev) =>
-        prev.upcoming ? { ...prev, upcoming: false } : prev,
-      );
-    }, 160);
-  }, [clearUpcomingExpandTimer, collapsedSections.upcoming]);
-  React.useEffect(
-    () => () => clearUpcomingExpandTimer(),
-    [clearUpcomingExpandTimer],
-  );
-
   const handleSwipeStateChange = React.useCallback((isSwiping: boolean) => {
     swipeGestureActiveRef.current = isSwiping;
   }, []);
@@ -2474,13 +2444,10 @@ export default function HomeScreen() {
       listDragActiveRef.current = isDragging;
       if (isDragging) {
         cancelDragSurfaceResetFrame();
-        clearUpcomingExpandTimer();
-        measureUpcomingSurfaceBounds();
         measureDateRailBounds();
         return;
       }
       cancelDragSurfaceResetFrame();
-      clearUpcomingExpandTimer();
       dragSurfaceResetFrameRef.current = requestAnimationFrame(() => {
         dragSurfaceResetFrameRef.current = null;
         setActiveDragSurface(null);
@@ -2492,9 +2459,7 @@ export default function HomeScreen() {
     [
       cancelDragSurfaceResetFrame,
       clearDateDragHover,
-      clearUpcomingExpandTimer,
       measureDateRailBounds,
-      measureUpcomingSurfaceBounds,
     ],
   );
 
@@ -2526,10 +2491,6 @@ export default function HomeScreen() {
 
       const touch = event.nativeEvent.changedTouches?.[0];
       if (!touch) return;
-      dragLastTouchPointRef.current = {
-        absoluteX: touch.pageX,
-        absoluteY: touch.pageY,
-      };
       if (
         start.startedOnRow ||
         swipeGestureActiveRef.current ||
@@ -2598,10 +2559,6 @@ export default function HomeScreen() {
   const visibleTasks = React.useMemo(
     () => getVisibleTasksForDateStart(listDateStart),
     [getVisibleTasksForDateStart, listDateStart],
-  );
-  const visibleTasksById = React.useMemo(
-    () => new Map(visibleTasks.map((task) => [task.id, task] as const)),
-    [visibleTasks],
   );
   const visibleTaskDisplaySectionById = React.useMemo(
     () =>
@@ -2858,9 +2815,9 @@ export default function HomeScreen() {
   );
   const applyOrderFromTodaySegment = React.useCallback(
     (data: TaskSwipeDraggableListItem[]) => {
-      applyOrderFromSwipeListData([...data, ...upcomingSwipeListData]);
+      applyOrderFromSwipeListData(data);
     },
-    [applyOrderFromSwipeListData, upcomingSwipeListData],
+    [applyOrderFromSwipeListData],
   );
   const applyOrderFromUpcomingSegment = React.useCallback(
     (data: TaskSwipeDraggableListItem[]) => {
@@ -2887,37 +2844,21 @@ export default function HomeScreen() {
   );
   const handleDragBeginTask = React.useCallback(
     (taskId: string) => {
-      const sourceTask = visibleTasksById.get(taskId);
-      const sourceSection =
-        visibleTaskDisplaySectionById.get(taskId) ??
-        sourceTask?.section ??
-        ("upcoming" as SectionId);
       dragLastRailDateStartRef.current = null;
       dragContextRef.current = {
         taskId,
-        sourceSection,
-        sourceHasDueAt: hasValidDueAt(sourceTask?.dueAt),
       };
       dragStartPointRef.current = null;
       dragRailHoverIntentRef.current = { dateStart: null, enteredAt: 0 };
-      dragLastTouchPointRef.current = null;
       cancelDragSurfaceResetFrame();
-      clearUpcomingExpandTimer();
-      setActiveDragSurface(sourceSection === "today" ? "today" : "upcoming");
-      measureUpcomingSurfaceBounds();
-      measureTodaySurfaceBounds();
+      setActiveDragSurface("today");
       clearDateDragHover();
       measureDateRailBounds();
     },
     [
       cancelDragSurfaceResetFrame,
       clearDateDragHover,
-      clearUpcomingExpandTimer,
       measureDateRailBounds,
-      measureTodaySurfaceBounds,
-      measureUpcomingSurfaceBounds,
-      visibleTaskDisplaySectionById,
-      visibleTasksById,
     ],
   );
 
@@ -2934,37 +2875,6 @@ export default function HomeScreen() {
       if (!dragStartPointRef.current) {
         dragStartPointRef.current = { absoluteX, absoluteY };
       }
-      dragLastTouchPointRef.current = { absoluteX, absoluteY };
-      const isHoveringUpcomingSurface =
-        dragContextRef.current.sourceSection === "today" &&
-        isPointNearBounds(
-          upcomingSurfaceBoundsRef.current,
-          absoluteX,
-          absoluteY,
-          {
-            top: 36,
-            right: 20,
-            bottom: 64,
-            left: 20,
-          },
-        );
-      if (isHoveringUpcomingSurface) {
-        setIsHoveringUpcomingDropZone(true);
-        scheduleUpcomingExpandOnHover();
-      } else {
-        setIsHoveringUpcomingDropZone(false);
-        clearUpcomingExpandTimer();
-      }
-
-      const isHoveringTodaySurface =
-        dragContextRef.current.sourceSection === "upcoming" &&
-        isPointNearBounds(todaySurfaceBoundsRef.current, absoluteX, absoluteY, {
-          top: 36,
-          right: 20,
-          bottom: 64,
-          left: 20,
-        });
-      setIsHoveringTodayDropZone(isHoveringTodaySurface);
       const bounds = dateRailBoundsRef.current;
       if (!bounds) return;
 
@@ -3003,21 +2913,14 @@ export default function HomeScreen() {
         ? Math.abs(absoluteX - dragStartPoint.absoluteX)
         : 0;
       const dwellMs = now - dragRailHoverIntentRef.current.enteredAt;
-      const minDwellMs =
-        dragContextRef.current.sourceSection === "today"
-          ? DATE_DROP_INTENT_DWELL_MS_FROM_TODAY
-          : DATE_DROP_INTENT_DWELL_MS_FROM_UPCOMING;
-      const minHorizontalTravel =
-        dragContextRef.current.sourceSection === "today"
-          ? DATE_DROP_INTENT_HORIZONTAL_TRAVEL_FROM_TODAY
-          : DATE_DROP_INTENT_HORIZONTAL_TRAVEL_FROM_UPCOMING;
       const isDifferentDay = !isSameLocalDay(
         targetDay.timestamp,
         listDateStartRef.current,
       );
       const hasIntentForDateDrop =
         isDifferentDay &&
-        (horizontalTravel >= minHorizontalTravel || dwellMs >= minDwellMs);
+        (horizontalTravel >= DATE_DROP_INTENT_HORIZONTAL_TRAVEL_FROM_TODAY ||
+          dwellMs >= DATE_DROP_INTENT_DWELL_MS_FROM_TODAY);
 
       if (!hasIntentForDateDrop) {
         dragLastRailDateStartRef.current = null;
@@ -3035,151 +2938,9 @@ export default function HomeScreen() {
     },
     [
       clearDateDragHover,
-      clearUpcomingExpandTimer,
       dateRailDays,
       dateRailSnapInterval,
-      scheduleUpcomingExpandOnHover,
     ],
-  );
-
-  const resolveOpenDayDropDateStart = React.useCallback(
-    (
-      meta: { data: TaskSwipeDraggableListItem[]; from: number; to: number },
-      dragContext: {
-        taskId: string;
-        sourceSection: SectionId;
-        sourceHasDueAt: boolean;
-      },
-    ) => {
-      if (dragContext.sourceSection !== "upcoming") return null;
-      if (dragContext.sourceHasDueAt) return null;
-
-      const targetDateStart = listDateStartRef.current;
-      if (isSameLocalDay(targetDateStart, todayStart)) return null;
-      if (meta.to < meta.from) return targetDateStart;
-
-      let currentSection: SectionId = firstVisibleSection;
-      const orderedUpcomingTaskIds: string[] = [];
-      for (const item of meta.data) {
-        if (item.kind === "header") {
-          currentSection = item.sectionId as SectionId;
-          continue;
-        }
-        if (currentSection === "upcoming") {
-          orderedUpcomingTaskIds.push(item.taskId);
-        }
-      }
-
-      const draggedIndex = orderedUpcomingTaskIds.indexOf(dragContext.taskId);
-      if (draggedIndex < 0) return null;
-
-      const firstUndatedOtherIndex = orderedUpcomingTaskIds.findIndex(
-        (taskId) => {
-          if (taskId === dragContext.taskId) return false;
-          const task = visibleTasksById.get(taskId);
-          return !task || !hasValidDueAt(task.dueAt);
-        },
-      );
-
-      if (
-        firstUndatedOtherIndex === -1 ||
-        draggedIndex < firstUndatedOtherIndex
-      ) {
-        return targetDateStart;
-      }
-
-      return null;
-    },
-    [firstVisibleSection, todayStart, visibleTasksById],
-  );
-
-  const shouldDropIntoUpcomingSurface = React.useCallback(
-    (dragContext: {
-      taskId: string;
-      sourceSection: SectionId;
-      sourceHasDueAt: boolean;
-    }) => {
-      if (dragContext.sourceSection !== "today") return false;
-      const point = dragLastTouchPointRef.current;
-      if (!point) return false;
-      const extraBottomInset =
-        collapsedSections.upcoming || !hasUpcomingTasks ? 120 : 64;
-      return isPointNearBounds(
-        upcomingSurfaceBoundsRef.current,
-        point.absoluteX,
-        point.absoluteY,
-        {
-          // Allow dropping slightly above/around the "Ohne Datum" card,
-          // which feels more natural when releasing near the section boundary.
-          top: 68,
-          right: 28,
-          bottom: extraBottomInset + 18,
-          left: 28,
-        },
-      );
-    },
-    [collapsedSections.upcoming, hasUpcomingTasks],
-  );
-
-  const shouldDropIntoTodaySurface = React.useCallback(
-    (dragContext: {
-      taskId: string;
-      sourceSection: SectionId;
-      sourceHasDueAt: boolean;
-    }) => {
-      if (dragContext.sourceSection !== "upcoming") return false;
-      const point = dragLastTouchPointRef.current;
-      if (!point) return false;
-      return isPointNearBounds(
-        todaySurfaceBoundsRef.current,
-        point.absoluteX,
-        point.absoluteY,
-        {
-          // Allow dropping slightly around the bounds
-          top: 68,
-          right: 28,
-          bottom: 18,
-          left: 28,
-        },
-      );
-    },
-    [],
-  );
-
-  const applyDraggedTaskToUpcomingUndated = React.useCallback(
-    (taskId: string) => {
-      setTasks((prev) => {
-        const task = prev.find((candidate) => candidate.id === taskId);
-        if (!task || task.deletedAt || task.section === "completed") {
-          return prev;
-        }
-
-        const fromSection = deriveActiveSectionFromDueAt(task.dueAt);
-        if (fromSection === "upcoming" && !hasValidDueAt(task.dueAt)) {
-          return prev;
-        }
-
-        const next = prev.map((candidate) =>
-          candidate.id === taskId
-            ? {
-              ...candidate,
-              section: "upcoming" as const,
-              dueAt: 0,
-              dueHasTime: false,
-              completedAt: undefined,
-            }
-            : candidate,
-        );
-
-        if (fromSection === "upcoming") {
-          return reseedSection(next, "upcoming");
-        }
-
-        const reseededFrom = reseedSection(next, fromSection);
-        return reseedSection(reseededFrom, "upcoming");
-      });
-    },
-    [reseedSection, setTasks],
   );
 
   const applyDraggedTaskToDate = React.useCallback(
@@ -3226,7 +2987,7 @@ export default function HomeScreen() {
   );
 
   const handleDragEndMeta = React.useCallback(
-    (meta: {
+    (_meta: {
       data: TaskSwipeDraggableListItem[];
       from: number;
       to: number;
@@ -3236,43 +2997,13 @@ export default function HomeScreen() {
       const lastRailDateStart = dragLastRailDateStartRef.current;
       dragContextRef.current = null;
       dragLastRailDateStartRef.current = null;
-      clearUpcomingExpandTimer();
       clearDateDragHover();
-      setIsHoveringUpcomingDropZone(false);
-      setIsHoveringTodayDropZone(false);
 
       if (!dragContext) {
-        dragLastTouchPointRef.current = null;
         return false;
       }
 
-      if (shouldDropIntoUpcomingSurface(dragContext)) {
-        const droppedTaskId = dragContext.taskId;
-        dragLastTouchPointRef.current = null;
-        queueDropCommit(() => {
-          setCollapsedSections((prev) =>
-            prev.upcoming ? { ...prev, upcoming: false } : prev,
-          );
-          applyDraggedTaskToUpcomingUndated(droppedTaskId);
-        });
-        return true;
-      }
-
-      if (shouldDropIntoTodaySurface(dragContext)) {
-        const droppedTaskId = dragContext.taskId;
-        dragLastTouchPointRef.current = null;
-        queueDropCommit(() => {
-          applyDraggedTaskToDate(droppedTaskId, listDateStartRef.current);
-          selectDateWithoutTransition(selectedDateStartRef.current);
-        });
-        return true;
-      }
-
-      const targetDateStart =
-        hoveredDateStart ??
-        lastRailDateStart ??
-        resolveOpenDayDropDateStart(meta, dragContext);
-      dragLastTouchPointRef.current = null;
+      const targetDateStart = hoveredDateStart ?? lastRailDateStart;
       if (targetDateStart == null) return false;
 
       const droppedTaskId = dragContext.taskId;
@@ -3283,16 +3014,10 @@ export default function HomeScreen() {
       return true;
     },
     [
-      applyDraggedTaskToUpcomingUndated,
       applyDraggedTaskToDate,
       clearDateDragHover,
-      clearUpcomingExpandTimer,
       queueDropCommit,
-      queueTaskPopIn,
-      resolveOpenDayDropDateStart,
       selectDateWithoutTransition,
-      shouldDropIntoUpcomingSurface,
-      shouldDropIntoTodaySurface,
     ],
   );
 

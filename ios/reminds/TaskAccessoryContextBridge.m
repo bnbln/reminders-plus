@@ -4,6 +4,7 @@
 
 RCT_EXTERN_METHOD(setContext:(NSString *)mode
                   projectId:(NSString * _Nullable)projectId
-                  projectLabel:(NSString * _Nullable)projectLabel)
+                  projectLabel:(NSString * _Nullable)projectLabel
+                  selectedDateStart:(NSNumber * _Nullable)selectedDateStart)
 
 @end

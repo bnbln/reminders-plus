@@ -1,6 +1,7 @@
+import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { NativeModules, Platform, StyleSheet, Text, View } from 'react-native';
 
 import { TaskSwipeDraggableList } from '@/components/tasks/task-swipe-draggable-list';
 import {
@@ -11,10 +12,19 @@ import { FloatingAddButton } from '@/components/ui/floating-add-button';
 import { withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
 import { useHomeFilters } from '@/context/home-filters-store';
+import { useTaskCreateContext } from '@/context/task-create-context';
 import { type Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
 import { isIOS26OrNewer } from '@/utils/ios-version';
+
+type TaskAccessoryContextBridge = {
+  setContext?: (
+    mode: 'task' | 'today' | 'routine' | 'project' | 'inProject',
+    projectId?: string | null,
+    projectLabel?: string | null,
+  ) => void;
+};
 
 function hasValidDueDate(task: Task) {
   // Robust gegen ältere/teilweise Daten (z.B. Persisted State), obwohl `Task.dueAt` im Typ required ist.
@@ -30,6 +40,9 @@ function isDueToday(task: Task, startOfDayMs: number, endOfDayMs: number) {
 export default function TodayScreen() {
   const router = useRouter();
   const theme = useColorScheme() ?? 'light';
+  const accessoryBridge = NativeModules
+    .TaskAccessoryContextBridge as TaskAccessoryContextBridge | undefined;
+  const { setMode } = useTaskCreateContext();
   const showFloatingAddButton = Platform.OS === 'ios' && !isIOS26OrNewer();
   const params = useLocalSearchParams<{ withNotes?: string; withSubtasks?: string }>();
   const withNotesEnabled = params.withNotes === '1';
@@ -41,6 +54,16 @@ export default function TodayScreen() {
       : params.withSubtasks === '1';
   const { tasks, setTasks, projects } = useTasksStore();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      setMode('today');
+      if (Platform.OS === 'ios' && isIOS26OrNewer()) {
+        accessoryBridge?.setContext?.('today', null, null);
+      }
+      return undefined;
+    }, [accessoryBridge, setMode]),
+  );
 
   const projectsById = React.useMemo(() => new Map(projects.map((p) => [p.id, p] as const)), [projects]);
 

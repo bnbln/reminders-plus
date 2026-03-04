@@ -114,8 +114,13 @@ final class TaskAccessoryContextBridge: NSObject {
     true
   }
 
-  @objc(setContext:projectId:projectLabel:)
-  func setContext(_ mode: String, projectId: String?, projectLabel: String?) {
+  @objc(setContext:projectId:projectLabel:selectedDateStart:)
+  func setContext(
+    _ mode: String,
+    projectId: String?,
+    projectLabel: String?,
+    selectedDateStart: NSNumber?
+  ) {
     DispatchQueue.main.async {
       NotificationCenter.default.post(
         name: .taskAccessoryContextDidChange,
@@ -124,6 +129,7 @@ final class TaskAccessoryContextBridge: NSObject {
           "mode": mode,
           "projectId": projectId ?? "",
           "projectLabel": projectLabel ?? "",
+          "selectedDateStart": selectedDateStart?.doubleValue ?? 0,
         ]
       )
     }
@@ -142,6 +148,7 @@ private final class TabBarAccessoryCoordinator: NSObject {
   private var accessoryMode: AddReminderAccessoryButton.Mode = .task
   private var accessoryProjectId: String?
   private var accessoryProjectLabel: String?
+  private var accessorySelectedDateStart: TimeInterval?
 
   init(windowProvider: @escaping () -> UIWindow?) {
     self.windowProvider = windowProvider
@@ -266,10 +273,16 @@ private final class TabBarAccessoryCoordinator: NSObject {
 
     let rawProjectId = (userInfo["projectId"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
     let rawProjectLabel = (userInfo["projectLabel"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+    let rawSelectedDateStart = (userInfo["selectedDateStart"] as? NSNumber)?.doubleValue ?? 0
 
     accessoryMode = mode
     accessoryProjectId = (rawProjectId?.isEmpty == false) ? rawProjectId : nil
     accessoryProjectLabel = (rawProjectLabel?.isEmpty == false) ? rawProjectLabel : nil
+    if rawSelectedDateStart > 0 {
+      accessorySelectedDateStart = rawSelectedDateStart
+    } else if mode != .today {
+      accessorySelectedDateStart = nil
+    }
 
     addButton.setContext(
       mode: accessoryMode,
@@ -384,7 +397,21 @@ private final class TabBarAccessoryCoordinator: NSObject {
   }
 
   private func resolvedAddActionURL() -> URL? {
-    switch accessoryMode {
+    let effectiveMode: AddReminderAccessoryButton.Mode
+    if isHomeTabSelected() {
+      // Home stack should always default to "today", except the dedicated routines route.
+      effectiveMode = accessoryMode == .routine ? .routine : .today
+    } else {
+      effectiveMode = accessoryMode
+    }
+
+    switch effectiveMode {
+    case .today:
+      if let selectedDateStart = accessorySelectedDateStart, selectedDateStart > 0 {
+        let normalizedDateStart = Int64(selectedDateStart.rounded(.towardZero))
+        return URL(string: "reminds:///task/create-modal?preset=today&dateStart=\(normalizedDateStart)")
+      }
+      return URL(string: "reminds:///task/create-modal?preset=today")
     case .routine:
       return URL(string: "reminds:///task/create-modal?preset=routine")
     case .project:
@@ -399,6 +426,14 @@ private final class TabBarAccessoryCoordinator: NSObject {
     case .task:
       return URL(string: "reminds:///task/create-modal")
     }
+  }
+
+  private func isHomeTabSelected() -> Bool {
+    // Prefer the tab controller we attached the accessory to; resolver can find stale candidates.
+    guard let tabBarController = attachedTabBarController ?? resolveTabBarController() else {
+      return false
+    }
+    return tabBarController.selectedIndex == 0
   }
 
   private static func findTabBarControllers(in viewController: UIViewController) -> [UITabBarController] {
@@ -531,6 +566,7 @@ private final class TabBarAccessoryCoordinator: NSObject {
 private final class AddReminderAccessoryButton: UIControl {
   enum Mode: String {
     case task
+    case today
     case routine
     case project
     case inProject
@@ -729,6 +765,8 @@ private final class AddReminderAccessoryButton: UIControl {
   private func resolveTitle(for mode: Mode, projectLabel: String?) -> String {
     switch mode {
     case .task:
+      return Self.localizedTaskTitle()
+    case .today:
       return Self.localizedTaskTitle()
     case .routine:
       return Self.localizedTaskTitle()

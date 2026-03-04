@@ -17,7 +17,7 @@ type ThemeName = keyof typeof Colors;
 type RoutineStatsBucket = 'daily' | 'weekly' | 'monthlyPlus';
 type TaskAccessoryContextBridge = {
   setContext?: (
-    mode: 'task' | 'routine' | 'project' | 'inProject',
+    mode: 'task' | 'today' | 'routine' | 'project' | 'inProject',
     projectId?: string | null,
     projectLabel?: string | null,
   ) => void;
@@ -354,9 +354,7 @@ export default function RoutinesScreen() {
       setMode('routine');
       if (Platform.OS !== 'ios' || !isIOS26OrNewer()) return undefined;
       accessoryBridge?.setContext?.('routine', null, null);
-      return () => {
-        accessoryBridge?.setContext?.('task', null, null);
-      };
+      return undefined;
     }, [accessoryBridge, setMode]),
   );
 
