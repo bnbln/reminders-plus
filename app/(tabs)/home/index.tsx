@@ -272,12 +272,6 @@ type DateListTransitionState = {
   toDateStart: number;
   direction: 1 | -1;
 };
-
-type DateRailTitleTransitionState = {
-  fromTitle: string;
-  toTitle: string;
-  direction: 1 | -1;
-};
 type DateSelectionSource =
   | "press"
   | "swipe"
@@ -607,13 +601,26 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
     },
     dateRailTitleHost: {
       position: "relative",
-      minHeight: 36,
-      marginBottom: 12,
+      minHeight: 40,
+      marginBottom: 10,
       justifyContent: "center",
       zIndex: 100,
     },
     dateRailTitleHostCollapsed: {
       marginBottom: 2,
+    },
+    dateRailHeadlineRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+      width: "100%",
+      paddingHorizontal: 12,
+    },
+    dateRailHeadlineTextHost: {
+      flex: 1,
+      minHeight: 24,
+      justifyContent: "center",
     },
     dateRailTitlePressable: {
       width: "100%",
@@ -625,18 +632,18 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
     dateRailTitleViewport: {
       width: "100%",
       overflow: "visible",
-      alignItems: "center",
+      alignItems: "flex-start",
       justifyContent: "center",
     },
     dateRailTitleTextViewport: {
       height: 24,
       overflow: "hidden",
-      alignItems: "center",
+      alignItems: "flex-start",
       justifyContent: "center",
     },
     dateRailTitleTextTransitionHost: {
       height: 24,
-      alignItems: "center",
+      alignItems: "flex-start",
       justifyContent: "center",
     },
     dateRailTitleTextMeasure: {
@@ -667,7 +674,6 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
       width: 32,
       height: 32,
       borderRadius: 16,
-      marginLeft: 8,
       alignItems: "center",
       justifyContent: "center",
       borderWidth: StyleSheet.hairlineWidth,
@@ -711,7 +717,7 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
       fontWeight: WEIGHT_HEADING,
       color: text,
       letterSpacing: 0.2,
-      textAlign: "center",
+      textAlign: "left",
       marginBottom: 0,
     },
     dateRailList: {
@@ -1056,9 +1062,15 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
       maxWidth: 220,
     },
     emptyState: {
-      paddingVertical: 28,
+      minHeight: 188,
+      paddingVertical: 40,
+      paddingHorizontal: 16,
       alignItems: "center",
       justifyContent: "center",
+      gap: 10,
+    },
+    emptyStateIcon: {
+      opacity: 0.34,
     },
     upcomingEmptyDropZone: {
       minHeight: 86,
@@ -1262,18 +1274,11 @@ export default function HomeScreen() {
     new Animated.Value(1),
   ).current;
   const dateListTransitionHeight = React.useRef(new Animated.Value(0)).current;
-  const dateRailTitleTransitionProgress = React.useRef(
-    new Animated.Value(0),
-  ).current;
+  const dateRailTitleMotion = React.useRef(new Animated.Value(1)).current;
   const [isDateListTransitioning, setIsDateListTransitioning] =
     React.useState(false);
   const [dateListTransitionState, setDateListTransitionState] =
     React.useState<DateListTransitionState | null>(null);
-  const [dateRailTitleTransition, setDateRailTitleTransition] =
-    React.useState<DateRailTitleTransitionState | null>(null);
-  const dateRailTitleTransitionRef =
-    React.useRef<DateRailTitleTransitionState | null>(null);
-  const dateRailResolvedTitleRef = React.useRef<string>(t("common.today"));
   const [dateListHostWidth, setDateListHostWidth] =
     React.useState(viewportWidth);
   const dateListHostWidthRef = React.useRef(viewportWidth);
@@ -1303,6 +1308,7 @@ export default function HomeScreen() {
   const dateListTransitionProgressAnimationRef =
     React.useRef<Animated.CompositeAnimation | null>(null);
   const listTransitionRunningRef = React.useRef(false);
+  const lastAnimatedTitleDateRef = React.useRef(selectedDateStart);
   const queuedDateStartRef = React.useRef<number | null>(null);
   const queuedDirectionRef = React.useRef<1 | -1>(1);
   const listDateStartRef = React.useRef(listDateStart);
@@ -1527,15 +1533,8 @@ export default function HomeScreen() {
     () => getDynamicHeaderTitle(selectedDateStart),
     [getDynamicHeaderTitle, selectedDateStart],
   );
-  React.useEffect(() => {
-    if (dateRailTitleTransition) return;
-    dateRailResolvedTitleRef.current = dynamicHeaderTitle;
-  }, [dateRailTitleTransition, dynamicHeaderTitle]);
-  React.useEffect(() => {
-    dateRailTitleTransitionRef.current = dateRailTitleTransition;
-  }, [dateRailTitleTransition]);
   React.useLayoutEffect(() => {
-    navigation.setOptions({ title: t("tabs.tasks") });
+    navigation.setOptions({ title: t("common.today") });
   }, [navigation]);
   const activeDateSelectionStart = dragHoveredDateStart ?? selectedDateStart;
 
@@ -1648,65 +1647,31 @@ export default function HomeScreen() {
   }, []);
   const resetDateRailTitleMotion = React.useCallback(() => {
     stopDateRailTitleAnimation();
-    dateRailTitleTransitionRef.current = null;
-    dateRailTitleTransitionProgress.setValue(0);
-    setDateRailTitleTransition(null);
-  }, [
-    dateRailTitleTransitionProgress,
-    dateRailTitleTransitionRef,
-    stopDateRailTitleAnimation,
-  ]);
-  const animateDateRailTitleTransition = React.useCallback(
-    (fromDateStart: number, toDateStart: number) => {
-      const toTitle = getDynamicHeaderTitle(toDateStart);
-      const activeTransition = dateRailTitleTransitionRef.current;
-      const fromTitle =
-        activeTransition?.toTitle ??
-        dateRailResolvedTitleRef.current ??
-        getDynamicHeaderTitle(fromDateStart);
-
-      if (activeTransition && activeTransition.toTitle === toTitle) {
-        return;
-      }
-
-      if (fromTitle === toTitle) {
-        dateRailResolvedTitleRef.current = toTitle;
-        resetDateRailTitleMotion();
-        return;
-      }
-
-      stopDateRailTitleAnimation();
-      const direction: 1 | -1 = toDateStart >= fromDateStart ? 1 : -1;
-      const nextTransition = { fromTitle, toTitle, direction } as const;
-      dateRailTitleTransitionRef.current = nextTransition;
-      setDateRailTitleTransition(nextTransition);
-      dateRailTitleTransitionProgress.setValue(0);
-      const animation = Animated.timing(dateRailTitleTransitionProgress, {
-        toValue: 1,
-        duration: DATE_TRANSITION_DURATION,
-        easing: Easing.inOut(Easing.cubic),
-        useNativeDriver: true,
-      });
-      dateRailTitleAnimationRef.current = animation;
-      animation.start(({ finished }) => {
-        if (dateRailTitleAnimationRef.current !== animation) return;
+    dateRailTitleMotion.stopAnimation();
+    dateRailTitleMotion.setValue(1);
+  }, [dateRailTitleMotion, stopDateRailTitleAnimation]);
+  React.useEffect(() => {
+    if (
+      isSameLocalDay(lastAnimatedTitleDateRef.current, selectedDateStart)
+    ) {
+      return;
+    }
+    lastAnimatedTitleDateRef.current = selectedDateStart;
+    stopDateRailTitleAnimation();
+    dateRailTitleMotion.setValue(0);
+    const animation = Animated.timing(dateRailTitleMotion, {
+      toValue: 1,
+      duration: 170,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    });
+    dateRailTitleAnimationRef.current = animation;
+    animation.start(() => {
+      if (dateRailTitleAnimationRef.current === animation) {
         dateRailTitleAnimationRef.current = null;
-        if (!finished) return;
-        dateRailResolvedTitleRef.current = toTitle;
-        dateRailTitleTransitionRef.current = null;
-        dateRailTitleTransitionProgress.setValue(0);
-        setDateRailTitleTransition(null);
-      });
-    },
-    [
-      dateRailResolvedTitleRef,
-      dateRailTitleTransitionProgress,
-      dateRailTitleTransitionRef,
-      getDynamicHeaderTitle,
-      resetDateRailTitleMotion,
-      stopDateRailTitleAnimation,
-    ],
-  );
+      }
+    });
+  }, [dateRailTitleMotion, selectedDateStart, stopDateRailTitleAnimation]);
   const resetDateListMotion = React.useCallback(() => {
     dateListTranslateX.stopAnimation();
     dateListTranslateX.setValue(0);
@@ -2120,7 +2085,6 @@ export default function HomeScreen() {
       const toHasTodayTasks = hasTodayTasksForDateStart(nextDateStart);
       const direction: 1 | -1 =
         directionHint ?? (nextDateStart > current ? 1 : -1);
-      animateDateRailTitleTransition(current, nextDateStart);
       selectedDateStartRef.current = nextDateStart;
       setSelectedDateStart(nextDateStart);
       if (!fromHasTodayTasks && !toHasTodayTasks) {
@@ -2132,7 +2096,6 @@ export default function HomeScreen() {
       void Haptics.selectionAsync().catch(() => undefined);
     },
     [
-      animateDateRailTitleTransition,
       hasTodayTasksForDateStart,
       runDateListTransition,
       setListDateWithoutTransition,
@@ -2615,7 +2578,7 @@ export default function HomeScreen() {
         const dueAtIsValid = hasValidDueAt(t.dueAt);
 
         if (!dueAtIsValid) {
-          return normalizedSection === "upcoming";
+          return false;
         }
 
         return isSameLocalDay(t.dueAt, targetDateStart);
@@ -2651,11 +2614,10 @@ export default function HomeScreen() {
     [listDateStart, visibleTasks],
   );
 
-  const visibleSections = React.useMemo(() => {
-    return SECTION_ORDER.filter((s) =>
-      homeEnabledSections.includes(s),
-    ) as SectionId[];
-  }, [homeEnabledSections]);
+  const visibleSections = React.useMemo(
+    () => ["today"] as SectionId[],
+    [],
+  );
 
   const firstVisibleSection = visibleSections[0] ?? "today";
 
@@ -2742,6 +2704,20 @@ export default function HomeScreen() {
     );
   }, [hasTodaySection, swipeListData, visibleTaskDisplaySectionById]);
   const hasTodayTasks = todaySwipeListData.length > 0;
+  const calendarEmptyState = React.useMemo(
+    () => (
+      <View style={styles.emptyState}>
+        <MaterialIcons
+          name="event-busy"
+          size={32}
+          color={withAlpha(Colors[theme].text, 0.36)}
+          style={styles.emptyStateIcon}
+        />
+        <Text style={styles.emptyText}>{t("home.empty.noTasks")}</Text>
+      </View>
+    ),
+    [styles, theme],
+  );
   const dateListTransitionData = React.useMemo(() => {
     if (!dateListTransitionState) return null;
     const fromVisibleTasks = getVisibleTasksForDateStart(
@@ -3587,38 +3563,9 @@ export default function HomeScreen() {
 
   const dateRailPanel = React.useMemo(() => {
     if (firstVisibleSection !== "today") return null;
-    const todayChevronRotate = todayCollapseProgress.interpolate({
+    const titleTranslateY = dateRailTitleMotion.interpolate({
       inputRange: [0, 1],
-      outputRange: ["90deg", "0deg"],
-    });
-    const todayChipScale = todayCollapseProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [1, 0.985],
-    });
-    const todayChipOpacity = todayCollapseProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [1, 0.94],
-    });
-    const calendarButtonOpacity = todayCollapseProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [1, 0],
-    });
-    const calendarButtonScale = todayCollapseProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [1, 0.9],
-    });
-    const calendarButtonTranslateY = todayCollapseProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0, -4],
-    });
-    const titleTransitionDirection = dateRailTitleTransition?.direction ?? 1;
-    const titleOutTranslateY = dateRailTitleTransitionProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0, -10 * titleTransitionDirection],
-    });
-    const titleInTranslateY = dateRailTitleTransitionProgress.interpolate({
-      inputRange: [0, 1],
-      outputRange: [10 * titleTransitionDirection, 0],
+      outputRange: [8, 0],
     });
     return (
       <View
@@ -3628,117 +3575,24 @@ export default function HomeScreen() {
       >
         <View style={styles.dateRailMotionContent}>
           <View style={styles.dateRailTitleHost}>
-            <Pressable
-              onPress={() => {
-                closeAnyOpen();
-                configureSmoothListLayoutTransition();
-                setCollapsedSections((prev) => ({
-                  ...prev,
-                  today: !prev.today,
-                }));
-              }}
-              disabled={isDateListTransitioning}
-              hitSlop={20}
-              style={styles.dateRailTitlePressable}
-            >
-              <View style={styles.dateRailTitleViewport}>
-                <Animated.View
-                  style={{
-                    transform: [{ scale: todayChipScale }],
-                    opacity: todayChipOpacity,
-                  }}
-                >
-                  <GlassSurface
-                    tintColor={glassSurfacePalette.chipTint}
-                    fallbackBackgroundColor={glassSurfacePalette.chipFallback}
-                    style={styles.dateRailTitleRow}
+            <View style={styles.dateRailHeadlineRow}>
+              <View style={styles.dateRailHeadlineTextHost}>
+                <View style={styles.dateRailTitleTextViewport}>
+                  <Animated.Text
+                    style={[
+                      styles.dateRailTitle,
+                      {
+                        opacity: dateRailTitleMotion,
+                        transform: [{ translateY: titleTranslateY }],
+                      },
+                    ]}
+                    numberOfLines={1}
                   >
-                    <View style={styles.dateRailTitleTextViewport}>
-                      {dateRailTitleTransition ? (
-                        <View style={styles.dateRailTitleTextTransitionHost}>
-                          <Text
-                            numberOfLines={1}
-                            style={[
-                              styles.dateRailTitle,
-                              styles.dateRailTitleTextMeasure,
-                            ]}
-                          >
-                            {dateRailTitleTransition.fromTitle.length >=
-                              dateRailTitleTransition.toTitle.length
-                              ? dateRailTitleTransition.fromTitle
-                              : dateRailTitleTransition.toTitle}
-                          </Text>
-                          <Animated.Text
-                            numberOfLines={1}
-                            style={[
-                              styles.dateRailTitle,
-                              styles.dateRailTitleTextTransitionText,
-                              {
-                                opacity:
-                                  dateRailTitleTransitionProgress.interpolate({
-                                    inputRange: [0, 1],
-                                    outputRange: [1, 0],
-                                  }),
-                                transform: [{ translateY: titleOutTranslateY }],
-                              },
-                            ]}
-                          >
-                            {dateRailTitleTransition.fromTitle}
-                          </Animated.Text>
-                          <Animated.Text
-                            numberOfLines={1}
-                            style={[
-                              styles.dateRailTitle,
-                              styles.dateRailTitleTextTransitionText,
-                              {
-                                opacity: dateRailTitleTransitionProgress,
-                                transform: [{ translateY: titleInTranslateY }],
-                              },
-                            ]}
-                          >
-                            {dateRailTitleTransition.toTitle}
-                          </Animated.Text>
-                        </View>
-                      ) : (
-                        <Text style={styles.dateRailTitle} numberOfLines={1}>
-                          {dynamicHeaderTitle}
-                        </Text>
-                      )}
-                    </View>
-                    <Animated.View
-                      style={{
-                        transform: [{ rotate: todayChevronRotate }],
-                        marginTop: 2,
-                      }}
-                    >
-                      <MaterialIcons
-                        name="chevron-right"
-                        size={24}
-                        color={Colors[theme].text}
-                        style={[styles.sectionChevron, { opacity: 1 }]}
-                      />
-                    </Animated.View>
-                  </GlassSurface>
-                </Animated.View>
+                    {dynamicHeaderTitle}
+                  </Animated.Text>
+                </View>
               </View>
-            </Pressable>
 
-            <Animated.View
-              pointerEvents={collapsedSections.today ? "none" : "auto"}
-              style={{
-                position: "absolute",
-                right: 24,
-                top: 0,
-                bottom: 0,
-                justifyContent: "center",
-                zIndex: 10,
-                opacity: calendarButtonOpacity,
-                transform: [
-                  { scale: calendarButtonScale },
-                  { translateY: calendarButtonTranslateY },
-                ],
-              }}
-            >
               <GlassSurface
                 tintColor={glassSurfacePalette.calendarTint}
                 fallbackBackgroundColor={glassSurfacePalette.calendarFallback}
@@ -3768,7 +3622,7 @@ export default function HomeScreen() {
                   </View>
                 </Pressable>
               </GlassSurface>
-            </Animated.View>
+            </View>
           </View>
 
           {/* Calendar picker rendered as top-level Modal to avoid clipping */}
@@ -3839,84 +3693,80 @@ export default function HomeScreen() {
             </View>
           </Modal>
 
-          {!collapsedSections.today ? (
-            <FlatList
-              ref={dateRailRef}
-              data={dateRailDays}
-              keyExtractor={(day) => day.key}
-              renderItem={({ item: day }) => {
-                const isSelected = day.isSelected;
-                const isToday = day.isToday;
+          <FlatList
+            ref={dateRailRef}
+            data={dateRailDays}
+            keyExtractor={(day) => day.key}
+            renderItem={({ item: day }) => {
+              const isSelected = day.isSelected;
+              const isToday = day.isToday;
 
-                const dayContainerStyle = [
-                  styles.dateRailDay,
-                  isSelected ? styles.dateRailDaySelected : null,
-                ];
+              const dayContainerStyle = [
+                styles.dateRailDay,
+                isSelected ? styles.dateRailDaySelected : null,
+              ];
 
-                const dayNumStyle = [
-                  styles.dateRailDayNum,
-                  day.isWeekend ? styles.dateRailDayNumWeekend : null,
-                  isToday ? styles.dateRailDayNumToday : null,
-                  isSelected ? styles.dateRailDayNumSelected : null,
-                ];
+              const dayNumStyle = [
+                styles.dateRailDayNum,
+                day.isWeekend ? styles.dateRailDayNumWeekend : null,
+                isToday ? styles.dateRailDayNumToday : null,
+                isSelected ? styles.dateRailDayNumSelected : null,
+              ];
 
-                const dayDowStyle = [
-                  styles.dateRailDow,
-                  day.isWeekend ? styles.dateRailDowWeekend : null,
-                  isSelected ? styles.dateRailDowSelected : null,
-                ];
+              const dayDowStyle = [
+                styles.dateRailDow,
+                day.isWeekend ? styles.dateRailDowWeekend : null,
+                isSelected ? styles.dateRailDowSelected : null,
+              ];
 
-                return (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`${day.weekday} ${day.dayOfMonth}`}
-                    onPress={() => {
-                      dateRailDraggedRef.current = false;
-                      closeAnyOpen();
-                      handleSelectDate(day.timestamp);
-                    }}
-                    style={({ pressed }) => [
-                      dayContainerStyle,
-                      { opacity: pressed ? 0.8 : 1 },
-                    ]}
-                  >
-                    <Text style={dayDowStyle}>{day.weekday}</Text>
-                    <Text style={dayNumStyle}>{day.dayOfMonth}</Text>
-                    {day.eventCount > 0 && (
-                      <View style={styles.dateRailEventIndicator} />
-                    )}
-                  </Pressable>
-                );
-              }}
-              horizontal
-              style={styles.dateRailList}
-              contentContainerStyle={styles.dateRailRow}
-              initialScrollIndex={dateRailInitialIndex}
-              getItemLayout={getDateRailItemLayout}
-              onScrollToIndexFailed={handleDateRailScrollToIndexFailed}
-              onScroll={handleDateRailScroll}
-              onScrollBeginDrag={handleDateRailScrollBeginDrag}
-              onMomentumScrollEnd={handleDateRailMomentumEnd}
-              showsHorizontalScrollIndicator={false}
-              snapToOffsets={dateRailWeekSnapOffsets}
-              snapToAlignment="start"
-              decelerationRate="fast"
-              disableIntervalMomentum
-              bounces={false}
-              scrollEventThrottle={16}
-            />
-          ) : null}
+              return (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`${day.weekday} ${day.dayOfMonth}`}
+                  onPress={() => {
+                    dateRailDraggedRef.current = false;
+                    closeAnyOpen();
+                    handleSelectDate(day.timestamp);
+                  }}
+                  style={({ pressed }) => [
+                    dayContainerStyle,
+                    { opacity: pressed ? 0.8 : 1 },
+                  ]}
+                >
+                  <Text style={dayDowStyle}>{day.weekday}</Text>
+                  <Text style={dayNumStyle}>{day.dayOfMonth}</Text>
+                  {day.eventCount > 0 && (
+                    <View style={styles.dateRailEventIndicator} />
+                  )}
+                </Pressable>
+              );
+            }}
+            horizontal
+            style={styles.dateRailList}
+            contentContainerStyle={styles.dateRailRow}
+            initialScrollIndex={dateRailInitialIndex}
+            getItemLayout={getDateRailItemLayout}
+            onScrollToIndexFailed={handleDateRailScrollToIndexFailed}
+            onScroll={handleDateRailScroll}
+            onScrollBeginDrag={handleDateRailScrollBeginDrag}
+            onMomentumScrollEnd={handleDateRailMomentumEnd}
+            showsHorizontalScrollIndicator={false}
+            snapToOffsets={dateRailWeekSnapOffsets}
+            snapToAlignment="start"
+            decelerationRate="fast"
+            disableIntervalMomentum
+            bounces={false}
+            scrollEventThrottle={16}
+          />
         </View>
       </View>
     );
   }, [
     calendarPickerDate,
     closeAnyOpen,
-    collapsedSections.today,
     dateRailDays,
     dateRailInitialIndex,
-    dateRailTitleTransitionProgress,
-    dateRailTitleTransition,
+    dateRailTitleMotion,
     dateRailWeekSnapOffsets,
     dynamicHeaderTitle,
     firstVisibleSection,
@@ -3928,12 +3778,10 @@ export default function HomeScreen() {
     glassSurfacePalette,
     handleSelectDate,
     isCalendarPickerOpen,
-    isDateListTransitioning,
     isDark,
     measureDateRailBounds,
     styles,
     theme,
-    todayCollapseProgress,
   ]);
 
   const listHeader = React.useMemo(() => {
@@ -4133,13 +3981,9 @@ export default function HomeScreen() {
                                     data={dateListTransitionData.fromTodayData}
                                     empty={
                                       dateListTransitionData.fromTodayData
-                                        .length === 0 ? (
-                                        <View style={styles.emptyState}>
-                                          <Text style={styles.emptyText}>
-                                            {t("home.empty.noTasks")}
-                                          </Text>
-                                        </View>
-                                      ) : null
+                                        .length === 0
+                                        ? calendarEmptyState
+                                        : null
                                     }
                                     onPressTask={handlePressTask}
                                     toggleComplete={handleToggleComplete}
@@ -4174,13 +4018,9 @@ export default function HomeScreen() {
                                     data={dateListTransitionData.toTodayData}
                                     empty={
                                       dateListTransitionData.toTodayData
-                                        .length === 0 ? (
-                                        <View style={styles.emptyState}>
-                                          <Text style={styles.emptyText}>
-                                            {t("home.empty.noTasks")}
-                                          </Text>
-                                        </View>
-                                      ) : null
+                                        .length === 0
+                                        ? calendarEmptyState
+                                        : null
                                     }
                                     onPressTask={handlePressTask}
                                     toggleComplete={handleToggleComplete}
@@ -4223,13 +4063,9 @@ export default function HomeScreen() {
                                     data={dateListTransitionData.toTodayData}
                                     empty={
                                       dateListTransitionData.toTodayData
-                                        .length === 0 ? (
-                                        <View style={styles.emptyState}>
-                                          <Text style={styles.emptyText}>
-                                            {t("home.empty.noTasks")}
-                                          </Text>
-                                        </View>
-                                      ) : null
+                                        .length === 0
+                                        ? calendarEmptyState
+                                        : null
                                     }
                                     onPressTask={handlePressTask}
                                     toggleComplete={handleToggleComplete}
@@ -4269,13 +4105,9 @@ export default function HomeScreen() {
                                     data={dateListTransitionData.fromTodayData}
                                     empty={
                                       dateListTransitionData.fromTodayData
-                                        .length === 0 ? (
-                                        <View style={styles.emptyState}>
-                                          <Text style={styles.emptyText}>
-                                            {t("home.empty.noTasks")}
-                                          </Text>
-                                        </View>
-                                      ) : null
+                                        .length === 0
+                                        ? calendarEmptyState
+                                        : null
                                     }
                                     onPressTask={handlePressTask}
                                     toggleComplete={handleToggleComplete}
@@ -4312,11 +4144,7 @@ export default function HomeScreen() {
                               data={todaySwipeListData}
                               empty={
                                 !hasTodayTasks ? (
-                                  <View style={styles.emptyState}>
-                                    <Text style={styles.emptyText}>
-                                      {t("home.empty.noTasks")}
-                                    </Text>
-                                  </View>
+                                  calendarEmptyState
                                 ) : null
                               }
                               onPressTask={handlePressTask}
@@ -4410,11 +4238,7 @@ export default function HomeScreen() {
                       data={upcomingSwipeListData}
                       empty={
                         !hasUpcomingTasks ? (
-                          <View style={styles.emptyState}>
-                            <Text style={styles.emptyText}>
-                              {t("home.empty.noTasks")}
-                            </Text>
-                          </View>
+                          calendarEmptyState
                         ) : null
                       }
                       onPressTask={handlePressTask}

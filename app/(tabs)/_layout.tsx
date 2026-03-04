@@ -27,7 +27,6 @@ export default function TabLayout() {
   const colorScheme = useColorScheme();
   const theme = colorScheme ?? "light";
   const isIOS26Plus = isIOS26OrNewer();
-  const showRoutinesTab = false;
   const segments = useSegments();
   const { id: routeIdParam } = useGlobalSearchParams<{ id?: string | string[] }>();
   const { setProjectId, clearProjectId, setMode } = useTaskCreateContext();
@@ -66,7 +65,12 @@ export default function TabLayout() {
       return;
     }
 
-    if (first === "(tabs)" && second === "home" && (third === "routines" || segmentList.includes("routines"))) {
+    const isRoutinesRoute =
+      (first === "(tabs)" && second === "routines") ||
+      (first === "(tabs)" &&
+        second === "home" &&
+        (third === "routines" || segmentList.includes("routines")));
+    if (isRoutinesRoute) {
       clearProjectId();
       setMode("routine");
       return;
@@ -118,9 +122,10 @@ export default function TabLayout() {
     }
 
     const isRoutinesRoute =
-      first === "(tabs)" &&
-      second === "home" &&
-      (third === "routines" || segmentList.includes("routines"));
+      (first === "(tabs)" && second === "routines") ||
+      (first === "(tabs)" &&
+        second === "home" &&
+        (third === "routines" || segmentList.includes("routines")));
     if (isRoutinesRoute) {
       accessoryBridge?.setContext?.("routine", null, null);
       return;
@@ -164,13 +169,18 @@ export default function TabLayout() {
           <Tabs.Screen
             name="home"
             options={{
-              title: t("tabs.tasks"),
+              title: t("common.today"),
               tabBarIcon: ({ color }) => (
-                <IconSymbol
-                  size={28}
-                  name="checkmark.circle.fill"
-                  color={color}
-                />
+                <MaterialIcons name="calendar-today" size={24} color={color} />
+              ),
+            }}
+          />
+          <Tabs.Screen
+            name="inbox"
+            options={{
+              title: t("common.inbox"),
+              tabBarIcon: ({ color }) => (
+                <MaterialIcons name="inbox" size={24} color={color} />
               ),
             }}
           />
@@ -195,7 +205,10 @@ export default function TabLayout() {
           <Tabs.Screen
             name="routines"
             options={{
-              href: null,
+              title: t("home.quick.routines"),
+              tabBarIcon: ({ color }) => (
+                <MaterialIcons name="repeat" size={24} color={color} />
+              ),
             }}
           />
         </Tabs>
@@ -231,21 +244,33 @@ export default function TabLayout() {
           }
         >
           <NativeTabs.Trigger name="home">
-            <NativeTabs.Trigger.Label>{t("tabs.tasks")}</NativeTabs.Trigger.Label>
+            <NativeTabs.Trigger.Label>{t("common.today")}</NativeTabs.Trigger.Label>
             {Platform.select({
               ios: (
                 <NativeTabs.Trigger.Icon
                   sf={{
-                    default: "checkmark.circle",
-                    selected: "checkmark.circle.fill",
+                    default: "calendar",
+                    selected: "calendar",
                   }}
                 />
               ),
               android: (
                 <NativeTabs.Trigger.Icon
                   src={
-                    <NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="check-circle" />
+                    <NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="calendar-today" />
                   }
+                />
+              ),
+            })}
+          </NativeTabs.Trigger>
+
+          <NativeTabs.Trigger name="inbox">
+            <NativeTabs.Trigger.Label>{t("common.inbox")}</NativeTabs.Trigger.Label>
+            {Platform.select({
+              ios: <NativeTabs.Trigger.Icon sf={{ default: "tray", selected: "tray.fill" }} />,
+              android: (
+                <NativeTabs.Trigger.Icon
+                  src={<NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="inbox" />}
                 />
               ),
             })}
@@ -303,19 +328,17 @@ export default function TabLayout() {
             })}
           </NativeTabs.Trigger>
 
-          {showRoutinesTab && (
-            <NativeTabs.Trigger name="routines">
-              <NativeTabs.Trigger.Label>{t("home.quick.routines")}</NativeTabs.Trigger.Label>
-              {Platform.select({
-                ios: <NativeTabs.Trigger.Icon sf={{ default: "repeat", selected: "repeat" }} />,
-                android: (
-                  <NativeTabs.Trigger.Icon
-                    src={<NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="repeat" />}
-                  />
-                ),
-              })}
-            </NativeTabs.Trigger>
-          )}
+          <NativeTabs.Trigger name="routines">
+            <NativeTabs.Trigger.Label>{t("home.quick.routines")}</NativeTabs.Trigger.Label>
+            {Platform.select({
+              ios: <NativeTabs.Trigger.Icon sf={{ default: "repeat", selected: "repeat" }} />,
+              android: (
+                <NativeTabs.Trigger.Icon
+                  src={<NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="repeat" />}
+                />
+              ),
+            })}
+          </NativeTabs.Trigger>
         </NativeTabs>
       </TabBarMinimizeProvider>
     </View>

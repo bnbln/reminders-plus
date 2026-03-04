@@ -10,7 +10,7 @@ import {
 import { FloatingAddButton } from '@/components/ui/floating-add-button';
 import { withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
-import { useHomeFilters } from '@/context/home-filters-store';
+import { type TagId, useHomeFilters } from '@/context/home-filters-store';
 import { type Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
@@ -39,6 +39,14 @@ export default function InboxScreen() {
     params.withSubtasks === undefined
       ? showCompactSubtasks
       : params.withSubtasks === '1';
+  const enabledInboxTags = React.useMemo(() => {
+    const allowedTags = new Set<TagId>(['location', 'project', 'keywords']);
+    const next = new Set<TagId>();
+    for (const tag of enabledTags) {
+      if (allowedTags.has(tag)) next.add(tag);
+    }
+    return next;
+  }, [enabledTags]);
   const { tasks, setTasks, projects } = useTasksStore();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
 
@@ -142,7 +150,7 @@ export default function InboxScreen() {
             <Text style={[styles.emptyText, { color: Colors[theme].text }]}>{t('inbox.empty')}</Text>
           </View>
         }
-        enabledTags={enabledTags}
+        enabledTags={enabledInboxTags}
         showTaskIcons={showTagIcons}
         showCompactSubtasks={withSubtasksEnabled}
         onPressTask={onPressTask}
