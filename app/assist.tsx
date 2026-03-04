@@ -6,6 +6,7 @@ import React from 'react';
 import {
   ActivityIndicator,
   Alert,
+  InteractionManager,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -1667,6 +1668,7 @@ export default function AssistScreen() {
   const tasksRef = React.useRef<Task[]>(tasks);
   const projectsRef = React.useRef<Project[]>(projects);
   const createdActionTargetsRef = React.useRef<Map<string, string>>(new Map());
+  const pendingRestoreScrollRef = React.useRef(false);
 
   React.useEffect(() => {
     tasksRef.current = tasks;
@@ -1683,6 +1685,7 @@ export default function AssistScreen() {
         if (!stored) return;
         const parsedMessages = JSON.parse(stored) as Message[];
         if (Array.isArray(parsedMessages)) {
+          pendingRestoreScrollRef.current = parsedMessages.length > 0;
           setMessages(parsedMessages);
         }
       } catch {
@@ -1721,11 +1724,35 @@ export default function AssistScreen() {
 
   const inputContainerPaddingBottom = Platform.OS === 'ios' ? (isKeyboardVisible ? 12 : 36) : 24;
 
-  const scrollToBottom = React.useCallback(() => {
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
+  const scrollToBottom = React.useCallback((animated: boolean = true) => {
+    const runScroll = () => {
+      scrollViewRef.current?.scrollToEnd({ animated });
+    };
+
+    if (!animated) {
+      runScroll();
+      return;
+    }
+
+    setTimeout(runScroll, 100);
   }, []);
+
+  React.useEffect(() => {
+    if (!pendingRestoreScrollRef.current || messages.length === 0) return;
+    const task = InteractionManager.runAfterInteractions(() => {
+      scrollToBottom(false);
+      pendingRestoreScrollRef.current = false;
+    });
+
+    return () => {
+      task.cancel();
+    };
+  }, [messages.length, scrollToBottom]);
+
+  const handleContentSizeChange = React.useCallback(() => {
+    if (pendingRestoreScrollRef.current) return;
+    scrollToBottom();
+  }, [scrollToBottom]);
 
   const handleClearHistory = React.useCallback(() => {
     Alert.alert(
@@ -1737,6 +1764,7 @@ export default function AssistScreen() {
           style: 'destructive',
           onPress: async () => {
             await AsyncStorage.removeItem(ASSIST_STORAGE_KEY);
+            pendingRestoreScrollRef.current = false;
             setMessages([]);
           },
         },
@@ -2254,6 +2282,7 @@ export default function AssistScreen() {
       <Stack.Screen
         options={{
           title: 'Assist',
+          headerLargeTitle: false,
           headerBackButtonDisplayMode: 'minimal',
           headerTitleAlign: Platform.OS === 'ios' ? 'left' : 'center',
           headerTransparent: Platform.OS === 'ios',
@@ -2292,7 +2321,7 @@ export default function AssistScreen() {
             contentInsetAdjustmentBehavior="automatic"
             automaticallyAdjustsScrollIndicatorInsets
             keyboardShouldPersistTaps="handled"
-            onContentSizeChange={scrollToBottom}
+            onContentSizeChange={handleContentSizeChange}
           >
             {messages.length === 0 && (
               <View style={styles.emptyState}>

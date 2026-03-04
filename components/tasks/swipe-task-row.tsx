@@ -25,6 +25,7 @@ import type { Project, Task } from "@/context/tasks-store";
 import { getIntlLocale, t } from "@/i18n";
 
 const SWIPE_STOP = 76;
+const SWIPE_TRIGGER_SNAP = 152;
 const SWIPE_ACTIVATION_THRESHOLD = 10;
 const SWIPE_DAMPING = 7;
 const SWIPE_OVER_SWIPE = 12;
@@ -33,7 +34,10 @@ const COMPACT_SUBTASK_TEXT_SIZE = 14;
 const DRAG_LONG_PRESS_DELAY_MS = 260;
 
 /** Convert a hex color to an rgba pastel tint. */
-function hexToPastel(hex: string | undefined, isDark: boolean): string | undefined {
+function hexToPastel(
+  hex: string | undefined,
+  isDark: boolean,
+): string | undefined {
   if (!hex || hex.length < 4) return undefined;
   const cleaned = hex.replace("#", "");
   const r = parseInt(
@@ -87,10 +91,10 @@ const formatDueLabel = (dueAt: number, dueHasTime?: boolean) => {
       : dueDay.getTime() === tomorrow.getTime()
         ? t("taskDetail.relative.tomorrow")
         : new Intl.DateTimeFormat(getIntlLocale(), {
-            weekday: "short",
-            day: "2-digit",
-            month: "2-digit",
-          }).format(due);
+          weekday: "short",
+          day: "2-digit",
+          month: "2-digit",
+        }).format(due);
 
   if (!dueHasTime) return dayLabel;
 
@@ -222,7 +226,17 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   const longPressTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const autoSwipeTriggerDirectionRef = React.useRef<OpenDirection | null>(null);
 
+  const taskBgColor = React.useMemo(
+    () => hexToPastel(task.color, isDark),
+    [isDark, task.color],
+  );
+  const taskEmojiBorderColor = React.useMemo<string | undefined>(
+    () =>
+      task.color ? withAlpha(task.color, isDark ? 0.42 : 0.28) : undefined,
+    [isDark, task.color],
+  );
   const projectBgColor = React.useMemo(
     () => hexToPastel(project?.color, isDark),
     [project?.color, isDark],
@@ -346,6 +360,23 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       openDirection: OpenDirection;
       snapPoint: number;
     }) => {
+      if (openDirection === OpenDirection.NONE || snapPoint <= 0) {
+        autoSwipeTriggerDirectionRef.current = null;
+      } else if (
+        snapPoint >= SWIPE_TRIGGER_SNAP &&
+        autoSwipeTriggerDirectionRef.current !== openDirection
+      ) {
+        autoSwipeTriggerDirectionRef.current = openDirection;
+        if (openDirection === OpenDirection.LEFT) {
+          onPressDelete();
+          return;
+        }
+        if (openDirection === OpenDirection.RIGHT) {
+          onPressComplete();
+          return;
+        }
+      }
+
       const isOpen = openDirection !== OpenDirection.NONE && snapPoint > 0;
       if (isOpen) {
         beginSwipe(task.id);
@@ -354,7 +385,14 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       }
       onSwipeGestureActiveChange?.(task.id, isOpen);
     },
-    [beginSwipe, endSwipe, onSwipeGestureActiveChange, task.id],
+    [
+      beginSwipe,
+      endSwipe,
+      onPressComplete,
+      onPressDelete,
+      onSwipeGestureActiveChange,
+      task.id,
+    ],
   );
 
   const clipStyle = React.useMemo(
@@ -382,17 +420,20 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     () => [styles.row, rowStyle, isActive ? styles.dragRow : undefined],
     [isActive, rowStyle, styles.dragRow, styles.row],
   );
+  // TODO: use the actual background color of the row
   const rowSurfaceColor = React.useMemo(() => {
     const flattened = StyleSheet.flatten(rowContentStyle);
     const resolved = flattened?.backgroundColor;
     if (typeof resolved === "string" && resolved.length > 0) return resolved;
-    return isDark ? "#1C1C1E" : "#FFFFFF";
+    return isDark ? "#ffffff" : "#FFFFFF";
   }, [isDark, rowContentStyle]);
   const rowTintColor = React.useMemo(
     () =>
       rowSurfaceColor.startsWith("#")
         ? withAlpha(rowSurfaceColor, isDark ? 0.88 : 0.9)
-        : rowSurfaceColor,
+        : isDark
+          ? "transparent"
+          : "rgba(106, 87, 87, 0.9)",
     [isDark, rowSurfaceColor],
   );
 
@@ -552,9 +593,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
             name={subtask.done ? "check-box" : "check-box-outline-blank"}
             size={COMPACT_SUBTASK_ICON_SIZE}
             color={
-              subtask.done
-                ? "rgba(52,199,89,0.92)"
-                : "rgba(127,127,127,0.72)"
+              subtask.done ? "rgba(52,199,89,0.92)" : "rgba(127,127,127,0.72)"
             }
           />
           <Text
@@ -596,15 +635,21 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       style={[
         styles.emojiTile,
         {
-          backgroundColor: projectBgColor ?? emojiTint,
-          borderColor: projectBgColor
-            ? projectEmojiBorderColor ?? emojiFallback
-            : emojiFallback,
+          backgroundColor: taskBgColor ?? projectBgColor ?? emojiTint,
+          borderColor:
+            taskEmojiBorderColor ??
+            projectEmojiBorderColor ??
+            emojiFallback,
           borderWidth: StyleSheet.hairlineWidth,
         },
       ]}
     >
-      <Text style={[styles.emojiText, { opacity: projectBgColor ? 1 : 0.92 }]}>
+      <Text
+        style={[
+          styles.emojiText,
+          { opacity: taskBgColor || projectBgColor ? 1 : 0.92 },
+        ]}
+      >
         {task.emoji}
       </Text>
     </View>
@@ -702,8 +747,8 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
           activationThreshold={SWIPE_ACTIVATION_THRESHOLD}
           swipeDamping={SWIPE_DAMPING}
           overSwipe={SWIPE_OVER_SWIPE}
-          snapPointsLeft={[SWIPE_STOP]}
-          snapPointsRight={[SWIPE_STOP]}
+          snapPointsLeft={[SWIPE_STOP, SWIPE_TRIGGER_SNAP]}
+          snapPointsRight={[SWIPE_STOP, SWIPE_TRIGGER_SNAP]}
           onChange={handleSwipeChange}
           renderUnderlayLeft={renderUnderlayLeft}
           renderUnderlayRight={renderUnderlayRight}

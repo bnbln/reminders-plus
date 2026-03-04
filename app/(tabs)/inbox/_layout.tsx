@@ -2,8 +2,8 @@ import { Stack } from "expo-router";
 import React from "react";
 import { Platform } from "react-native";
 
-import { AssistHeaderButton } from "@/components/assist/assist-header-button";
-import { FilterMenuButton } from "@/components/tasks/filter-menu-button";
+import { HeaderTrailingActions } from "@/components/navigation/header-trailing-actions";
+import { ProfileHeaderMenuButton } from "@/components/navigation/profile-header-menu-button";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
@@ -30,9 +30,9 @@ export default function InboxLayout() {
         name="index"
         options={{
           title: t("common.inbox"),
-          headerLeft: () => <AssistHeaderButton />,
+          headerLeft: () => <ProfileHeaderMenuButton />,
           headerRight: () => (
-            <FilterMenuButton
+            <HeaderTrailingActions
               theme={theme}
               hiddenTags={INBOX_HIDDEN_FILTER_TAGS}
             />

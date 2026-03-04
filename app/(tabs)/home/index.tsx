@@ -25,6 +25,7 @@ import {
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { LinearGradient } from "expo-linear-gradient";
 
 import {
   TaskSwipeDraggableList,
@@ -74,7 +75,7 @@ const DATE_RAIL_PAST_DAYS = 119;
 const DATE_RAIL_FUTURE_DAYS = 365;
 const DATE_RAIL_MIN_ITEM_WIDTH = 40;
 const DATE_RAIL_ITEM_GAP = 6;
-const DATE_RAIL_PAGE_DAYS = 7;
+const DATE_RAIL_FADE_WIDTH = 48;
 const STREAK_PROGRESS_DAYS = 7;
 const HOME_TASK_ITEM_SPACING = 8;
 const TASK_ROW_SIDE_BLEED = 8;
@@ -88,6 +89,9 @@ const IOS_LIGHT_ELEVATED_SURFACE = "#FFFFFF"; // secondarySystemGroupedBackgroun
 const IOS_LIGHT_INSET_SURFACE = "#EBEBF0"; // tertiarySystemFill-like
 const IOS_LIGHT_SEPARATOR = "rgba(60, 60, 67, 0.22)"; // separator
 const IOS_LIGHT_TINT_FILL = "rgba(118, 118, 128, 0.2)"; // quaternarySystemFill-like
+// Customize task row surfaces here:
+const HOME_TASK_ROW_SURFACE_LIGHT = IOS_LIGHT_ELEVATED_SURFACE;
+const HOME_TASK_ROW_SURFACE_DARK = "rgba(89, 89, 89, 0.2)";
 const HOME_ONBOARDING_KEYS = {
   gestures: "reminds.home.onboarding.gestures.v1",
   dragDropTargets: "reminds.home.onboarding.dragDropTargets.v1",
@@ -418,17 +422,17 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
   const RADIUS_PILL = 999;
   // ───────────────────────────────────────────────────
 
-  const screenBackground = useAppleLightPalette
-    ? IOS_LIGHT_BASE_BACKGROUND
-    : Colors[theme].background;
+  const screenBackground = isDark
+    ? Colors[theme].background
+    : IOS_LIGHT_BASE_BACKGROUND;
   const hairline = isDark
     ? withAlpha(text, ALPHA_4)
     : useAppleLightPalette
       ? IOS_LIGHT_SEPARATOR
       : withAlpha(text, ALPHA_4);
   const rowCardSurface = isDark
-    ? "rgba(70, 74, 84, 0.62)"
-    : IOS_LIGHT_ELEVATED_SURFACE;
+    ? HOME_TASK_ROW_SURFACE_DARK
+    : HOME_TASK_ROW_SURFACE_LIGHT;
   const insetSurface = isDark
     ? "rgba(255,255,255,0.06)"
     : useAppleLightPalette
@@ -581,7 +585,7 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
       paddingHorizontal: 0,
       paddingTop: 10,
       paddingBottom: 6,
-      marginHorizontal: 10,
+      marginHorizontal: 0,
       marginTop: 0,
       marginBottom: 6,
       zIndex: 100,
@@ -593,6 +597,31 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
     dateRailMotionContent: {
       position: "relative",
       zIndex: 100,
+    },
+    dateRailListContainer: {
+      position: "relative",
+    },
+    dateRailCenterIndicator: {
+      width: dateRailItemWidth,
+      height: 64,
+      borderRadius: 12,
+      backgroundColor: ACCENT,
+    },
+    dateRailFadeLeft: {
+      position: "absolute",
+      left: 0,
+      top: 0,
+      bottom: 0,
+      width: DATE_RAIL_FADE_WIDTH,
+      zIndex: 10,
+    },
+    dateRailFadeRight: {
+      position: "absolute",
+      right: 0,
+      top: 0,
+      bottom: 0,
+      width: DATE_RAIL_FADE_WIDTH,
+      zIndex: 10,
     },
     dateRailTitleHost: {
       position: "relative",
@@ -731,7 +760,7 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
       paddingTop: 6,
       paddingBottom: 6,
       borderRadius: 12,
-      backgroundColor: insetSurface,
+      backgroundColor: "transparent",
     },
     dateRailDaySelected: {
       backgroundColor: ACCENT,
@@ -1155,8 +1184,12 @@ export default function HomeScreen() {
   const theme = useColorScheme() ?? "light";
   const isDark = theme === "dark";
   const useAppleLightPalette = !isDark && Platform.OS === "ios";
-  const accessoryBridge = NativeModules
-    .TaskAccessoryContextBridge as TaskAccessoryContextBridge | undefined;
+  const screenBackground = isDark
+    ? Colors[theme].background
+    : IOS_LIGHT_BASE_BACKGROUND;
+  const accessoryBridge = NativeModules.TaskAccessoryContextBridge as
+    | TaskAccessoryContextBridge
+    | undefined;
   const { setMode, setPresetDateStart } = useTaskCreateContext();
   const { width: viewportWidth } = useWindowDimensions();
 
@@ -1177,19 +1210,16 @@ export default function HomeScreen() {
     [params.sections],
   );
   const withNotesEnabled = params.withNotes === "1";
-  const dateRailItemWidth = React.useMemo(() => {
-    // The date rail lives inside a container with marginHorizontal: 10 from the surface,
-    // the surface itself has GRID_HORIZONTAL_PADDING from screen edges.
-    const railContainerMargin = 10; // matches taskContentSolid marginHorizontal
-    const availableWidth = Math.max(
-      0,
-      viewportWidth - GRID_HORIZONTAL_PADDING * 2 - railContainerMargin * 2,
-    );
-    return Math.max(
-      DATE_RAIL_MIN_ITEM_WIDTH,
-      Math.floor((availableWidth - DATE_RAIL_ITEM_GAP * 6) / 7),
-    );
-  }, [viewportWidth]);
+  const dateRailItemWidth = 46;
+  const dateRailContainerWidthFallback =
+    viewportWidth - GRID_HORIZONTAL_PADDING * 2;
+  const [dateRailContainerWidth, setDateRailContainerWidth] = React.useState(
+    dateRailContainerWidthFallback,
+  );
+  const dateRailSidePadding = Math.max(
+    0,
+    (dateRailContainerWidth - dateRailItemWidth) / 2,
+  );
   const styles = React.useMemo(
     () => createStyles(theme, dateRailItemWidth),
     [dateRailItemWidth, theme],
@@ -1266,23 +1296,31 @@ export default function HomeScreen() {
   const [selectedDateStart, setSelectedDateStart] = React.useState(() =>
     getStartOfToday(),
   );
-  const setTodayAccessoryContext = React.useCallback((dateStart: number) => {
-    if (Platform.OS !== "ios" || !isIOS26OrNewer()) return;
-    const setContext = accessoryBridge?.setContext;
-    if (!setContext) return;
-    try {
-      (setContext as any)("today", null, null, dateStart);
-    } catch {
-      setContext("today", null, null);
-    }
-  }, [accessoryBridge]);
+  const setTodayAccessoryContext = React.useCallback(
+    (dateStart: number) => {
+      if (Platform.OS !== "ios" || !isIOS26OrNewer()) return;
+      const setContext = accessoryBridge?.setContext;
+      if (!setContext) return;
+      try {
+        (setContext as any)("today", null, null, dateStart);
+      } catch {
+        setContext("today", null, null);
+      }
+    },
+    [accessoryBridge],
+  );
   useFocusEffect(
     React.useCallback(() => {
       setMode("today");
       setPresetDateStart(selectedDateStart);
       setTodayAccessoryContext(selectedDateStart);
       return undefined;
-    }, [selectedDateStart, setMode, setPresetDateStart, setTodayAccessoryContext]),
+    }, [
+      selectedDateStart,
+      setMode,
+      setPresetDateStart,
+      setTodayAccessoryContext,
+    ]),
   );
   React.useEffect(() => {
     setPresetDateStart(selectedDateStart);
@@ -1556,13 +1594,9 @@ export default function HomeScreen() {
     () => dateRailItemWidth + DATE_RAIL_ITEM_GAP,
     [dateRailItemWidth],
   );
-  const dateRailPageInterval = React.useMemo(
-    () => dateRailSnapInterval * DATE_RAIL_PAGE_DAYS,
-    [dateRailSnapInterval],
-  );
   const dateRailRangeStart = React.useMemo(
-    () => addDays(currentWeekStart, -DATE_RAIL_PAST_DAYS),
-    [currentWeekStart],
+    () => addDays(todayStart, -DATE_RAIL_PAST_DAYS),
+    [todayStart],
   );
   const dateRailDays = React.useMemo<DateRailDay[]>(() => {
     return Array.from(
@@ -1664,9 +1698,7 @@ export default function HomeScreen() {
     dateRailTitleMotion.setValue(1);
   }, [dateRailTitleMotion, stopDateRailTitleAnimation]);
   React.useEffect(() => {
-    if (
-      isSameLocalDay(lastAnimatedTitleDateRef.current, selectedDateStart)
-    ) {
+    if (isSameLocalDay(lastAnimatedTitleDateRef.current, selectedDateStart)) {
       return;
     }
     lastAnimatedTitleDateRef.current = selectedDateStart;
@@ -2160,11 +2192,11 @@ export default function HomeScreen() {
 
   const getDateRailItemLayout = React.useCallback(
     (_: ArrayLike<DateRailDay> | null | undefined, index: number) => ({
-      length: dateRailSnapInterval,
-      offset: dateRailSnapInterval * index,
+      length: dateRailItemWidth,
+      offset: dateRailSidePadding + dateRailSnapInterval * index,
       index,
     }),
-    [dateRailSnapInterval],
+    [dateRailItemWidth, dateRailSidePadding, dateRailSnapInterval],
   );
 
   const dateRailRef = React.useRef<FlatList<DateRailDay> | null>(null);
@@ -2179,22 +2211,13 @@ export default function HomeScreen() {
     dateRailInitialIndex * dateRailSnapInterval,
   );
   const dateRailDraggedRef = React.useRef(false);
-  const currentWeekIndexRef = React.useRef(
-    Math.floor(dateRailInitialIndex / DATE_RAIL_PAGE_DAYS),
-  );
-  const dateRailWeekSnapOffsets = React.useMemo(() => {
-    const weekCount = Math.ceil(dateRailDays.length / DATE_RAIL_PAGE_DAYS);
-    return Array.from(
-      { length: weekCount },
-      (_, week) => week * dateRailPageInterval,
-    );
-  }, [dateRailDays.length, dateRailPageInterval]);
+  const dateRailLastCenterIndexRef = React.useRef(dateRailInitialIndex);
   const handleDateRailScrollToIndexFailed = React.useCallback(() => {
     requestAnimationFrame(() => {
       dateRailRef.current?.scrollToIndex({
         index: dateRailInitialIndex,
         animated: false,
-        viewPosition: 0,
+        viewPosition: 0.5,
       });
     });
   }, [dateRailInitialIndex]);
@@ -2223,8 +2246,20 @@ export default function HomeScreen() {
       if (typeof nextOffset !== "number" || !Number.isFinite(nextOffset))
         return;
       dateRailScrollOffsetRef.current = nextOffset;
+      // Select the day closest to the viewport center while scrolling
+      const centerIndex = Math.round(nextOffset / dateRailSnapInterval);
+      const nextIndex = clamp(centerIndex, 0, dateRailDays.length - 1);
+      // Haptic tick on every day change (gear-wheel feel)
+      if (nextIndex !== dateRailLastCenterIndexRef.current) {
+        dateRailLastCenterIndexRef.current = nextIndex;
+        Haptics.selectionAsync();
+      }
+      const nextDay = dateRailDays[nextIndex];
+      if (nextDay) {
+        selectDateWithoutTransition(nextDay.timestamp);
+      }
     },
-    [],
+    [dateRailDays, dateRailSnapInterval, selectDateWithoutTransition],
   );
   const handleDateRailScrollBeginDrag = React.useCallback(() => {
     dateRailDraggedRef.current = true;
@@ -2232,40 +2267,11 @@ export default function HomeScreen() {
 
   const handleDateRailMomentumEnd = React.useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const shouldSelectFromMomentum = dateRailDraggedRef.current;
       dateRailDraggedRef.current = false;
       const offset = event.nativeEvent.contentOffset.x;
       dateRailScrollOffsetRef.current = offset;
-      const maxWeekIndex = Math.max(
-        0,
-        Math.ceil(dateRailDays.length / DATE_RAIL_PAGE_DAYS) - 1,
-      );
-      const weekIndex = Math.min(
-        Math.max(Math.round(offset / dateRailPageInterval), 0),
-        maxWeekIndex,
-      );
-      const previousWeekIndex = currentWeekIndexRef.current;
-      if (weekIndex === previousWeekIndex) return;
-      if (!shouldSelectFromMomentum) {
-        currentWeekIndexRef.current = weekIndex;
-        return;
-      }
-
-      const isBackward = weekIndex < previousWeekIndex;
-      const weekStartIndex = weekIndex * DATE_RAIL_PAGE_DAYS;
-      const rawIndex = isBackward
-        ? weekStartIndex + (DATE_RAIL_PAGE_DAYS - 1)
-        : weekStartIndex;
-      currentWeekIndexRef.current = weekIndex;
-      const nextIndex = Math.min(
-        Math.max(rawIndex, 0),
-        Math.max(dateRailDays.length - 1, 0),
-      );
-      const nextDay = dateRailDays[nextIndex];
-      if (!nextDay) return;
-      selectDateWithoutTransition(nextDay.timestamp);
     },
-    [dateRailDays, dateRailPageInterval, selectDateWithoutTransition],
+    [],
   );
   React.useEffect(() => {
     const rafId = requestAnimationFrame(measureDateRailBounds);
@@ -2458,12 +2464,15 @@ export default function HomeScreen() {
     swipeGestureActiveRef.current = isSwiping;
   }, []);
 
-  const handleRowTouchStateChange = React.useCallback((isTouchingRow: boolean) => {
-    rowTouchActiveRef.current = isTouchingRow;
-    if (isTouchingRow && listTouchStartRef.current.active) {
-      listTouchStartRef.current.startedOnRow = true;
-    }
-  }, []);
+  const handleRowTouchStateChange = React.useCallback(
+    (isTouchingRow: boolean) => {
+      rowTouchActiveRef.current = isTouchingRow;
+      if (isTouchingRow && listTouchStartRef.current.active) {
+        listTouchStartRef.current.startedOnRow = true;
+      }
+    },
+    [],
+  );
 
   const handleDragStateChange = React.useCallback(
     (isDragging: boolean) => {
@@ -2482,11 +2491,7 @@ export default function HomeScreen() {
         clearDateDragHover();
       }
     },
-    [
-      cancelDragSurfaceResetFrame,
-      clearDateDragHover,
-      measureDateRailBounds,
-    ],
+    [cancelDragSurfaceResetFrame, clearDateDragHover, measureDateRailBounds],
   );
 
   const shiftSelectedDateBySwipe = React.useCallback(
@@ -2599,10 +2604,7 @@ export default function HomeScreen() {
     [listDateStart, visibleTasks],
   );
 
-  const visibleSections = React.useMemo(
-    () => ["today"] as SectionId[],
-    [],
-  );
+  const visibleSections = React.useMemo(() => ["today"] as SectionId[], []);
 
   const firstVisibleSection = visibleSections[0] ?? "today";
 
@@ -2890,11 +2892,7 @@ export default function HomeScreen() {
       clearDateDragHover();
       measureDateRailBounds();
     },
-    [
-      cancelDragSurfaceResetFrame,
-      clearDateDragHover,
-      measureDateRailBounds,
-    ],
+    [cancelDragSurfaceResetFrame, clearDateDragHover, measureDateRailBounds],
   );
 
   const applyDraggedTaskToDate = React.useCallback(
@@ -3380,71 +3378,118 @@ export default function HomeScreen() {
             </View>
           </Modal>
 
-          <FlatList
-            ref={dateRailRef}
-            data={dateRailDays}
-            keyExtractor={(day) => day.key}
-            renderItem={({ item: day }) => {
-              const isSelected = day.isSelected;
-              const isToday = day.isToday;
-
-              const dayContainerStyle = [
-                styles.dateRailDay,
-                isSelected ? styles.dateRailDaySelected : null,
-              ];
-
-              const dayNumStyle = [
-                styles.dateRailDayNum,
-                day.isWeekend ? styles.dateRailDayNumWeekend : null,
-                isToday ? styles.dateRailDayNumToday : null,
-                isSelected ? styles.dateRailDayNumSelected : null,
-              ];
-
-              const dayDowStyle = [
-                styles.dateRailDow,
-                day.isWeekend ? styles.dateRailDowWeekend : null,
-                isSelected ? styles.dateRailDowSelected : null,
-              ];
-
-              return (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`${day.weekday} ${day.dayOfMonth}`}
-                  onPress={() => {
-                    dateRailDraggedRef.current = false;
-                    closeAnyOpen();
-                    handleSelectDate(day.timestamp);
-                  }}
-                  style={({ pressed }) => [
-                    dayContainerStyle,
-                    { opacity: pressed ? 0.8 : 1 },
-                  ]}
-                >
-                  <Text style={dayDowStyle}>{day.weekday}</Text>
-                  <Text style={dayNumStyle}>{day.dayOfMonth}</Text>
-                  {day.eventCount > 0 && (
-                    <View style={styles.dateRailEventIndicator} />
-                  )}
-                </Pressable>
-              );
+          <View
+            style={styles.dateRailListContainer}
+            onLayout={(e) => {
+              const w = e.nativeEvent.layout.width;
+              if (w > 0 && Math.abs(w - dateRailContainerWidth) > 1) {
+                setDateRailContainerWidth(w);
+              }
             }}
-            horizontal
-            style={styles.dateRailList}
-            contentContainerStyle={styles.dateRailRow}
-            initialScrollIndex={dateRailInitialIndex}
-            getItemLayout={getDateRailItemLayout}
-            onScrollToIndexFailed={handleDateRailScrollToIndexFailed}
-            onScroll={handleDateRailScroll}
-            onScrollBeginDrag={handleDateRailScrollBeginDrag}
-            onMomentumScrollEnd={handleDateRailMomentumEnd}
-            showsHorizontalScrollIndicator={false}
-            snapToOffsets={dateRailWeekSnapOffsets}
-            snapToAlignment="start"
-            decelerationRate="fast"
-            disableIntervalMomentum
-            bounces={false}
-            scrollEventThrottle={16}
-          />
+          >
+            <View
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                top: 0,
+                bottom: 0,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              pointerEvents="none"
+            >
+              <View style={styles.dateRailCenterIndicator} />
+            </View>
+            <LinearGradient
+              colors={[screenBackground, withAlpha(screenBackground, 0)]}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+              style={styles.dateRailFadeLeft}
+              pointerEvents="none"
+            />
+            <FlatList
+              ref={dateRailRef}
+              data={dateRailDays}
+              keyExtractor={(day) => day.key}
+              renderItem={({ item: day, index }) => {
+                const isSelected = day.isSelected;
+                const isToday = day.isToday;
+
+                const dayNumStyle = [
+                  styles.dateRailDayNum,
+                  day.isWeekend ? styles.dateRailDayNumWeekend : null,
+                  isToday ? styles.dateRailDayNumToday : null,
+                  isSelected ? styles.dateRailDayNumSelected : null,
+                ];
+
+                const dayDowStyle = [
+                  styles.dateRailDow,
+                  day.isWeekend ? styles.dateRailDowWeekend : null,
+                  isSelected ? styles.dateRailDowSelected : null,
+                ];
+
+                return (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${day.weekday} ${day.dayOfMonth}`}
+                    onPress={() => {
+                      dateRailDraggedRef.current = false;
+                      closeAnyOpen();
+                      Haptics.selectionAsync();
+                      handleSelectDate(day.timestamp);
+                      dateRailRef.current?.scrollToIndex({
+                        index,
+                        animated: true,
+                        viewPosition: 0.5,
+                      });
+                    }}
+                    style={({ pressed }) => [
+                      styles.dateRailDay,
+                      { opacity: pressed ? 0.8 : 1 },
+                    ]}
+                  >
+                    <Text style={dayDowStyle}>{day.weekday}</Text>
+                    <Text style={dayNumStyle}>{day.dayOfMonth}</Text>
+                    {day.eventCount > 0 && (
+                      <View style={styles.dateRailEventIndicator} />
+                    )}
+                  </Pressable>
+                );
+              }}
+              horizontal
+              style={styles.dateRailList}
+              contentContainerStyle={[
+                styles.dateRailRow,
+                { paddingHorizontal: dateRailSidePadding },
+              ]}
+              onLayout={() => {
+                dateRailRef.current?.scrollToIndex({
+                  index: dateRailInitialIndex,
+                  animated: false,
+                  viewPosition: 0.5,
+                });
+              }}
+              getItemLayout={getDateRailItemLayout}
+              onScrollToIndexFailed={handleDateRailScrollToIndexFailed}
+              onScroll={handleDateRailScroll}
+              onScrollBeginDrag={handleDateRailScrollBeginDrag}
+              onMomentumScrollEnd={handleDateRailMomentumEnd}
+              showsHorizontalScrollIndicator={false}
+              snapToInterval={dateRailSnapInterval}
+              snapToAlignment="start"
+              decelerationRate="fast"
+              bounces={false}
+              scrollEventThrottle={16}
+            />
+            <LinearGradient
+              colors={[withAlpha(screenBackground, 0), screenBackground]}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+              style={styles.dateRailFadeRight}
+              pointerEvents="none"
+            />
+          </View>
         </View>
       </View>
     );
@@ -3452,9 +3497,9 @@ export default function HomeScreen() {
     calendarPickerDate,
     closeAnyOpen,
     dateRailDays,
-    dateRailInitialIndex,
+    dateRailSidePadding,
+    dateRailSnapInterval,
     dateRailTitleMotion,
-    dateRailWeekSnapOffsets,
     dynamicHeaderTitle,
     firstVisibleSection,
     getDateRailItemLayout,
@@ -3467,8 +3512,10 @@ export default function HomeScreen() {
     isCalendarPickerOpen,
     isDark,
     measureDateRailBounds,
+    screenBackground,
     styles,
     theme,
+    dateRailContainerWidth,
   ]);
 
   const listHeader = React.useMemo(() => {
@@ -3584,6 +3631,7 @@ export default function HomeScreen() {
         onRowTouchStateChange={handleRowTouchStateChange}
         renderMode="auto"
         animateDataLayoutChanges={false}
+        containerStyle={{ backgroundColor: screenBackground }}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={styles.taskListContent}
         header={
@@ -3592,11 +3640,7 @@ export default function HomeScreen() {
             {dateRailPanel}
           </>
         }
-        footer={
-          <>
-            {archivePill}
-          </>
-        }
+        footer={<>{archivePill}</>}
       />
 
       {showFloatingAddButton ? (

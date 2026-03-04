@@ -2,7 +2,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
-import { Appearance, I18nManager } from 'react-native';
+import { Appearance, I18nManager, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
@@ -37,6 +37,20 @@ export default function RootLayout() {
       },
     };
   }, [theme]);
+  const tabLikeHeaderOptions = React.useMemo(
+    () => ({
+      contentStyle: themedContentStyle,
+      headerBackButtonDisplayMode: 'minimal' as const,
+      headerLargeTitle: Platform.OS === 'ios',
+      headerTransparent: Platform.OS === 'ios',
+      headerShadowVisible: false,
+      headerTintColor: Colors[theme].text,
+      headerTitleAlign: 'left' as const,
+      headerTitleStyle: { color: Colors[theme].text },
+      headerLargeTitleStyle: { color: Colors[theme].text },
+    }),
+    [theme, themedContentStyle]
+  );
 
   React.useEffect(() => {
     void initTaskNotifications();
@@ -138,11 +152,32 @@ export default function RootLayout() {
                   }}
                 />
                 <Stack.Screen
+                  name="profile"
+                  options={{
+                    ...tabLikeHeaderOptions,
+                    title: 'Profil',
+                  }}
+                />
+                <Stack.Screen
+                  name="status"
+                  options={{
+                    ...tabLikeHeaderOptions,
+                    title: 'Status',
+                  }}
+                />
+                <Stack.Screen
+                  name="settings"
+                  options={{
+                    ...tabLikeHeaderOptions,
+                    title: 'Einstellungen',
+                  }}
+                />
+                <Stack.Screen
                   name="assist"
                   options={{
-                    contentStyle: themedContentStyle,
+                    ...tabLikeHeaderOptions,
                     title: 'Assist',
-                    headerBackButtonDisplayMode: 'minimal',
+                    headerLargeTitle: false,
                   }}
                 />
               </Stack>

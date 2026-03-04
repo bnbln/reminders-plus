@@ -2,13 +2,14 @@ import { Stack } from 'expo-router';
 import React from 'react';
 import { Platform } from 'react-native';
 
-import { AssistHeaderButton } from '@/components/assist/assist-header-button';
-import { FilterMenuButton } from '@/components/tasks/filter-menu-button';
+import { HeaderTrailingActions } from '@/components/navigation/header-trailing-actions';
+import { ProfileHeaderMenuButton } from '@/components/navigation/profile-header-menu-button';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
 
 const INBOX_HIDDEN_FILTER_TAGS = ['overdue', 'datetime'] as const;
+const HOME_LIGHT_BACKGROUND = '#F2F2F7';
 
 export default function HomeLayout() {
   const theme = useColorScheme() ?? 'light';
@@ -19,7 +20,10 @@ export default function HomeLayout() {
       screenOptions={{
         headerLargeTitle: Platform.OS === 'ios',
         headerShadowVisible: false,
-        contentStyle: { backgroundColor: Colors[theme].background },
+        contentStyle: {
+          backgroundColor:
+            theme === 'dark' ? Colors[theme].background : HOME_LIGHT_BACKGROUND,
+        },
         headerTintColor: Colors[theme].text,
         headerTitleAlign,
         headerTitleStyle: { color: Colors[theme].text },
@@ -30,8 +34,8 @@ export default function HomeLayout() {
         name="index"
         options={{
           title: t('common.today'),
-          headerLeft: () => <AssistHeaderButton />,
-          headerRight: () => <FilterMenuButton theme={theme} />,
+          headerLeft: () => <ProfileHeaderMenuButton />,
+          headerRight: () => <HeaderTrailingActions theme={theme} />,
         }}
       />
       <Stack.Screen
@@ -58,9 +62,9 @@ export default function HomeLayout() {
           headerLargeTitle: false,
           headerBackButtonDisplayMode: 'minimal',
           headerTransparent: Platform.OS === 'ios',
-          headerLeft: () => <AssistHeaderButton />,
+          headerLeft: () => <ProfileHeaderMenuButton />,
           headerRight: () => (
-            <FilterMenuButton
+            <HeaderTrailingActions
               theme={theme}
               hiddenTags={INBOX_HIDDEN_FILTER_TAGS}
             />
@@ -74,8 +78,8 @@ export default function HomeLayout() {
           headerLargeTitle: false,
           headerBackButtonDisplayMode: 'minimal',
           headerTransparent: Platform.OS === 'ios',
-          headerLeft: () => <AssistHeaderButton />,
-          headerRight: () => <FilterMenuButton theme={theme} />,
+          headerLeft: () => <ProfileHeaderMenuButton />,
+          headerRight: () => <HeaderTrailingActions theme={theme} />,
         }}
       />
       <Stack.Screen
@@ -85,8 +89,8 @@ export default function HomeLayout() {
           headerLargeTitle: false,
           headerBackButtonDisplayMode: 'minimal',
           headerTransparent: Platform.OS === 'ios',
-          headerLeft: () => <AssistHeaderButton />,
-          headerRight: () => <FilterMenuButton theme={theme} />,
+          headerLeft: () => <ProfileHeaderMenuButton />,
+          headerRight: () => <HeaderTrailingActions theme={theme} />,
         }}
       />
     </Stack>

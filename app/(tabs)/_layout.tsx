@@ -23,10 +23,13 @@ type TaskAccessoryContextBridge = {
     selectedDateStart?: number | null,
   ) => void;
 };
+const HOME_LIGHT_BACKGROUND = "#F2F2F7";
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const theme = colorScheme ?? "light";
+  const tabSceneBackground =
+    theme === "dark" ? Colors[theme].background : HOME_LIGHT_BACKGROUND;
   const isIOS26Plus = isIOS26OrNewer();
   const segments = useSegments();
   const { id: routeIdParam } = useGlobalSearchParams<{ id?: string | string[] }>();
@@ -178,7 +181,7 @@ export default function TabLayout() {
 
   if (Platform.OS !== "ios" && Platform.OS !== "android") {
     return (
-      <View style={{ flex: 1, backgroundColor: Colors[theme].background }}>
+      <View style={{ flex: 1, backgroundColor: tabSceneBackground }}>
         <Tabs
           screenOptions={{
             tabBarActiveTintColor: Colors[theme].tint,
@@ -192,10 +195,10 @@ export default function TabLayout() {
                 style={StyleSheet.absoluteFill}
                 glassEffectStyle="regular"
                 tintColor={withAlpha(
-                  Colors[theme].background,
+                  tabSceneBackground,
                   theme === "dark" ? 0.22 : 0.35,
                 )}
-                fallbackBackgroundColor={Colors[theme].background}
+                fallbackBackgroundColor={tabSceneBackground}
               />
             ),
           }}
@@ -251,13 +254,13 @@ export default function TabLayout() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: Colors[theme].background }}>
+    <View style={{ flex: 1, backgroundColor: tabSceneBackground }}>
       <TabBarMinimizeProvider behavior="onScrollDown">
         <NativeTabs
           minimizeBehavior="onScrollDown"
           // Keep scroll-edge behavior native on iOS 26+ so tab minimization can react to content scrolling.
           disableTransparentOnScrollEdge={!isIOS26Plus}
-          backgroundColor={Colors[theme].background}
+          backgroundColor={tabSceneBackground}
           labelStyle={
             Platform.OS === "ios"
               ? {
