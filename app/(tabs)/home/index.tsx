@@ -75,7 +75,7 @@ const DATE_RAIL_PAST_DAYS = 119;
 const DATE_RAIL_FUTURE_DAYS = 365;
 const DATE_RAIL_MIN_ITEM_WIDTH = 40;
 const DATE_RAIL_ITEM_GAP = 6;
-const DATE_RAIL_FADE_WIDTH = 48;
+const DATE_RAIL_FADE_WIDTH = 96;
 const STREAK_PROGRESS_DAYS = 7;
 const HOME_TASK_ITEM_SPACING = 8;
 const TASK_ROW_SIDE_BLEED = 8;
@@ -2199,7 +2199,10 @@ export default function HomeScreen() {
     [dateRailItemWidth, dateRailSidePadding, dateRailSnapInterval],
   );
 
-  const dateRailRef = React.useRef<FlatList<DateRailDay> | null>(null);
+  const dateRailScrollX = React.useRef(
+    new Animated.Value(dateRailInitialIndex * dateRailSnapInterval),
+  ).current;
+  const dateRailRef = React.useRef<FlatList<DateRailDay> | any>(null);
   const dateRailWrapRef = React.useRef<View | null>(null);
   const dateRailBoundsRef = React.useRef<{
     x: number;
@@ -2240,26 +2243,36 @@ export default function HomeScreen() {
       },
     );
   }, []);
-  const handleDateRailScroll = React.useCallback(
-    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const nextOffset = event.nativeEvent.contentOffset.x;
-      if (typeof nextOffset !== "number" || !Number.isFinite(nextOffset))
-        return;
-      dateRailScrollOffsetRef.current = nextOffset;
-      // Select the day closest to the viewport center while scrolling
-      const centerIndex = Math.round(nextOffset / dateRailSnapInterval);
-      const nextIndex = clamp(centerIndex, 0, dateRailDays.length - 1);
-      // Haptic tick on every day change (gear-wheel feel)
-      if (nextIndex !== dateRailLastCenterIndexRef.current) {
-        dateRailLastCenterIndexRef.current = nextIndex;
-        Haptics.selectionAsync();
-      }
-      const nextDay = dateRailDays[nextIndex];
-      if (nextDay) {
-        selectDateWithoutTransition(nextDay.timestamp);
-      }
-    },
-    [dateRailDays, dateRailSnapInterval, selectDateWithoutTransition],
+  const handleDateRailScroll = React.useMemo(
+    () =>
+      Animated.event(
+        [{ nativeEvent: { contentOffset: { x: dateRailScrollX } } }],
+        {
+          useNativeDriver: true,
+          listener: (event: any) => {
+            const nextOffset = event.nativeEvent.contentOffset.x;
+            if (typeof nextOffset !== "number" || !Number.isFinite(nextOffset))
+              return;
+            dateRailScrollOffsetRef.current = nextOffset;
+            const centerIndex = Math.round(nextOffset / dateRailSnapInterval);
+            const nextIndex = clamp(centerIndex, 0, dateRailDays.length - 1);
+            if (nextIndex !== dateRailLastCenterIndexRef.current) {
+              dateRailLastCenterIndexRef.current = nextIndex;
+              Haptics.selectionAsync();
+            }
+            const nextDay = dateRailDays[nextIndex];
+            if (nextDay) {
+              selectDateWithoutTransition(nextDay.timestamp);
+            }
+          },
+        },
+      ),
+    [
+      dateRailDays,
+      dateRailScrollX,
+      dateRailSnapInterval,
+      selectDateWithoutTransition,
+    ],
   );
   const handleDateRailScrollBeginDrag = React.useCallback(() => {
     dateRailDraggedRef.current = true;
@@ -3387,20 +3400,6 @@ export default function HomeScreen() {
               }
             }}
           >
-            <View
-              style={{
-                position: "absolute",
-                left: 0,
-                right: 0,
-                top: 0,
-                bottom: 0,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-              pointerEvents="none"
-            >
-              <View style={styles.dateRailCenterIndicator} />
-            </View>
             <LinearGradient
               colors={[screenBackground, withAlpha(screenBackground, 0)]}
               start={{ x: 0, y: 0.5 }}
@@ -3408,25 +3407,22 @@ export default function HomeScreen() {
               style={styles.dateRailFadeLeft}
               pointerEvents="none"
             />
-            <FlatList
+            <Animated.FlatList
               ref={dateRailRef}
               data={dateRailDays}
-              keyExtractor={(day) => day.key}
-              renderItem={({ item: day, index }) => {
-                const isSelected = day.isSelected;
+              keyExtractor={(day: DateRailDay) => day.key}
+              renderItem={({ item: day, index }: { item: DateRailDay; index: number }) => {
                 const isToday = day.isToday;
 
                 const dayNumStyle = [
                   styles.dateRailDayNum,
                   day.isWeekend ? styles.dateRailDayNumWeekend : null,
                   isToday ? styles.dateRailDayNumToday : null,
-                  isSelected ? styles.dateRailDayNumSelected : null,
                 ];
 
                 const dayDowStyle = [
                   styles.dateRailDow,
                   day.isWeekend ? styles.dateRailDowWeekend : null,
-                  isSelected ? styles.dateRailDowSelected : null,
                 ];
 
                 return (
@@ -3482,6 +3478,66 @@ export default function HomeScreen() {
               bounces={false}
               scrollEventThrottle={16}
             />
+
+            <View
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                top: 0,
+                bottom: 0,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              pointerEvents="none"
+            >
+              <View style={[styles.dateRailCenterIndicator, { overflow: "hidden" }]}>
+                <Animated.View
+                  style={{
+                    flexDirection: "row",
+                    gap: DATE_RAIL_ITEM_GAP,
+                    transform: [
+                      {
+                        translateX: dateRailScrollX.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, -1],
+                        }),
+                      },
+                    ],
+                  }}
+                >
+                  {dateRailDays.map((day) => {
+                    const isToday = day.isToday;
+                    const dayNumStyle = [
+                      styles.dateRailDayNum,
+                      day.isWeekend ? styles.dateRailDayNumWeekend : null,
+                      isToday ? styles.dateRailDayNumToday : null,
+                      { color: "#FFFFFF" },
+                    ];
+                    const dayDowStyle = [
+                      styles.dateRailDow,
+                      day.isWeekend ? styles.dateRailDowWeekend : null,
+                      { color: "#FFFFFF" },
+                    ];
+                    return (
+                      <View
+                        key={day.key}
+                        style={[
+                          styles.dateRailDay,
+                          { backgroundColor: "transparent" },
+                        ]}
+                      >
+                        <Text style={dayDowStyle}>{day.weekday}</Text>
+                        <Text style={dayNumStyle}>{day.dayOfMonth}</Text>
+                        {day.eventCount > 0 && (
+                          <View style={[styles.dateRailEventIndicator, { backgroundColor: "#FFFFFF" }]} />
+                        )}
+                      </View>
+                    );
+                  })}
+                </Animated.View>
+              </View>
+            </View>
             <LinearGradient
               colors={[withAlpha(screenBackground, 0), screenBackground]}
               start={{ x: 0, y: 0.5 }}
