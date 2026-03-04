@@ -32,6 +32,7 @@ const SWIPE_OVER_SWIPE = 12;
 const COMPACT_SUBTASK_ICON_SIZE = 18;
 const COMPACT_SUBTASK_TEXT_SIZE = 14;
 const DRAG_LONG_PRESS_DELAY_MS = 260;
+const DRAG_COMPACT_PREVIEW_SIZE = 65;
 
 /** Convert a hex color to an rgba pastel tint. */
 function hexToPastel(
@@ -91,10 +92,10 @@ const formatDueLabel = (dueAt: number, dueHasTime?: boolean) => {
       : dueDay.getTime() === tomorrow.getTime()
         ? t("taskDetail.relative.tomorrow")
         : new Intl.DateTimeFormat(getIntlLocale(), {
-          weekday: "short",
-          day: "2-digit",
-          month: "2-digit",
-        }).format(due);
+            weekday: "short",
+            day: "2-digit",
+            month: "2-digit",
+          }).format(due);
 
   if (!dueHasTime) return dayLabel;
 
@@ -184,6 +185,8 @@ export type SwipeTaskRowProps = {
   itemSpacerStyle?: StyleProp<ViewStyle>;
   swipeClipStyle?: StyleProp<ViewStyle>;
   rowStyle?: StyleProp<ViewStyle>;
+  dragCompactPreview?: boolean;
+  activeDragTranslateX?: number;
 };
 
 export const SwipeTaskRow = React.memo(function SwipeTaskRow({
@@ -220,13 +223,22 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   itemSpacerStyle,
   swipeClipStyle,
   rowStyle,
+  dragCompactPreview = false,
+  activeDragTranslateX = 0,
 }: SwipeTaskRowProps) {
   const swipeRef = React.useRef<SwipeableItemImperativeRef | null>(null);
   const longPressTriggeredRef = React.useRef(false);
+  const [dragPressInLocalX, setDragPressInLocalX] = React.useState<
+    number | null
+  >(null);
   const longPressTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
   const autoSwipeTriggerDirectionRef = React.useRef<OpenDirection | null>(null);
+  const canUseCompactDragPreview =
+    showTaskIcons && !!task.emoji && task.emoji.trim().length > 0;
+  const shouldUseCompactDragPreview =
+    isActive && dragCompactPreview && canUseCompactDragPreview;
 
   const taskBgColor = React.useMemo(
     () => hexToPastel(task.color, isDark),
@@ -263,7 +275,6 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       }
     };
   }, []);
-
   React.useEffect(() => {
     if (shouldPopIn) {
       onPopInAnimationEnd?.(task.id);
@@ -417,24 +428,72 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   );
 
   const rowContentStyle = React.useMemo(
-    () => [styles.row, rowStyle, isActive ? styles.dragRow : undefined],
-    [isActive, rowStyle, styles.dragRow, styles.row],
+    () => [
+      styles.row,
+      rowStyle,
+      isActive ? styles.dragRow : undefined,
+      shouldUseCompactDragPreview
+        ? {
+            width: DRAG_COMPACT_PREVIEW_SIZE,
+            minHeight: DRAG_COMPACT_PREVIEW_SIZE,
+            maxWidth: DRAG_COMPACT_PREVIEW_SIZE,
+            borderRadius: 14,
+            paddingHorizontal: 4,
+            paddingVertical: 4,
+            alignSelf: "flex-start" as const,
+          }
+        : undefined,
+    ],
+    [
+      isActive,
+      rowStyle,
+      shouldUseCompactDragPreview,
+      styles.dragRow,
+      styles.row,
+    ],
   );
-  // TODO: use the actual background color of the row
   const rowSurfaceColor = React.useMemo(() => {
-    const flattened = StyleSheet.flatten(rowContentStyle);
-    const resolved = flattened?.backgroundColor;
+    // Keep row tint independent from per-item styles (for example task colors).
+    const flattenedBase = StyleSheet.flatten([
+      styles.row,
+      isActive ? styles.dragRow : undefined,
+    ]);
+    const resolved = flattenedBase?.backgroundColor;
     if (typeof resolved === "string" && resolved.length > 0) return resolved;
-    return isDark ? "#ffffff" : "#FFFFFF";
-  }, [isDark, rowContentStyle]);
+    return isDark ? "#2C2C2E" : "#FFFFFF";
+  }, [isActive, isDark, styles.dragRow, styles.row]);
   const rowTintColor = React.useMemo(
-    () =>
-      rowSurfaceColor.startsWith("#")
-        ? withAlpha(rowSurfaceColor, isDark ? 0.88 : 0.9)
-        : isDark
-          ? "transparent"
-          : "rgba(106, 87, 87, 0.9)",
+    () => {
+      if (rowSurfaceColor.startsWith("#")) {
+        return withAlpha(rowSurfaceColor, isDark ? 0.88 : 0.9);
+      }
+      if (
+        rowSurfaceColor.startsWith("rgb(") ||
+        rowSurfaceColor.startsWith("rgba(")
+      ) {
+        return rowSurfaceColor;
+      }
+      return isDark ? "rgba(44,44,46,0.92)" : "rgba(255,255,255,0.9)";
+    },
     [isDark, rowSurfaceColor],
+  );
+  const activeDragPreviewOffsetStyle = React.useMemo(
+    () => {
+      if (
+        !shouldUseCompactDragPreview ||
+        !Number.isFinite(activeDragTranslateX)
+      ) {
+        return null;
+      }
+      const anchorX =
+        typeof dragPressInLocalX === "number" && Number.isFinite(dragPressInLocalX)
+          ? dragPressInLocalX - DRAG_COMPACT_PREVIEW_SIZE / 2
+          : 0;
+      return {
+        transform: [{ translateX: activeDragTranslateX + anchorX }],
+      };
+    },
+    [activeDragTranslateX, dragPressInLocalX, shouldUseCompactDragPreview],
   );
 
   const tagChips = React.useMemo<TagChipModel[]>(() => {
@@ -634,12 +693,13 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     <View
       style={[
         styles.emojiTile,
+        shouldUseCompactDragPreview
+          ? { width: 36, height: 36, borderRadius: 10 }
+          : null,
         {
           backgroundColor: taskBgColor ?? projectBgColor ?? emojiTint,
           borderColor:
-            taskEmojiBorderColor ??
-            projectEmojiBorderColor ??
-            emojiFallback,
+            taskEmojiBorderColor ?? projectEmojiBorderColor ?? emojiFallback,
           borderWidth: StyleSheet.hairlineWidth,
         },
       ]}
@@ -753,66 +813,89 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
           renderUnderlayLeft={renderUnderlayLeft}
           renderUnderlayRight={renderUnderlayRight}
         >
-          <TouchableOpacity
-            onLongPress={handleLongPressDrag}
-            delayLongPress={DRAG_LONG_PRESS_DELAY_MS}
-            activeOpacity={0.9}
-            style={{ width: "100%", alignSelf: "stretch" }}
-            onPressIn={() => {
-              onTouchInteractionChange?.(task.id, true);
-              armLongPressDrag();
-            }}
-            onPressOut={() => {
-              clearLongPressDrag();
-              onTouchInteractionChange?.(task.id, false);
-            }}
-            onPress={() => {
-              if (longPressTriggeredRef.current) {
-                longPressTriggeredRef.current = false;
-                return;
+          <View style={activeDragPreviewOffsetStyle}>
+            <TouchableOpacity
+              onLongPress={handleLongPressDrag}
+              delayLongPress={DRAG_LONG_PRESS_DELAY_MS}
+              activeOpacity={0.9}
+              style={
+                shouldUseCompactDragPreview
+                  ? {
+                      width: DRAG_COMPACT_PREVIEW_SIZE,
+                      alignSelf: "flex-start",
+                    }
+                  : { width: "100%", alignSelf: "stretch" }
               }
-              onPressTask(task.id);
-            }}
-          >
-            <GlassSurface
-              style={rowContentStyle}
-              glassEffectStyle="regular"
-              tintColor={rowTintColor}
-              fallbackBackgroundColor={rowSurfaceColor}
-              isInteractive
+              onPressIn={(event) => {
+                const localX = event.nativeEvent.locationX;
+                setDragPressInLocalX(
+                  Number.isFinite(localX) ? localX : null,
+                );
+                onTouchInteractionChange?.(task.id, true);
+                armLongPressDrag();
+              }}
+              onPressOut={() => {
+                clearLongPressDrag();
+                onTouchInteractionChange?.(task.id, false);
+              }}
+              onPress={() => {
+                if (longPressTriggeredRef.current) {
+                  longPressTriggeredRef.current = false;
+                  return;
+                }
+                onPressTask(task.id);
+              }}
             >
-              <View
-                style={[
-                  styles.rowInner,
-                  !hasExtraInfo ? { alignItems: "center" } : null,
-                ]}
+              <GlassSurface
+                style={rowContentStyle}
+                glassEffectStyle="regular"
+                tintColor={rowTintColor}
+                fallbackBackgroundColor={rowSurfaceColor}
+                isInteractive
               >
-                {emojiTileView}
                 <View
                   style={[
-                    styles.textStack,
-                    !hasExtraInfo ? { justifyContent: "center" } : null,
+                    styles.rowInner,
+                    shouldUseCompactDragPreview
+                      ? {
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 0,
+                        }
+                      : !hasExtraInfo
+                        ? { alignItems: "center" }
+                        : null,
                   ]}
                 >
-                  <View style={styles.titleRow}>
-                    <Text style={styles.rowTitle} numberOfLines={1}>
-                      {task.title}
-                    </Text>
-                    {timeLabel ? (
-                      <Text style={styles.rowMeta} numberOfLines={1}>
-                        {timeLabel}
-                      </Text>
-                    ) : null}
-                  </View>
-                  {task.subtitle ? (
-                    <Text style={styles.rowSubtitle}>{task.subtitle}</Text>
-                  ) : null}
-                  {tagsView}
-                  {compactSubtasksView}
+                  {emojiTileView}
+                  {shouldUseCompactDragPreview ? null : (
+                    <View
+                      style={[
+                        styles.textStack,
+                        !hasExtraInfo ? { justifyContent: "center" } : null,
+                      ]}
+                    >
+                      <View style={styles.titleRow}>
+                        <Text style={styles.rowTitle} numberOfLines={1}>
+                          {task.title}
+                        </Text>
+                        {timeLabel ? (
+                          <Text style={styles.rowMeta} numberOfLines={1}>
+                            {timeLabel}
+                          </Text>
+                        ) : null}
+                      </View>
+                      {task.subtitle ? (
+                        <Text style={styles.rowSubtitle}>{task.subtitle}</Text>
+                      ) : null}
+                      {tagsView}
+                      {compactSubtasksView}
+                    </View>
+                  )}
                 </View>
-              </View>
-            </GlassSurface>
-          </TouchableOpacity>
+              </GlassSurface>
+            </TouchableOpacity>
+          </View>
         </SwipeableItem>
       </View>
     </View>

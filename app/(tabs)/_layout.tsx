@@ -60,7 +60,6 @@ export default function TabLayout() {
     const isTodayRoute =
       isHomeStackRoute &&
       (third === undefined ||
-        third === "index" ||
         third === "today" ||
         third === "archive" ||
         third === "streaks");
@@ -124,7 +123,6 @@ export default function TabLayout() {
     const isTodayRoute =
       isHomeStackRoute &&
       (third === undefined ||
-        third === "index" ||
         third === "today" ||
         third === "archive" ||
         third === "streaks");

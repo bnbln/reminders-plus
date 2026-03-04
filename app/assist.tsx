@@ -18,8 +18,10 @@ import {
   View,
 } from 'react-native';
 
+import { withAlpha } from '@/components/ui/glass-surface';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
+import { getAccentColorValue, useAppSettings } from '@/context/settings-store';
 import { type Project, type SectionId, type Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { isIOS26OrNewer } from '@/utils/ios-version';
@@ -1547,6 +1549,20 @@ function toMutedTintColor(color: string): string {
   return color;
 }
 
+function getReadableTextColor(hexColor: string): string {
+  const normalized = hexColor.trim();
+  const longHex = normalized.match(/^#([0-9a-f]{6})$/i);
+  if (!longHex) return '#FFFFFF';
+
+  const hex = longHex[1];
+  const red = Number.parseInt(hex.slice(0, 2), 16);
+  const green = Number.parseInt(hex.slice(2, 4), 16);
+  const blue = Number.parseInt(hex.slice(4, 6), 16);
+  const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
+
+  return luminance >= 0.72 ? '#11181C' : '#FFFFFF';
+}
+
 function TypingAnimation({ bubbleColor, textColor }: { bubbleColor: string; textColor: string }) {
   const [dotCount, setDotCount] = React.useState(1);
 
@@ -1571,6 +1587,7 @@ function AssistEntityActionButton({
   messageId,
   action,
   tintColor,
+  tintTextColor,
   colorScheme,
   onCreateTaskDraft,
   onCreateProjectDraft,
@@ -1579,6 +1596,7 @@ function AssistEntityActionButton({
   messageId: string;
   action: AssistAction;
   tintColor: string;
+  tintTextColor: string;
   colorScheme: 'light' | 'dark';
   onCreateTaskDraft: (messageId: string, action: AssistAction) => void;
   onCreateProjectDraft: (messageId: string, action: AssistAction) => void;
@@ -1644,8 +1662,8 @@ function AssistEntityActionButton({
           pressed && { opacity: 0.8 },
         ]}
       >
-        <Text style={styles.openEntityButtonText}>{verb}</Text>
-        <Text style={styles.openEntityButtonIcon}>→</Text>
+        <Text style={[styles.openEntityButtonText, { color: tintTextColor }]}>{verb}</Text>
+        <Text style={[styles.openEntityButtonIcon, { color: tintTextColor }]}>→</Text>
       </Pressable>
     </View>
   );
@@ -1663,6 +1681,11 @@ export default function AssistScreen() {
   const rawColorScheme = useColorScheme();
   const resolvedColorScheme: 'light' | 'dark' = rawColorScheme === 'dark' ? 'dark' : 'light';
   const colors = Colors[resolvedColorScheme];
+  const { accentColor } = useAppSettings();
+  const accentColorValue = React.useMemo(
+    () => getAccentColorValue(accentColor),
+    [accentColor],
+  );
 
   const { tasks, projects, setTasks, setProjects } = useTasksStore();
   const tasksRef = React.useRef<Task[]>(tasks);
@@ -2270,9 +2293,10 @@ export default function AssistScreen() {
   }, [input, isAIAvailable, isLoading, scrollToBottom, setProjects, setTasks]);
 
   const isDarkMode = resolvedColorScheme === 'dark';
-  const userBubbleBg = isDarkMode ? '#0A84FF' : '#007AFF';
-  const assistantBubbleBg = isDarkMode ? '#2c2c2e' : '#edf2f6';
-  const assistantTextColor = isDarkMode ? '#f2f2f7' : '#1f2933';
+  const userBubbleBg = accentColorValue;
+  const userBubbleTextColor = getReadableTextColor(userBubbleBg);
+  const assistantBubbleBg = withAlpha(userBubbleBg, isDarkMode ? 0.24 : 0.16);
+  const assistantTextColor = colors.text;
   const inputBgColor = isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)';
   const inputBorderColor = isDarkMode ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.12)';
   const inputTopBorderColor = isDarkMode ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.08)';
@@ -2351,7 +2375,7 @@ export default function AssistScreen() {
                     style={[
                       styles.messageText,
                       message.role === 'user'
-                        ? styles.userMessageText
+                        ? [styles.userMessageText, { color: userBubbleTextColor }]
                         : [styles.assistantMessageText, { color: assistantTextColor }],
                     ]}
                   >
@@ -2368,6 +2392,7 @@ export default function AssistScreen() {
                         action={action}
                         colorScheme={resolvedColorScheme}
                         tintColor={userBubbleBg}
+                        tintTextColor={userBubbleTextColor}
                         onCreateTaskDraft={handleCreateTaskDraft}
                         onCreateProjectDraft={handleCreateProjectDraft}
                         onShowMoreTasks={handleShowMoreTasks}
@@ -2427,9 +2452,9 @@ export default function AssistScreen() {
                 ]}
               >
                 {isLoading ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
+                  <ActivityIndicator size="small" color={userBubbleTextColor} />
                 ) : (
-                  <Text style={styles.sendButtonText}>↑</Text>
+                  <Text style={[styles.sendButtonText, { color: userBubbleTextColor }]}>↑</Text>
                 )}
               </Pressable>
             </View>

@@ -148,6 +148,8 @@ export type TaskSwipeDraggableListProps = {
   enabledTags?: Set<TagId>;
   showTaskIcons?: boolean;
   showCompactSubtasks?: boolean;
+  /** While dragging, switches the active drag preview into compact icon mode. */
+  dragCompactPreview?: boolean;
   /** When set, datetime tags matching this day are suppressed in task rows. */
   selectedDateStart?: number;
 
@@ -219,6 +221,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     enabledTags,
     showTaskIcons,
     showCompactSubtasks = false,
+    dragCompactPreview = false,
     selectedDateStart,
     onPressTask,
     toggleComplete,
@@ -254,6 +257,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   const isDraggingRef = React.useRef(false);
   const placeholderIndexRef = React.useRef<number>(-1);
   const draggingTaskIdRef = React.useRef<string | null>(null);
+  const [activeDragTranslationX, setActiveDragTranslationX] = React.useState(0);
   const openSwipeIdRef = React.useRef<string | null>(null);
   const closeByIdRef = React.useRef(new Map<string, () => void>());
   const swipingTaskIdsRef = React.useRef(new Set<string>());
@@ -483,6 +487,8 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           enabledTags={enabledTagsResolved}
           showTaskIcons={showTaskIconsResolved}
           showCompactSubtasks={showCompactSubtasks}
+          dragCompactPreview={dragCompactPreview}
+          activeDragTranslateX={activeDragTranslationX}
           beginSwipe={beginSwipe}
           endSwipe={endSwipe}
           registerClose={registerClose}
@@ -557,6 +563,8 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       selectedDateStart,
       showTaskIconsResolved,
       showCompactSubtasks,
+      dragCompactPreview,
+      activeDragTranslationX,
       swipeCompleteBg,
       swipeDeleteBg,
       taskSectionMetaById,
@@ -610,6 +618,8 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           enabledTags={enabledTagsResolved}
           showTaskIcons={showTaskIconsResolved}
           showCompactSubtasks={showCompactSubtasks}
+          dragCompactPreview={dragCompactPreview}
+          activeDragTranslateX={0}
           beginSwipe={beginSwipe}
           endSwipe={endSwipe}
           registerClose={registerClose}
@@ -684,6 +694,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       selectedDateStart,
       showTaskIconsResolved,
       showCompactSubtasks,
+      dragCompactPreview,
       swipeCompleteBg,
       swipeDeleteBg,
       taskSectionMetaById,
@@ -719,6 +730,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   const handleDragBegin = React.useCallback(
     (fromIndex: number) => {
       isDraggingRef.current = true;
+      setActiveDragTranslationX(0);
       onDragStateChange?.(true);
       placeholderIndexRef.current = fromIndex;
       closeAnyOpen();
@@ -734,7 +746,13 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
         () => undefined,
       );
     },
-    [closeAnyOpen, onDragBeginTask, onDragStateChange, resolvedData],
+    [
+      closeAnyOpen,
+      onDragBeginTask,
+      onDragStateChange,
+      resolvedData,
+      setActiveDragTranslationX,
+    ],
   );
 
   const handleDragRelease = React.useCallback(() => {
@@ -742,6 +760,24 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       () => undefined,
     );
   }, []);
+
+  const handleDragGestureUpdateInternal = React.useCallback(
+    (params: TaskDragGestureUpdateParams) => {
+      const { phase, translationX } = params;
+      if (phase === "begin") {
+        setActiveDragTranslationX((current) => (current === 0 ? current : 0));
+      } else if (phase === "update") {
+        const nextTranslateX = Number.isFinite(translationX) ? translationX : 0;
+        setActiveDragTranslationX((current) =>
+          Math.abs(current - nextTranslateX) < 0.5 ? current : nextTranslateX,
+        );
+      } else {
+        setActiveDragTranslationX((current) => (current === 0 ? current : 0));
+      }
+      onDragGestureUpdate?.(params);
+    },
+    [onDragGestureUpdate],
+  );
 
   const handleDragEnd = React.useCallback(
     ({
@@ -759,6 +795,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       const handledExternally =
         onDragEndMeta?.({ data: nextData, from, to }) === true;
       if (handledExternally) {
+        setActiveDragTranslationX(0);
         // External handlers mutate parent data; keep local list stable and
         // wait for parent sync to avoid transient remount flashes.
         // Delay the drag-state reset so the drop commit's state changes
@@ -770,6 +807,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           onDragStateChange?.(false);
         });
       } else {
+        setActiveDragTranslationX(0);
         setFlatListData(nextData);
         onReorderData?.(nextData);
         onReorder?.(
@@ -785,7 +823,14 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
         });
       }
     },
-    [onDragEndMeta, onDragStateChange, onReorder, onReorderData, tasksById],
+    [
+      onDragEndMeta,
+      onDragStateChange,
+      onReorder,
+      onReorderData,
+      tasksById,
+      setActiveDragTranslationX,
+    ],
   );
 
   const dragListProps = {
@@ -810,7 +855,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     onTouchMove: onListTouchMove,
     onTouchEnd: onListTouchEnd,
     onTouchCancel: onListTouchCancel,
-    onDragGestureUpdate,
+    onDragGestureUpdate: handleDragGestureUpdateInternal,
   };
 
   if (renderMode === 'static') {

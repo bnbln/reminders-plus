@@ -5,6 +5,7 @@ import {
   LayoutAnimation,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -110,6 +111,21 @@ export default function InboxScreen() {
     return [...visible].sort((a, b) => a.orderRank - b.orderRank);
   }, [activeTasks]);
 
+  const enabledTagsSeed = React.useMemo(
+    () => Array.from(enabledTags).sort().join(","),
+    [enabledTags],
+  );
+  const rowLayoutSeed = React.useMemo(
+    () =>
+      `${enabledTagsSeed}|icons:${showTagIcons ? 1 : 0}|subtasks:${withSubtasksEnabled ? 1 : 0}`,
+    [enabledTagsSeed, showTagIcons, withSubtasksEnabled],
+  );
+  const getRowDataKey = React.useCallback(
+    (task: Task) =>
+      `task-${task.id}:${rowLayoutSeed}:${task.subtitle?.length ?? 0}:${task.subtasks?.length ?? 0}`,
+    [rowLayoutSeed],
+  );
+
   const tasksForList = React.useMemo(
     () => [...overdueTasks, ...withoutDateTasks],
     [overdueTasks, withoutDateTasks],
@@ -122,7 +138,7 @@ export default function InboxScreen() {
 
     if (!collapsedSections.overdue) {
       for (const task of overdueTasks) {
-        data.push({ kind: "task", key: `task-${task.id}`, taskId: task.id });
+        data.push({ kind: "task", key: getRowDataKey(task), taskId: task.id });
       }
     }
 
@@ -134,7 +150,7 @@ export default function InboxScreen() {
 
     if (!collapsedSections.withoutDate) {
       for (const task of withoutDateTasks) {
-        data.push({ kind: "task", key: `task-${task.id}`, taskId: task.id });
+        data.push({ kind: "task", key: getRowDataKey(task), taskId: task.id });
       }
     }
 
@@ -142,6 +158,7 @@ export default function InboxScreen() {
   }, [
     collapsedSections.overdue,
     collapsedSections.withoutDate,
+    getRowDataKey,
     overdueTasks,
     withoutDateTasks,
   ]);
@@ -256,38 +273,6 @@ export default function InboxScreen() {
     [setTasks],
   );
 
-  const applyOrderFromListData = React.useCallback(
-    (data: TaskSwipeDraggableListItem[]) => {
-      const bySection: Record<InboxSectionId, string[]> = {
-        overdue: [],
-        withoutDate: [],
-      };
-
-      let currentSection: InboxSectionId = "overdue";
-      for (const item of data) {
-        if (item.kind === "header") {
-          currentSection =
-            item.sectionId === "withoutDate" ? "withoutDate" : "overdue";
-          continue;
-        }
-        bySection[currentSection].push(item.taskId);
-      }
-
-      setTasks((prev) => {
-        const byId = new Map(prev.map((task) => [task.id, task] as const));
-        (Object.keys(bySection) as InboxSectionId[]).forEach((sectionId) => {
-          bySection[sectionId].forEach((taskId, index) => {
-            const existing = byId.get(taskId);
-            if (!existing) return;
-            byId.set(taskId, { ...existing, orderRank: (index + 1) * 1000 });
-          });
-        });
-        return prev.map((task) => byId.get(task.id) ?? task);
-      });
-    },
-    [setTasks],
-  );
-
   const toggleSectionCollapsed = React.useCallback(
     (sectionId: InboxSectionId) => {
       setCollapsedSections((prev) => ({
@@ -391,39 +376,56 @@ export default function InboxScreen() {
   }, [router]);
 
   const hasAnyTask = overdueTasks.length > 0 || withoutDateTasks.length > 0;
+  const listRenderKey = React.useMemo(
+    () =>
+      `inbox:${rowLayoutSeed}:o${collapsedSections.overdue ? 1 : 0}:w${
+        collapsedSections.withoutDate ? 1 : 0
+      }`,
+    [
+      collapsedSections.overdue,
+      collapsedSections.withoutDate,
+      rowLayoutSeed,
+    ],
+  );
 
   return (
     <View style={styles.container}>
-      <TaskSwipeDraggableList
-        theme={theme}
-        isDark={isDark}
-        tasks={tasksForList}
-        data={swipeListData}
-        renderHeaderRow={renderSectionHeaderRow}
-        projectsById={projectsById}
-        rowStyles={styles}
-        itemSpacing={HOME_TASK_ITEM_SPACING}
-        containerStyle={{ backgroundColor: screenBackground }}
-        contentInsetAdjustmentBehavior="automatic"
+      <ScrollView
+        key={listRenderKey}
+        style={styles.scroll}
         contentContainerStyle={styles.content}
-        animateDataLayoutChanges={false}
-        empty={null}
-        footer={
-          hasAnyTask ? null : (
-            <View style={styles.empty}>
-              <Text style={styles.emptyText}>{t("inbox.empty")}</Text>
-            </View>
-          )
-        }
-        enabledTags={enabledTags}
-        showTaskIcons={showTagIcons}
-        showCompactSubtasks={withSubtasksEnabled}
-        onPressTask={onPressTask}
-        toggleComplete={toggleComplete}
-        toggleSubtask={toggleSubtask}
-        deleteTask={deleteTask}
-        onReorderData={applyOrderFromListData}
-      />
+        contentInsetAdjustmentBehavior="automatic"
+        showsVerticalScrollIndicator={false}
+      >
+        <TaskSwipeDraggableList
+          renderMode="static"
+          theme={theme}
+          isDark={isDark}
+          tasks={tasksForList}
+          data={swipeListData}
+          renderHeaderRow={renderSectionHeaderRow}
+          projectsById={projectsById}
+          rowStyles={styles}
+          itemSpacing={HOME_TASK_ITEM_SPACING}
+          containerStyle={{ backgroundColor: screenBackground }}
+          animateDataLayoutChanges={false}
+          empty={null}
+          footer={
+            hasAnyTask ? null : (
+              <View style={styles.empty}>
+                <Text style={styles.emptyText}>{t("inbox.empty")}</Text>
+              </View>
+            )
+          }
+          enabledTags={enabledTags}
+          showTaskIcons={showTagIcons}
+          showCompactSubtasks={withSubtasksEnabled}
+          onPressTask={onPressTask}
+          toggleComplete={toggleComplete}
+          toggleSubtask={toggleSubtask}
+          deleteTask={deleteTask}
+        />
+      </ScrollView>
 
       {showFloatingAddButton ? (
         <FloatingAddButton onPress={handleAddTask} />
@@ -463,6 +465,9 @@ const createStyles = (theme: keyof typeof Colors) => {
       flex: 1,
       backgroundColor: screenBackground,
     },
+    scroll: {
+      flex: 1,
+    },
     content: {
       paddingHorizontal: 16,
       paddingTop: 8,
@@ -481,7 +486,7 @@ const createStyles = (theme: keyof typeof Colors) => {
       justifyContent: "space-between",
       width: "100%",
       paddingVertical: 6,
-      paddingHorizontal: 8,
+      paddingHorizontal: 0,
     },
     sectionHeaderButtonPressed: {
       opacity: 0.84,

@@ -2,7 +2,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
-import { Appearance, I18nManager, Platform } from 'react-native';
+import { I18nManager, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
@@ -20,8 +20,7 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const resolvedColorScheme = colorScheme ?? Appearance.getColorScheme();
-  const theme = resolvedColorScheme === 'dark' ? 'dark' : 'light';
+  const theme = colorScheme ?? 'light';
   const themedContentStyle = React.useMemo(
     () => ({ backgroundColor: Colors[theme].background }),
     [theme]
@@ -181,7 +180,7 @@ export default function RootLayout() {
                   }}
                 />
               </Stack>
-              <StatusBar style="auto" />
+              <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
             </ThemeProvider>
           </HomeFiltersProvider>
         </TaskCreateProvider>

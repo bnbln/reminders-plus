@@ -38,6 +38,7 @@ import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { SFSymbol } from "@/components/ui/sfsymbol";
 import { Colors } from "@/constants/theme";
 import { useHomeFilters } from "@/context/home-filters-store";
+import { getAccentColorValue, useAppSettings } from "@/context/settings-store";
 import { useTaskCreateContext } from "@/context/task-create-context";
 import {
   getDueAtForSection,
@@ -250,7 +251,8 @@ const adjustDueAtOnSectionChange = (
 type HomeMetricsProps = {
   completionPercentage: number;
   currentStreak: number;
-  onPress: () => void;
+  onPressStatus: () => void;
+  onPressStreak: () => void;
 };
 
 type HomeMetricsTheme = {
@@ -314,7 +316,7 @@ function HomeMetricsGrid({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`status: ${metrics.completionPercentage}%`}
-          onPress={metrics.onPress}
+          onPress={metrics.onPressStatus}
           hitSlop={8}
           style={({ pressed }) => [
             styles.metricsCardPressable,
@@ -361,7 +363,7 @@ function HomeMetricsGrid({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`streak: ${metrics.currentStreak}`}
-          onPress={metrics.onPress}
+          onPress={metrics.onPressStreak}
           hitSlop={8}
           style={({ pressed }) => [
             styles.metricsCardPressable,
@@ -404,13 +406,18 @@ function HomeMetricsGrid({
   );
 }
 
-const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
+const createStyles = (
+  theme: ThemeName,
+  dateRailItemWidth: number,
+  calendarActiveColor: string,
+) => {
   const isDark = theme === "dark";
   const useAppleLightPalette = !isDark && Platform.OS === "ios";
   const text = Colors[theme].text;
 
   // ─── Design Tokens ─────────────────────────────────
-  const ACCENT = "#F4512C";
+  const CALENDAR_ACCENT = calendarActiveColor;
+  const DRAG_ACCENT = "#F4512C";
   const ALPHA_2 = 0.72; // secondary: subtitles, meta, icons
   const ALPHA_3 = 0.48; // tertiary: labels, section headers, hints
   const ALPHA_4 = 0.28; // quaternary: dividers, faint borders
@@ -607,7 +614,7 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
       width: dateRailItemWidth,
       height: 64,
       borderRadius: 12,
-      backgroundColor: ACCENT,
+      backgroundColor: CALENDAR_ACCENT,
     },
     dateRailFadeLeft: {
       position: "absolute",
@@ -735,7 +742,7 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
     calendarPopoverDone: {
       fontSize: 14,
       fontWeight: WEIGHT_HEADING,
-      color: ACCENT,
+      color: CALENDAR_ACCENT,
     },
     dateRailTitle: {
       fontSize: 18,
@@ -766,18 +773,16 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
     },
     dateRailDayDropCandidate: {
       borderWidth: 1.5,
-      borderColor: withAlpha(ACCENT, 0.92),
-      backgroundColor: isDark
-        ? "rgba(244,81,44,0.16)"
-        : "rgba(244,81,44,0.14)",
+      borderColor: withAlpha(CALENDAR_ACCENT, 0.92),
+      backgroundColor: withAlpha(CALENDAR_ACCENT, isDark ? 0.16 : 0.14),
     },
     dateRailDayDropReady: {
-      borderWidth: 1.5,
-      borderColor: ACCENT,
-      backgroundColor: ACCENT,
+      borderWidth: 2,
+      borderColor: CALENDAR_ACCENT,
+      backgroundColor: withAlpha(CALENDAR_ACCENT, isDark ? 0.16 : 0.12),
     },
     dateRailDaySelected: {
-      backgroundColor: ACCENT,
+      backgroundColor: CALENDAR_ACCENT,
     },
     dateRailDayNum: {
       color: isDark ? "rgba(255,255,255,0.92)" : "#475569",
@@ -790,16 +795,16 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
       color: "#FFFFFF",
     },
     dateRailDayNumToday: {
-      color: ACCENT,
+      color: CALENDAR_ACCENT,
     },
     dateRailDayNumWeekend: {
       color: withAlpha(text, ALPHA_3),
     },
     dateRailDayNumDropCandidate: {
-      color: withAlpha(ACCENT, 0.98),
+      color: withAlpha(CALENDAR_ACCENT, 0.98),
     },
     dateRailDayNumDropReady: {
-      color: "#FFFFFF",
+      color: withAlpha(CALENDAR_ACCENT, 0.98),
     },
     dateRailDow: {
       color: isDark ? "rgba(255,255,255,0.8)" : "#64748B",
@@ -810,10 +815,10 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
       textTransform: "uppercase",
     },
     dateRailDowDropCandidate: {
-      color: withAlpha(ACCENT, 0.95),
+      color: withAlpha(CALENDAR_ACCENT, 0.95),
     },
     dateRailDowDropReady: {
-      color: "#FFFFFF",
+      color: withAlpha(CALENDAR_ACCENT, 0.95),
     },
     dateRailDowSelected: {
       color: "#FFFFFF",
@@ -878,10 +883,8 @@ const createStyles = (theme: ThemeName, dateRailItemWidth: number) => {
     },
     segmentSurfaceDropHover: {
       borderWidth: 2,
-      borderColor: ACCENT,
-      backgroundColor: isDark
-        ? "rgba(244, 81, 44, 0.08)"
-        : "rgba(244, 81, 44, 0.05)",
+      borderColor: DRAG_ACCENT,
+      backgroundColor: withAlpha(DRAG_ACCENT, isDark ? 0.08 : 0.05),
     },
     taskListInset: {
       paddingHorizontal: TASK_ROW_SIDE_BLEED,
@@ -1217,6 +1220,7 @@ export default function HomeScreen() {
     | TaskAccessoryContextBridge
     | undefined;
   const { setMode, setPresetDateStart } = useTaskCreateContext();
+  const { accentColor } = useAppSettings();
   const { width: viewportWidth } = useWindowDimensions();
 
   const [isCalendarPickerOpen, setIsCalendarPickerOpen] = React.useState(false);
@@ -1246,9 +1250,13 @@ export default function HomeScreen() {
     0,
     (dateRailContainerWidth - dateRailItemWidth) / 2,
   );
+  const calendarActiveColor = React.useMemo(
+    () => getAccentColorValue(accentColor),
+    [accentColor],
+  );
   const styles = React.useMemo(
-    () => createStyles(theme, dateRailItemWidth),
-    [dateRailItemWidth, theme],
+    () => createStyles(theme, dateRailItemWidth, calendarActiveColor),
+    [calendarActiveColor, dateRailItemWidth, theme],
   );
   const { tasks, setTasks, projects } = useTasksStore();
   const { enabledTags, showTagIcons, showCompactSubtasks } = useHomeFilters();
@@ -1443,7 +1451,8 @@ export default function HomeScreen() {
   const [dragDetectedDateStart, setDragDetectedDateStart] = React.useState<
     number | null
   >(null);
-  const [, setIsDragPointOverDateRail] = React.useState(false);
+  const [isDragOverCalendarHeader, setIsDragOverCalendarHeader] =
+    React.useState(false);
   const [, setDragDropDebugReason] = React.useState("idle");
   const [, setActiveDragSurface] = React.useState<DragSurfaceId | null>(null);
   const dragContextRef = React.useRef<{
@@ -1500,7 +1509,8 @@ export default function HomeScreen() {
     return {
       completionPercentage,
       currentStreak,
-      onPress: () => router.push("/home/streaks"),
+      onPressStatus: () => router.push("/status"),
+      onPressStreak: () => router.push("/home/streaks"),
     };
   }, [completionPercentage, currentStreak, router]);
 
@@ -2211,12 +2221,11 @@ export default function HomeScreen() {
   );
   const handleSelectDate = React.useCallback(
     (timestamp: number, source: DateSelectionSource = "press") => {
-      if (source) {
-        // Intentionally immediate date switching for stable drag/swipe gesture handling.
-      }
-      selectDateWithoutTransition(timestamp);
+      const current = selectedDateStartRef.current;
+      const directionHint: 1 | -1 = timestamp >= current ? 1 : -1;
+      selectDateWithTransition(timestamp, directionHint, source);
     },
-    [selectDateWithoutTransition],
+    [selectDateWithTransition],
   );
 
   const getDateRailItemLayout = React.useCallback(
@@ -2251,12 +2260,30 @@ export default function HomeScreen() {
   );
   const dateRailDraggedRef = React.useRef(false);
   const dateRailLastCenterIndexRef = React.useRef(dateRailInitialIndex);
+  const dateRailSelectionLockTargetIndexRef = React.useRef<number | null>(null);
+  const dateRailSelectionLockUntilRef = React.useRef(0);
   const scrollDateRailToDateStart = React.useCallback(
-    (targetDateStart: number, animated = false) => {
+    (
+      targetDateStart: number,
+      animated = false,
+      lockSelectionDuringScroll = false,
+    ) => {
       const targetIndex = dateRailDays.findIndex((day) =>
         isSameLocalDay(day.timestamp, targetDateStart),
       );
       if (targetIndex < 0) return false;
+
+      const shouldLockSelection =
+        lockSelectionDuringScroll &&
+        animated &&
+        targetIndex !== dateRailLastCenterIndexRef.current;
+      if (shouldLockSelection) {
+        dateRailSelectionLockTargetIndexRef.current = targetIndex;
+        dateRailSelectionLockUntilRef.current = Date.now() + 800;
+      } else {
+        dateRailSelectionLockTargetIndexRef.current = null;
+        dateRailSelectionLockUntilRef.current = 0;
+      }
 
       dateRailLastCenterIndexRef.current = targetIndex;
       dateRailScrollOffsetRef.current = targetIndex * dateRailSnapInterval;
@@ -2320,9 +2347,10 @@ export default function HomeScreen() {
     if (railBoundsMeasureFrameRef.current != null) return;
     railBoundsMeasureFrameRef.current = requestAnimationFrame(() => {
       railBoundsMeasureFrameRef.current = null;
+      measureDateRailBounds();
       measureDateRailListBounds();
     });
-  }, [measureDateRailListBounds]);
+  }, [measureDateRailBounds, measureDateRailListBounds]);
   const handleDateRailScroll = React.useMemo(
     () =>
       Animated.event(
@@ -2336,6 +2364,15 @@ export default function HomeScreen() {
             dateRailScrollOffsetRef.current = nextOffset;
             const centerIndex = Math.round(nextOffset / dateRailSnapInterval);
             const nextIndex = clamp(centerIndex, 0, dateRailDays.length - 1);
+            const lockedTargetIndex = dateRailSelectionLockTargetIndexRef.current;
+            if (lockedTargetIndex != null) {
+              const lockActive = Date.now() <= dateRailSelectionLockUntilRef.current;
+              if (nextIndex !== lockedTargetIndex && lockActive) {
+                return;
+              }
+              dateRailSelectionLockTargetIndexRef.current = null;
+              dateRailSelectionLockUntilRef.current = 0;
+            }
             if (nextIndex !== dateRailLastCenterIndexRef.current) {
               dateRailLastCenterIndexRef.current = nextIndex;
               Haptics.selectionAsync();
@@ -2356,6 +2393,8 @@ export default function HomeScreen() {
   );
   const handleDateRailScrollBeginDrag = React.useCallback(() => {
     dateRailDraggedRef.current = true;
+    dateRailSelectionLockTargetIndexRef.current = null;
+    dateRailSelectionLockUntilRef.current = 0;
   }, []);
 
   const handleDateRailMomentumEnd = React.useCallback(
@@ -2363,6 +2402,8 @@ export default function HomeScreen() {
       dateRailDraggedRef.current = false;
       const offset = event.nativeEvent.contentOffset.x;
       dateRailScrollOffsetRef.current = offset;
+      dateRailSelectionLockTargetIndexRef.current = null;
+      dateRailSelectionLockUntilRef.current = 0;
     },
     [],
   );
@@ -2552,14 +2593,17 @@ export default function HomeScreen() {
     },
     [cancelDragSurfaceResetFrame, cancelDropCommitFrame],
   );
-  const clearDateDragHover = React.useCallback(() => {
+  const clearDateRailHover = React.useCallback(() => {
     dragRailHoverIntentRef.current = { dateStart: null, enteredAt: 0 };
     dragHoverDateStartRef.current = null;
     setDragHoveredDateStart((current) => (current == null ? current : null));
     setDragDetectedDateStart((current) => (current == null ? current : null));
-    setIsDragPointOverDateRail(false);
-    setDragDropDebugReason("idle");
   }, []);
+  const clearDateDragHover = React.useCallback(() => {
+    clearDateRailHover();
+    setIsDragOverCalendarHeader(false);
+    setDragDropDebugReason("idle");
+  }, [clearDateRailHover]);
   const getTouchPointFromEvent = React.useCallback(
     (event: GestureResponderEvent) => {
       const touch =
@@ -2583,6 +2627,19 @@ export default function HomeScreen() {
       scheduleMeasureDateRailListBounds();
       const force = options?.force === true;
       const source = options?.source ?? "touch";
+      const headerBounds = dateRailBoundsRef.current;
+      const shouldTrackHeader =
+        !!dragContextRef.current && (force || listDragActiveRef.current);
+      const isInsideCalendarHeader =
+        shouldTrackHeader &&
+        !!headerBounds &&
+        point.x >= headerBounds.x &&
+        point.x <= headerBounds.x + headerBounds.width &&
+        point.y >= headerBounds.y &&
+        point.y <= headerBounds.y + headerBounds.height;
+      setIsDragOverCalendarHeader((current) =>
+        current === isInsideCalendarHeader ? current : isInsideCalendarHeader,
+      );
       if (!dragContextRef.current) {
         setDragDropDebugReason(`${source}-no-context`);
         return;
@@ -2604,13 +2661,10 @@ export default function HomeScreen() {
         point.y <= bounds.y + bounds.height;
       if (!isInsideDayRail) {
         dragLastRailDateStartRef.current = null;
-        setIsDragPointOverDateRail(false);
-        setDragDetectedDateStart((current) => (current == null ? current : null));
-        clearDateDragHover();
+        clearDateRailHover();
         setDragDropDebugReason(`${source}-outside-rail`);
         return;
       }
-      setIsDragPointOverDateRail(true);
 
       const localX = point.x - bounds.x;
       const contentX =
@@ -2672,7 +2726,7 @@ export default function HomeScreen() {
       );
     },
     [
-      clearDateDragHover,
+      clearDateRailHover,
       dateRailDays,
       dateRailSidePadding,
       dateRailSnapInterval,
@@ -3712,7 +3766,7 @@ export default function HomeScreen() {
               ref={dateRailRef}
               data={dateRailDays}
               keyExtractor={(day: DateRailDay) => day.key}
-              renderItem={({ item: day, index }: { item: DateRailDay; index: number }) => {
+              renderItem={({ item: day }: { item: DateRailDay }) => {
                 const isToday = day.isToday;
                 const isDragCandidate =
                   dragDetectedDateStart != null &&
@@ -3744,12 +3798,8 @@ export default function HomeScreen() {
                       dateRailDraggedRef.current = false;
                       closeAnyOpen();
                       Haptics.selectionAsync();
-                      handleSelectDate(day.timestamp);
-                      dateRailRef.current?.scrollToIndex({
-                        index,
-                        animated: true,
-                        viewPosition: 0.5,
-                      });
+                      scrollDateRailToDateStart(day.timestamp, true, true);
+                      handleSelectDate(day.timestamp, "press");
                     }}
                     style={({ pressed }) => [
                       styles.dateRailDay,
@@ -3884,6 +3934,7 @@ export default function HomeScreen() {
     handleGlobalDragTouchMove,
     glassSurfacePalette,
     handleSelectDate,
+    scrollDateRailToDateStart,
     isCalendarPickerOpen,
     isDark,
     measureDateRailBounds,
@@ -4000,6 +4051,7 @@ export default function HomeScreen() {
         enabledTags={enabledTags}
         showTaskIcons={showTagIcons}
         showCompactSubtasks={withSubtasksEnabled}
+        dragCompactPreview={isDragOverCalendarHeader}
         selectedDateStart={listDateStart}
         empty={!hasTodayTasks ? calendarEmptyState : null}
         onPressTask={handlePressTask}
