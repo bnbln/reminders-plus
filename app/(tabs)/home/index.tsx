@@ -25,6 +25,11 @@ import {
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import {
+  DatePicker as ExpoSwiftUIDatePicker,
+  Host as ExpoSwiftUIHost,
+} from "@expo/ui/swift-ui";
+import { datePickerStyle as expoSwiftDatePickerStyleModifier } from "@expo/ui/swift-ui/modifiers";
 import { LinearGradient } from "expo-linear-gradient";
 
 import {
@@ -106,8 +111,8 @@ const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 
 // Month Year Picker styles
-const CALENDAR_POPOVER_WIDTH = 310;
-const CALENDAR_POPOVER_HEIGHT = 220;
+const CALENDAR_POPOVER_WIDTH = 340;
+const CALENDAR_POPOVER_HEIGHT = 332;
 
 async function readOnboardingSeen(key: string): Promise<boolean> {
   try {
@@ -724,25 +729,47 @@ const createStyles = (
       shadowRadius: 28,
       shadowOffset: { width: 0, height: 14 },
     },
-    calendarPopoverHeader: {
+    calendarQuickActionsRow: {
       flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingHorizontal: 16,
-      paddingVertical: 12,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: heroCardBorder,
+      gap: 8,
+      paddingHorizontal: 12,
+      paddingTop: 10,
+      paddingBottom: 6,
     },
-    calendarPopoverTitle: {
-      fontSize: 14,
+    calendarQuickActionButton: {
+      flex: 1,
+      borderRadius: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: heroCardBorder,
+      backgroundColor: isDark
+        ? "rgba(255,255,255,0.08)"
+        : "rgba(255,255,255,0.9)",
+      paddingVertical: 9,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    calendarQuickActionButtonText: {
+      fontSize: 13,
+      lineHeight: 16,
       fontWeight: WEIGHT_HEADING,
       color: text,
       opacity: ALPHA_2,
     },
-    calendarPopoverDone: {
-      fontSize: 14,
-      fontWeight: WEIGHT_HEADING,
-      color: CALENDAR_ACCENT,
+    calendarPickerBody: {
+      flex: 1,
+      alignItems: "stretch",
+      justifyContent: "center",
+      paddingHorizontal: 12,
+      paddingBottom: 12,
+    },
+    calendarPickerNative: {
+      flex: 1,
+      minHeight: 190,
+    },
+    calendarPickerSwiftHost: {
+      flex: 1,
+      minHeight: 190,
+      justifyContent: "center",
     },
     dateRailTitle: {
       fontSize: 18,
@@ -1224,10 +1251,9 @@ export default function HomeScreen() {
   const { width: viewportWidth } = useWindowDimensions();
 
   const [isCalendarPickerOpen, setIsCalendarPickerOpen] = React.useState(false);
-  const [calendarPickerDate, setCalendarPickerDate] = React.useState(() => {
-    const d = new Date();
-    return { month: d.getMonth() + 1, year: d.getFullYear() };
-  });
+  const isExpoUISwiftPickerAvailable =
+    Platform.OS === "ios" &&
+    !!(NativeModules as Record<string, unknown> | undefined)?.ExpoUI;
 
   const showFloatingAddButton = Platform.OS === "ios" && !isIOS26OrNewer();
   const params = useLocalSearchParams<{
@@ -3688,12 +3714,12 @@ export default function HomeScreen() {
               ]}
               onPress={() => setIsCalendarPickerOpen(false)}
             />
-            {/* Popover card — centered horizontally near top */}
+            {/* Popover card */}
             <View
               pointerEvents="box-none"
               style={{
                 position: "absolute",
-                top: 120,
+                top: 96,
                 left: 0,
                 right: 0,
                 alignItems: "center",
@@ -3705,37 +3731,68 @@ export default function HomeScreen() {
                 style={styles.calendarPopover}
                 isInteractive={true}
               >
-                {/* Clip container to hide the Day column (leftmost ~88px) */}
-                <View style={{ width: "100%", overflow: "hidden" }}>
-                  <DateTimePicker
-                    value={
-                      new Date(
-                        calendarPickerDate.year,
-                        calendarPickerDate.month - 1,
-                        1,
-                      )
-                    }
-                    mode="date"
-                    display="spinner"
-                    onChange={(_: any, date?: Date) => {
-                      if (date) {
-                        const month = date.getMonth() + 1;
-                        const year = date.getFullYear();
-                        setCalendarPickerDate({ month, year });
-                        handleSelectDate(
-                          new Date(year, month - 1, 1).getTime(),
-                          "picker",
-                        );
-                      }
+                <View style={styles.calendarQuickActionsRow}>
+                  <Pressable
+                    style={styles.calendarQuickActionButton}
+                    onPress={() => {
+                      const todayDateStart = getStartOfToday();
+                      scrollDateRailToDateStart(todayDateStart, true, true);
+                      handleSelectDate(todayDateStart, "picker");
+                      setIsCalendarPickerOpen(false);
                     }}
-                    style={{
-                      width: CALENDAR_POPOVER_WIDTH + 88,
-                      height: CALENDAR_POPOVER_HEIGHT,
-                      marginLeft: -88,
+                  >
+                    <Text style={styles.calendarQuickActionButtonText}>
+                      {isGermanLocale ? "Heute" : "Today"}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.calendarQuickActionButton}
+                    onPress={() => {
+                      const tomorrowDateStart = addDays(getStartOfToday(), 1);
+                      scrollDateRailToDateStart(tomorrowDateStart, true, true);
+                      handleSelectDate(tomorrowDateStart, "picker");
+                      setIsCalendarPickerOpen(false);
                     }}
-                    textColor={isDark ? "#ffffff" : "#000000"}
-                    themeVariant={isDark ? "dark" : "light"}
-                  />
+                  >
+                    <Text style={styles.calendarQuickActionButtonText}>
+                      {isGermanLocale ? "Morgen" : "Tomorrow"}
+                    </Text>
+                  </Pressable>
+                </View>
+
+                <View style={styles.calendarPickerBody}>
+                  {isExpoUISwiftPickerAvailable ? (
+                    <ExpoSwiftUIHost
+                      matchContents
+                      style={styles.calendarPickerSwiftHost}
+                    >
+                      <ExpoSwiftUIDatePicker
+                        selection={new Date(selectedDateStart)}
+                        displayedComponents={["date"]}
+                        modifiers={[expoSwiftDatePickerStyleModifier("wheel")]}
+                        onDateChange={(date: Date) => {
+                          const nextDateStart = getStartOfDay(date.getTime());
+                          scrollDateRailToDateStart(nextDateStart, true, true);
+                          handleSelectDate(nextDateStart, "picker");
+                        }}
+                      />
+                    </ExpoSwiftUIHost>
+                  ) : (
+                    <DateTimePicker
+                      value={new Date(selectedDateStart)}
+                      mode="date"
+                      display="spinner"
+                      onChange={(_: any, date?: Date) => {
+                        if (!date) return;
+                        const nextDateStart = getStartOfDay(date.getTime());
+                        scrollDateRailToDateStart(nextDateStart, true, true);
+                        handleSelectDate(nextDateStart, "picker");
+                      }}
+                      style={styles.calendarPickerNative}
+                      textColor={isDark ? "#ffffff" : "#000000"}
+                      themeVariant={isDark ? "dark" : "light"}
+                    />
+                  )}
                 </View>
               </GlassSurface>
             </View>
@@ -3913,7 +3970,6 @@ export default function HomeScreen() {
       </View>
     );
   }, [
-    calendarPickerDate,
     closeAnyOpen,
     dateRailDays,
     dateRailSidePadding,
@@ -3934,12 +3990,15 @@ export default function HomeScreen() {
     handleGlobalDragTouchMove,
     glassSurfacePalette,
     handleSelectDate,
+    isExpoUISwiftPickerAvailable,
+    isGermanLocale,
     scrollDateRailToDateStart,
     isCalendarPickerOpen,
     isDark,
     measureDateRailBounds,
     measureDateRailListBounds,
     screenBackground,
+    selectedDateStart,
     styles,
     theme,
     dateRailContainerWidth,

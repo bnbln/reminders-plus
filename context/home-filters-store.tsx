@@ -11,6 +11,7 @@ export type TagId =
   | "datetime"
   | "location"
   | "project"
+  | "routine"
   | "keywords";
 
 export const TAG_ORDER: TagId[] = [
@@ -18,6 +19,7 @@ export const TAG_ORDER: TagId[] = [
   "datetime",
   "location",
   "project",
+  "routine",
   "keywords",
 ];
 
@@ -26,6 +28,7 @@ export const TAG_DEFS: Record<TagId, { titleKey: string; iosSymbol: string }> = 
   datetime: { titleKey: "tags.datetime", iosSymbol: "calendar.badge.clock" },
   location: { titleKey: "tags.location", iosSymbol: "location.fill" },
   project: { titleKey: "tags.project", iosSymbol: "folder.fill" },
+  routine: { titleKey: "taskDetail.property.routine", iosSymbol: "repeat" },
   keywords: { titleKey: "tags.keywords", iosSymbol: "tag.fill" },
 };
 
@@ -350,6 +353,7 @@ export function parseTagsParam(value: unknown): Set<TagId> {
       p === "datetime" ||
       p === "location" ||
       p === "project" ||
+      p === "routine" ||
       p === "keywords"
     )
       enabled.add(p);

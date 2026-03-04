@@ -297,9 +297,12 @@ export function getNextRoutineDate(
     monthDay?: number;
     month?: number;
   } = {},
+  minExclusiveMs: number = Date.now(),
 ): number {
-  const nowMs = Date.now();
-  let next = new Date(currentDueAt > 0 ? currentDueAt : nowMs);
+  const thresholdMs = Number.isFinite(minExclusiveMs)
+    ? minExclusiveMs
+    : Date.now();
+  let next = new Date(currentDueAt > 0 ? currentDueAt : thresholdMs);
   const maxIterations = 4096;
 
   for (let i = 0; i < maxIterations; i += 1) {
@@ -314,15 +317,73 @@ export function getNextRoutineDate(
       next = new Date(beforeMs + 60_000);
     }
 
-    if (next.getTime() > nowMs) {
+    if (next.getTime() > thresholdMs) {
       return next.getTime();
     }
   }
 
   // Last-resort fallback in case we cannot compute a stable progression.
-  const fallback = new Date(nowMs);
+  const fallback = new Date(thresholdMs);
   fallback.setDate(fallback.getDate() + 1);
   return fallback.getTime();
+}
+
+function resolveRoutineTypeForTask(task: Task): RoutineType | undefined {
+  if (task.isRoutine === false) return undefined;
+  return normalizeRoutineType(task.routineType ?? task.routineInterval);
+}
+
+function getDefaultRoutineDueAt(referenceMs: number, dueHasTime?: boolean): number {
+  const next = new Date(referenceMs);
+
+  if (dueHasTime === false) {
+    next.setHours(12, 0, 0, 0);
+    if (next.getTime() <= referenceMs) {
+      next.setDate(next.getDate() + 1);
+    }
+    return next.getTime();
+  }
+
+  next.setHours(Math.min(23, Math.max(8, next.getHours() + 1)), 0, 0, 0);
+  if (next.getTime() <= referenceMs) {
+    next.setDate(next.getDate() + 1);
+    next.setHours(8, 0, 0, 0);
+  }
+  return next.getTime();
+}
+
+function reconcileRoutineDueAt(task: Task, referenceMs: number): Task {
+  if (task.deletedAt) return task;
+  if (task.section === "completed" || hasValidDueAt(task.completedAt)) return task;
+
+  const routineType = resolveRoutineTypeForTask(task);
+  if (!routineType) return task;
+
+  const todayStartMs = getStartOfLocalDayMs(referenceMs);
+  const staleThresholdMs =
+    routineType === "hourly" ? referenceMs : todayStartMs - 1;
+  const routineOptions = {
+    weekday: task.routineWeekday,
+    nthWeek: task.routineNthWeek,
+    monthDay: task.routineMonthDay,
+    month: task.routineMonth,
+  };
+
+  let nextDueAt = hasValidDueAt(task.dueAt)
+    ? task.dueAt
+    : getDefaultRoutineDueAt(referenceMs, task.dueHasTime);
+
+  if (nextDueAt <= staleThresholdMs) {
+    nextDueAt = getNextRoutineDate(
+      nextDueAt,
+      routineType,
+      routineOptions,
+      staleThresholdMs,
+    );
+  }
+
+  if (nextDueAt === task.dueAt) return task;
+  return { ...task, dueAt: nextDueAt };
 }
 
 function normalizeSnapshot(raw: any): { tasks: Task[]; projects: Project[] } {
@@ -481,7 +542,8 @@ function reconcileTaskSections(
 ): Task[] {
   let changed = false;
   const next = tasks.map((task) => {
-    const normalized = reconcileTaskSection(task, referenceMs);
+    const withRoutineDueAt = reconcileRoutineDueAt(task, referenceMs);
+    const normalized = reconcileTaskSection(withRoutineDueAt, referenceMs);
     if (normalized !== task) changed = true;
     return normalized;
   });
@@ -498,7 +560,19 @@ type TasksContextValue = {
 const TasksContext = React.createContext<TasksContextValue | null>(null);
 
 export function TasksProvider({ children }: { children: React.ReactNode }) {
-  const [tasks, setTasks] = React.useState<Task[]>([]);
+  const [tasks, setTasksState] = React.useState<Task[]>([]);
+  const setTasks = React.useCallback<React.Dispatch<React.SetStateAction<Task[]>>>(
+    (value) => {
+      setTasksState((prev) => {
+        const next =
+          typeof value === "function"
+            ? (value as (prevState: Task[]) => Task[])(prev)
+            : value;
+        return reconcileTaskSections(next, Date.now());
+      });
+    },
+    [],
+  );
   const [projects, setProjects] = React.useState<Project[]>([]);
   const hydratedRef = React.useRef(false);
   const persistEnabledRef = React.useRef(false);
@@ -547,7 +621,7 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
           hydratedRef.current = true;
           const nowMs = Date.now();
           dayAnchorRef.current = getStartOfLocalDayMs(nowMs);
-          setTasks((prev) => reconcileTaskSections(prev, nowMs));
+          setTasks((prev) => prev);
         }
       }
     };
@@ -558,22 +632,23 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // Keep sections stable across day rollovers and app foreground transitions.
+  // Keep time-sensitive fields (section + routine due dates) in sync over time.
   React.useEffect(() => {
-    const reconcileIfDayChanged = () => {
+    const reconcileTimeDependentTasks = () => {
       if (!hydratedRef.current) return;
       const nowMs = Date.now();
       const todayStart = getStartOfLocalDayMs(nowMs);
-      if (todayStart === dayAnchorRef.current) return;
-      dayAnchorRef.current = todayStart;
-      setTasks((prev) => reconcileTaskSections(prev, nowMs));
+      if (todayStart !== dayAnchorRef.current) {
+        dayAnchorRef.current = todayStart;
+      }
+      setTasks((prev) => prev);
     };
 
     const appStateSub = AppState.addEventListener("change", (nextState) => {
       if (nextState !== "active") return;
-      reconcileIfDayChanged();
+      reconcileTimeDependentTasks();
     });
-    const timer = setInterval(reconcileIfDayChanged, 60_000);
+    const timer = setInterval(reconcileTimeDependentTasks, 60_000);
 
     return () => {
       appStateSub.remove();

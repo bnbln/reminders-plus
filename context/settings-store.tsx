@@ -51,6 +51,7 @@ const listeners = new Set<() => void>();
 let hydrationPromise: Promise<void> | null = null;
 let localMutationRevision = 0;
 let writeChain: Promise<void> = Promise.resolve();
+let appliedInterfaceOverride: "light" | "dark" | null = null;
 
 function notifyListeners() {
   listeners.forEach((listener) => listener());
@@ -112,20 +113,26 @@ async function persistSettings(next: PersistedSettings): Promise<void> {
   }
 }
 
-function mapAppearanceModeToScheme(mode: AppearanceMode): ColorSchemeName {
-  switch (mode) {
-    case "alwaysDark":
-      return "dark";
-    case "alwaysLight":
-      return "light";
-    default:
-      return "unspecified";
-  }
-}
-
 function applyAppearanceMode(mode: AppearanceMode) {
   try {
-    Appearance.setColorScheme(mapAppearanceModeToScheme(mode));
+    if (mode === "alwaysDark") {
+      Appearance.setColorScheme("dark");
+      appliedInterfaceOverride = "dark";
+      return;
+    }
+
+    if (mode === "alwaysLight") {
+      Appearance.setColorScheme("light");
+      appliedInterfaceOverride = "light";
+      return;
+    }
+
+    // In adaptive mode we normally keep the native automatic behavior untouched.
+    // We only reset explicitly when this runtime had previously applied a forced override.
+    if (appliedInterfaceOverride !== null) {
+      Appearance.setColorScheme("unspecified");
+      appliedInterfaceOverride = null;
+    }
   } catch {
     // ignore on unsupported platforms
   }
@@ -153,7 +160,9 @@ async function hydrateSettings() {
         };
       }
 
-      applyAppearanceMode(snapshot.appearanceMode);
+      if (snapshot.appearanceMode !== "adaptive") {
+        applyAppearanceMode(snapshot.appearanceMode);
+      }
       notifyListeners();
     })();
   }

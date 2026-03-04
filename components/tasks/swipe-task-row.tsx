@@ -115,6 +115,39 @@ const formatRowTimeLabel = (dueAt: number, dueHasTime?: boolean) => {
   }).format(new Date(dueAt));
 };
 
+const getRoutineChipLabel = (
+  routineType: Task["routineType"] | Task["routineInterval"],
+): string | null => {
+  if (!routineType) return null;
+
+  switch (routineType) {
+    case "hourly":
+      return t("taskDetail.routine.hourly");
+    case "daily":
+      return t("taskDetail.routine.daily");
+    case "weekdays":
+      return t("taskDetail.routine.weekdays");
+    case "weekends":
+      return t("taskDetail.routine.weekends");
+    case "weekly":
+      return t("taskDetail.routine.weekly");
+    case "biweekly":
+      return t("taskDetail.routine.biweekly");
+    case "monthly":
+      return t("taskDetail.routine.monthly");
+    case "quarterly":
+      return t("taskDetail.routine.quarterly");
+    case "biannually":
+      return t("taskDetail.routine.biannually");
+    case "yearly":
+      return t("taskDetail.routine.yearly");
+    case "custom":
+      return t("taskDetail.routine.custom");
+    default:
+      return t("taskDetail.property.routine");
+  }
+};
+
 export type SwipeTaskRowStyles = {
   itemSpacer: any;
   swipeClip: any;
@@ -578,6 +611,18 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
         continue;
       }
 
+      if (tagId === "routine") {
+        const routineType = task.routineType ?? task.routineInterval;
+        const routineLabel = getRoutineChipLabel(routineType);
+        if (!routineLabel) continue;
+        chips.push({
+          key: `routine-${task.id}-${routineType ?? "default"}`,
+          tagId,
+          label: routineLabel,
+        });
+        continue;
+      }
+
       if (tagId === "keywords") {
         if (hashtags.length === 0) continue;
         for (const h of hashtags.slice(0, 3)) {
@@ -593,8 +638,11 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     selectedDateStart,
     task.dueAt,
     task.dueHasTime,
+    task.id,
     task.location,
     task.notes,
+    task.routineInterval,
+    task.routineType,
     task.section,
     task.subtitle,
     task.title,
