@@ -38,10 +38,14 @@ import {
   hasValidDueAt,
   isSameLocalDay,
 } from '@/utils/task-dates';
+import {
+  detectTaskTextSuggestions,
+  type DetectedTaskTextSuggestion,
+} from '@/utils/task-text-suggestions';
 
 const createTaskId = () => `t-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-type ComposerActionId = 'date' | 'style' | 'location' | 'routine' | 'project';
+type ComposerActionId = 'date' | 'time' | 'style' | 'location' | 'routine' | 'project';
 type MaterialIconName = React.ComponentProps<typeof MaterialIcons>['name'];
 type ComposerAction = {
   id: ComposerActionId;
@@ -58,6 +62,9 @@ type ComposerSelectionTag = {
   accentColor: string;
   removable: boolean;
 };
+
+type RegexManagedActionId = 'date' | 'time' | 'location' | 'project' | 'routine';
+type RegexAppliedSuggestions = Partial<Record<RegexManagedActionId, DetectedTaskTextSuggestion>>;
 
 const ROUTINE_LABEL_KEY_BY_TYPE: Record<RoutineType, string> = {
   hourly: 'taskDetail.routine.hourly',
@@ -86,6 +93,52 @@ const STYLE_COLOR_LABEL_KEY_BY_HEX: Record<string, string> = {
   '#FF2D55': 'taskCreate.color.pink',
   '#8E8E93': 'taskCreate.color.gray',
   '#1C1C1E': 'taskCreate.color.black',
+};
+
+const toLegacyRoutineInterval = (type: RoutineType) => {
+  switch (type) {
+    case 'daily':
+    case 'weekly':
+    case 'monthly':
+    case 'yearly':
+      return type;
+    default:
+      return undefined;
+  }
+};
+
+const normalizeComposerLocation = (value: string | undefined) =>
+  (value ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+
+const getSuggestionTimeValue = (hours: number, minutes: number) => hours * 60 + minutes;
+
+const formatComposerDateLabel = (dueAt: number) => {
+  if (!hasValidDueAt(dueAt)) return '';
+
+  if (isSameLocalDay(dueAt, Date.now())) {
+    return t('taskDetail.relative.today');
+  }
+
+  const tomorrowStart = new Date(getStartOfLocalDayMs());
+  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+  if (isSameLocalDay(dueAt, tomorrowStart)) {
+    return t('taskDetail.relative.tomorrow');
+  }
+
+  return formatDate(dueAt, {
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short',
+  });
+};
+
+const formatComposerTimeLabel = (dueAt: number) => {
+  if (!hasValidDueAt(dueAt)) return '';
+
+  return formatDate(dueAt, {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 };
 
 export default function CreateTaskModal() {
@@ -178,6 +231,8 @@ export default function CreateTaskModal() {
   }, [initialDraftDueAt]);
 
   const [title, setTitle] = React.useState('');
+  const [dismissedSuggestionKeys, setDismissedSuggestionKeys] = React.useState<string[]>([]);
+  const [appliedRegexSuggestions, setAppliedRegexSuggestions] = React.useState<RegexAppliedSuggestions>({});
   const [isMenuExpanded, setMenuExpanded] = React.useState(false);
   const trimmed = title.trim();
   const hasTitle = trimmed.length > 0;
@@ -421,6 +476,7 @@ export default function CreateTaskModal() {
 
     switch (actionId) {
       case 'date':
+      case 'time':
         isNavigatingToChildModalRef.current = true;
         router.push({ pathname: '/task/date-picker', params: { taskId: id, draftId: id } });
         break;
@@ -461,28 +517,70 @@ export default function CreateTaskModal() {
   const hasRoutineInterval = typeof selectedRoutineType === 'string' && selectedRoutineType.length > 0;
   const requiresRoutineInterval = shouldPresetRoutine;
   const canSubmit = hasTitle && (!requiresRoutineInterval || hasRoutineInterval);
+  const selectedProjectId = draftTask ? draftTask.projectId : initialProjectId;
+  const isProjectPinnedByRoute = routeProjectIdIsValid && selectedProjectId === routeProjectId;
+  const dismissedSuggestionKeySet = React.useMemo(
+    () => new Set(dismissedSuggestionKeys),
+    [dismissedSuggestionKeys]
+  );
+  const detectedTextSuggestions = React.useMemo(
+    () =>
+      detectTaskTextSuggestions(title, {
+        projects,
+      }),
+    [projects, title]
+  );
+  const availableRegexSuggestions = React.useMemo(() => {
+    const next: RegexAppliedSuggestions = {};
+
+    for (const suggestion of detectedTextSuggestions) {
+      if (dismissedSuggestionKeySet.has(suggestion.key)) continue;
+      switch (suggestion.actionId) {
+        case 'date':
+          next.date = suggestion;
+          break;
+        case 'time':
+          next.time = suggestion;
+          break;
+        case 'location':
+          next.location = suggestion;
+          break;
+        case 'project':
+          next.project = suggestion;
+          break;
+        case 'routine':
+          next.routine = suggestion;
+          break;
+      }
+    }
+
+    return next;
+  }, [detectedTextSuggestions, dismissedSuggestionKeySet]);
 
   const selectedTags = React.useMemo<ComposerSelectionTag[]>(() => {
     const tags: ComposerSelectionTag[] = [];
 
     if (draftTask) {
       if (draftTask.dueAt > 0) {
-        const isDueToday = isSameLocalDay(draftTask.dueAt, Date.now());
-        const dueLabel = isDueToday
-          ? t('taskDetail.relative.today')
-          : formatDate(draftTask.dueAt, {
-            day: '2-digit',
-            month: 'short',
-          });
-
         tags.push({
           key: 'date',
           actionId: 'date',
-          label: dueLabel,
+          label: formatComposerDateLabel(draftTask.dueAt),
           icon: 'event',
           accentColor: '#4D7CFF',
           removable: true,
         });
+
+        if (draftTask.dueHasTime === true) {
+          tags.push({
+            key: 'time',
+            actionId: 'time',
+            label: formatComposerTimeLabel(draftTask.dueAt),
+            icon: 'schedule',
+            accentColor: '#4D7CFF',
+            removable: true,
+          });
+        }
       }
 
       if (draftTask.emoji && (draftTask.emoji !== '📝' || !!draftTask.color)) {
@@ -543,8 +641,6 @@ export default function CreateTaskModal() {
       });
     }
 
-    const selectedProjectId = draftTask ? draftTask.projectId : initialProjectId;
-    const isProjectPinnedByRoute = routeProjectIdIsValid;
     if (selectedProjectId) {
       const project = projects.find((candidate) => candidate.id === selectedProjectId);
       tags.push({
@@ -558,18 +654,276 @@ export default function CreateTaskModal() {
     }
 
     return tags;
-  }, [draftTask, hasRoutineInterval, initialProjectId, projects, routeProjectIdIsValid, shouldPresetRoutine]);
+  }, [draftTask, hasRoutineInterval, isProjectPinnedByRoute, projects, selectedProjectId, shouldPresetRoutine]);
+
+  React.useEffect(() => {
+    setAppliedRegexSuggestions((prev) => {
+      let didChange = false;
+      const next: RegexAppliedSuggestions = { ...prev };
+
+      if (
+        prev.date?.actionId === 'date' &&
+        (!hasValidDueAt(draftTask?.dueAt) || !isSameLocalDay(draftTask.dueAt, prev.date.dayStartMs))
+      ) {
+        delete next.date;
+        didChange = true;
+      }
+
+      if (
+        prev.time?.actionId === 'time' &&
+        (
+          !hasValidDueAt(draftTask?.dueAt) ||
+          draftTask?.dueHasTime !== true ||
+          new Date(draftTask.dueAt).getHours() !== prev.time.hours ||
+          new Date(draftTask.dueAt).getMinutes() !== prev.time.minutes
+        )
+      ) {
+        delete next.time;
+        didChange = true;
+      }
+
+      if (
+        prev.location?.actionId === 'location' &&
+        normalizeComposerLocation(draftTask?.location) !== normalizeComposerLocation(prev.location.location)
+      ) {
+        delete next.location;
+        didChange = true;
+      }
+
+      if (prev.project?.actionId === 'project' && selectedProjectId !== prev.project.projectId) {
+        delete next.project;
+        didChange = true;
+      }
+
+      if (prev.routine?.actionId === 'routine' && selectedRoutineType !== prev.routine.routineType) {
+        delete next.routine;
+        didChange = true;
+      }
+
+      return didChange ? next : prev;
+    });
+  }, [
+    draftTask?.dueAt,
+    draftTask?.dueHasTime,
+    draftTask?.location,
+    selectedProjectId,
+    selectedRoutineType,
+  ]);
 
   const onTagPress = React.useCallback((actionId: ComposerActionId) => {
     setMenuExpanded(false);
     runAction(actionId);
   }, [runAction]);
 
+  React.useEffect(() => {
+    const nextDateSuggestion = availableRegexSuggestions.date;
+    const nextTimeSuggestion = availableRegexSuggestions.time;
+    const nextLocationSuggestion = availableRegexSuggestions.location;
+    const nextProjectSuggestion = availableRegexSuggestions.project;
+    const nextRoutineSuggestion = availableRegexSuggestions.routine;
+
+    const hasAnySuggestion =
+      !!nextDateSuggestion ||
+      !!nextTimeSuggestion ||
+      !!nextLocationSuggestion ||
+      !!nextProjectSuggestion ||
+      !!nextRoutineSuggestion;
+    if (!hasAnySuggestion) return;
+
+    const todayPresetDayStart = shouldPresetToday
+      ? getStartOfLocalDayMs(todayPresetDateStart > 0 ? todayPresetDateStart : Date.now())
+      : 0;
+    const currentDayStart = hasValidDueAt(draftTask?.dueAt)
+      ? getStartOfLocalDayMs(draftTask.dueAt)
+      : 0;
+    const hasDate = hasValidDueAt(draftTask?.dueAt);
+    const currentTimeValue =
+      hasDate && draftTask?.dueHasTime === true
+        ? getSuggestionTimeValue(new Date(draftTask.dueAt).getHours(), new Date(draftTask.dueAt).getMinutes())
+        : null;
+
+    const shouldApplyDate =
+      nextDateSuggestion?.actionId === 'date' &&
+      (
+        !hasDate ||
+        appliedRegexSuggestions.date?.actionId === 'date' ||
+        (todayPresetDayStart > 0 && currentDayStart === todayPresetDayStart)
+      ) &&
+      currentDayStart !== nextDateSuggestion.dayStartMs;
+
+    const shouldApplyTime =
+      nextTimeSuggestion?.actionId === 'time' &&
+      (
+        !hasDate ||
+        draftTask?.dueHasTime !== true ||
+        appliedRegexSuggestions.time?.actionId === 'time'
+      ) &&
+      currentTimeValue !== getSuggestionTimeValue(nextTimeSuggestion.hours, nextTimeSuggestion.minutes);
+
+    const shouldApplyLocation =
+      nextLocationSuggestion?.actionId === 'location' &&
+      (
+        !draftTask?.location?.trim() ||
+        appliedRegexSuggestions.location?.actionId === 'location'
+      ) &&
+      normalizeComposerLocation(draftTask?.location) !== normalizeComposerLocation(nextLocationSuggestion.location);
+
+    const shouldApplyProject =
+      nextProjectSuggestion?.actionId === 'project' &&
+      !isProjectPinnedByRoute &&
+      (
+        !selectedProjectId ||
+        selectedProjectId === initialProjectId ||
+        appliedRegexSuggestions.project?.actionId === 'project'
+      ) &&
+      selectedProjectId !== nextProjectSuggestion.projectId;
+
+    const shouldApplyRoutine =
+      nextRoutineSuggestion?.actionId === 'routine' &&
+      (
+        !selectedRoutineType ||
+        (shouldPresetRoutine && !hasRoutineInterval) ||
+        appliedRegexSuggestions.routine?.actionId === 'routine'
+      ) &&
+      selectedRoutineType !== nextRoutineSuggestion.routineType;
+
+    if (
+      !shouldApplyDate &&
+      !shouldApplyTime &&
+      !shouldApplyLocation &&
+      !shouldApplyProject &&
+      !shouldApplyRoutine
+    ) {
+      return;
+    }
+
+    const draftId = ensureDraftTask();
+
+    setTasks((prev) =>
+      prev.map((task) => {
+        if (task.id !== draftId) return task;
+
+        let nextTask = task;
+
+        if (shouldApplyDate && nextDateSuggestion?.actionId === 'date') {
+          const nextDueAt = alignDueAtToLocalDay(nextDateSuggestion.dayStartMs, {
+            keepTime: nextTask.dueHasTime === true,
+            sourceDueAt: nextTask.dueAt,
+          });
+          nextTask = {
+            ...nextTask,
+            dueAt: nextDueAt,
+            dueHasTime: nextTask.dueHasTime === true,
+            section: nextTask.section === 'completed'
+              ? nextTask.section
+              : deriveActiveSectionFromDueAt(nextDueAt),
+          };
+        }
+
+        if (shouldApplyTime && nextTimeSuggestion?.actionId === 'time') {
+          const baseDayStart = hasValidDueAt(nextTask.dueAt)
+            ? getStartOfLocalDayMs(nextTask.dueAt)
+            : getStartOfLocalDayMs();
+          const nextDueAt = new Date(baseDayStart);
+          nextDueAt.setHours(nextTimeSuggestion.hours, nextTimeSuggestion.minutes, 0, 0);
+          nextTask = {
+            ...nextTask,
+            dueAt: nextDueAt.getTime(),
+            dueHasTime: true,
+            section: nextTask.section === 'completed'
+              ? nextTask.section
+              : deriveActiveSectionFromDueAt(nextDueAt.getTime()),
+          };
+        }
+
+        if (shouldApplyLocation && nextLocationSuggestion?.actionId === 'location') {
+          nextTask = {
+            ...nextTask,
+            location: nextLocationSuggestion.location,
+          };
+        }
+
+        if (shouldApplyProject && nextProjectSuggestion?.actionId === 'project') {
+          nextTask = {
+            ...nextTask,
+            projectId: nextProjectSuggestion.projectId,
+          };
+        }
+
+        if (shouldApplyRoutine && nextRoutineSuggestion?.actionId === 'routine') {
+          nextTask = {
+            ...nextTask,
+            isRoutine: true,
+            routineType: nextRoutineSuggestion.routineType,
+            routineInterval: toLegacyRoutineInterval(nextRoutineSuggestion.routineType),
+            routineWeekday: undefined,
+            routineNthWeek: undefined,
+            routineMonthDay: undefined,
+            routineMonth: undefined,
+          };
+        }
+
+        return nextTask;
+      })
+    );
+
+    setAppliedRegexSuggestions((prev) => ({
+      ...prev,
+      ...(shouldApplyDate && nextDateSuggestion?.actionId === 'date' ? { date: nextDateSuggestion } : {}),
+      ...(shouldApplyTime && nextTimeSuggestion?.actionId === 'time' ? { time: nextTimeSuggestion } : {}),
+      ...(shouldApplyLocation && nextLocationSuggestion?.actionId === 'location' ? { location: nextLocationSuggestion } : {}),
+      ...(shouldApplyProject && nextProjectSuggestion?.actionId === 'project' ? { project: nextProjectSuggestion } : {}),
+      ...(shouldApplyRoutine && nextRoutineSuggestion?.actionId === 'routine' ? { routine: nextRoutineSuggestion } : {}),
+    }));
+  }, [
+    appliedRegexSuggestions.date,
+    appliedRegexSuggestions.location,
+    appliedRegexSuggestions.project,
+    appliedRegexSuggestions.routine,
+    appliedRegexSuggestions.time,
+    availableRegexSuggestions.date,
+    availableRegexSuggestions.location,
+    availableRegexSuggestions.project,
+    availableRegexSuggestions.routine,
+    availableRegexSuggestions.time,
+    draftTask?.dueAt,
+    draftTask?.dueHasTime,
+    draftTask?.location,
+    ensureDraftTask,
+    hasRoutineInterval,
+    initialProjectId,
+    isProjectPinnedByRoute,
+    selectedProjectId,
+    selectedRoutineType,
+    setTasks,
+    shouldPresetRoutine,
+    shouldPresetToday,
+    todayPresetDateStart,
+  ]);
+
+  const dismissSuggestion = React.useCallback((suggestionKey: string) => {
+    setDismissedSuggestionKeys((prev) =>
+      prev.includes(suggestionKey) ? prev : [...prev, suggestionKey]
+    );
+  }, []);
+
   const onTagRemove = React.useCallback((actionId: ComposerActionId) => {
     const draftId = draftIdRef.current;
     if (!draftId) return;
 
     setMenuExpanded(false);
+    const appliedSuggestion = appliedRegexSuggestions[actionId as RegexManagedActionId];
+    if (appliedSuggestion) {
+      dismissSuggestion(appliedSuggestion.key);
+      setAppliedRegexSuggestions((prev) => {
+        const next = { ...prev };
+        delete next[actionId as RegexManagedActionId];
+        if (actionId === 'date') {
+          delete next.time;
+        }
+        return next;
+      });
+    }
     setTasks((prev) =>
       prev.map((task) => {
         if (task.id !== draftId) return task;
@@ -579,6 +933,15 @@ export default function CreateTaskModal() {
             return {
               ...task,
               dueAt: 0,
+              dueHasTime: false,
+            };
+          case 'time':
+            if (!hasValidDueAt(task.dueAt)) return task;
+            return {
+              ...task,
+              dueAt: alignDueAtToLocalDay(task.dueAt, {
+                keepTime: false,
+              }),
               dueHasTime: false,
             };
           case 'style':
@@ -611,7 +974,7 @@ export default function CreateTaskModal() {
         }
       })
     );
-  }, [setTasks]);
+  }, [appliedRegexSuggestions, dismissSuggestion, setTasks]);
 
 
   const onCreate = React.useCallback(() => {
