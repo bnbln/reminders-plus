@@ -41,6 +41,7 @@ import {
 import {
   detectTaskTextSuggestions,
   type DetectedTaskTextSuggestion,
+  stripTaskSuggestionText,
 } from '@/utils/task-text-suggestions';
 
 const createTaskId = () => `t-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -111,6 +112,16 @@ const normalizeComposerLocation = (value: string | undefined) =>
   (value ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
 
 const getSuggestionTimeValue = (hours: number, minutes: number) => hours * 60 + minutes;
+
+const mergeOriginalInputIntoNotes = (originalInput: string, existingNotes?: string) => {
+  const normalizedOriginal = originalInput.trim();
+  const normalizedExisting = existingNotes?.trim() ?? '';
+  if (!normalizedOriginal) return normalizedExisting || undefined;
+  if (!normalizedExisting) return normalizedOriginal;
+  if (normalizedExisting === normalizedOriginal) return normalizedExisting;
+  if (normalizedExisting.startsWith(`${normalizedOriginal}\n`)) return normalizedExisting;
+  return `${normalizedOriginal}\n\n${normalizedExisting}`;
+};
 
 const formatComposerDateLabel = (dueAt: number) => {
   if (!hasValidDueAt(dueAt)) return '';
@@ -976,6 +987,14 @@ export default function CreateTaskModal() {
     );
   }, [appliedRegexSuggestions, dismissSuggestion, setTasks]);
 
+  const appliedTitleCleanupSuggestions = React.useMemo(
+    () =>
+      Object.values(appliedRegexSuggestions).filter(
+        (suggestion): suggestion is DetectedTaskTextSuggestion => Boolean(suggestion)
+      ),
+    [appliedRegexSuggestions]
+  );
+
 
   const onCreate = React.useCallback(() => {
     setMenuExpanded(false);
@@ -990,6 +1009,10 @@ export default function CreateTaskModal() {
 
     // Finalize
     isCreatedRef.current = true;
+    const originalInput = trimmed;
+    const cleanedTitleCandidate = stripTaskSuggestionText(originalInput, appliedTitleCleanupSuggestions);
+    const finalTitle = cleanedTitleCandidate.length > 0 ? cleanedTitleCandidate : originalInput;
+    const didStripFromTitle = finalTitle !== originalInput;
 
     const id = draftIdRef.current;
     let createdTaskId = id ?? '';
@@ -1023,7 +1046,8 @@ export default function CreateTaskModal() {
 
         return prev.map(t => t.id === id ? {
           ...t,
-          title: trimmed,
+          title: finalTitle,
+          notes: didStripFromTitle ? mergeOriginalInputIntoNotes(originalInput, t.notes) : t.notes,
           section,
           orderRank,
           deletedAt: undefined // Un-delete
@@ -1044,7 +1068,7 @@ export default function CreateTaskModal() {
         return [
           {
             id: nextId,
-            title: trimmed,
+            title: finalTitle,
             subtitle: undefined,
             emoji: '📝',
             projectId: initialProjectId,
@@ -1054,7 +1078,7 @@ export default function CreateTaskModal() {
             section,
             orderRank,
             location: undefined,
-            notes: undefined,
+            notes: didStripFromTitle ? originalInput : undefined,
             subtasks: undefined,
             completedAt: undefined,
             deletedAt: undefined,
@@ -1068,7 +1092,19 @@ export default function CreateTaskModal() {
       queueTaskPopIn(createdTaskId);
     }
     router.back();
-  }, [hasRoutineInterval, hasTitle, initialProjectId, queueTaskPopIn, requiresRoutineInterval, router, runAction, setTasks, shouldPresetRoutine, trimmed]);
+  }, [
+    appliedTitleCleanupSuggestions,
+    hasRoutineInterval,
+    hasTitle,
+    initialProjectId,
+    queueTaskPopIn,
+    requiresRoutineInterval,
+    router,
+    runAction,
+    setTasks,
+    shouldPresetRoutine,
+    trimmed,
+  ]);
 
   const close = React.useCallback(() => {
     setMenuExpanded(false);

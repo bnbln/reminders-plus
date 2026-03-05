@@ -18,17 +18,20 @@ export type DetectedTaskTextSuggestion =
       actionId: "date";
       key: string;
       dayStartMs: number;
+      range: MatchRange;
     }
   | {
       actionId: "time";
       key: string;
       hours: number;
       minutes: number;
+      range: MatchRange;
     }
   | {
       actionId: "location";
       key: string;
       location: string;
+      range: MatchRange;
     }
   | {
       actionId: "project";
@@ -36,11 +39,13 @@ export type DetectedTaskTextSuggestion =
       projectId: string;
       projectName: string;
       projectColor: string;
+      range: MatchRange;
     }
   | {
       actionId: "routine";
       key: string;
       routineType: RoutineType;
+      range: MatchRange;
     };
 
 const WEEKDAY_INDEX_BY_TOKEN: Record<string, number> = {
@@ -128,10 +133,6 @@ function buildSuggestionKey(actionId: SuggestionActionId, value: string) {
   return `${actionId}:${normalizeSuggestionKey(value)}`;
 }
 
-function normalizeSearchText(value: string) {
-  return value.trim().toLowerCase().replace(/\s+/g, " ");
-}
-
 function isBoundaryChar(char: string | undefined) {
   return !char || /[\s.,;:!?()[\]{}"'`´’“”/\\|-]/u.test(char);
 }
@@ -151,7 +152,10 @@ function isValidDateParts(year: number, monthIndex: number, day: number) {
   );
 }
 
-function findSafeTime(text: string, blockedRanges: MatchRange[]): TimeParts | null {
+function findSafeTime(
+  text: string,
+  blockedRanges: MatchRange[],
+): (TimeParts & { range: MatchRange }) | null {
   const patterns = [
     /\bum\s+([01]?\d|2[0-3])(?:[:.]([0-5]\d))?(?:\s*uhr)?\b/giu,
     /\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/gu,
@@ -168,7 +172,11 @@ function findSafeTime(text: string, blockedRanges: MatchRange[]): TimeParts | nu
       const minutes = Number.parseInt(match[2] ?? "0", 10);
       if (!Number.isFinite(hours) || !Number.isFinite(minutes)) continue;
 
-      return { hours, minutes };
+      return {
+        hours,
+        minutes,
+        range: { start, end },
+      };
     }
   }
 
@@ -229,32 +237,42 @@ function detectAbsoluteDate(
 function detectRelativeOrWeekdayDate(
   text: string,
   referenceMs: number,
-): { dayStartMs: number } | null {
-  const normalized = normalizeSearchText(text)
-    .replace(/ä/g, "ae")
-    .replace(/ö/g, "oe")
-    .replace(/ü/g, "ue")
-    .replace(/ß/g, "ss");
-
+): { dayStartMs: number; range: MatchRange } | null {
   const baseDate = new Date(referenceMs);
   baseDate.setSeconds(0, 0);
 
-  if (/\buebermorgen\b/u.test(normalized)) {
+  const overmorrowMatch = text.match(/\b(?:übermorgen|uebermorgen)\b/iu);
+  if (overmorrowMatch) {
     baseDate.setDate(baseDate.getDate() + 2);
-    return { dayStartMs: getStartOfLocalDayMs(baseDate) };
+    const start = overmorrowMatch.index ?? 0;
+    return {
+      dayStartMs: getStartOfLocalDayMs(baseDate),
+      range: { start, end: start + overmorrowMatch[0].length },
+    };
   }
 
-  if (/\bmorgen\b/u.test(normalized)) {
+  const tomorrowMatch = text.match(/\bmorgen\b/iu);
+  if (tomorrowMatch) {
     baseDate.setDate(baseDate.getDate() + 1);
-    return { dayStartMs: getStartOfLocalDayMs(baseDate) };
+    const start = tomorrowMatch.index ?? 0;
+    return {
+      dayStartMs: getStartOfLocalDayMs(baseDate),
+      range: { start, end: start + tomorrowMatch[0].length },
+    };
   }
 
-  if (/\bheute\b/u.test(normalized)) {
-    return { dayStartMs: getStartOfLocalDayMs(baseDate) };
+  const todayMatch = text.match(/\bheute\b/iu);
+  if (todayMatch) {
+    const start = todayMatch.index ?? 0;
+    return {
+      dayStartMs: getStartOfLocalDayMs(baseDate),
+      range: { start, end: start + todayMatch[0].length },
+    };
   }
 
   for (const [token, weekdayIndex] of Object.entries(WEEKDAY_INDEX_BY_TOKEN)) {
-    if (!new RegExp(`\\b${token}\\b`, "u").test(normalized)) continue;
+    const match = text.match(new RegExp(`\\b${token}\\b`, "iu"));
+    if (!match) continue;
 
     const resolved = new Date(baseDate);
     const currentIndex = resolved.getDay();
@@ -262,7 +280,11 @@ function detectRelativeOrWeekdayDate(
     if (delta === 0) delta = 7;
     resolved.setDate(resolved.getDate() + delta);
 
-    return { dayStartMs: getStartOfLocalDayMs(resolved) };
+    const start = match.index ?? 0;
+    return {
+      dayStartMs: getStartOfLocalDayMs(resolved),
+      range: { start, end: start + match[0].length },
+    };
   }
 
   return null;
@@ -279,6 +301,7 @@ function detectDateSuggestion(
         actionId: "date" as const,
         key: buildSuggestionKey("date", String(explicitDate.dayStartMs)),
         dayStartMs: explicitDate.dayStartMs,
+        range: explicitDate.range,
       },
       blockedRange: explicitDate.range,
     };
@@ -292,8 +315,9 @@ function detectDateSuggestion(
       actionId: "date" as const,
       key: buildSuggestionKey("date", String(relativeDate.dayStartMs)),
       dayStartMs: relativeDate.dayStartMs,
+      range: relativeDate.range,
     },
-    blockedRange: null,
+    blockedRange: relativeDate.range,
   };
 }
 
@@ -309,6 +333,7 @@ function detectTimeSuggestion(
     key: buildSuggestionKey("time", `${time.hours}:${time.minutes}`),
     hours: time.hours,
     minutes: time.minutes,
+    range: time.range,
   };
 }
 
@@ -336,6 +361,10 @@ function detectLocationSuggestion(text: string): DetectedTaskTextSuggestion | nu
       actionId: "location",
       key: buildSuggestionKey("location", location),
       location,
+      range: {
+        start: match?.index ?? 0,
+        end: (match?.index ?? 0) + (match?.[0]?.length ?? 0),
+      },
     };
   }
 
@@ -346,31 +375,41 @@ function detectProjectSuggestion(
   text: string,
   projects: readonly Project[],
 ): DetectedTaskTextSuggestion | null {
-  const normalizedText = normalizeSearchText(text);
-  if (!normalizedText) return null;
+  if (!text.trim()) return null;
 
   const activeProjects = projects
     .filter((project) => !project.deletedAt && project.name.trim().length > 0)
     .sort((left, right) => right.name.trim().length - left.name.trim().length);
 
   for (const project of activeProjects) {
-    const projectName = normalizeSearchText(project.name);
-    let matchIndex = normalizedText.indexOf(projectName);
+    const projectName = project.name.trim();
+    const escapedProjectName = projectName
+      .split(/\s+/u)
+      .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .join(String.raw`\s+`);
+    const pattern = new RegExp(escapedProjectName, "igu");
+    let match = pattern.exec(text);
 
-    while (matchIndex >= 0) {
-      const before = normalizedText[matchIndex - 1];
-      const after = normalizedText[matchIndex + projectName.length];
+    while (match) {
+      const start = match.index ?? 0;
+      const end = start + match[0].length;
+      const before = text[start - 1];
+      const after = text[end];
       if (isBoundaryChar(before) && isBoundaryChar(after)) {
         return {
           actionId: "project",
           key: buildSuggestionKey("project", project.id),
           projectId: project.id,
-          projectName: project.name.trim(),
+          projectName,
           projectColor: project.color,
+          range: {
+            start,
+            end,
+          },
         };
       }
 
-      matchIndex = normalizedText.indexOf(projectName, matchIndex + projectName.length);
+      match = pattern.exec(text);
     }
   }
 
@@ -379,12 +418,17 @@ function detectProjectSuggestion(
 
 function detectRoutineSuggestion(text: string): DetectedTaskTextSuggestion | null {
   for (const candidate of ROUTINE_PATTERNS) {
-    if (!candidate.pattern.test(text)) continue;
+    const match = text.match(candidate.pattern);
+    if (!match) continue;
 
     return {
       actionId: "routine",
       key: buildSuggestionKey("routine", candidate.routineType),
       routineType: candidate.routineType,
+      range: {
+        start: match.index ?? 0,
+        end: (match.index ?? 0) + match[0].length,
+      },
     };
   }
 
@@ -428,4 +472,56 @@ export function detectTaskTextSuggestions(
   if (routineSuggestion) suggestions.push(routineSuggestion);
 
   return suggestions;
+}
+
+export function stripTaskSuggestionText(
+  text: string,
+  suggestions: readonly DetectedTaskTextSuggestion[],
+) {
+  if (!text.trim() || suggestions.length === 0) return text.trim();
+
+  const ranges = suggestions
+    .map((suggestion) => {
+      const range = { ...suggestion.range };
+
+      // Some time matches may stop before a trailing "Uhr". Only consume it
+      // when it directly belongs to the recognized time token.
+      if (suggestion.actionId === "time") {
+        const trailingClockWord = text
+          .slice(range.end)
+          .match(/^\s*uhr\b/iu);
+        if (trailingClockWord) {
+          range.end += trailingClockWord[0].length;
+        }
+      }
+
+      return range;
+    })
+    .sort((left, right) => left.start - right.start)
+    .reduce<MatchRange[]>((acc, range) => {
+      const previous = acc[acc.length - 1];
+      if (!previous || range.start > previous.end) {
+        acc.push({ ...range });
+        return acc;
+      }
+
+      previous.end = Math.max(previous.end, range.end);
+      return acc;
+    }, []);
+
+  let cursor = 0;
+  let stripped = "";
+
+  for (const range of ranges) {
+    stripped += text.slice(cursor, range.start);
+    cursor = range.end;
+  }
+
+  stripped += text.slice(cursor);
+
+  return stripped
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .replace(/\s+/g, " ")
+    .replace(/^[,.;:!?/\-–—\s]+|[,.;:!?/\-–—\s]+$/g, "")
+    .trim();
 }
