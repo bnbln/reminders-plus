@@ -25,9 +25,9 @@ function ProfileMenuIcon({ theme }: { theme: keyof typeof Colors }) {
   if (Platform.OS === "ios") {
     return (
       <SymbolView
-        name="person"
+        name="person.fill"
         tintColor={color}
-        style={{ width: 20, height: 20 }}
+        style={{ width: 24, height: 24 }}
       />
     );
   }
@@ -46,7 +46,7 @@ export function ProfileHeaderMenuButton() {
     const profile: MenuAction = {
       id: "profile",
       title: "Profil",
-      image: Platform.OS === "ios" ? "person" : undefined,
+      image: Platform.OS === "ios" ? "person.fill" : undefined,
       imageColor: Platform.OS === "ios" ? imageColor : undefined,
     };
 

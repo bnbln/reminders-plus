@@ -1,5 +1,9 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { MenuView, type MenuAction, type MenuComponentRef } from "@react-native-menu/menu";
+import {
+  MenuView,
+  type MenuAction,
+  type MenuComponentRef,
+} from "@react-native-menu/menu";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import React from "react";
@@ -7,11 +11,11 @@ import { Platform, Pressable } from "react-native";
 
 import { Colors } from "@/constants/theme";
 import {
+  getTagTitle,
   parseCompactSubtasksParam,
   parseTagIconsParam,
   parseTagsParam,
   serializeTagsParam,
-  getTagTitle,
   TAG_DEFS,
   TAG_ORDER,
   useHomeFilters,
@@ -51,9 +55,9 @@ function FilterIcon({ theme }: { theme: keyof typeof Colors }) {
   if (Platform.OS === "ios") {
     return (
       <SymbolView
-        name="line.3.horizontal.decrease.circle"
+        name="line.3.horizontal.decrease"
         tintColor={color}
-        style={{ width: 22, height: 22 }}
+        style={{ width: 24, height: 24 }}
       />
     );
   }
@@ -167,7 +171,8 @@ export function FilterMenuButton({
         title: t("home.filter.icons"),
         image: Platform.OS === "ios" ? "app.dashed" : undefined,
         imageColor: Platform.OS === "ios" ? iconColor : undefined,
-        state: Platform.OS === "ios" ? (showTagIcons ? "on" : "off") : undefined,
+        state:
+          Platform.OS === "ios" ? (showTagIcons ? "on" : "off") : undefined,
       },
       {
         id: "toggleCompactSubtasks",
@@ -176,7 +181,9 @@ export function FilterMenuButton({
         imageColor: Platform.OS === "ios" ? iconColor : undefined,
         state:
           Platform.OS === "ios"
-            ? (showCompactSubtasks ? "on" : "off")
+            ? showCompactSubtasks
+              ? "on"
+              : "off"
             : undefined,
       },
       ...availableTags.map((tag) => {
