@@ -93,7 +93,11 @@ export const GlassSurface = React.forwardRef<NativeViewRef, GlassSurfaceProps>(
     }
 
     return (
-      <View ref={ref} style={style} {...rest}>
+      <View
+        ref={ref}
+        style={disabled ? style : [style, { backgroundColor: 'transparent' }]}
+        {...rest}
+      >
         {!disabled && (
           <GlassViewComponent
             pointerEvents="none"

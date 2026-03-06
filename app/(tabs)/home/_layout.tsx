@@ -31,7 +31,12 @@ export default function HomeLayout() {
         options={{
           title: t('common.today'),
           headerLeft: () => <ProfileHeaderMenuButton />,
-          headerRight: () => <HeaderTrailingActions theme={theme} />,
+          headerRight: () => (
+            <HeaderTrailingActions
+              theme={theme}
+              showCompletedTasksToggle={true}
+            />
+          ),
         }}
       />
       <Stack.Screen

@@ -47,7 +47,10 @@ import {
   Colors,
   LIGHT_ACCENT_SCREEN_BACKGROUND,
 } from "@/constants/theme";
-import { useHomeFilters } from "@/context/home-filters-store";
+import {
+  parseShowCompletedTasksParam,
+  useHomeFilters,
+} from "@/context/home-filters-store";
 import { getAccentColorValue, useAppSettings } from "@/context/settings-store";
 import { useTaskCreateContext } from "@/context/task-create-context";
 import {
@@ -738,6 +741,11 @@ const createStyles = (
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: hairline,
     },
+    calendarButtonRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
     calendarButton: {
       width: 32,
       height: 32,
@@ -1292,6 +1300,7 @@ export default function HomeScreen() {
     sections?: string;
     withNotes?: string;
     withSubtasks?: string;
+    completed?: string;
   }>();
   const enabledSections = React.useMemo(
     () => parseSectionsParam(params.sections),
@@ -1317,13 +1326,22 @@ export default function HomeScreen() {
     [calendarActiveColor, dateRailItemWidth, theme],
   );
   const { tasks, setTasks, projects } = useTasksStore();
-  const { enabledTags, showTagIcons, showCompactSubtasks } = useHomeFilters();
+  const {
+    enabledTags,
+    showTagIcons,
+    showCompactSubtasks,
+    showCompletedTasks,
+  } = useHomeFilters();
   const locale = React.useMemo(() => getIntlLocale().toLowerCase(), []);
   const isGermanLocale = locale.startsWith("de");
   const withSubtasksEnabled =
     params.withSubtasks === undefined
       ? showCompactSubtasks
       : params.withSubtasks === "1";
+  const showCompletedTasksEnabled =
+    params.completed === undefined
+      ? showCompletedTasks
+      : parseShowCompletedTasksParam(params.completed);
   const [showGestureHint, setShowGestureHint] = React.useState(false);
   const [
     shouldHighlightDropTargetsOnFirstDrag,
@@ -1543,6 +1561,7 @@ export default function HomeScreen() {
   const [isDragOverCalendarHeader, setIsDragOverCalendarHeader] =
     React.useState(false);
   const [, setDragDropDebugReason] = React.useState("idle");
+  const [isTaskListDragging, setIsTaskListDragging] = React.useState(false);
   const [, setActiveDragSurface] = React.useState<DragSurfaceId | null>(null);
   const dragContextRef = React.useRef<{
     taskId: string;
@@ -2631,6 +2650,14 @@ export default function HomeScreen() {
     },
     [dateRailDays, dateRailSnapInterval],
   );
+  const handleJumpToToday = React.useCallback(
+    (source: DateSelectionSource = "programmatic") => {
+      const todayDateStart = getStartOfToday();
+      scrollDateRailToDateStart(todayDateStart, true, true);
+      handleSelectDate(todayDateStart, source);
+    },
+    [handleSelectDate, scrollDateRailToDateStart],
+  );
   const handleDateRailScrollToIndexFailed = React.useCallback(() => {
     requestAnimationFrame(() => {
       dateRailRef.current?.scrollToIndex({
@@ -3185,6 +3212,9 @@ export default function HomeScreen() {
   const handleDragStateChange = React.useCallback(
     (isDragging: boolean) => {
       listDragActiveRef.current = isDragging;
+      setIsTaskListDragging((current) =>
+        current === isDragging ? current : isDragging,
+      );
       if (isDragging) {
         cancelDragSurfaceResetFrame();
         measureDateRailBounds();
@@ -3276,6 +3306,13 @@ export default function HomeScreen() {
       const targetIsToday = isSameLocalDay(targetDateStart, todayStart);
       const base = tasks.filter((t) => {
         if (t.deletedAt) return false;
+        if (withNotesEnabled && !t.subtitle) return false;
+
+        const isCompletedOnTargetDay =
+          hasValidDueAt(t.completedAt) &&
+          isSameLocalDay(t.completedAt, targetDateStart);
+        if (isCompletedOnTargetDay) return true;
+
         const normalizedSection: SectionId =
           t.section === "completed"
             ? "completed"
@@ -3292,20 +3329,35 @@ export default function HomeScreen() {
         return isSameLocalDay(t.dueAt, targetDateStart);
       });
       const normalizedBase = base.map((task) => {
+        const isCompletedOnTargetDay =
+          hasValidDueAt(task.completedAt) &&
+          isSameLocalDay(task.completedAt, targetDateStart);
+        if (isCompletedOnTargetDay) {
+          return task.section === "completed"
+            ? task
+            : { ...task, section: "completed" as const };
+        }
         if (task.section === "completed") return task;
         const normalizedSection = deriveActiveSectionFromDueAt(task.dueAt);
         return task.section === normalizedSection
           ? task
           : { ...task, section: normalizedSection };
       });
-      if (!withNotesEnabled) return normalizedBase;
-      return normalizedBase.filter((t) => !!t.subtitle);
+      return normalizedBase;
     },
     [homeEnabledSections, tasks, todayStart, withNotesEnabled],
   );
+  const getDisplayedTasksForDateStart = React.useCallback(
+    (targetDateStart: number) => {
+      const allTasksForDay = getVisibleTasksForDateStart(targetDateStart);
+      if (showCompletedTasksEnabled) return allTasksForDay;
+      return allTasksForDay.filter((task) => task.section !== "completed");
+    },
+    [getVisibleTasksForDateStart, showCompletedTasksEnabled],
+  );
   const visibleTasks = React.useMemo(
-    () => getVisibleTasksForDateStart(listDateStart),
-    [getVisibleTasksForDateStart, listDateStart],
+    () => getDisplayedTasksForDateStart(listDateStart),
+    [getDisplayedTasksForDateStart, listDateStart],
   );
   const visibleTaskDisplaySectionById = React.useMemo(
     () =>
@@ -3317,10 +3369,6 @@ export default function HomeScreen() {
       ),
     [listDateStart, visibleTasks],
   );
-
-  const visibleSections = React.useMemo(() => ["today"] as SectionId[], []);
-
-  const firstVisibleSection = visibleSections[0] ?? "today";
 
   const tasksBySection = React.useMemo(() => {
     const grouped: Record<SectionId, Task[]> = {
@@ -3340,6 +3388,24 @@ export default function HomeScreen() {
     }
     return grouped;
   }, [visibleTaskDisplaySectionById, visibleTasks]);
+  const visibleSections = React.useMemo(() => {
+    const sections: SectionId[] = ["today"];
+    const shouldShowCompletedSection =
+      showCompletedTasksEnabled &&
+      (tasksBySection.completed.length > 0 ||
+        (isTaskListDragging && tasksBySection.today.length > 0));
+    if (shouldShowCompletedSection) {
+      sections.push("completed");
+    }
+    return sections;
+  }, [
+    isTaskListDragging,
+    showCompletedTasksEnabled,
+    tasksBySection.completed.length,
+    tasksBySection.today.length,
+  ]);
+
+  const firstVisibleSection = visibleSections[0] ?? "today";
 
   type ListItem =
     | { type: "header"; key: string; sectionId: SectionId }
@@ -3395,23 +3461,7 @@ export default function HomeScreen() {
     measureUpcomingSurfaceBounds,
     viewportWidth,
   ]);
-  const todayVisibleTasks = React.useMemo(
-    () =>
-      visibleTasks
-        .filter((task) => task.section !== "completed")
-        .sort((a, b) => a.orderRank - b.orderRank),
-    [visibleTasks],
-  );
-  const todaySwipeListData = React.useMemo<TaskSwipeDraggableListItem[]>(
-    () =>
-      todayVisibleTasks.map((task) => ({
-        kind: "task" as const,
-        key: `task-${task.id}`,
-        taskId: task.id,
-      })),
-    [todayVisibleTasks],
-  );
-  const hasTodayTasks = todayVisibleTasks.length > 0;
+  const hasVisibleTasks = visibleTasks.length > 0;
   const calendarEmptyState = React.useMemo(
     () => (
       <View style={styles.emptyState}>
@@ -3428,10 +3478,10 @@ export default function HomeScreen() {
   );
   const dateListTransitionData = React.useMemo(() => {
     if (!dateListTransitionState) return null;
-    const fromVisibleTasks = getVisibleTasksForDateStart(
+    const fromVisibleTasks = getDisplayedTasksForDateStart(
       dateListTransitionState.fromDateStart,
     );
-    const toVisibleTasks = getVisibleTasksForDateStart(
+    const toVisibleTasks = getDisplayedTasksForDateStart(
       dateListTransitionState.toDateStart,
     );
     const fromTodayData: TaskSwipeDraggableListItem[] = fromVisibleTasks
@@ -3468,7 +3518,7 @@ export default function HomeScreen() {
       fromTodayData,
       toTodayData,
     };
-  }, [dateListTransitionState, getVisibleTasksForDateStart]);
+  }, [dateListTransitionState, getDisplayedTasksForDateStart]);
   const dateListTransitionPageWidth = React.useMemo(
     () => Math.max(1, dateListHostWidth),
     [dateListHostWidth],
@@ -3563,18 +3613,6 @@ export default function HomeScreen() {
       applyOrderFromListData(mapped);
     },
     [applyOrderFromListData],
-  );
-  const applyOrderFromTodaySegment = React.useCallback(
-    (data: TaskSwipeDraggableListItem[]) => {
-      applyOrderFromSwipeListData(data);
-    },
-    [applyOrderFromSwipeListData],
-  );
-  const applyOrderFromUpcomingSegment = React.useCallback(
-    (data: TaskSwipeDraggableListItem[]) => {
-      applyOrderFromSwipeListData([...todaySwipeListData, ...data]);
-    },
-    [applyOrderFromSwipeListData, todaySwipeListData],
   );
 
   const reseedSection = React.useCallback(
@@ -4065,36 +4103,72 @@ export default function HomeScreen() {
                   </View>
                 </View>
               </View>
-
-              <GlassSurface
-                tintColor={glassSurfacePalette.calendarTint}
-                fallbackBackgroundColor={glassSurfacePalette.calendarFallback}
-                style={styles.calendarButton}
-                isInteractive={true}
-              >
-                <Pressable
-                  accessibilityRole="button"
-                  hitSlop={16}
-                  style={StyleSheet.absoluteFillObject}
-                  onPress={() => {
-                    setIsCalendarPickerOpen((prev) => !prev);
-                  }}
+              <View style={styles.calendarButtonRow}>
+                <GlassSurface
+                  tintColor={glassSurfacePalette.calendarTint}
+                  fallbackBackgroundColor={glassSurfacePalette.calendarFallback}
+                  style={styles.calendarButton}
+                  isInteractive={true}
                 >
-                  <View
-                    style={{
-                      flex: 1,
-                      alignItems: "center",
-                      justifyContent: "center",
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      isGermanLocale
+                        ? "Zum heutigen Datum springen"
+                        : "Jump to today"
+                    }
+                    hitSlop={16}
+                    style={StyleSheet.absoluteFillObject}
+                    onPress={() => {
+                      handleJumpToToday("press");
                     }}
                   >
-                    <SFSymbol
-                      name="calendar"
-                      size={16}
-                      color={Colors[theme].text}
-                    />
-                  </View>
-                </Pressable>
-              </GlassSurface>
+                    <View
+                      style={{
+                        flex: 1,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <SFSymbol
+                        name="arrow.uturn.backward"
+                        size={16}
+                        color={Colors[theme].text}
+                      />
+                    </View>
+                  </Pressable>
+                </GlassSurface>
+
+                <GlassSurface
+                  tintColor={glassSurfacePalette.calendarTint}
+                  fallbackBackgroundColor={glassSurfacePalette.calendarFallback}
+                  style={styles.calendarButton}
+                  isInteractive={true}
+                >
+                  <Pressable
+                    accessibilityRole="button"
+                    hitSlop={16}
+                    style={StyleSheet.absoluteFillObject}
+                    onPress={() => {
+                      setIsCalendarPickerOpen((prev) => !prev);
+                    }}
+                  >
+                    <View
+                      style={{
+                        flex: 1,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <SFSymbol
+                        name="calendar"
+                        size={16}
+                        color={Colors[theme].text}
+                      />
+                    </View>
+                  </Pressable>
+                </GlassSurface>
+              </View>
             </View>
           </View>
 
@@ -4134,9 +4208,7 @@ export default function HomeScreen() {
                   <Pressable
                     style={styles.calendarQuickActionButton}
                     onPress={() => {
-                      const todayDateStart = getStartOfToday();
-                      scrollDateRailToDateStart(todayDateStart, true, true);
-                      handleSelectDate(todayDateStart, "picker");
+                      handleJumpToToday("picker");
                       setIsCalendarPickerOpen(false);
                     }}
                   >
@@ -4399,6 +4471,7 @@ export default function HomeScreen() {
     handleGlobalDragTouchEnd,
     handleGlobalDragTouchMove,
     glassSurfacePalette,
+    handleJumpToToday,
     handleSelectDate,
     isExpoUISwiftPickerAvailable,
     isGermanLocale,
@@ -4515,7 +4588,9 @@ export default function HomeScreen() {
       <TaskSwipeDraggableList
         ref={todayListRef}
         theme={theme}
-        tasks={todayVisibleTasks}
+        tasks={visibleTasks}
+        data={swipeListData}
+        renderHeaderRow={renderSectionHeaderRow}
         projectsById={projectsById}
         isDark={isDark}
         rowStyles={styles}
@@ -4526,12 +4601,12 @@ export default function HomeScreen() {
         dragCompactPreview={isDragOverCalendarHeader}
         followHorizontalDrag={isDragOverCalendarHeader}
         selectedDateStart={listDateStart}
-        empty={!hasTodayTasks ? calendarEmptyState : null}
+        empty={!hasVisibleTasks ? calendarEmptyState : null}
         onPressTask={handlePressTask}
         toggleComplete={handleToggleComplete}
         toggleSubtask={handleToggleSubtask}
         deleteTask={handleDeleteTask}
-        onReorderData={applyOrderFromTodaySegment}
+        onReorderData={applyOrderFromSwipeListData}
         onDragBeginTask={handleDragBeginTask}
         onDragEndMeta={handleDragEndMeta}
         onDragStateChange={handleDragStateChange}

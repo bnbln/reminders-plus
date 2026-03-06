@@ -89,7 +89,6 @@ type SwipeActionUnderlayProps = {
   params: UnderlayParams<Task>;
   styles: SwipeTaskRowStyles;
   side: "left" | "right";
-  isDark: boolean;
   backgroundColor: string;
   icon: React.ComponentProps<typeof MaterialIcons>["name"];
   onPress: () => void;
@@ -99,7 +98,6 @@ function SwipeActionUnderlay({
   params,
   styles,
   side,
-  isDark,
   backgroundColor,
   icon,
   onPress,
@@ -113,12 +111,6 @@ function SwipeActionUnderlay({
   );
 
   const fillAnimatedStyle = useAnimatedStyle(() => {
-    if (!isDark) {
-      return {
-        backgroundColor,
-      };
-    }
-
     const progress = Math.max(0, Math.min(1.08, params.percentOpen.value));
     return {
       backgroundColor: interpolateColor(
@@ -134,7 +126,6 @@ function SwipeActionUnderlay({
     };
   }, [
     backgroundColor,
-    isDark,
     params.percentOpen,
     underlayColorStops.medium,
     underlayColorStops.soft,
@@ -144,14 +135,12 @@ function SwipeActionUnderlay({
     const progress = Math.max(0, Math.min(1.12, params.percentOpen.value));
     const directionOffset = side === "left" ? 14 : -14;
     return {
-      opacity: isDark
-        ? interpolate(
-            progress,
-            [0, 0.08, 0.16, SWIPE_SNAP_PROGRESS],
-            [0, 0.22, 0.92, 1],
-            Extrapolation.CLAMP,
-          )
-        : 1,
+      opacity: interpolate(
+        progress,
+        [0, 0.08, 0.16, SWIPE_SNAP_PROGRESS],
+        [0, 0.22, 0.92, 1],
+        Extrapolation.CLAMP,
+      ),
       transform: [
         {
           translateX: interpolate(
@@ -163,7 +152,7 @@ function SwipeActionUnderlay({
         },
       ],
     };
-  }, [isDark, params.percentOpen, side]);
+  }, [params.percentOpen, side]);
 
   return (
     <View style={styles.underlay} pointerEvents="box-none">
@@ -442,6 +431,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     showTaskIcons && !!task.emoji && task.emoji.trim().length > 0;
   const shouldUseCompactDragPreview =
     isActive && dragCompactPreview && canUseCompactDragPreview;
+  const isCompletedTask = task.section === "completed";
 
   const taskBgColor = React.useMemo(
     () => hexToPastel(task.color, isDark),
@@ -888,17 +878,47 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   const rowTintColor = React.useMemo(
     () => {
       if (rowSurfaceColor.startsWith("#")) {
-        return withAlpha(rowSurfaceColor, isDark ? 0.88 : 0.9);
+        return withAlpha(rowSurfaceColor, isDark ? 0.88 : 0.28);
       }
       if (
         rowSurfaceColor.startsWith("rgb(") ||
         rowSurfaceColor.startsWith("rgba(")
       ) {
-        return rowSurfaceColor;
+        return isDark ? rowSurfaceColor : "rgba(255,255,255,0.28)";
       }
-      return isDark ? "rgba(44,44,46,0.92)" : "rgba(255,255,255,0.9)";
+      return isDark ? "rgba(44,44,46,0.92)" : "rgba(255,255,255,0.28)";
     },
     [isDark, rowSurfaceColor],
+  );
+  const rowFallbackBackgroundColor = React.useMemo(() => {
+    if (isDark) return rowSurfaceColor;
+    if (rowSurfaceColor.startsWith("#")) {
+      return withAlpha(rowSurfaceColor, 0.82);
+    }
+    if (
+      rowSurfaceColor.startsWith("rgb(") ||
+      rowSurfaceColor.startsWith("rgba(")
+    ) {
+      return "rgba(255,255,255,0.82)";
+    }
+    return "rgba(255,255,255,0.82)";
+  }, [isDark, rowSurfaceColor]);
+  const completedContentStyle = React.useMemo(
+    () => (isCompletedTask ? { opacity: isActive ? 0.86 : 0.72 } : null),
+    [isActive, isCompletedTask],
+  );
+  const completedTitleStyle = React.useMemo(
+    () =>
+      isCompletedTask
+        ? ({
+            textDecorationLine: "line-through",
+          } as const)
+        : null,
+    [isCompletedTask],
+  );
+  const completedMetaStyle = React.useMemo(
+    () => (isCompletedTask ? { opacity: isActive ? 0.9 : 0.82 } : null),
+    [isActive, isCompletedTask],
   );
   const contentMotionStyle = React.useMemo(
     () => {
@@ -924,7 +944,6 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       transforms.push({ scale: swipeCommitScale });
 
       return {
-        opacity: swipeCommitOpacity,
         transform: transforms,
       };
     },
@@ -934,10 +953,15 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       followHorizontalDrag,
       isActive,
       shouldUseCompactDragPreview,
-      swipeCommitOpacity,
       swipeCommitScale,
       swipeCommitTranslateX,
     ],
+  );
+  const surfaceContentMotionStyle = React.useMemo(
+    () => ({
+      opacity: swipeCommitOpacity,
+    }),
+    [swipeCommitOpacity],
   );
 
   const tagChips = React.useMemo<TagChipModel[]>(() => {
@@ -1149,28 +1173,58 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     hasSubtitle || tagChips.length > 0 || compactSubtasks.length > 0;
 
   const emojiTileView = showTaskIcons ? (
-    <View
-      style={[
-        styles.emojiTile,
-        shouldUseCompactDragPreview
-          ? { width: 36, height: 36, borderRadius: 10 }
-          : null,
-        {
-          backgroundColor: taskBgColor ?? projectBgColor ?? emojiTint,
-          borderColor:
-            taskEmojiBorderColor ?? projectEmojiBorderColor ?? emojiFallback,
-          borderWidth: StyleSheet.hairlineWidth,
-        },
-      ]}
-    >
-      <Text
+    <View style={{ position: "relative", overflow: "visible" }}>
+      <View
         style={[
-          styles.emojiText,
-          { opacity: taskBgColor || projectBgColor ? 1 : 0.92 },
+          styles.emojiTile,
+          shouldUseCompactDragPreview
+            ? { width: 36, height: 36, borderRadius: 10 }
+            : null,
+          {
+            backgroundColor: taskBgColor ?? projectBgColor ?? emojiTint,
+            borderColor:
+              taskEmojiBorderColor ?? projectEmojiBorderColor ?? emojiFallback,
+            borderWidth: StyleSheet.hairlineWidth,
+          },
         ]}
       >
-        {task.emoji}
-      </Text>
+        <Text
+          style={[
+            styles.emojiText,
+            { opacity: taskBgColor || projectBgColor ? 1 : 0.92 },
+          ]}
+        >
+          {task.emoji}
+        </Text>
+      </View>
+      {isCompletedTask ? (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            top: -4,
+            right: -4,
+            width: 16,
+            height: 16,
+            borderRadius: 8,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: isDark
+              ? "rgba(24,24,26,0.92)"
+              : "rgba(255,255,255,0.92)",
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: isDark
+              ? "rgba(255,255,255,0.16)"
+              : "rgba(0,0,0,0.08)",
+          }}
+        >
+          <MaterialIcons
+            name="check"
+            size={11}
+            color={isDark ? "rgba(255,255,255,0.82)" : "rgba(0,0,0,0.62)"}
+          />
+        </View>
+      ) : null}
     </View>
   ) : null;
 
@@ -1180,7 +1234,6 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
         params={params}
         styles={styles}
         side="right"
-        isDark={isDark}
         backgroundColor={rightAction?.backgroundColor ?? swipeDeleteBg}
         icon={rightAction?.icon ?? "delete"}
         onPress={onPressDelete}
@@ -1191,7 +1244,6 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       rightAction?.backgroundColor,
       rightAction?.icon,
       styles,
-      isDark,
       swipeDeleteBg,
     ],
   );
@@ -1202,7 +1254,6 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
         params={params}
         styles={styles}
         side="left"
-        isDark={isDark}
         backgroundColor={leftAction?.backgroundColor ?? swipeCompleteBg}
         icon={
           leftAction?.icon ?? (task.section === "completed" ? "undo" : "check")
@@ -1215,7 +1266,6 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       leftAction?.icon,
       onPressComplete,
       styles,
-      isDark,
       swipeCompleteBg,
       task.section,
     ],
@@ -1282,49 +1332,66 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
                 style={rowContentStyle}
                 glassEffectStyle="regular"
                 tintColor={rowTintColor}
-                fallbackBackgroundColor={rowSurfaceColor}
+                fallbackBackgroundColor={rowFallbackBackgroundColor}
                 isInteractive
               >
-                <View
-                  style={[
-                    styles.rowInner,
-                    shouldUseCompactDragPreview
-                      ? {
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: 0,
-                        }
-                      : !hasExtraInfo
-                        ? { alignItems: "center" }
-                        : null,
-                  ]}
-                >
-                  {emojiTileView}
-                  {shouldUseCompactDragPreview ? null : (
-                    <View
-                      style={[
-                        styles.textStack,
-                        !hasExtraInfo ? { justifyContent: "center" } : null,
-                      ]}
-                    >
-                      <View style={styles.titleRow}>
-                        <Text style={styles.rowTitle} numberOfLines={1}>
-                          {task.title}
-                        </Text>
-                        {timeLabel ? (
-                          <Text style={styles.rowMeta} numberOfLines={1}>
-                            {timeLabel}
+                <Animated.View style={surfaceContentMotionStyle}>
+                  <View
+                    style={[
+                      styles.rowInner,
+                      completedContentStyle,
+                      shouldUseCompactDragPreview
+                        ? {
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 0,
+                          }
+                        : !hasExtraInfo
+                          ? { alignItems: "center" }
+                          : null,
+                    ]}
+                  >
+                    {emojiTileView}
+                    {shouldUseCompactDragPreview ? null : (
+                      <View
+                        style={[
+                          styles.textStack,
+                          !hasExtraInfo ? { justifyContent: "center" } : null,
+                        ]}
+                      >
+                        <View style={styles.titleRow}>
+                          <Text
+                            style={[styles.rowTitle, completedTitleStyle]}
+                            numberOfLines={1}
+                          >
+                            {task.title}
+                          </Text>
+                          {timeLabel ? (
+                            <Text
+                              style={[styles.rowMeta, completedMetaStyle]}
+                              numberOfLines={1}
+                            >
+                              {timeLabel}
+                            </Text>
+                          ) : null}
+                        </View>
+                        {task.subtitle ? (
+                          <Text
+                            style={[
+                              styles.rowSubtitle,
+                              completedTitleStyle,
+                              completedMetaStyle,
+                            ]}
+                          >
+                            {task.subtitle}
                           </Text>
                         ) : null}
+                        {tagsView}
+                        {compactSubtasksView}
                       </View>
-                      {task.subtitle ? (
-                        <Text style={styles.rowSubtitle}>{task.subtitle}</Text>
-                      ) : null}
-                      {tagsView}
-                      {compactSubtasksView}
-                    </View>
-                  )}
-                </View>
+                    )}
+                  </View>
+                </Animated.View>
               </GlassSurface>
             </TouchableOpacity>
           </Animated.View>

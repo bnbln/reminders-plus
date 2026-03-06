@@ -40,6 +40,7 @@ const STORAGE_KEYS = {
   tags: "reminds.homeFilters.tags",
   tagIcons: "reminds.homeFilters.tagIcons",
   compactSubtasks: "reminds.homeFilters.compactSubtasks",
+  completedTasks: "reminds.homeFilters.completedTasks",
 } as const;
 
 type KeyValueBackend = {
@@ -218,6 +219,8 @@ type HomeFiltersContextValue = {
   setShowTagIcons: React.Dispatch<React.SetStateAction<boolean>>;
   showCompactSubtasks: boolean;
   setShowCompactSubtasks: React.Dispatch<React.SetStateAction<boolean>>;
+  showCompletedTasks: boolean;
+  setShowCompletedTasks: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
 const HomeFiltersContext = React.createContext<HomeFiltersContextValue | null>(
@@ -236,6 +239,8 @@ export function HomeFiltersProvider({
   const [showTagIcons, setShowTagIcons] = React.useState<boolean>(true);
   const [showCompactSubtasks, setShowCompactSubtasks] =
     React.useState<boolean>(false);
+  const [showCompletedTasks, setShowCompletedTasks] =
+    React.useState<boolean>(true);
 
   const hydratedRef = React.useRef(false);
 
@@ -245,11 +250,17 @@ export function HomeFiltersProvider({
 
     const run = async () => {
       try {
-        const [storedTags, storedIcons, storedCompactSubtasks] =
+        const [
+          storedTags,
+          storedIcons,
+          storedCompactSubtasks,
+          storedCompletedTasks,
+        ] =
           await Promise.all([
             getStoredItem(STORAGE_KEYS.tags),
             getStoredItem(STORAGE_KEYS.tagIcons),
             getStoredItem(STORAGE_KEYS.compactSubtasks),
+            getStoredItem(STORAGE_KEYS.completedTasks),
           ]);
 
         if (cancelled) return;
@@ -279,6 +290,14 @@ export function HomeFiltersProvider({
             prev === nextCompactSubtasks ? prev : nextCompactSubtasks,
           );
         }
+
+        if (storedCompletedTasks != null) {
+          const nextCompletedTasks =
+            parseShowCompletedTasksParam(storedCompletedTasks);
+          setShowCompletedTasks((prev) =>
+            prev === nextCompletedTasks ? prev : nextCompletedTasks,
+          );
+        }
       } finally {
         if (!cancelled) hydratedRef.current = true;
       }
@@ -304,10 +323,14 @@ export function HomeFiltersProvider({
         STORAGE_KEYS.compactSubtasks,
         showCompactSubtasks ? "1" : "0",
       );
+      await setStoredItem(
+        STORAGE_KEYS.completedTasks,
+        showCompletedTasks ? "1" : "0",
+      );
     };
 
     void run();
-  }, [enabledTags, showCompactSubtasks, showTagIcons]);
+  }, [enabledTags, showCompactSubtasks, showCompletedTasks, showTagIcons]);
 
   const value = React.useMemo(
     () => ({
@@ -317,8 +340,10 @@ export function HomeFiltersProvider({
       setShowTagIcons,
       showCompactSubtasks,
       setShowCompactSubtasks,
+      showCompletedTasks,
+      setShowCompletedTasks,
     }),
-    [enabledTags, showCompactSubtasks, showTagIcons],
+    [enabledTags, showCompactSubtasks, showCompletedTasks, showTagIcons],
   );
 
   return (
@@ -378,4 +403,10 @@ export function parseCompactSubtasksParam(value: unknown): boolean {
   if (value === "0") return false;
   if (value === "1") return true;
   return false;
+}
+
+export function parseShowCompletedTasksParam(value: unknown): boolean {
+  if (value === "0") return false;
+  if (value === "1") return true;
+  return true;
 }

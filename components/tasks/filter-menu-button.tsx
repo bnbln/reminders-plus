@@ -13,6 +13,7 @@ import { Colors } from "@/constants/theme";
 import {
   getTagTitle,
   parseCompactSubtasksParam,
+  parseShowCompletedTasksParam,
   parseTagIconsParam,
   parseTagsParam,
   serializeTagsParam,
@@ -67,11 +68,13 @@ function FilterIcon({ theme }: { theme: keyof typeof Colors }) {
 type FilterMenuButtonProps = {
   theme: keyof typeof Colors;
   hiddenTags?: readonly TagId[];
+  showCompletedTasksToggle?: boolean;
 };
 
 export function FilterMenuButton({
   theme,
   hiddenTags = EMPTY_TAGS,
+  showCompletedTasksToggle = false,
 }: FilterMenuButtonProps) {
   const router = useRouter();
   const menuRef = React.useRef<MenuComponentRef>(null);
@@ -80,6 +83,7 @@ export function FilterMenuButton({
     tags?: string;
     tagIcons?: string;
     withSubtasks?: string;
+    completed?: string;
   }>();
   const {
     enabledTags,
@@ -88,6 +92,8 @@ export function FilterMenuButton({
     setShowTagIcons,
     showCompactSubtasks,
     setShowCompactSubtasks,
+    showCompletedTasks,
+    setShowCompletedTasks,
   } = useHomeFilters();
 
   const hiddenTagSet = React.useMemo(() => new Set(hiddenTags), [hiddenTags]);
@@ -127,14 +133,24 @@ export function FilterMenuButton({
         prev === nextSubtasks ? prev : nextSubtasks,
       );
     }
+
+    if (showCompletedTasksToggle && params.completed !== undefined) {
+      const nextCompleted = parseShowCompletedTasksParam(params.completed);
+      setShowCompletedTasks((prev) =>
+        prev === nextCompleted ? prev : nextCompleted,
+      );
+    }
   }, [
     availableTagSet,
+    params.completed,
     params.tagIcons,
     params.tags,
     params.withSubtasks,
+    setShowCompletedTasks,
     setEnabledTags,
     setShowCompactSubtasks,
     setShowTagIcons,
+    showCompletedTasksToggle,
   ]);
 
   const pendingReopenRef = React.useRef(false);
@@ -186,6 +202,22 @@ export function FilterMenuButton({
               : "off"
             : undefined,
       },
+      ...(showCompletedTasksToggle
+        ? [
+            {
+              id: "toggleCompletedTasks",
+              title: t("home.filter.completedTasks"),
+              image: Platform.OS === "ios" ? "checkmark.circle" : undefined,
+              imageColor: Platform.OS === "ios" ? iconColor : undefined,
+              state:
+                Platform.OS === "ios"
+                  ? showCompletedTasks
+                    ? "on"
+                    : "off"
+                  : undefined,
+            } satisfies MenuAction,
+          ]
+        : []),
       ...availableTags.map((tag) => {
         const on = scopedEnabledTags.has(tag);
         return {
@@ -213,6 +245,8 @@ export function FilterMenuButton({
     availableTags,
     scopedEnabledTags,
     showCompactSubtasks,
+    showCompletedTasks,
+    showCompletedTasksToggle,
     showTagIcons,
     theme,
   ]);
@@ -264,6 +298,14 @@ export function FilterMenuButton({
         return;
       }
 
+      if (showCompletedTasksToggle && id === "toggleCompletedTasks") {
+        const next = !showCompletedTasks;
+        setShowCompletedTasks(next);
+        router.setParams({ completed: next ? "1" : "0" });
+        scheduleReopen();
+        return;
+      }
+
       if (availableTagSet.has(id as TagId)) {
         const tag = id as TagId;
         setEnabledTags((prev) => {
@@ -284,8 +326,11 @@ export function FilterMenuButton({
       scheduleReopen,
       setEnabledTags,
       setShowCompactSubtasks,
+      setShowCompletedTasks,
       setShowTagIcons,
       showCompactSubtasks,
+      showCompletedTasks,
+      showCompletedTasksToggle,
       showTagIcons,
     ],
   );

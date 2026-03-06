@@ -9,12 +9,14 @@ type HeaderTrailingActionsProps = {
   theme: keyof typeof Colors;
   hiddenTags?: React.ComponentProps<typeof FilterMenuButton>["hiddenTags"];
   showFilter?: boolean;
+  showCompletedTasksToggle?: boolean;
 };
 
 export function HeaderTrailingActions({
   theme,
   hiddenTags,
   showFilter = true,
+  showCompletedTasksToggle = false,
 }: HeaderTrailingActionsProps) {
   if (!showFilter) {
     return <AssistHeaderButton />;
@@ -22,7 +24,11 @@ export function HeaderTrailingActions({
 
   return (
     <View style={styles.row}>
-      <FilterMenuButton theme={theme} hiddenTags={hiddenTags} />
+      <FilterMenuButton
+        theme={theme}
+        hiddenTags={hiddenTags}
+        showCompletedTasksToggle={showCompletedTasksToggle}
+      />
       <AssistHeaderButton />
     </View>
   );
