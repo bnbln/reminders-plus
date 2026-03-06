@@ -1,4 +1,5 @@
 import * as Haptics from 'expo-haptics';
+import { useIsFocused } from "@react-navigation/native";
 import React from 'react';
 import {
   Animated,
@@ -16,6 +17,7 @@ import { withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
 import type { TagId } from '@/context/home-filters-store';
 import { useAppSettings } from '@/context/settings-store';
+import { useTaskCreateContext } from '@/context/task-create-context';
 import type { Project, Task } from '@/context/tasks-store';
 import { triggerImpactHaptic } from '@/utils/haptics';
 
@@ -44,6 +46,9 @@ export type TaskDragGestureUpdateParams = {
 export type TaskSwipeDraggableListHandle = {
   closeAnyOpen: () => void;
 };
+
+const getDefaultTaskAppearanceKey = (task: Task) =>
+  `${task.id}:${task.section}:${task.completedAt ?? 0}:${task.deletedAt ?? 0}`;
 
 const areListItemsEqual = (
   current: TaskSwipeDraggableListItem[],
@@ -196,8 +201,9 @@ export type TaskSwipeDraggableListProps = {
   animateDataLayoutChanges?: boolean;
   /** Optional section reveal progress (0..1 expanded) for staggered task entry animation. */
   revealProgress?: Animated.Value | Animated.AnimatedInterpolation<number>;
+  revealPhase?: 'enter' | 'exit';
   revealStaggerStep?: number;
-  revealTranslateY?: number;
+  revealTranslateX?: number;
 };
 
 export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHandle, TaskSwipeDraggableListProps>(function TaskSwipeDraggableList(
@@ -249,12 +255,15 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     syncDataDuringDrag = true,
     animateDataLayoutChanges = true,
     revealProgress,
+    revealPhase = 'enter',
     revealStaggerStep = 0.055,
-    revealTranslateY = 10,
+    revealTranslateX = 72,
   },
   ref
 ) {
   const { reduceMotionEnabled } = useAppSettings();
+  const isFocused = useIsFocused();
+  const { popInTaskIds, consumeTaskPopIn } = useTaskCreateContext();
   const emojiTint = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.12 : 0.22), [isDark, theme]);
   const emojiFallback = React.useMemo(
     () => withAlpha(Colors[theme].background, isDark ? 0.52 : 0.74),
@@ -266,6 +275,13 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
 
   const enabledTagsResolved = React.useMemo(() => enabledTags ?? new Set<TagId>(), [enabledTags]);
   const showTaskIconsResolved = React.useMemo(() => showTaskIcons ?? true, [showTaskIcons]);
+  const popInTaskIdSet = React.useMemo(() => new Set(popInTaskIds), [popInTaskIds]);
+  const [dynamicPopInTaskIds, setDynamicPopInTaskIds] = React.useState<string[]>([]);
+  const dynamicPopInTaskIdSet = React.useMemo(
+    () => new Set(dynamicPopInTaskIds),
+    [dynamicPopInTaskIds],
+  );
+  const previousTaskKeyByIdRef = React.useRef<Map<string, string> | null>(null);
 
   const isDraggingRef = React.useRef(false);
   const placeholderIndexRef = React.useRef<number>(-1);
@@ -392,6 +408,21 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     [closeAnyOpen, onPressTask]
   );
 
+  const handlePopInAnimationEnd = React.useCallback(
+    (taskId: string) => {
+      consumeTaskPopIn(taskId);
+      setDynamicPopInTaskIds((current) =>
+        current.filter((candidate) => candidate !== taskId),
+      );
+    },
+    [consumeTaskPopIn]
+  );
+
+  React.useEffect(() => {
+    if (isFocused) return;
+    setDynamicPopInTaskIds([]);
+  }, [isFocused]);
+
   const beginSwipe = React.useCallback((taskId: string) => {
     for (const [id, close] of closeByIdRef.current.entries()) {
       if (id !== taskId) close();
@@ -414,7 +445,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   const tasksById = React.useMemo(() => new Map(tasksSorted.map((t) => [t.id, t] as const)), [tasksSorted]);
 
   const listData = React.useMemo<TaskSwipeDraggableListItem[]>(() => {
-    const makeKey = keyForTask ?? ((t: Task) => t.id);
+    const makeKey = keyForTask ?? getDefaultTaskAppearanceKey;
     return tasksSorted.map((t) => ({ kind: 'task', key: makeKey(t), taskId: t.id }));
   }, [keyForTask, tasksSorted]);
 
@@ -436,6 +467,46 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   }, [data, listData, tasksById]);
 
   const [flatListData, setFlatListData] = React.useState<TaskSwipeDraggableListItem[]>(() => resolvedData);
+
+  React.useEffect(() => {
+    const nextTaskKeyById = new Map<string, string>();
+    for (const item of resolvedData) {
+      if (item.kind !== 'task') continue;
+      nextTaskKeyById.set(item.taskId, item.key);
+    }
+
+    const previousTaskKeyById = previousTaskKeyByIdRef.current;
+    previousTaskKeyByIdRef.current = nextTaskKeyById;
+    if (!previousTaskKeyById) return;
+    if (!isFocused || reduceMotionEnabled) return;
+
+    const changedTaskIds: string[] = [];
+    let structuralChangeCount = 0;
+    for (const taskId of previousTaskKeyById.keys()) {
+      if (!nextTaskKeyById.has(taskId)) {
+        structuralChangeCount += 1;
+      }
+    }
+    for (const [taskId, key] of nextTaskKeyById.entries()) {
+      const previousKey = previousTaskKeyById.get(taskId);
+      if (!previousKey) {
+        structuralChangeCount += 1;
+        continue;
+      }
+      if (previousKey && previousKey !== key) {
+        changedTaskIds.push(taskId);
+      }
+    }
+
+    if (changedTaskIds.length === 0 || changedTaskIds.length > 2) return;
+    if (structuralChangeCount > 1) return;
+
+    setDynamicPopInTaskIds((current) => {
+      const next = new Set(current);
+      changedTaskIds.forEach((taskId) => next.add(taskId));
+      return Array.from(next);
+    });
+  }, [isFocused, reduceMotionEnabled, resolvedData]);
 
   React.useLayoutEffect(() => {
     if (isDraggingRef.current && !syncDataDuringDrag) return;
@@ -501,6 +572,37 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       new Map(flatListData.map((item, index) => [item.key, index] as const)),
     [flatListData],
   );
+  const getRevealTranslateX = React.useCallback(
+    (index: number) => {
+      if (!revealProgress || reduceMotionEnabled) return null;
+
+      const safeIndex = Number.isFinite(index) ? Math.max(0, index) : 0;
+      const stagger = Math.max(0.02, Math.min(0.1, revealStaggerStep));
+      const start = Math.min(0.03 + safeIndex * stagger, 0.76);
+      const end = Math.min(start + 0.3, 1);
+
+      if (revealPhase === 'exit') {
+        return revealProgress.interpolate({
+          inputRange: [0, start, end, 1],
+          outputRange: [0, 0, revealTranslateX, revealTranslateX],
+          extrapolate: 'clamp',
+        });
+      }
+
+      return revealProgress.interpolate({
+        inputRange: [0, start, end, 1],
+        outputRange: [revealTranslateX, revealTranslateX, 0, 0],
+        extrapolate: 'clamp',
+      });
+    },
+    [
+      reduceMotionEnabled,
+      revealPhase,
+      revealProgress,
+      revealStaggerStep,
+      revealTranslateX,
+    ],
+  );
 
   const listActivationDistance = LIST_ACTIVATION_DISTANCE_DEFAULT;
   const simultaneousHandlers = React.useMemo(
@@ -531,6 +633,9 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
         isSectionFirstTask: sectionMeta.isSectionFirstTask,
         isSectionLastTask: sectionMeta.isSectionLastTask,
       });
+      const shouldAnimatePopIn =
+        isFocused &&
+        (popInTaskIdSet.has(task.id) || dynamicPopInTaskIdSet.has(task.id));
 
       const row = (
         <SwipeTaskRow
@@ -551,6 +656,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           showCompactSubtasks={showCompactSubtasks}
           dragCompactPreview={dragCompactPreview}
           activeDragTranslateX={resolvedActiveDragTranslateX}
+          revealTranslateX={shouldAnimatePopIn ? null : getRevealTranslateX(index)}
           followHorizontalDrag={followHorizontalDrag}
           swipeActivationThreshold={rowSwipeActivationThreshold}
           beginSwipe={beginSwipe}
@@ -564,49 +670,15 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           deleteTask={deleteTask}
           onSwipeGestureActiveChange={reportSwipeGestureActive}
           onTouchInteractionChange={reportRowTouchInteraction}
-          shouldPopIn={false}
+          shouldPopIn={shouldAnimatePopIn}
+          onPopInAnimationEnd={handlePopInAnimationEnd}
           selectedDateStart={selectedDateStart}
           itemSpacerStyle={rowStyleOverrides?.itemSpacerStyle}
           swipeClipStyle={rowStyleOverrides?.swipeClipStyle}
           rowStyle={rowStyleOverrides?.rowStyle}
         />
       );
-      if (!revealProgress || reduceMotionEnabled) return row;
-
-      const safeIndex = typeof index === 'number' && Number.isFinite(index) ? Math.max(0, index) : 0;
-      const stagger = Math.max(0.02, Math.min(0.1, revealStaggerStep));
-      const start = Math.min(0.04 + safeIndex * stagger, 0.78);
-      const mid = Math.min(start + 0.16, 0.94);
-      const end = Math.min(start + 0.38, 1);
-      const translateMid = revealTranslateY * 0.55;
-      return (
-        <Animated.View
-          style={{
-            opacity: revealProgress.interpolate({
-              inputRange: [0, start, mid, end, 1],
-              outputRange: [0, 0, 0.45, 1, 1],
-              extrapolate: 'clamp',
-            }),
-            transform: [
-              {
-                translateY: revealProgress.interpolate({
-                  inputRange: [0, start, mid, end, 1],
-                  outputRange: [
-                    revealTranslateY,
-                    revealTranslateY,
-                    translateMid,
-                    0,
-                    0,
-                  ],
-                  extrapolate: 'clamp',
-                }),
-              },
-            ],
-          }}
-        >
-          {row}
-        </Animated.View>
-      );
+      return row;
     },
     [
       beginSwipe,
@@ -617,9 +689,14 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       emojiTint,
       endSwipe,
       getTaskRowStyleOverrides,
+      getRevealTranslateX,
       handlePressTask,
+      handlePopInAnimationEnd,
+      dynamicPopInTaskIdSet,
+      isFocused,
       isDark,
       itemSpacing,
+      popInTaskIdSet,
       renderHeaderRow,
       projectsById,
       rowStyles,
@@ -642,10 +719,6 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       reportRowTouchInteraction,
       flatListData.length,
       flatListIndexByKey,
-      revealProgress,
-      revealStaggerStep,
-      revealTranslateY,
-      reduceMotionEnabled,
     ]
   );
 
@@ -668,6 +741,9 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
         isSectionFirstTask: sectionMeta.isSectionFirstTask,
         isSectionLastTask: sectionMeta.isSectionLastTask,
       });
+      const shouldAnimatePopIn =
+        isFocused &&
+        (popInTaskIdSet.has(task.id) || dynamicPopInTaskIdSet.has(task.id));
 
       const row = (
         <SwipeTaskRow
@@ -688,6 +764,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           showCompactSubtasks={showCompactSubtasks}
           dragCompactPreview={dragCompactPreview}
           activeDragTranslateX={null}
+          revealTranslateX={shouldAnimatePopIn ? null : getRevealTranslateX(index)}
           followHorizontalDrag={followHorizontalDrag}
           swipeActivationThreshold={rowSwipeActivationThreshold}
           beginSwipe={beginSwipe}
@@ -701,49 +778,15 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           deleteTask={deleteTask}
           onSwipeGestureActiveChange={reportSwipeGestureActive}
           onTouchInteractionChange={reportRowTouchInteraction}
-          shouldPopIn={false}
+          shouldPopIn={shouldAnimatePopIn}
+          onPopInAnimationEnd={handlePopInAnimationEnd}
           selectedDateStart={selectedDateStart}
           itemSpacerStyle={rowStyleOverrides?.itemSpacerStyle}
           swipeClipStyle={rowStyleOverrides?.swipeClipStyle}
           rowStyle={rowStyleOverrides?.rowStyle}
         />
       );
-      if (!revealProgress || reduceMotionEnabled) return row;
-
-      const safeIndex = Math.max(0, index);
-      const stagger = Math.max(0.02, Math.min(0.1, revealStaggerStep));
-      const start = Math.min(0.04 + safeIndex * stagger, 0.78);
-      const mid = Math.min(start + 0.16, 0.94);
-      const end = Math.min(start + 0.38, 1);
-      const translateMid = revealTranslateY * 0.55;
-      return (
-        <Animated.View
-          style={{
-            opacity: revealProgress.interpolate({
-              inputRange: [0, start, mid, end, 1],
-              outputRange: [0, 0, 0.45, 1, 1],
-              extrapolate: 'clamp',
-            }),
-            transform: [
-              {
-                translateY: revealProgress.interpolate({
-                  inputRange: [0, start, mid, end, 1],
-                  outputRange: [
-                    revealTranslateY,
-                    revealTranslateY,
-                    translateMid,
-                    0,
-                    0,
-                  ],
-                  extrapolate: 'clamp',
-                }),
-              },
-            ],
-          }}
-        >
-          {row}
-        </Animated.View>
-      );
+      return row;
     },
     [
       beginSwipe,
@@ -754,9 +797,14 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       emojiTint,
       endSwipe,
       getTaskRowStyleOverrides,
+      getRevealTranslateX,
       handlePressTask,
+      handlePopInAnimationEnd,
+      dynamicPopInTaskIdSet,
+      isFocused,
       isDark,
       itemSpacing,
+      popInTaskIdSet,
       projectsById,
       registerClose,
       renderHeaderRow,
@@ -777,10 +825,6 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       reportSwipeGestureActive,
       reportRowTouchInteraction,
       flatListData.length,
-      revealProgress,
-      revealStaggerStep,
-      revealTranslateY,
-      reduceMotionEnabled,
     ]
   );
 

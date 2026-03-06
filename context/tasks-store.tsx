@@ -467,6 +467,19 @@ function getDefaultRoutineDueAt(referenceMs: number, dueHasTime?: boolean): numb
   return next.getTime();
 }
 
+function getStartOfLocalHourMs(value: number | Date = Date.now()) {
+  const date = typeof value === "number" ? new Date(value) : new Date(value);
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    date.getHours(),
+    0,
+    0,
+    0,
+  ).getTime();
+}
+
 function reconcileRoutineDueAt(task: Task, referenceMs: number): Task {
   if (task.deletedAt) return task;
   if (task.section === "completed" || hasValidDueAt(task.completedAt)) return task;
@@ -476,7 +489,10 @@ function reconcileRoutineDueAt(task: Task, referenceMs: number): Task {
 
   const todayStartMs = getStartOfLocalDayMs(referenceMs);
   const staleThresholdMs =
-    routineType === "hourly" ? referenceMs : todayStartMs - 1;
+    // Keep the current hourly occurrence visible until the user completes it.
+    routineType === "hourly"
+      ? getStartOfLocalHourMs(referenceMs) - 1
+      : todayStartMs - 1;
   const routineOptions = {
     weekday: task.routineWeekday,
     nthWeek: task.routineNthWeek,

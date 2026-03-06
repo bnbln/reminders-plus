@@ -1,12 +1,10 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import * as ExpoGlassEffect from 'expo-glass-effect';
-import {
-  GlassView,
-  isLiquidGlassAvailable,
-} from 'expo-glass-effect';
-import { useIsFocused } from '@react-navigation/native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React from 'react';
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { useIsFocused } from "@react-navigation/native";
+import * as ExpoGlassEffect from "expo-glass-effect";
+import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
+import { LinearGradient } from "expo-linear-gradient";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React from "react";
 import {
   Alert,
   Animated,
@@ -17,38 +15,45 @@ import {
   Text,
   TextInput,
   View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
-import { Colors } from '@/constants/theme';
-import { getAccentColorValue, useAppSettings } from '@/context/settings-store';
-import { useTaskCreateContext } from '@/context/task-create-context';
+import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
+import { Colors, LIGHT_ACCENT_SCREEN_BACKGROUND } from "@/constants/theme";
+import { getAccentColorValue, useAppSettings } from "@/context/settings-store";
+import { useTaskCreateContext } from "@/context/task-create-context";
 import {
   useTasksStore,
   type RoutineType,
   type SectionId,
   type Task,
-} from '@/context/tasks-store';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { formatDate, t } from '@/i18n';
+} from "@/context/tasks-store";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { formatDate, t } from "@/i18n";
 import {
   alignDueAtToLocalDay,
   deriveActiveSectionFromDueAt,
   getStartOfLocalDayMs,
   hasValidDueAt,
   isSameLocalDay,
-} from '@/utils/task-dates';
+} from "@/utils/task-dates";
 import {
   detectTaskTextSuggestions,
-  type DetectedTaskTextSuggestion,
   stripTaskSuggestionText,
-} from '@/utils/task-text-suggestions';
+  type DetectedTaskTextSuggestion,
+} from "@/utils/task-text-suggestions";
 
-const createTaskId = () => `t-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+const createTaskId = () =>
+  `t-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-type ComposerActionId = 'date' | 'time' | 'style' | 'location' | 'routine' | 'project';
-type MaterialIconName = React.ComponentProps<typeof MaterialIcons>['name'];
+type ComposerActionId =
+  | "date"
+  | "time"
+  | "style"
+  | "location"
+  | "routine"
+  | "project";
+type MaterialIconName = React.ComponentProps<typeof MaterialIcons>["name"];
 type ComposerAction = {
   id: ComposerActionId;
   title: string;
@@ -65,44 +70,52 @@ type ComposerSelectionTag = {
   removable: boolean;
 };
 
-type RegexManagedActionId = 'date' | 'time' | 'style' | 'location' | 'project' | 'routine';
-type RegexAppliedSuggestions = Partial<Record<RegexManagedActionId, DetectedTaskTextSuggestion>>;
+type RegexManagedActionId =
+  | "date"
+  | "time"
+  | "style"
+  | "location"
+  | "project"
+  | "routine";
+type RegexAppliedSuggestions = Partial<
+  Record<RegexManagedActionId, DetectedTaskTextSuggestion>
+>;
 
 const ROUTINE_LABEL_KEY_BY_TYPE: Record<RoutineType, string> = {
-  hourly: 'taskDetail.routine.hourly',
-  daily: 'taskDetail.routine.daily',
-  weekdays: 'taskDetail.routine.weekdays',
-  weekends: 'taskDetail.routine.weekends',
-  weekly: 'taskDetail.routine.weekly',
-  biweekly: 'taskDetail.routine.biweekly',
-  monthly: 'taskDetail.routine.monthly',
-  quarterly: 'taskDetail.routine.quarterly',
-  biannually: 'taskDetail.routine.biannually',
-  yearly: 'taskDetail.routine.yearly',
-  custom: 'taskDetail.routine.custom',
+  hourly: "taskDetail.routine.hourly",
+  daily: "taskDetail.routine.daily",
+  weekdays: "taskDetail.routine.weekdays",
+  weekends: "taskDetail.routine.weekends",
+  weekly: "taskDetail.routine.weekly",
+  biweekly: "taskDetail.routine.biweekly",
+  monthly: "taskDetail.routine.monthly",
+  quarterly: "taskDetail.routine.quarterly",
+  biannually: "taskDetail.routine.biannually",
+  yearly: "taskDetail.routine.yearly",
+  custom: "taskDetail.routine.custom",
 };
 
 const STYLE_COLOR_LABEL_KEY_BY_HEX: Record<string, string> = {
-  '#34C759': 'taskCreate.color.green',
-  '#0A84FF': 'taskCreate.color.blue',
-  '#FF9500': 'taskCreate.color.orange',
-  '#FF3B30': 'taskCreate.color.red',
-  '#AF52DE': 'taskCreate.color.purple',
-  '#5E5CE6': 'taskCreate.color.indigo',
-  '#32D74B': 'taskCreate.color.mint',
-  '#FFD60A': 'taskCreate.color.yellow',
-  '#64D2FF': 'taskCreate.color.cyan',
-  '#FF2D55': 'taskCreate.color.pink',
-  '#8E8E93': 'taskCreate.color.gray',
-  '#1C1C1E': 'taskCreate.color.black',
+  "#34C759": "taskCreate.color.green",
+  "#0A84FF": "taskCreate.color.blue",
+  "#FF9500": "taskCreate.color.orange",
+  "#FF3B30": "taskCreate.color.red",
+  "#AF52DE": "taskCreate.color.purple",
+  "#5E5CE6": "taskCreate.color.indigo",
+  "#32D74B": "taskCreate.color.mint",
+  "#FFD60A": "taskCreate.color.yellow",
+  "#64D2FF": "taskCreate.color.cyan",
+  "#FF2D55": "taskCreate.color.pink",
+  "#8E8E93": "taskCreate.color.gray",
+  "#1C1C1E": "taskCreate.color.black",
 };
 
 const toLegacyRoutineInterval = (type: RoutineType) => {
   switch (type) {
-    case 'daily':
-    case 'weekly':
-    case 'monthly':
-    case 'yearly':
+    case "daily":
+    case "weekly":
+    case "monthly":
+    case "yearly":
       return type;
     default:
       return undefined;
@@ -110,46 +123,51 @@ const toLegacyRoutineInterval = (type: RoutineType) => {
 };
 
 const normalizeComposerLocation = (value: string | undefined) =>
-  (value ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+  (value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
 
-const getSuggestionTimeValue = (hours: number, minutes: number) => hours * 60 + minutes;
+const getSuggestionTimeValue = (hours: number, minutes: number) =>
+  hours * 60 + minutes;
 
-const mergeOriginalInputIntoNotes = (originalInput: string, existingNotes?: string) => {
+const mergeOriginalInputIntoNotes = (
+  originalInput: string,
+  existingNotes?: string,
+) => {
   const normalizedOriginal = originalInput.trim();
-  const normalizedExisting = existingNotes?.trim() ?? '';
+  const normalizedExisting = existingNotes?.trim() ?? "";
   if (!normalizedOriginal) return normalizedExisting || undefined;
   if (!normalizedExisting) return normalizedOriginal;
   if (normalizedExisting === normalizedOriginal) return normalizedExisting;
-  if (normalizedExisting.startsWith(`${normalizedOriginal}\n`)) return normalizedExisting;
+  if (normalizedExisting.startsWith(`${normalizedOriginal}\n`))
+    return normalizedExisting;
   return `${normalizedOriginal}\n\n${normalizedExisting}`;
 };
 
 const formatComposerDateLabel = (dueAt: number) => {
-  if (!hasValidDueAt(dueAt)) return '';
+  if (!hasValidDueAt(dueAt)) return "";
 
   if (isSameLocalDay(dueAt, Date.now())) {
-    return t('taskDetail.relative.today');
+    return t("taskDetail.relative.today");
   }
 
   const tomorrowStart = new Date(getStartOfLocalDayMs());
   tomorrowStart.setDate(tomorrowStart.getDate() + 1);
   if (isSameLocalDay(dueAt, tomorrowStart)) {
-    return t('taskDetail.relative.tomorrow');
+    return t("taskDetail.relative.tomorrow");
   }
 
   return formatDate(dueAt, {
-    weekday: 'short',
-    day: '2-digit',
-    month: 'short',
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
   });
 };
 
 const formatComposerTimeLabel = (dueAt: number) => {
-  if (!hasValidDueAt(dueAt)) return '';
+  if (!hasValidDueAt(dueAt)) return "";
 
   return formatDate(dueAt, {
-    hour: '2-digit',
-    minute: '2-digit',
+    hour: "2-digit",
+    minute: "2-digit",
   });
 };
 
@@ -166,7 +184,7 @@ export default function CreateTaskModal() {
     preset?: string | string[];
     dateStart?: string | string[];
   }>();
-  const theme = useColorScheme() ?? 'light';
+  const theme = useColorScheme() ?? "light";
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   const isFocused = useIsFocused();
@@ -180,34 +198,42 @@ export default function CreateTaskModal() {
 
   const { tasks, projects, setTasks } = useTasksStore();
   const routeDraftId = React.useMemo(() => {
-    const rawDraftId = Array.isArray(draftIdParam) ? draftIdParam[0] : draftIdParam;
-    if (typeof rawDraftId !== 'string') return '';
+    const rawDraftId = Array.isArray(draftIdParam)
+      ? draftIdParam[0]
+      : draftIdParam;
+    if (typeof rawDraftId !== "string") return "";
     return rawDraftId.trim();
   }, [draftIdParam]);
   const routeProjectId = React.useMemo(() => {
-    const rawRouteProjectId = Array.isArray(projectIdParam) ? projectIdParam[0] : projectIdParam;
-    if (typeof rawRouteProjectId !== 'string') return '';
+    const rawRouteProjectId = Array.isArray(projectIdParam)
+      ? projectIdParam[0]
+      : projectIdParam;
+    if (typeof rawRouteProjectId !== "string") return "";
     return rawRouteProjectId.trim();
   }, [projectIdParam]);
   const routePreset = React.useMemo(() => {
     const rawPreset = Array.isArray(presetParam) ? presetParam[0] : presetParam;
-    if (typeof rawPreset !== 'string') return '';
+    if (typeof rawPreset !== "string") return "";
     return rawPreset.trim().toLowerCase();
   }, [presetParam]);
   const routePresetDateStart = React.useMemo(() => {
-    const rawDateStart = Array.isArray(dateStartParam) ? dateStartParam[0] : dateStartParam;
-    if (typeof rawDateStart !== 'string') return 0;
+    const rawDateStart = Array.isArray(dateStartParam)
+      ? dateStartParam[0]
+      : dateStartParam;
+    if (typeof rawDateStart !== "string") return 0;
     const parsed = Number.parseInt(rawDateStart.trim(), 10);
     if (!Number.isFinite(parsed) || parsed <= 0) return 0;
     return getStartOfLocalDayMs(parsed);
   }, [dateStartParam]);
   const shouldPresetRoutine =
-    routePreset === 'routine' || routePreset === 'routines' || taskCreateMode === 'routine';
+    routePreset === "routine" ||
+    routePreset === "routines" ||
+    taskCreateMode === "routine";
   const shouldPresetToday =
-    routePreset === 'today' ||
+    routePreset === "today" ||
     routePresetDateStart > 0 ||
     presetDateStart > 0 ||
-    taskCreateMode === 'today';
+    taskCreateMode === "today";
   const todayPresetDateStart = React.useMemo(() => {
     if (routePresetDateStart > 0) return routePresetDateStart;
     if (presetDateStart > 0) return getStartOfLocalDayMs(presetDateStart);
@@ -217,20 +243,23 @@ export default function CreateTaskModal() {
   const routeProjectIdIsValid = React.useMemo(
     () =>
       routeProjectId.length > 0 &&
-      projects.some((project) => project.id === routeProjectId && !project.deletedAt),
-    [projects, routeProjectId]
+      projects.some(
+        (project) => project.id === routeProjectId && !project.deletedAt,
+      ),
+    [projects, routeProjectId],
   );
   const initialProjectId = React.useMemo(() => {
     if (routeProjectIdIsValid) return routeProjectId;
 
     const normalizedFocusedProjectId =
-      typeof focusedProjectId === 'string' ? focusedProjectId.trim() : '';
-    if (!normalizedFocusedProjectId) return '';
+      typeof focusedProjectId === "string" ? focusedProjectId.trim() : "";
+    if (!normalizedFocusedProjectId) return "";
 
     const focusedProjectExists = projects.some(
-      (project) => project.id === normalizedFocusedProjectId && !project.deletedAt
+      (project) =>
+        project.id === normalizedFocusedProjectId && !project.deletedAt,
     );
-    return focusedProjectExists ? normalizedFocusedProjectId : '';
+    return focusedProjectExists ? normalizedFocusedProjectId : "";
   }, [focusedProjectId, projects, routeProjectId, routeProjectIdIsValid]);
   const initialDraftDueAt = React.useMemo(() => {
     if (!shouldPresetToday || todayPresetDateStart <= 0) return 0;
@@ -239,13 +268,16 @@ export default function CreateTaskModal() {
     });
   }, [shouldPresetToday, todayPresetDateStart]);
   const initialDraftSection = React.useMemo<SectionId>(() => {
-    if (!hasValidDueAt(initialDraftDueAt)) return 'upcoming';
+    if (!hasValidDueAt(initialDraftDueAt)) return "upcoming";
     return deriveActiveSectionFromDueAt(initialDraftDueAt);
   }, [initialDraftDueAt]);
 
-  const [title, setTitle] = React.useState('');
-  const [dismissedSuggestionKeys, setDismissedSuggestionKeys] = React.useState<string[]>([]);
-  const [appliedRegexSuggestions, setAppliedRegexSuggestions] = React.useState<RegexAppliedSuggestions>({});
+  const [title, setTitle] = React.useState("");
+  const [dismissedSuggestionKeys, setDismissedSuggestionKeys] = React.useState<
+    string[]
+  >([]);
+  const [appliedRegexSuggestions, setAppliedRegexSuggestions] =
+    React.useState<RegexAppliedSuggestions>({});
   const [isMenuExpanded, setMenuExpanded] = React.useState(false);
   const trimmed = title.trim();
   const hasTitle = trimmed.length > 0;
@@ -258,7 +290,9 @@ export default function CreateTaskModal() {
   const isCreatedRef = React.useRef(false);
   const isNavigatingToChildModalRef = React.useRef(false);
   const isSyncingDraftRouteParamRef = React.useRef(false);
-  const draftRouteParamSyncTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draftRouteParamSyncTimeoutRef = React.useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
   const draftTask = React.useMemo<Task | undefined>(() => {
     const draftId = draftIdRef.current ?? routeDraftId;
     if (!draftId) return undefined;
@@ -317,28 +351,34 @@ export default function CreateTaskModal() {
     };
   }, [routeDraftId, setTasks]);
 
-  const persistDraftIdParam = React.useCallback((draftId: string) => {
-    isSyncingDraftRouteParamRef.current = true;
-    if (draftRouteParamSyncTimeoutRef.current != null) {
-      clearTimeout(draftRouteParamSyncTimeoutRef.current);
-      draftRouteParamSyncTimeoutRef.current = null;
-    }
-    draftRouteParamSyncTimeoutRef.current = setTimeout(() => {
-      isSyncingDraftRouteParamRef.current = false;
-      draftRouteParamSyncTimeoutRef.current = null;
-    }, 1200);
-    const applyParam = () => {
-      try {
-        router.setParams({ draftId });
-      } catch (error) {
-        if (__DEV__) {
-          console.warn('[task/create-modal] Could not persist draftId route param yet.', error);
-        }
+  const persistDraftIdParam = React.useCallback(
+    (draftId: string) => {
+      isSyncingDraftRouteParamRef.current = true;
+      if (draftRouteParamSyncTimeoutRef.current != null) {
+        clearTimeout(draftRouteParamSyncTimeoutRef.current);
+        draftRouteParamSyncTimeoutRef.current = null;
       }
-    };
+      draftRouteParamSyncTimeoutRef.current = setTimeout(() => {
+        isSyncingDraftRouteParamRef.current = false;
+        draftRouteParamSyncTimeoutRef.current = null;
+      }, 1200);
+      const applyParam = () => {
+        try {
+          router.setParams({ draftId });
+        } catch (error) {
+          if (__DEV__) {
+            console.warn(
+              "[task/create-modal] Could not persist draftId route param yet.",
+              error,
+            );
+          }
+        }
+      };
 
-    requestAnimationFrame(applyParam);
-  }, [router]);
+      requestAnimationFrame(applyParam);
+    },
+    [router],
+  );
 
   const ensureDraftTask = React.useCallback(() => {
     const upsertHiddenDraftTask = (id: string) => {
@@ -347,8 +387,8 @@ export default function CreateTaskModal() {
         return [
           {
             id,
-            title: title || '',
-            emoji: '📝',
+            title: title || "",
+            emoji: "📝",
             projectId: initialProjectId,
             dueAt: initialDraftDueAt,
             dueHasTime: hasValidDueAt(initialDraftDueAt),
@@ -380,7 +420,16 @@ export default function CreateTaskModal() {
     persistDraftIdParam(nextId);
 
     return nextId;
-  }, [initialDraftDueAt, initialDraftSection, initialProjectId, persistDraftIdParam, routeDraftId, setTasks, tasks, title]);
+  }, [
+    initialDraftDueAt,
+    initialDraftSection,
+    initialProjectId,
+    persistDraftIdParam,
+    routeDraftId,
+    setTasks,
+    tasks,
+    title,
+  ]);
 
   const didInitRoutinePresetRef = React.useRef(false);
   React.useEffect(() => {
@@ -392,17 +441,17 @@ export default function CreateTaskModal() {
       prev.map((task) =>
         task.id === draftId
           ? {
-            ...task,
-            isRoutine: true,
-            routineType: undefined,
-            routineInterval: undefined,
-            routineWeekday: undefined,
-            routineNthWeek: undefined,
-            routineMonthDay: undefined,
-            routineMonth: undefined,
-          }
-          : task
-      )
+              ...task,
+              isRoutine: true,
+              routineType: undefined,
+              routineInterval: undefined,
+              routineWeekday: undefined,
+              routineNthWeek: undefined,
+              routineMonthDay: undefined,
+              routineMonth: undefined,
+            }
+          : task,
+      ),
     );
   }, [ensureDraftTask, setTasks, shouldPresetRoutine]);
 
@@ -414,7 +463,7 @@ export default function CreateTaskModal() {
     const draftId = ensureDraftTask();
     const dueAt = alignDueAtToLocalDay(
       todayPresetDateStart > 0 ? todayPresetDateStart : getStartOfLocalDayMs(),
-      { keepTime: false }
+      { keepTime: false },
     );
     setTasks((prev) =>
       prev.map((task) =>
@@ -425,8 +474,8 @@ export default function CreateTaskModal() {
               dueHasTime: false,
               section: deriveActiveSectionFromDueAt(dueAt),
             }
-          : task
-      )
+          : task,
+      ),
     );
   }, [ensureDraftTask, setTasks, shouldPresetToday, todayPresetDateStart]);
 
@@ -435,7 +484,11 @@ export default function CreateTaskModal() {
   const isUpdatingRef = React.useRef(false);
   React.useEffect(() => {
     if (draftIdRef.current && !isUpdatingRef.current) {
-      setTasks(prev => prev.map(t => t.id === draftIdRef.current ? { ...t, title: title } : t));
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === draftIdRef.current ? { ...t, title: title } : t,
+        ),
+      );
     }
   }, [title, setTasks]);
 
@@ -452,103 +505,127 @@ export default function CreateTaskModal() {
   const actions = React.useMemo<ComposerAction[]>(() => {
     return [
       {
-        id: 'date',
-        title: t('taskCreate.menu.date'),
-        icon: 'event',
-        accentColor: '#4D7CFF',
+        id: "date",
+        title: t("taskCreate.menu.date"),
+        icon: "event",
+        accentColor: "#4D7CFF",
       },
       {
-        id: 'style',
-        title: t('taskCreate.menu.style'),
-        icon: 'palette',
-        accentColor: '#B56CFF',
+        id: "style",
+        title: t("taskCreate.menu.style"),
+        icon: "palette",
+        accentColor: "#B56CFF",
       },
       {
-        id: 'location',
-        title: t('taskCreate.menu.location'),
-        icon: 'location-on',
-        accentColor: '#34C759',
+        id: "location",
+        title: t("taskCreate.menu.location"),
+        icon: "location-on",
+        accentColor: "#34C759",
       },
       {
-        id: 'routine',
-        title: t('taskCreate.menu.routine'),
-        icon: 'autorenew',
-        accentColor: '#FF9F0A',
+        id: "routine",
+        title: t("taskCreate.menu.routine"),
+        icon: "autorenew",
+        accentColor: "#FF9F0A",
       },
       {
-        id: 'project',
-        title: t('taskCreate.menu.project'),
-        icon: 'folder',
-        accentColor: '#5AC8FA',
+        id: "project",
+        title: t("taskCreate.menu.project"),
+        icon: "folder",
+        accentColor: "#5AC8FA",
       },
     ];
   }, []);
 
-  const runAction = React.useCallback((actionId: ComposerActionId) => {
-    const id = ensureDraftTask();
+  const runAction = React.useCallback(
+    (actionId: ComposerActionId) => {
+      const id = ensureDraftTask();
 
-    switch (actionId) {
-      case 'date':
-      case 'time':
-        isNavigatingToChildModalRef.current = true;
-        router.push({ pathname: '/task/date-picker', params: { taskId: id, draftId: id } });
-        break;
-      case 'style':
-        setAppliedRegexSuggestions((prev) => {
-          if (!prev.style) return prev;
-          const next = { ...prev };
-          delete next.style;
-          return next;
-        });
-        isNavigatingToChildModalRef.current = true;
-        router.push({ pathname: '/task/emoji-picker', params: { taskId: id, draftId: id } });
-        break;
-      case 'location':
-        isNavigatingToChildModalRef.current = true;
-        router.push({ pathname: '/task/location-picker', params: { taskId: id, draftId: id } });
-        break;
-      case 'routine':
-        const openRoutinePicker = () => {
+      switch (actionId) {
+        case "date":
+        case "time":
           isNavigatingToChildModalRef.current = true;
-          router.push({ pathname: '/task/routine-picker', params: { taskId: id, draftId: id } });
-        };
-        if (tasks.some((task) => task.id === id)) {
-          openRoutinePicker();
-        } else {
-          requestAnimationFrame(openRoutinePicker);
-        }
-        break;
-      case 'project':
-        isNavigatingToChildModalRef.current = true;
-        router.push({ pathname: '/task/project-picker', params: { taskId: id, draftId: id } });
-        break;
-    }
-  }, [ensureDraftTask, router, tasks]);
+          router.push({
+            pathname: "/task/date-picker",
+            params: { taskId: id, draftId: id },
+          });
+          break;
+        case "style":
+          setAppliedRegexSuggestions((prev) => {
+            if (!prev.style) return prev;
+            const next = { ...prev };
+            delete next.style;
+            return next;
+          });
+          isNavigatingToChildModalRef.current = true;
+          router.push({
+            pathname: "/task/emoji-picker",
+            params: { taskId: id, draftId: id },
+          });
+          break;
+        case "location":
+          isNavigatingToChildModalRef.current = true;
+          router.push({
+            pathname: "/task/location-picker",
+            params: { taskId: id, draftId: id },
+          });
+          break;
+        case "routine":
+          const openRoutinePicker = () => {
+            isNavigatingToChildModalRef.current = true;
+            router.push({
+              pathname: "/task/routine-picker",
+              params: { taskId: id, draftId: id },
+            });
+          };
+          if (tasks.some((task) => task.id === id)) {
+            openRoutinePicker();
+          } else {
+            requestAnimationFrame(openRoutinePicker);
+          }
+          break;
+        case "project":
+          isNavigatingToChildModalRef.current = true;
+          router.push({
+            pathname: "/task/project-picker",
+            params: { taskId: id, draftId: id },
+          });
+          break;
+      }
+    },
+    [ensureDraftTask, router, tasks],
+  );
 
-  const onActionPress = React.useCallback((actionId: ComposerActionId) => {
-    setMenuExpanded(false);
-    runAction(actionId);
-  }, [runAction]);
+  const onActionPress = React.useCallback(
+    (actionId: ComposerActionId) => {
+      setMenuExpanded(false);
+      runAction(actionId);
+    },
+    [runAction],
+  );
 
   const selectedRoutineType = draftTask?.isRoutine
     ? (draftTask.routineType ?? draftTask.routineInterval)
     : undefined;
-  const hasRoutineInterval = typeof selectedRoutineType === 'string' && selectedRoutineType.length > 0;
+  const hasRoutineInterval =
+    typeof selectedRoutineType === "string" && selectedRoutineType.length > 0;
   const requiresRoutineInterval = shouldPresetRoutine;
-  const canSubmit = hasTitle && (!requiresRoutineInterval || hasRoutineInterval);
+  const canSubmit =
+    hasTitle && (!requiresRoutineInterval || hasRoutineInterval);
   const selectedProjectId = draftTask ? draftTask.projectId : initialProjectId;
   const hasDraftTask = Boolean(draftTask);
-  const isProjectPinnedByRoute = routeProjectIdIsValid && selectedProjectId === routeProjectId;
+  const isProjectPinnedByRoute =
+    routeProjectIdIsValid && selectedProjectId === routeProjectId;
   const dismissedSuggestionKeySet = React.useMemo(
     () => new Set(dismissedSuggestionKeys),
-    [dismissedSuggestionKeys]
+    [dismissedSuggestionKeys],
   );
   const detectedTextSuggestions = React.useMemo(
     () =>
       detectTaskTextSuggestions(title, {
         projects,
       }),
-    [projects, title]
+    [projects, title],
   );
   const availableRegexSuggestions = React.useMemo(() => {
     const next: RegexAppliedSuggestions = {};
@@ -556,22 +633,22 @@ export default function CreateTaskModal() {
     for (const suggestion of detectedTextSuggestions) {
       if (dismissedSuggestionKeySet.has(suggestion.key)) continue;
       switch (suggestion.actionId) {
-        case 'date':
+        case "date":
           next.date = suggestion;
           break;
-        case 'time':
+        case "time":
           next.time = suggestion;
           break;
-        case 'style':
+        case "style":
           next.style = suggestion;
           break;
-        case 'location':
+        case "location":
           next.location = suggestion;
           break;
-        case 'project':
+        case "project":
           next.project = suggestion;
           break;
-        case 'routine':
+        case "routine":
           next.routine = suggestion;
           break;
       }
@@ -581,17 +658,26 @@ export default function CreateTaskModal() {
   }, [detectedTextSuggestions, dismissedSuggestionKeySet]);
   const availableStyleSuggestion = React.useMemo(() => {
     const styleSuggestion = availableRegexSuggestions.style;
-    return styleSuggestion?.actionId === 'style' ? styleSuggestion : undefined;
+    return styleSuggestion?.actionId === "style" ? styleSuggestion : undefined;
   }, [availableRegexSuggestions.style]);
   const pendingStyleSuggestion = React.useMemo(() => {
-    const currentEmoji = draftTask?.emoji?.trim() ?? '';
-    const hasCustomEmoji = currentEmoji.length > 0 && currentEmoji !== '📝';
-    if (!hasDraftTask || !hasCustomEmoji || appliedRegexSuggestions.style?.actionId === 'style') {
+    const currentEmoji = draftTask?.emoji?.trim() ?? "";
+    const hasCustomEmoji = currentEmoji.length > 0 && currentEmoji !== "📝";
+    if (
+      !hasDraftTask ||
+      !hasCustomEmoji ||
+      appliedRegexSuggestions.style?.actionId === "style"
+    ) {
       return availableStyleSuggestion;
     }
 
     return undefined;
-  }, [appliedRegexSuggestions.style, availableStyleSuggestion, draftTask?.emoji, hasDraftTask]);
+  }, [
+    appliedRegexSuggestions.style,
+    availableStyleSuggestion,
+    draftTask?.emoji,
+    hasDraftTask,
+  ]);
 
   const selectedTags = React.useMemo<ComposerSelectionTag[]>(() => {
     const tags: ComposerSelectionTag[] = [];
@@ -599,41 +685,43 @@ export default function CreateTaskModal() {
     if (draftTask) {
       if (draftTask.dueAt > 0) {
         tags.push({
-          key: 'date',
-          actionId: 'date',
+          key: "date",
+          actionId: "date",
           label: formatComposerDateLabel(draftTask.dueAt),
-          icon: 'event',
-          accentColor: '#4D7CFF',
+          icon: "event",
+          accentColor: "#4D7CFF",
           removable: true,
         });
 
         if (draftTask.dueHasTime === true) {
           tags.push({
-            key: 'time',
-            actionId: 'time',
+            key: "time",
+            actionId: "time",
             label: formatComposerTimeLabel(draftTask.dueAt),
-            icon: 'schedule',
-            accentColor: '#4D7CFF',
+            icon: "schedule",
+            accentColor: "#4D7CFF",
             removable: true,
           });
         }
       }
 
-      if (draftTask.emoji && (draftTask.emoji !== '📝' || !!draftTask.color)) {
-        const styleAccentColor = draftTask.color ? draftTask.color.toUpperCase() : '#B56CFF';
+      if (draftTask.emoji && (draftTask.emoji !== "📝" || !!draftTask.color)) {
+        const styleAccentColor = draftTask.color
+          ? draftTask.color.toUpperCase()
+          : "#B56CFF";
         const colorLabelKey = draftTask.color
           ? STYLE_COLOR_LABEL_KEY_BY_HEX[draftTask.color.toUpperCase()]
           : undefined;
         const styleParts = [
-          draftTask.emoji !== '📝' ? draftTask.emoji : '',
-          draftTask.color ? t(colorLabelKey ?? 'taskCreate.color.custom') : '',
+          draftTask.emoji !== "📝" ? draftTask.emoji : "",
+          draftTask.color ? t(colorLabelKey ?? "taskCreate.color.custom") : "",
         ].filter(Boolean);
 
         tags.push({
-          key: 'style',
-          actionId: 'style',
-          label: styleParts.join(' · '),
-          icon: 'palette',
+          key: "style",
+          actionId: "style",
+          label: styleParts.join(" · "),
+          icon: "palette",
           accentColor: styleAccentColor,
           removable: true,
         });
@@ -641,11 +729,11 @@ export default function CreateTaskModal() {
 
       if (draftTask.location?.trim()) {
         tags.push({
-          key: 'location',
-          actionId: 'location',
+          key: "location",
+          actionId: "location",
           label: draftTask.location.trim(),
-          icon: 'location-on',
-          accentColor: '#34C759',
+          icon: "location-on",
+          accentColor: "#34C759",
           removable: true,
         });
       }
@@ -656,11 +744,11 @@ export default function CreateTaskModal() {
       if (routineType) {
         const key = ROUTINE_LABEL_KEY_BY_TYPE[routineType as RoutineType];
         tags.push({
-          key: 'routine',
-          actionId: 'routine',
+          key: "routine",
+          actionId: "routine",
           label: t(key),
-          icon: 'autorenew',
-          accentColor: '#FF9F0A',
+          icon: "autorenew",
+          accentColor: "#FF9F0A",
           removable: true,
         });
       }
@@ -668,29 +756,38 @@ export default function CreateTaskModal() {
 
     if (shouldPresetRoutine && !hasRoutineInterval) {
       tags.push({
-        key: 'routine',
-        actionId: 'routine',
-        label: t('taskCreate.routine.chooseInterval'),
-        icon: 'autorenew',
-        accentColor: '#FF9F0A',
+        key: "routine",
+        actionId: "routine",
+        label: t("taskCreate.routine.chooseInterval"),
+        icon: "autorenew",
+        accentColor: "#FF9F0A",
         removable: false,
       });
     }
 
     if (selectedProjectId) {
-      const project = projects.find((candidate) => candidate.id === selectedProjectId);
+      const project = projects.find(
+        (candidate) => candidate.id === selectedProjectId,
+      );
       tags.push({
-        key: 'project',
-        actionId: 'project',
-        label: project?.name?.trim() || t('taskCreate.menu.project'),
-        icon: 'folder',
-        accentColor: project?.color ?? '#5AC8FA',
+        key: "project",
+        actionId: "project",
+        label: project?.name?.trim() || t("taskCreate.menu.project"),
+        icon: "folder",
+        accentColor: project?.color ?? "#5AC8FA",
         removable: !isProjectPinnedByRoute,
       });
     }
 
     return tags;
-  }, [draftTask, hasRoutineInterval, isProjectPinnedByRoute, projects, selectedProjectId, shouldPresetRoutine]);
+  }, [
+    draftTask,
+    hasRoutineInterval,
+    isProjectPinnedByRoute,
+    projects,
+    selectedProjectId,
+    shouldPresetRoutine,
+  ]);
 
   React.useEffect(() => {
     setAppliedRegexSuggestions((prev) => {
@@ -698,45 +795,54 @@ export default function CreateTaskModal() {
       const next: RegexAppliedSuggestions = { ...prev };
 
       if (
-        prev.date?.actionId === 'date' &&
-        (!hasValidDueAt(draftTask?.dueAt) || !isSameLocalDay(draftTask.dueAt, prev.date.dayStartMs))
+        prev.date?.actionId === "date" &&
+        (!hasValidDueAt(draftTask?.dueAt) ||
+          !isSameLocalDay(draftTask.dueAt, prev.date.dayStartMs))
       ) {
         delete next.date;
         didChange = true;
       }
 
       if (
-        prev.time?.actionId === 'time' &&
-        (
-          !hasValidDueAt(draftTask?.dueAt) ||
+        prev.time?.actionId === "time" &&
+        (!hasValidDueAt(draftTask?.dueAt) ||
           draftTask?.dueHasTime !== true ||
           new Date(draftTask.dueAt).getHours() !== prev.time.hours ||
-          new Date(draftTask.dueAt).getMinutes() !== prev.time.minutes
-        )
+          new Date(draftTask.dueAt).getMinutes() !== prev.time.minutes)
       ) {
         delete next.time;
         didChange = true;
       }
 
       if (
-        prev.location?.actionId === 'location' &&
-        normalizeComposerLocation(draftTask?.location) !== normalizeComposerLocation(prev.location.location)
+        prev.location?.actionId === "location" &&
+        normalizeComposerLocation(draftTask?.location) !==
+          normalizeComposerLocation(prev.location.location)
       ) {
         delete next.location;
         didChange = true;
       }
 
-      if (prev.project?.actionId === 'project' && selectedProjectId !== prev.project.projectId) {
+      if (
+        prev.project?.actionId === "project" &&
+        selectedProjectId !== prev.project.projectId
+      ) {
         delete next.project;
         didChange = true;
       }
 
-      if (prev.routine?.actionId === 'routine' && selectedRoutineType !== prev.routine.routineType) {
+      if (
+        prev.routine?.actionId === "routine" &&
+        selectedRoutineType !== prev.routine.routineType
+      ) {
         delete next.routine;
         didChange = true;
       }
 
-      if (prev.style?.actionId === 'style' && draftTask?.emoji !== prev.style.emoji) {
+      if (
+        prev.style?.actionId === "style" &&
+        draftTask?.emoji !== prev.style.emoji
+      ) {
         delete next.style;
         didChange = true;
       }
@@ -754,30 +860,30 @@ export default function CreateTaskModal() {
 
   React.useEffect(() => {
     const appliedStyleSuggestion = appliedRegexSuggestions.style;
-    if (appliedStyleSuggestion?.actionId !== 'style') return;
+    if (appliedStyleSuggestion?.actionId !== "style") return;
 
-    const currentEmoji = draftTask?.emoji?.trim() ?? '';
+    const currentEmoji = draftTask?.emoji?.trim() ?? "";
     if (!currentEmoji || currentEmoji !== appliedStyleSuggestion.emoji) return;
     if (availableStyleSuggestion?.key === appliedStyleSuggestion.key) return;
 
     const draftId = draftIdRef.current;
     if (!draftId) return;
 
-    const nextEmoji = availableStyleSuggestion?.emoji ?? '📝';
+    const nextEmoji = availableStyleSuggestion?.emoji ?? "📝";
     setTasks((prev) =>
-      prev.map((task) => (
+      prev.map((task) =>
         task.id === draftId
           ? {
-            ...task,
-            emoji: nextEmoji,
-          }
-          : task
-      ))
+              ...task,
+              emoji: nextEmoji,
+            }
+          : task,
+      ),
     );
 
     setAppliedRegexSuggestions((prev) => {
-      if (prev.style?.actionId !== 'style') return prev;
-      if (availableStyleSuggestion?.actionId === 'style') {
+      if (prev.style?.actionId !== "style") return prev;
+      if (availableStyleSuggestion?.actionId === "style") {
         return {
           ...prev,
           style: availableStyleSuggestion,
@@ -795,10 +901,13 @@ export default function CreateTaskModal() {
     setTasks,
   ]);
 
-  const onTagPress = React.useCallback((actionId: ComposerActionId) => {
-    setMenuExpanded(false);
-    runAction(actionId);
-  }, [runAction]);
+  const onTagPress = React.useCallback(
+    (actionId: ComposerActionId) => {
+      setMenuExpanded(false);
+      runAction(actionId);
+    },
+    [runAction],
+  );
 
   React.useEffect(() => {
     const nextDateSuggestion = availableRegexSuggestions.date;
@@ -818,7 +927,9 @@ export default function CreateTaskModal() {
     if (!hasAnySuggestion) return;
 
     const todayPresetDayStart = shouldPresetToday
-      ? getStartOfLocalDayMs(todayPresetDateStart > 0 ? todayPresetDateStart : Date.now())
+      ? getStartOfLocalDayMs(
+          todayPresetDateStart > 0 ? todayPresetDateStart : Date.now(),
+        )
       : 0;
     const currentDayStart = hasValidDueAt(draftTask?.dueAt)
       ? getStartOfLocalDayMs(draftTask.dueAt)
@@ -826,61 +937,57 @@ export default function CreateTaskModal() {
     const hasDate = hasValidDueAt(draftTask?.dueAt);
     const currentTimeValue =
       hasDate && draftTask?.dueHasTime === true
-        ? getSuggestionTimeValue(new Date(draftTask.dueAt).getHours(), new Date(draftTask.dueAt).getMinutes())
+        ? getSuggestionTimeValue(
+            new Date(draftTask.dueAt).getHours(),
+            new Date(draftTask.dueAt).getMinutes(),
+          )
         : null;
 
     const shouldApplyDate =
-      nextDateSuggestion?.actionId === 'date' &&
-      (
-        !hasDate ||
-        appliedRegexSuggestions.date?.actionId === 'date' ||
-        (todayPresetDayStart > 0 && currentDayStart === todayPresetDayStart)
-      ) &&
+      nextDateSuggestion?.actionId === "date" &&
+      (!hasDate ||
+        appliedRegexSuggestions.date?.actionId === "date" ||
+        (todayPresetDayStart > 0 && currentDayStart === todayPresetDayStart)) &&
       currentDayStart !== nextDateSuggestion.dayStartMs;
 
     const shouldApplyTime =
-      nextTimeSuggestion?.actionId === 'time' &&
-      (
-        !hasDate ||
+      nextTimeSuggestion?.actionId === "time" &&
+      (!hasDate ||
         draftTask?.dueHasTime !== true ||
-        appliedRegexSuggestions.time?.actionId === 'time'
-      ) &&
-      currentTimeValue !== getSuggestionTimeValue(nextTimeSuggestion.hours, nextTimeSuggestion.minutes);
+        appliedRegexSuggestions.time?.actionId === "time") &&
+      currentTimeValue !==
+        getSuggestionTimeValue(
+          nextTimeSuggestion.hours,
+          nextTimeSuggestion.minutes,
+        );
 
     const shouldApplyStyle =
-      nextStyleSuggestion?.actionId === 'style' &&
-      (
-        !draftTask?.emoji ||
-        draftTask.emoji === '📝' ||
-        appliedRegexSuggestions.style?.actionId === 'style'
-      ) &&
+      nextStyleSuggestion?.actionId === "style" &&
+      (!draftTask?.emoji ||
+        draftTask.emoji === "📝" ||
+        appliedRegexSuggestions.style?.actionId === "style") &&
       draftTask?.emoji !== nextStyleSuggestion.emoji;
 
     const shouldApplyLocation =
-      nextLocationSuggestion?.actionId === 'location' &&
-      (
-        !draftTask?.location?.trim() ||
-        appliedRegexSuggestions.location?.actionId === 'location'
-      ) &&
-      normalizeComposerLocation(draftTask?.location) !== normalizeComposerLocation(nextLocationSuggestion.location);
+      nextLocationSuggestion?.actionId === "location" &&
+      (!draftTask?.location?.trim() ||
+        appliedRegexSuggestions.location?.actionId === "location") &&
+      normalizeComposerLocation(draftTask?.location) !==
+        normalizeComposerLocation(nextLocationSuggestion.location);
 
     const shouldApplyProject =
-      nextProjectSuggestion?.actionId === 'project' &&
+      nextProjectSuggestion?.actionId === "project" &&
       !isProjectPinnedByRoute &&
-      (
-        !selectedProjectId ||
+      (!selectedProjectId ||
         selectedProjectId === initialProjectId ||
-        appliedRegexSuggestions.project?.actionId === 'project'
-      ) &&
+        appliedRegexSuggestions.project?.actionId === "project") &&
       selectedProjectId !== nextProjectSuggestion.projectId;
 
     const shouldApplyRoutine =
-      nextRoutineSuggestion?.actionId === 'routine' &&
-      (
-        !selectedRoutineType ||
+      nextRoutineSuggestion?.actionId === "routine" &&
+      (!selectedRoutineType ||
         (shouldPresetRoutine && !hasRoutineInterval) ||
-        appliedRegexSuggestions.routine?.actionId === 'routine'
-      ) &&
+        appliedRegexSuggestions.routine?.actionId === "routine") &&
       selectedRoutineType !== nextRoutineSuggestion.routineType;
 
     if (
@@ -902,64 +1009,85 @@ export default function CreateTaskModal() {
 
         let nextTask = task;
 
-        if (shouldApplyDate && nextDateSuggestion?.actionId === 'date') {
-          const nextDueAt = alignDueAtToLocalDay(nextDateSuggestion.dayStartMs, {
-            keepTime: nextTask.dueHasTime === true,
-            sourceDueAt: nextTask.dueAt,
-          });
+        if (shouldApplyDate && nextDateSuggestion?.actionId === "date") {
+          const nextDueAt = alignDueAtToLocalDay(
+            nextDateSuggestion.dayStartMs,
+            {
+              keepTime: nextTask.dueHasTime === true,
+              sourceDueAt: nextTask.dueAt,
+            },
+          );
           nextTask = {
             ...nextTask,
             dueAt: nextDueAt,
             dueHasTime: nextTask.dueHasTime === true,
-            section: nextTask.section === 'completed'
-              ? nextTask.section
-              : deriveActiveSectionFromDueAt(nextDueAt),
+            section:
+              nextTask.section === "completed"
+                ? nextTask.section
+                : deriveActiveSectionFromDueAt(nextDueAt),
           };
         }
 
-        if (shouldApplyTime && nextTimeSuggestion?.actionId === 'time') {
+        if (shouldApplyTime && nextTimeSuggestion?.actionId === "time") {
           const baseDayStart = hasValidDueAt(nextTask.dueAt)
             ? getStartOfLocalDayMs(nextTask.dueAt)
             : getStartOfLocalDayMs();
           const nextDueAt = new Date(baseDayStart);
-          nextDueAt.setHours(nextTimeSuggestion.hours, nextTimeSuggestion.minutes, 0, 0);
+          nextDueAt.setHours(
+            nextTimeSuggestion.hours,
+            nextTimeSuggestion.minutes,
+            0,
+            0,
+          );
           nextTask = {
             ...nextTask,
             dueAt: nextDueAt.getTime(),
             dueHasTime: true,
-            section: nextTask.section === 'completed'
-              ? nextTask.section
-              : deriveActiveSectionFromDueAt(nextDueAt.getTime()),
+            section:
+              nextTask.section === "completed"
+                ? nextTask.section
+                : deriveActiveSectionFromDueAt(nextDueAt.getTime()),
           };
         }
 
-        if (shouldApplyStyle && nextStyleSuggestion?.actionId === 'style') {
+        if (shouldApplyStyle && nextStyleSuggestion?.actionId === "style") {
           nextTask = {
             ...nextTask,
             emoji: nextStyleSuggestion.emoji,
           };
         }
 
-        if (shouldApplyLocation && nextLocationSuggestion?.actionId === 'location') {
+        if (
+          shouldApplyLocation &&
+          nextLocationSuggestion?.actionId === "location"
+        ) {
           nextTask = {
             ...nextTask,
             location: nextLocationSuggestion.location,
           };
         }
 
-        if (shouldApplyProject && nextProjectSuggestion?.actionId === 'project') {
+        if (
+          shouldApplyProject &&
+          nextProjectSuggestion?.actionId === "project"
+        ) {
           nextTask = {
             ...nextTask,
             projectId: nextProjectSuggestion.projectId,
           };
         }
 
-        if (shouldApplyRoutine && nextRoutineSuggestion?.actionId === 'routine') {
+        if (
+          shouldApplyRoutine &&
+          nextRoutineSuggestion?.actionId === "routine"
+        ) {
           nextTask = {
             ...nextTask,
             isRoutine: true,
             routineType: nextRoutineSuggestion.routineType,
-            routineInterval: toLegacyRoutineInterval(nextRoutineSuggestion.routineType),
+            routineInterval: toLegacyRoutineInterval(
+              nextRoutineSuggestion.routineType,
+            ),
             routineWeekday: undefined,
             routineNthWeek: undefined,
             routineMonthDay: undefined,
@@ -968,17 +1096,29 @@ export default function CreateTaskModal() {
         }
 
         return nextTask;
-      })
+      }),
     );
 
     setAppliedRegexSuggestions((prev) => ({
       ...prev,
-      ...(shouldApplyDate && nextDateSuggestion?.actionId === 'date' ? { date: nextDateSuggestion } : {}),
-      ...(shouldApplyTime && nextTimeSuggestion?.actionId === 'time' ? { time: nextTimeSuggestion } : {}),
-      ...(shouldApplyStyle && nextStyleSuggestion?.actionId === 'style' ? { style: nextStyleSuggestion } : {}),
-      ...(shouldApplyLocation && nextLocationSuggestion?.actionId === 'location' ? { location: nextLocationSuggestion } : {}),
-      ...(shouldApplyProject && nextProjectSuggestion?.actionId === 'project' ? { project: nextProjectSuggestion } : {}),
-      ...(shouldApplyRoutine && nextRoutineSuggestion?.actionId === 'routine' ? { routine: nextRoutineSuggestion } : {}),
+      ...(shouldApplyDate && nextDateSuggestion?.actionId === "date"
+        ? { date: nextDateSuggestion }
+        : {}),
+      ...(shouldApplyTime && nextTimeSuggestion?.actionId === "time"
+        ? { time: nextTimeSuggestion }
+        : {}),
+      ...(shouldApplyStyle && nextStyleSuggestion?.actionId === "style"
+        ? { style: nextStyleSuggestion }
+        : {}),
+      ...(shouldApplyLocation && nextLocationSuggestion?.actionId === "location"
+        ? { location: nextLocationSuggestion }
+        : {}),
+      ...(shouldApplyProject && nextProjectSuggestion?.actionId === "project"
+        ? { project: nextProjectSuggestion }
+        : {}),
+      ...(shouldApplyRoutine && nextRoutineSuggestion?.actionId === "routine"
+        ? { routine: nextRoutineSuggestion }
+        : {}),
     }));
   }, [
     appliedRegexSuggestions.date,
@@ -1011,96 +1151,103 @@ export default function CreateTaskModal() {
 
   const dismissSuggestion = React.useCallback((suggestionKey: string) => {
     setDismissedSuggestionKeys((prev) =>
-      prev.includes(suggestionKey) ? prev : [...prev, suggestionKey]
+      prev.includes(suggestionKey) ? prev : [...prev, suggestionKey],
     );
   }, []);
 
-  const onTagRemove = React.useCallback((actionId: ComposerActionId) => {
-    const draftId = draftIdRef.current;
-    if (!draftId) return;
+  const onTagRemove = React.useCallback(
+    (actionId: ComposerActionId) => {
+      const draftId = draftIdRef.current;
+      if (!draftId) return;
 
-    setMenuExpanded(false);
-    const appliedSuggestion = appliedRegexSuggestions[actionId as RegexManagedActionId];
-    if (appliedSuggestion) {
-      dismissSuggestion(appliedSuggestion.key);
-      setAppliedRegexSuggestions((prev) => {
-        const next = { ...prev };
-        delete next[actionId as RegexManagedActionId];
-        if (actionId === 'date') {
-          delete next.time;
-        }
-        return next;
-      });
-    }
-    setTasks((prev) =>
-      prev.map((task) => {
-        if (task.id !== draftId) return task;
+      setMenuExpanded(false);
+      const appliedSuggestion =
+        appliedRegexSuggestions[actionId as RegexManagedActionId];
+      if (appliedSuggestion) {
+        dismissSuggestion(appliedSuggestion.key);
+        setAppliedRegexSuggestions((prev) => {
+          const next = { ...prev };
+          delete next[actionId as RegexManagedActionId];
+          if (actionId === "date") {
+            delete next.time;
+          }
+          return next;
+        });
+      }
+      setTasks((prev) =>
+        prev.map((task) => {
+          if (task.id !== draftId) return task;
 
-        switch (actionId) {
-          case 'date':
-            return {
-              ...task,
-              dueAt: 0,
-              dueHasTime: false,
-            };
-          case 'time':
-            if (!hasValidDueAt(task.dueAt)) return task;
-            return {
-              ...task,
-              dueAt: alignDueAtToLocalDay(task.dueAt, {
-                keepTime: false,
-              }),
-              dueHasTime: false,
-            };
-          case 'style':
-            return {
-              ...task,
-              emoji: '📝',
-              color: undefined,
-            };
-          case 'location':
-            return {
-              ...task,
-              location: undefined,
-            };
-          case 'routine':
-            return {
-              ...task,
-              isRoutine: false,
-              routineType: undefined,
-              routineInterval: undefined,
-              routineWeekday: undefined,
-              routineNthWeek: undefined,
-              routineMonthDay: undefined,
-              routineMonth: undefined,
-            };
-          case 'project':
-            return {
-              ...task,
-              projectId: '',
-            };
-        }
-      })
-    );
-  }, [appliedRegexSuggestions, dismissSuggestion, setTasks]);
+          switch (actionId) {
+            case "date":
+              return {
+                ...task,
+                dueAt: 0,
+                dueHasTime: false,
+              };
+            case "time":
+              if (!hasValidDueAt(task.dueAt)) return task;
+              return {
+                ...task,
+                dueAt: alignDueAtToLocalDay(task.dueAt, {
+                  keepTime: false,
+                }),
+                dueHasTime: false,
+              };
+            case "style":
+              return {
+                ...task,
+                emoji: "📝",
+                color: undefined,
+              };
+            case "location":
+              return {
+                ...task,
+                location: undefined,
+              };
+            case "routine":
+              return {
+                ...task,
+                isRoutine: false,
+                routineType: undefined,
+                routineInterval: undefined,
+                routineWeekday: undefined,
+                routineNthWeek: undefined,
+                routineMonthDay: undefined,
+                routineMonth: undefined,
+              };
+            case "project":
+              return {
+                ...task,
+                projectId: "",
+              };
+          }
+        }),
+      );
+    },
+    [appliedRegexSuggestions, dismissSuggestion, setTasks],
+  );
 
   const appliedTitleCleanupSuggestions = React.useMemo(
     () =>
       Object.values(appliedRegexSuggestions).filter(
-        (suggestion): suggestion is DetectedTaskTextSuggestion => Boolean(suggestion?.stripFromTitle)
+        (suggestion): suggestion is DetectedTaskTextSuggestion =>
+          Boolean(suggestion?.stripFromTitle),
       ),
-    [appliedRegexSuggestions]
+    [appliedRegexSuggestions],
   );
-
 
   const onCreate = React.useCallback(() => {
     setMenuExpanded(false);
     if (!hasTitle) {
-      Alert.alert(t('taskCreate.titleMissingTitle'), t('taskCreate.titleMissingBody'));
+      Alert.alert(
+        t("taskCreate.titleMissingTitle"),
+        t("taskCreate.titleMissingBody"),
+      );
       return;
     }
     if (requiresRoutineInterval && !hasRoutineInterval) {
-      runAction('routine');
+      runAction("routine");
       return;
     }
 
@@ -1108,24 +1255,30 @@ export default function CreateTaskModal() {
     isCreatedRef.current = true;
     const originalInput = trimmed;
     const createTimeStyleSuggestion =
-      pendingStyleSuggestion?.actionId === 'style' ? pendingStyleSuggestion : undefined;
+      pendingStyleSuggestion?.actionId === "style"
+        ? pendingStyleSuggestion
+        : undefined;
     const titleCleanupSuggestions = createTimeStyleSuggestion?.stripFromTitle
       ? [...appliedTitleCleanupSuggestions, createTimeStyleSuggestion]
       : appliedTitleCleanupSuggestions;
-    const cleanedTitleCandidate = stripTaskSuggestionText(originalInput, titleCleanupSuggestions);
-    const finalTitle = cleanedTitleCandidate.length > 0 ? cleanedTitleCandidate : originalInput;
+    const cleanedTitleCandidate = stripTaskSuggestionText(
+      originalInput,
+      titleCleanupSuggestions,
+    );
+    const finalTitle =
+      cleanedTitleCandidate.length > 0 ? cleanedTitleCandidate : originalInput;
     const didStripFromTitle = finalTitle !== originalInput;
     const resolvedEmoji =
       createTimeStyleSuggestion?.emoji ??
-      (draftTask?.emoji?.trim().length ? draftTask.emoji : '📝');
+      (draftTask?.emoji?.trim().length ? draftTask.emoji : "📝");
 
     const id = draftIdRef.current;
-    let createdTaskId = id ?? '';
+    let createdTaskId = id ?? "";
 
     if (id) {
       // Update existing draft
       setTasks((prev) => {
-        const task = prev.find(t => t.id === id);
+        const task = prev.find((t) => t.id === id);
         if (!task) return prev; // Should not happen
 
         // Recalc section based on set due date?
@@ -1137,7 +1290,7 @@ export default function CreateTaskModal() {
         // If not set -> upcoming.
 
         const dueAt = task.dueAt;
-        let section: SectionId = 'upcoming';
+        let section: SectionId = "upcoming";
 
         if (hasValidDueAt(dueAt)) {
           section = deriveActiveSectionFromDueAt(dueAt);
@@ -1146,29 +1299,39 @@ export default function CreateTaskModal() {
         // Find min rank in target section
         const minRank = prev
           .filter((t) => !t.deletedAt && t.section === section && t.id !== id)
-          .reduce<number | null>((acc, t) => (acc === null ? t.orderRank : Math.min(acc, t.orderRank)), null);
+          .reduce<
+            number | null
+          >((acc, t) => (acc === null ? t.orderRank : Math.min(acc, t.orderRank)), null);
         const orderRank = (minRank ?? 1000) - 1000;
 
-        return prev.map(t => t.id === id ? {
-          ...t,
-          title: finalTitle,
-          emoji: resolvedEmoji,
-          notes: didStripFromTitle ? mergeOriginalInputIntoNotes(originalInput, t.notes) : t.notes,
-          section,
-          orderRank,
-          deletedAt: undefined // Un-delete
-        } : t);
+        return prev.map((t) =>
+          t.id === id
+            ? {
+                ...t,
+                title: finalTitle,
+                emoji: resolvedEmoji,
+                notes: didStripFromTitle
+                  ? mergeOriginalInputIntoNotes(originalInput, t.notes)
+                  : t.notes,
+                section,
+                orderRank,
+                deletedAt: undefined, // Un-delete
+              }
+            : t,
+        );
       });
     } else {
       // No draft exists, create fresh
       const nextId = createTaskId();
       createdTaskId = nextId;
-      const section: SectionId = 'upcoming';
+      const section: SectionId = "upcoming";
 
       setTasks((prev) => {
         const minRank = prev
           .filter((t) => !t.deletedAt && t.section === section)
-          .reduce<number | null>((acc, t) => (acc === null ? t.orderRank : Math.min(acc, t.orderRank)), null);
+          .reduce<
+            number | null
+          >((acc, t) => (acc === null ? t.orderRank : Math.min(acc, t.orderRank)), null);
         const orderRank = (minRank ?? 1000) - 1000;
 
         return [
@@ -1245,48 +1408,80 @@ export default function CreateTaskModal() {
         },
       ],
     }),
-    [menuProgress]
+    [menuProgress],
   );
 
-  const isDark = theme === 'dark';
-  const glassApiAvailableFn = (ExpoGlassEffect as any).isGlassEffectAPIAvailable as
-    | undefined
-    | (() => boolean);
+  const isDark = theme === "dark";
+  const glassApiAvailableFn = (ExpoGlassEffect as any)
+    .isGlassEffectAPIAvailable as undefined | (() => boolean);
   const canUseNativeGlass =
-    Platform.OS === 'ios' &&
+    Platform.OS === "ios" &&
     isLiquidGlassAvailable() &&
     (glassApiAvailableFn ? glassApiAvailableFn() : true);
   const accentColorValue = getAccentColorValue(accentColor);
-  const plusTint = withAlpha(Colors[theme].background, isDark ? 0.20 : 0.26);
+  const plusTint = withAlpha(Colors[theme].background, isDark ? 0.2 : 0.26);
   const inputTint = withAlpha(Colors[theme].background, isDark ? 0.22 : 0.33);
   const menuTint = withAlpha(Colors[theme].background, isDark ? 0.24 : 0.38);
-  const neutralFallback = withAlpha(Colors[theme].background, isDark ? 0.86 : 0.90);
-  const expandedMenuFallback = withAlpha(Colors[theme].background, isDark ? 0.84 : 0.88);
+  const neutralFallback = withAlpha(
+    Colors[theme].background,
+    isDark ? 0.86 : 0.9,
+  );
+  const expandedMenuFallback = withAlpha(
+    Colors[theme].background,
+    isDark ? 0.84 : 0.88,
+  );
   const sendTint = withAlpha(accentColorValue, isDark ? 0.88 : 0.78);
   const sendFallback = accentColorValue;
-  const sendIconColor = 'white';
+  const sendIconColor = "white";
   const composerBottom = Math.max(14, insets.bottom - 16);
   const menuBottom = 66;
+  const lightBackdropGradient = React.useMemo(
+    () =>
+      [
+        withAlpha(LIGHT_ACCENT_SCREEN_BACKGROUND, 0.24),
+        withAlpha(LIGHT_ACCENT_SCREEN_BACKGROUND, 0.66),
+        withAlpha(LIGHT_ACCENT_SCREEN_BACKGROUND, 0.94),
+      ] as const,
+    [],
+  );
 
   return (
     <View style={styles.root}>
       <Pressable
         style={styles.backdrop}
         accessibilityRole="button"
-        accessibilityLabel={t('taskCreate.close')}
+        accessibilityLabel={t("taskCreate.close")}
         onPress={onBackdropPress}
-      />
+      >
+        {!isDark ? (
+          <LinearGradient
+            pointerEvents="none"
+            colors={lightBackdropGradient}
+            locations={[0, 0.56, 1]}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 0.4 }}
+            style={StyleSheet.absoluteFillObject}
+          />
+        ) : null}
+      </Pressable>
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? -10 : 0}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? -10 : 0}
         style={styles.keyboard}
       >
-        <View style={[styles.composerWrap, { paddingBottom: composerBottom }]} pointerEvents="box-none">
+        <View
+          style={[styles.composerWrap, { paddingBottom: composerBottom }]}
+          pointerEvents="box-none"
+        >
           {isMenuExpanded ? (
             <Animated.View
               pointerEvents="auto"
-              style={[styles.expandedMenuWrap, { bottom: menuBottom }, menuAnimatedStyle]}
+              style={[
+                styles.expandedMenuWrap,
+                { bottom: menuBottom },
+                menuAnimatedStyle,
+              ]}
             >
               {canUseNativeGlass ? (
                 <GlassView
@@ -1302,70 +1497,101 @@ export default function CreateTaskModal() {
                       accessibilityRole="button"
                       accessibilityLabel={action.title}
                       onPress={() => onActionPress(action.id)}
-                      style={({ pressed }) => [styles.expandedMenuItem, pressed && styles.expandedMenuItemPressed]}
+                      style={({ pressed }) => [
+                        styles.expandedMenuItem,
+                        pressed && styles.expandedMenuItemPressed,
+                      ]}
                     >
-                    {canUseNativeGlass ? (
-                      <GlassView
-                        style={styles.expandedMenuIconBubble}
-                        glassEffectStyle="regular"
-                        tintColor={isDark ? withAlpha('#0B1118', 0.86) : withAlpha('#FFFFFF', 0.88)}
-                        isInteractive
-                      >
-                        <MaterialIcons
-                          name={action.icon}
-                          size={20}
-                          color={isDark ? withAlpha(action.accentColor, 0.82) : action.accentColor}
-                        />
-                      </GlassView>
-                    ) : (
-                      <View
-                        style={[
-                          styles.expandedMenuIconBubble,
-                          {
-                            backgroundColor: isDark
-                              ? withAlpha('#0B1118', 0.92)
-                              : withAlpha('#FFFFFF', 0.88),
-                          },
-                        ]}
-                      >
-                        <MaterialIcons
-                          name={action.icon}
-                          size={20}
-                          color={isDark ? withAlpha(action.accentColor, 0.82) : action.accentColor}
-                        />
-                      </View>
-                    )}
-                      <Text style={styles.expandedMenuLabel}>{action.title}</Text>
+                      {canUseNativeGlass ? (
+                        <GlassView
+                          style={styles.expandedMenuIconBubble}
+                          glassEffectStyle="regular"
+                          tintColor={
+                            isDark
+                              ? withAlpha("#0B1118", 0.86)
+                              : withAlpha("#FFFFFF", 0.88)
+                          }
+                          isInteractive
+                        >
+                          <MaterialIcons
+                            name={action.icon}
+                            size={20}
+                            color={
+                              isDark
+                                ? withAlpha(action.accentColor, 0.82)
+                                : action.accentColor
+                            }
+                          />
+                        </GlassView>
+                      ) : (
+                        <View
+                          style={[
+                            styles.expandedMenuIconBubble,
+                            {
+                              backgroundColor: isDark
+                                ? withAlpha("#0B1118", 0.92)
+                                : withAlpha("#FFFFFF", 0.88),
+                            },
+                          ]}
+                        >
+                          <MaterialIcons
+                            name={action.icon}
+                            size={20}
+                            color={
+                              isDark
+                                ? withAlpha(action.accentColor, 0.82)
+                                : action.accentColor
+                            }
+                          />
+                        </View>
+                      )}
+                      <Text style={styles.expandedMenuLabel}>
+                        {action.title}
+                      </Text>
                     </Pressable>
                   ))}
                 </GlassView>
               ) : (
-                <View style={[styles.expandedMenuSurface, { backgroundColor: expandedMenuFallback }]}>
+                <View
+                  style={[
+                    styles.expandedMenuSurface,
+                    { backgroundColor: expandedMenuFallback },
+                  ]}
+                >
                   {actions.map((action) => (
                     <Pressable
                       key={action.id}
                       accessibilityRole="button"
                       accessibilityLabel={action.title}
                       onPress={() => onActionPress(action.id)}
-                      style={({ pressed }) => [styles.expandedMenuItem, pressed && styles.expandedMenuItemPressed]}
-                    >
-                    <View
-                      style={[
-                        styles.expandedMenuIconBubble,
-                        {
-                          backgroundColor: isDark
-                            ? withAlpha('#0B1118', 0.92)
-                            : withAlpha('#FFFFFF', 0.88),
-                        },
+                      style={({ pressed }) => [
+                        styles.expandedMenuItem,
+                        pressed && styles.expandedMenuItemPressed,
                       ]}
                     >
-                      <MaterialIcons
-                        name={action.icon}
-                        size={20}
-                        color={isDark ? withAlpha(action.accentColor, 0.82) : action.accentColor}
-                      />
-                    </View>
-                      <Text style={styles.expandedMenuLabel}>{action.title}</Text>
+                      <View
+                        style={[
+                          styles.expandedMenuIconBubble,
+                          {
+                            backgroundColor: isDark
+                              ? withAlpha("#0B1118", 0.92)
+                              : withAlpha("#FFFFFF", 0.88),
+                          },
+                        ]}
+                      >
+                        <MaterialIcons
+                          name={action.icon}
+                          size={20}
+                          color={
+                            isDark
+                              ? withAlpha(action.accentColor, 0.82)
+                              : action.accentColor
+                          }
+                        />
+                      </View>
+                      <Text style={styles.expandedMenuLabel}>
+                        {action.title}
+                      </Text>
                     </Pressable>
                   ))}
                 </View>
@@ -1375,22 +1601,32 @@ export default function CreateTaskModal() {
 
           {selectedTags.length > 0 ? (
             <View style={styles.selectedTagsWrap}>
-              {selectedTags.map((tag) =>
+              {selectedTags.map((tag) => (
                 <Pressable
                   key={tag.key}
                   accessibilityRole="button"
                   accessibilityLabel={tag.label}
                   onPress={() => onTagPress(tag.actionId)}
-                  style={({ pressed }) => [styles.selectedTagPressable, pressed && styles.selectedTagPressed]}
+                  style={({ pressed }) => [
+                    styles.selectedTagPressable,
+                    pressed && styles.selectedTagPressed,
+                  ]}
                 >
                   {canUseNativeGlass ? (
                     <GlassView
                       style={styles.selectedTagChip}
                       glassEffectStyle="regular"
-                      tintColor={withAlpha(tag.accentColor, isDark ? 0.22 : 0.12)}
+                      tintColor={withAlpha(
+                        tag.accentColor,
+                        isDark ? 0.22 : 0.12,
+                      )}
                       isInteractive
                     >
-                      <MaterialIcons name={tag.icon} size={14} color={tag.accentColor} />
+                      <MaterialIcons
+                        name={tag.icon}
+                        size={14}
+                        color={tag.accentColor}
+                      />
                       <Text style={styles.selectedTagText} numberOfLines={1}>
                         {tag.label}
                       </Text>
@@ -1403,12 +1639,19 @@ export default function CreateTaskModal() {
                             onTagRemove(tag.actionId);
                           }}
                           hitSlop={8}
-                          style={({ pressed }) => [styles.selectedTagRemoveButton, pressed && styles.selectedTagPressed]}
+                          style={({ pressed }) => [
+                            styles.selectedTagRemoveButton,
+                            pressed && styles.selectedTagPressed,
+                          ]}
                         >
                           <MaterialIcons
                             name="close"
                             size={12}
-                            color={isDark ? 'rgba(255,255,255,0.86)' : 'rgba(28,28,30,0.72)'}
+                            color={
+                              isDark
+                                ? "rgba(255,255,255,0.86)"
+                                : "rgba(28,28,30,0.72)"
+                            }
                           />
                         </Pressable>
                       ) : null}
@@ -1417,10 +1660,19 @@ export default function CreateTaskModal() {
                     <View
                       style={[
                         styles.selectedTagChip,
-                        { backgroundColor: withAlpha(tag.accentColor, isDark ? 0.22 : 0.12) },
+                        {
+                          backgroundColor: withAlpha(
+                            tag.accentColor,
+                            isDark ? 0.22 : 0.12,
+                          ),
+                        },
                       ]}
                     >
-                      <MaterialIcons name={tag.icon} size={14} color={tag.accentColor} />
+                      <MaterialIcons
+                        name={tag.icon}
+                        size={14}
+                        color={tag.accentColor}
+                      />
                       <Text style={styles.selectedTagText} numberOfLines={1}>
                         {tag.label}
                       </Text>
@@ -1433,165 +1685,196 @@ export default function CreateTaskModal() {
                             onTagRemove(tag.actionId);
                           }}
                           hitSlop={8}
-                          style={({ pressed }) => [styles.selectedTagRemoveButton, pressed && styles.selectedTagPressed]}
+                          style={({ pressed }) => [
+                            styles.selectedTagRemoveButton,
+                            pressed && styles.selectedTagPressed,
+                          ]}
                         >
                           <MaterialIcons
                             name="close"
                             size={12}
-                            color={isDark ? 'rgba(255,255,255,0.86)' : 'rgba(28,28,30,0.72)'}
+                            color={
+                              isDark
+                                ? "rgba(255,255,255,0.86)"
+                                : "rgba(28,28,30,0.72)"
+                            }
                           />
                         </Pressable>
                       ) : null}
                     </View>
                   )}
                 </Pressable>
-              )}
+              ))}
             </View>
           ) : null}
 
           <View style={styles.composerStack}>
             <View pointerEvents="none" style={styles.composerShadowLayer} />
             <View style={styles.composer}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={isMenuExpanded ? t('taskCreate.close') : t('taskCreate.more')}
-                  hitSlop={10}
-                  onPress={() => {
-                    setMenuExpanded((prev) => {
-                      const next = !prev;
-                      if (next) setTimeout(() => inputRef.current?.focus(), 0);
-                      return next;
-                    });
-                  }}
-                  style={({ pressed }) => [styles.controlPressable, pressed && styles.controlPressed]}
-                >
-                  {canUseNativeGlass ? (
-                    <GlassView
-                      key="plus-native-glass"
-                      style={[styles.plusButton, isMenuExpanded && styles.plusButtonExpanded]}
-                      glassEffectStyle="clear"
-                      tintColor={plusTint}
-                      isInteractive
-                    >
-                      <MaterialIcons
-                        name={isMenuExpanded ? 'close' : 'add'}
-                        size={22}
-                        color={styles.plusIcon.color as string}
-                      />
-                    </GlassView>
-                  ) : (
-                    <GlassSurface
-                      style={[styles.plusButton, isMenuExpanded && styles.plusButtonExpanded]}
-                      glassEffectStyle="clear"
-                      tintColor={plusTint}
-                      fallbackBackgroundColor={neutralFallback}
-                      isInteractive
-                    >
-                      <MaterialIcons
-                        name={isMenuExpanded ? 'close' : 'add'}
-                        size={22}
-                        color={styles.plusIcon.color as string}
-                      />
-                    </GlassSurface>
-                  )}
-                </Pressable>
-
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={
+                  isMenuExpanded ? t("taskCreate.close") : t("taskCreate.more")
+                }
+                hitSlop={10}
+                onPress={() => {
+                  setMenuExpanded((prev) => {
+                    const next = !prev;
+                    if (next) setTimeout(() => inputRef.current?.focus(), 0);
+                    return next;
+                  });
+                }}
+                style={({ pressed }) => [
+                  styles.controlPressable,
+                  pressed && styles.controlPressed,
+                ]}
+              >
                 {canUseNativeGlass ? (
                   <GlassView
-                    key="input-native-glass"
-                    style={styles.inputShell}
-                    glassEffectStyle="regular"
-                    tintColor={inputTint}
+                    key="plus-native-glass"
+                    style={[
+                      styles.plusButton,
+                      isMenuExpanded && styles.plusButtonExpanded,
+                    ]}
+                    glassEffectStyle="clear"
+                    tintColor={plusTint}
                     isInteractive
                   >
-                    <TextInput
-                      ref={(r) => {
-                        inputRef.current = r;
-                      }}
-                      value={title}
-                      onChangeText={(next) => {
-                        if (isMenuExpanded) setMenuExpanded(false);
-                        setTitle(next);
-                      }}
-                      placeholder={t('taskCreate.placeholder.title')}
-                      placeholderTextColor={styles.placeholder.color as string}
-                      returnKeyType="done"
-                      autoCapitalize="sentences"
-                      autoCorrect
-                      onKeyPress={() => {
-                        if (isMenuExpanded) setMenuExpanded(false);
-                      }}
-                      onFocus={() => setMenuExpanded(false)}
-                      onSubmitEditing={onCreate}
-                      style={styles.input}
+                    <MaterialIcons
+                      name={isMenuExpanded ? "close" : "add"}
+                      size={22}
+                      color={styles.plusIcon.color as string}
                     />
                   </GlassView>
                 ) : (
                   <GlassSurface
-                    style={styles.inputShell}
-                    glassEffectStyle="regular"
-                    tintColor={inputTint}
+                    style={[
+                      styles.plusButton,
+                      isMenuExpanded && styles.plusButtonExpanded,
+                    ]}
+                    glassEffectStyle="clear"
+                    tintColor={plusTint}
                     fallbackBackgroundColor={neutralFallback}
                     isInteractive
                   >
-                    <TextInput
-                      ref={(r) => {
-                        inputRef.current = r;
-                      }}
-                      value={title}
-                      onChangeText={(next) => {
-                        if (isMenuExpanded) setMenuExpanded(false);
-                        setTitle(next);
-                      }}
-                      placeholder={t('taskCreate.placeholder.title')}
-                      placeholderTextColor={styles.placeholder.color as string}
-                      returnKeyType="done"
-                      autoCapitalize="sentences"
-                      autoCorrect
-                      onKeyPress={() => {
-                        if (isMenuExpanded) setMenuExpanded(false);
-                      }}
-                      onFocus={() => setMenuExpanded(false)}
-                      onSubmitEditing={onCreate}
-                      style={styles.input}
+                    <MaterialIcons
+                      name={isMenuExpanded ? "close" : "add"}
+                      size={22}
+                      color={styles.plusIcon.color as string}
                     />
                   </GlassSurface>
                 )}
+              </Pressable>
 
-                <Pressable
-                  onPress={onCreate}
-                  disabled={!canSubmit}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    canSubmit
-                      ? t('taskCreate.accessibility.create')
-                      : (!hasTitle ? t('taskCreate.accessibility.enterTitle') : t('taskCreate.accessibility.chooseInterval'))
-                  }
-                  hitSlop={10}
-                  style={({ pressed }) => [styles.controlPressable, pressed && canSubmit && styles.controlPressed]}
+              {canUseNativeGlass ? (
+                <GlassView
+                  key="input-native-glass"
+                  style={styles.inputShell}
+                  glassEffectStyle="regular"
+                  tintColor={inputTint}
+                  isInteractive
                 >
-                  {canUseNativeGlass ? (
-                    <GlassView
-                      key={`send-native-glass-${canSubmit ? 'active' : 'disabled'}`}
-                      style={styles.sendButton}
-                      glassEffectStyle="regular"
-                      tintColor={sendTint}
-                      isInteractive
-                    >
-                      <MaterialIcons name="arrow-upward" size={18} color={sendIconColor} />
-                    </GlassView>
-                  ) : (
-                    <GlassSurface
-                      style={styles.sendButton}
-                      glassEffectStyle="regular"
-                      tintColor={sendTint}
-                      fallbackBackgroundColor={sendFallback}
-                      isInteractive
-                    >
-                      <MaterialIcons name="arrow-upward" size={18} color={sendIconColor} />
-                    </GlassSurface>
-                  )}
-                </Pressable>
+                  <TextInput
+                    ref={(r) => {
+                      inputRef.current = r;
+                    }}
+                    value={title}
+                    onChangeText={(next) => {
+                      if (isMenuExpanded) setMenuExpanded(false);
+                      setTitle(next);
+                    }}
+                    placeholder={t("taskCreate.placeholder.title")}
+                    placeholderTextColor={styles.placeholder.color as string}
+                    returnKeyType="done"
+                    autoCapitalize="sentences"
+                    autoCorrect
+                    onKeyPress={() => {
+                      if (isMenuExpanded) setMenuExpanded(false);
+                    }}
+                    onFocus={() => setMenuExpanded(false)}
+                    onSubmitEditing={onCreate}
+                    style={styles.input}
+                  />
+                </GlassView>
+              ) : (
+                <GlassSurface
+                  style={styles.inputShell}
+                  glassEffectStyle="regular"
+                  tintColor={inputTint}
+                  fallbackBackgroundColor={neutralFallback}
+                  isInteractive
+                >
+                  <TextInput
+                    ref={(r) => {
+                      inputRef.current = r;
+                    }}
+                    value={title}
+                    onChangeText={(next) => {
+                      if (isMenuExpanded) setMenuExpanded(false);
+                      setTitle(next);
+                    }}
+                    placeholder={t("taskCreate.placeholder.title")}
+                    placeholderTextColor={styles.placeholder.color as string}
+                    returnKeyType="done"
+                    autoCapitalize="sentences"
+                    autoCorrect
+                    onKeyPress={() => {
+                      if (isMenuExpanded) setMenuExpanded(false);
+                    }}
+                    onFocus={() => setMenuExpanded(false)}
+                    onSubmitEditing={onCreate}
+                    style={styles.input}
+                  />
+                </GlassSurface>
+              )}
+
+              <Pressable
+                onPress={onCreate}
+                disabled={!canSubmit}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  canSubmit
+                    ? t("taskCreate.accessibility.create")
+                    : !hasTitle
+                      ? t("taskCreate.accessibility.enterTitle")
+                      : t("taskCreate.accessibility.chooseInterval")
+                }
+                hitSlop={10}
+                style={({ pressed }) => [
+                  styles.controlPressable,
+                  pressed && canSubmit && styles.controlPressed,
+                ]}
+              >
+                {canUseNativeGlass ? (
+                  <GlassView
+                    key={`send-native-glass-${canSubmit ? "active" : "disabled"}`}
+                    style={styles.sendButton}
+                    glassEffectStyle="regular"
+                    tintColor={sendTint}
+                    isInteractive
+                  >
+                    <MaterialIcons
+                      name="arrow-upward"
+                      size={18}
+                      color={sendIconColor}
+                    />
+                  </GlassView>
+                ) : (
+                  <GlassSurface
+                    style={styles.sendButton}
+                    glassEffectStyle="regular"
+                    tintColor={sendTint}
+                    fallbackBackgroundColor={sendFallback}
+                    isInteractive
+                  >
+                    <MaterialIcons
+                      name="arrow-upward"
+                      size={18}
+                      color={sendIconColor}
+                    />
+                  </GlassSurface>
+                )}
+              </Pressable>
             </View>
           </View>
         </View>
@@ -1601,29 +1884,29 @@ export default function CreateTaskModal() {
 }
 
 const createStyles = (theme: keyof typeof Colors) => {
-  const isDark = theme === 'dark';
+  const isDark = theme === "dark";
   const text = Colors[theme].text;
   return StyleSheet.create({
     root: {
       flex: 1,
-      backgroundColor: 'transparent',
+      backgroundColor: "transparent",
     },
     backdrop: {
       ...StyleSheet.absoluteFillObject,
-      backgroundColor: isDark ? 'rgba(0,0,0,0.58)' : 'rgba(0,0,0,0.14)',
+      backgroundColor: isDark ? "rgba(0,0,0,0.58)" : "transparent",
     },
     keyboard: {
       flex: 1,
-      justifyContent: 'flex-end',
+      justifyContent: "flex-end",
     },
     composerWrap: {
       paddingHorizontal: 12,
       paddingTop: 12,
     },
     expandedMenuWrap: {
-      position: 'absolute',
+      position: "absolute",
       left: 4,
-      width: '63%',
+      width: "63%",
       maxWidth: 300,
       zIndex: 8,
     },
@@ -1632,33 +1915,35 @@ const createStyles = (theme: keyof typeof Colors) => {
       paddingHorizontal: 10,
       paddingVertical: 12,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.30)',
-      overflow: 'hidden',
-      shadowColor: '#000',
+      borderColor: isDark ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.30)",
+      overflow: "hidden",
+      shadowColor: "#000",
       shadowOpacity: isDark ? 0.48 : 0.26,
       shadowRadius: 28,
       shadowOffset: { width: 0, height: 16 },
     },
     expandedMenuItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
       gap: 14,
       minHeight: 56,
       borderRadius: 18,
       paddingHorizontal: 10,
     },
     expandedMenuItemPressed: {
-      backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.62)',
+      backgroundColor: isDark
+        ? "rgba(255,255,255,0.08)"
+        : "rgba(255,255,255,0.62)",
     },
     expandedMenuIconBubble: {
       width: 38,
       height: 38,
       borderRadius: 19,
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems: "center",
+      justifyContent: "center",
       borderWidth: 0,
-      overflow: 'hidden',
-      shadowColor: '#000',
+      overflow: "hidden",
+      shadowColor: "#000",
       shadowOpacity: isDark ? 0.26 : 0.12,
       shadowRadius: 10,
       shadowOffset: { width: 0, height: 6 },
@@ -1666,31 +1951,31 @@ const createStyles = (theme: keyof typeof Colors) => {
     expandedMenuLabel: {
       fontSize: 20,
       lineHeight: 26,
-      fontWeight: '500',
+      fontWeight: "500",
       color: text,
     },
     selectedTagsWrap: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
+      flexDirection: "row",
+      flexWrap: "wrap",
       gap: 8,
       paddingLeft: 56,
       paddingRight: 56,
       marginBottom: 8,
     },
     selectedTagChip: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
       gap: 6,
-      maxWidth: '100%',
+      maxWidth: "100%",
       paddingHorizontal: 10,
       paddingVertical: 6,
       borderRadius: 14,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
-      overflow: 'hidden',
+      borderColor: isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)",
+      overflow: "hidden",
     },
     selectedTagPressable: {
-      maxWidth: '100%',
+      maxWidth: "100%",
       borderRadius: 14,
     },
     selectedTagPressed: {
@@ -1699,7 +1984,7 @@ const createStyles = (theme: keyof typeof Colors) => {
     selectedTagText: {
       flexShrink: 1,
       fontSize: 13,
-      fontWeight: '600',
+      fontWeight: "600",
       color: text,
     },
     selectedTagRemoveButton: {
@@ -1707,30 +1992,32 @@ const createStyles = (theme: keyof typeof Colors) => {
       height: 18,
       borderRadius: 9,
       marginLeft: 2,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.68)',
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: isDark
+        ? "rgba(255,255,255,0.18)"
+        : "rgba(255,255,255,0.68)",
     },
     composerStack: {
-      width: '100%',
-      position: 'relative',
+      width: "100%",
+      position: "relative",
     },
     composerShadowLayer: {
-      position: 'absolute',
+      position: "absolute",
       left: 6,
       right: 6,
       top: 12,
       bottom: -8,
       borderRadius: 30,
-      backgroundColor: isDark ? 'rgba(0,0,0,0.42)' : 'rgba(0,0,0,0.18)',
-      shadowColor: '#000',
+      backgroundColor: isDark ? "rgba(0,0,0,0.42)" : "rgba(0,0,0,0.18)",
+      shadowColor: "#000",
       shadowOpacity: isDark ? 0.62 : 0.36,
       shadowRadius: 30,
       shadowOffset: { width: 0, height: 16 },
     },
     composer: {
-      flexDirection: 'row',
-      alignItems: 'center',
+      flexDirection: "row",
+      alignItems: "center",
       gap: 10,
     },
     controlPressable: {
@@ -1743,11 +2030,11 @@ const createStyles = (theme: keyof typeof Colors) => {
       width: 44,
       height: 44,
       borderRadius: 22,
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems: "center",
+      justifyContent: "center",
       borderWidth: 0,
-      borderColor: 'transparent',
-      shadowColor: '#000',
+      borderColor: "transparent",
+      shadowColor: "#000",
       shadowOpacity: isDark ? 0.42 : 0.24,
       shadowRadius: 20,
       shadowOffset: { width: 0, height: 10 },
@@ -1763,10 +2050,10 @@ const createStyles = (theme: keyof typeof Colors) => {
       minHeight: 44,
       borderRadius: 22,
       borderWidth: 0,
-      borderColor: 'transparent',
-      overflow: 'hidden',
-      justifyContent: 'center',
-      shadowColor: '#000',
+      borderColor: "transparent",
+      overflow: "hidden",
+      justifyContent: "center",
+      shadowColor: "#000",
       shadowOpacity: isDark ? 0.4 : 0.2,
       shadowRadius: 24,
       shadowOffset: { width: 0, height: 12 },
@@ -1780,23 +2067,23 @@ const createStyles = (theme: keyof typeof Colors) => {
       color: text,
     },
     placeholder: {
-      color: isDark ? 'rgba(235,235,245,0.45)' : 'rgba(60,60,67,0.45)',
+      color: isDark ? "rgba(235,235,245,0.45)" : "rgba(60,60,67,0.45)",
     },
     sendButton: {
       width: 44,
       height: 44,
       borderRadius: 22,
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems: "center",
+      justifyContent: "center",
       borderWidth: 0,
-      borderColor: 'transparent',
-      shadowColor: '#000',
+      borderColor: "transparent",
+      shadowColor: "#000",
       shadowOpacity: isDark ? 0.52 : 0.32,
       shadowRadius: 24,
       shadowOffset: { width: 0, height: 12 },
     },
     sendIcon: {
-      color: 'white',
+      color: "white",
     },
   });
 };
