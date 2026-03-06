@@ -8,7 +8,6 @@ import {
   LIGHT_ACCENT_SCREEN_BACKGROUND,
 } from "@/constants/theme";
 import { type AccentColorId, useAppSettings } from "@/context/settings-store";
-import { useStreaks } from "@/hooks/use-streaks";
 
 type StreakAccentBackgroundProps = {
   isDark: boolean;
@@ -63,8 +62,8 @@ function StreakAccentBackgroundComponent({
   enabled = true,
 }: StreakAccentBackgroundProps) {
   const { accentColor, reduceMotionEnabled } = useAppSettings();
-  const { todayCompletedCount } = useStreaks();
-  const isVisible = enabled && todayCompletedCount > 0;
+  // Temporarily keep the accent background always visible when mounted.
+  const isVisible = enabled;
   const baseBackgroundColor = isDark
     ? Colors.dark.background
     : LIGHT_ACCENT_SCREEN_BACKGROUND;

@@ -245,10 +245,7 @@ export default function TabLayout() {
           <Tabs.Screen
             name="routines"
             options={{
-              title: t("home.quick.routines"),
-              tabBarIcon: ({ color }) => (
-                <MaterialIcons name="repeat" size={24} color={color} />
-              ),
+              href: null,
             }}
           />
         </Tabs>
@@ -386,6 +383,7 @@ export default function TabLayout() {
 
           <NativeTabs.Trigger
             name="routines"
+            hidden
             contentStyle={{ backgroundColor: "transparent" }}
           >
             <NativeTabs.Trigger.Label>{t("home.quick.routines")}</NativeTabs.Trigger.Label>

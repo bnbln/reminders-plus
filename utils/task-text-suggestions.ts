@@ -1,52 +1,56 @@
 import type { Project, RoutineType } from "@/context/tasks-store";
 import { getStartOfLocalDayMs } from "@/utils/task-dates";
+import { findTaskStyleEmojiMatch } from "@/utils/task-style-emoji";
 
 type SuggestionActionId =
   | "date"
   | "time"
   | "location"
   | "project"
-  | "routine";
+  | "routine"
+  | "style";
 
 type MatchRange = {
   start: number;
   end: number;
 };
 
+type SuggestionBase = {
+  key: string;
+  range: MatchRange;
+  stripFromTitle: boolean;
+};
+
 export type DetectedTaskTextSuggestion =
-  | {
+  | (SuggestionBase & {
       actionId: "date";
-      key: string;
       dayStartMs: number;
-      range: MatchRange;
-    }
-  | {
+    })
+  | (SuggestionBase & {
       actionId: "time";
-      key: string;
       hours: number;
       minutes: number;
-      range: MatchRange;
-    }
-  | {
+    })
+  | (SuggestionBase & {
       actionId: "location";
-      key: string;
       location: string;
-      range: MatchRange;
-    }
-  | {
+    })
+  | (SuggestionBase & {
       actionId: "project";
-      key: string;
       projectId: string;
       projectName: string;
       projectColor: string;
-      range: MatchRange;
-    }
-  | {
+    })
+  | (SuggestionBase & {
       actionId: "routine";
-      key: string;
       routineType: RoutineType;
-      range: MatchRange;
-    };
+    })
+  | (SuggestionBase & {
+      actionId: "style";
+      emoji: string;
+      source: "explicit-emoji" | "keyword";
+      matchedKeyword?: string;
+    });
 
 const WEEKDAY_INDEX_BY_TOKEN: Record<string, number> = {
   montag: 1,
@@ -78,10 +82,10 @@ const BLOCKED_LOCATION_TOKENS = new Set([
   "uhr",
 ]);
 
-const ROUTINE_PATTERNS: Array<{
+const ROUTINE_PATTERNS: {
   routineType: RoutineType;
   pattern: RegExp;
-}> = [
+}[] = [
   { routineType: "weekdays", pattern: /\b(?:jeden?\s+werktag|an\s+werktagen|wochentags)\b/iu },
   { routineType: "weekends", pattern: /\b(?:jedes?\s+wochenende|an\s+wochenenden)\b/iu },
   { routineType: "biweekly", pattern: /\b(?:alle\s+2\s+wochen|jede\s+zweite\s+woche|zweiw(?:ö|oe)chentlich)\b/iu },
@@ -93,6 +97,9 @@ const ROUTINE_PATTERNS: Array<{
   { routineType: "daily", pattern: /\b(?:jeden?\s+tag|t(?:ä|ae)glich)\b/iu },
   { routineType: "hourly", pattern: /\b(?:jede\s+stunde|st(?:ü|ue)ndlich)\b/iu },
 ];
+
+const EMOJI_SEQUENCE_PATTERN =
+  /(?:[#*0-9]\uFE0F?\u20E3|[\u{1F1E6}-\u{1F1FF}]{2}|(?:\p{Extended_Pictographic}(?:\uFE0F|\uFE0E)?(?:\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\uFE0E)?(?:\p{Emoji_Modifier})?)*))/gu;
 
 // Keep inline location detection conservative; explicit cues win over fuzzy guesses.
 const LOCATION_STOP_PATTERN = String.raw`(?=\s+(?:heute|morgen|uebermorgen|übermorgen|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|\d{1,2}\.\d{1,2}\.(?:\d{2,4})?|\d{1,2}\/\d{1,2}\/\d{4}|um\s+(?:[01]?\d|2[0-3])(?:[:.][0-5]\d)?(?:\s*uhr)?|(?:[01]?\d|2[0-3])[:.][0-5]\d|(?:[01]?\d|2[0-3])\s*uhr)\b|[,.!?;]|$)`;
@@ -131,6 +138,13 @@ function normalizeSuggestionKey(value: string) {
 
 function buildSuggestionKey(actionId: SuggestionActionId, value: string) {
   return `${actionId}:${normalizeSuggestionKey(value)}`;
+}
+
+function serializeEmojiKey(value: string) {
+  return Array.from(value)
+    .map((char) => char.codePointAt(0)?.toString(16) ?? "")
+    .filter(Boolean)
+    .join("-");
 }
 
 function isBoundaryChar(char: string | undefined) {
@@ -181,6 +195,19 @@ function findSafeTime(
   }
 
   return null;
+}
+
+function findEmojiMatches(text: string) {
+  return Array.from(text.matchAll(EMOJI_SEQUENCE_PATTERN), (match) => {
+    const start = match.index ?? 0;
+    return {
+      emoji: match[0],
+      range: {
+        start,
+        end: start + match[0].length,
+      },
+    };
+  });
 }
 
 function detectAbsoluteDate(
@@ -302,6 +329,7 @@ function detectDateSuggestion(
         key: buildSuggestionKey("date", String(explicitDate.dayStartMs)),
         dayStartMs: explicitDate.dayStartMs,
         range: explicitDate.range,
+        stripFromTitle: true,
       },
       blockedRange: explicitDate.range,
     };
@@ -316,6 +344,7 @@ function detectDateSuggestion(
       key: buildSuggestionKey("date", String(relativeDate.dayStartMs)),
       dayStartMs: relativeDate.dayStartMs,
       range: relativeDate.range,
+      stripFromTitle: true,
     },
     blockedRange: relativeDate.range,
   };
@@ -334,6 +363,7 @@ function detectTimeSuggestion(
     hours: time.hours,
     minutes: time.minutes,
     range: time.range,
+    stripFromTitle: true,
   };
 }
 
@@ -365,6 +395,7 @@ function detectLocationSuggestion(text: string): DetectedTaskTextSuggestion | nu
         start: match?.index ?? 0,
         end: (match?.index ?? 0) + (match?.[0]?.length ?? 0),
       },
+      stripFromTitle: true,
     };
   }
 
@@ -406,6 +437,7 @@ function detectProjectSuggestion(
             start,
             end,
           },
+          stripFromTitle: true,
         };
       }
 
@@ -429,10 +461,50 @@ function detectRoutineSuggestion(text: string): DetectedTaskTextSuggestion | nul
         start: match.index ?? 0,
         end: (match.index ?? 0) + match[0].length,
       },
+      stripFromTitle: true,
     };
   }
 
   return null;
+}
+
+function detectStyleSuggestion(
+  text: string,
+  suggestionsToStrip: readonly DetectedTaskTextSuggestion[],
+): DetectedTaskTextSuggestion | null {
+  const emojiMatches = findEmojiMatches(text);
+  if (emojiMatches.length > 1) return null;
+
+  if (emojiMatches.length === 1) {
+    const [match] = emojiMatches;
+    return {
+      actionId: "style",
+      key: `style:emoji:${serializeEmojiKey(match.emoji)}`,
+      emoji: match.emoji,
+      source: "explicit-emoji",
+      range: match.range,
+      stripFromTitle: true,
+    };
+  }
+
+  const cleanedTitle = stripTaskSuggestionText(text, suggestionsToStrip);
+  if (!cleanedTitle) return null;
+
+  const keywordMatch = findTaskStyleEmojiMatch(cleanedTitle);
+  if (!keywordMatch) return null;
+
+  return {
+    actionId: "style",
+    key: buildSuggestionKey("style", `keyword:${keywordMatch.keyword}:${keywordMatch.emoji}`),
+    emoji: keywordMatch.emoji,
+    source: "keyword",
+    matchedKeyword: keywordMatch.keyword,
+    range: {
+      start: 0,
+      end: cleanedTitle.length,
+    },
+    stripFromTitle: false,
+  };
 }
 
 export function detectTaskTextSuggestions(
@@ -471,6 +543,12 @@ export function detectTaskTextSuggestions(
   const routineSuggestion = detectRoutineSuggestion(normalizedText);
   if (routineSuggestion) suggestions.push(routineSuggestion);
 
+  const styleSuggestion = detectStyleSuggestion(
+    normalizedText,
+    suggestions.filter((suggestion) => suggestion.stripFromTitle),
+  );
+  if (styleSuggestion) suggestions.push(styleSuggestion);
+
   return suggestions;
 }
 
@@ -478,9 +556,10 @@ export function stripTaskSuggestionText(
   text: string,
   suggestions: readonly DetectedTaskTextSuggestion[],
 ) {
-  if (!text.trim() || suggestions.length === 0) return text.trim();
+  const suggestionsToStrip = suggestions.filter((suggestion) => suggestion.stripFromTitle);
+  if (!text.trim() || suggestionsToStrip.length === 0) return text.trim();
 
-  const ranges = suggestions
+  const ranges = suggestionsToStrip
     .map((suggestion) => {
       const range = { ...suggestion.range };
 

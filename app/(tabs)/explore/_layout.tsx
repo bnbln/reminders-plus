@@ -2,7 +2,6 @@ import { Stack } from 'expo-router';
 import React from 'react';
 import { Platform } from 'react-native';
 
-import { HeaderTrailingActions } from '@/components/navigation/header-trailing-actions';
 import { ProfileHeaderMenuButton } from '@/components/navigation/profile-header-menu-button';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -29,8 +28,7 @@ export default function ExploreLayout() {
           title: t('tabs.projects'),
           headerBackButtonDisplayMode: 'minimal',
           headerBackVisible: false,
-          headerLeft: () => <ProfileHeaderMenuButton />,
-          headerRight: () => <HeaderTrailingActions theme={theme} showFilter={false} />,
+          headerRight: () => <ProfileHeaderMenuButton />,
         }}
       />
     </Stack>

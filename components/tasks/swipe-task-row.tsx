@@ -50,9 +50,8 @@ const COMPACT_SUBTASK_TEXT_SIZE = 14;
 const DRAG_LONG_PRESS_DELAY_MS = 260;
 const DRAG_COMPACT_PREVIEW_SIZE = 65;
 const SWIPE_COMMIT_EXIT_DURATION_MS = 118;
-const SWIPE_COMMIT_ENTRY_DURATION_MS = 176;
 const SWIPE_COMMIT_EXIT_FADE_DURATION_MS = 96;
-const SWIPE_COMMIT_ENTRY_FADE_DURATION_MS = 144;
+const SWIPE_COMMIT_COLLAPSE_DURATION_MS = 164;
 
 /** Convert a hex color to an rgba pastel tint. */
 function hexToPastel(
@@ -420,9 +419,13 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   const swipeCommitTranslateX = React.useRef(new Animated.Value(0)).current;
   const swipeCommitOpacity = React.useRef(new Animated.Value(1)).current;
   const swipeCommitScale = React.useRef(new Animated.Value(1)).current;
+  const swipeCommitCollapseProgress = React.useRef(
+    new Animated.Value(1),
+  ).current;
+  const swipeCommitAppearanceKeyRef = React.useRef<string | null>(null);
   const swipeCommitExitAnimationRef =
     React.useRef<Animated.CompositeAnimation | null>(null);
-  const swipeCommitEntryAnimationRef =
+  const swipeCommitCollapseAnimationRef =
     React.useRef<Animated.CompositeAnimation | null>(null);
   const longPressTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -432,6 +435,14 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   const shouldUseCompactDragPreview =
     isActive && dragCompactPreview && canUseCompactDragPreview;
   const isCompletedTask = task.section === "completed";
+  const taskAppearanceKey = React.useMemo(
+    () =>
+      `${task.id}:${task.section}:${task.completedAt ?? 0}:${task.deletedAt ?? 0}`,
+    [task.completedAt, task.deletedAt, task.id, task.section],
+  );
+  const shouldApplySwipeCommitState =
+    isSwipeCommitAnimating &&
+    swipeCommitAppearanceKeyRef.current === taskAppearanceKey;
 
   const taskBgColor = React.useMemo(
     () => hexToPastel(task.color, isDark),
@@ -464,7 +475,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     return () => {
       isMountedRef.current = false;
       swipeCommitExitAnimationRef.current?.stop();
-      swipeCommitEntryAnimationRef.current?.stop();
+      swipeCommitCollapseAnimationRef.current?.stop();
     };
   }, []);
 
@@ -484,24 +495,38 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
 
   const resetSwipeCommitAnimationValues = React.useCallback(() => {
     swipeCommitExitAnimationRef.current?.stop();
-    swipeCommitEntryAnimationRef.current?.stop();
+    swipeCommitCollapseAnimationRef.current?.stop();
     swipeCommitExitAnimationRef.current = null;
-    swipeCommitEntryAnimationRef.current = null;
+    swipeCommitCollapseAnimationRef.current = null;
     swipeCommitTranslateX.stopAnimation();
     swipeCommitOpacity.stopAnimation();
     swipeCommitScale.stopAnimation();
+    swipeCommitCollapseProgress.stopAnimation();
     swipeCommitTranslateX.setValue(0);
     swipeCommitOpacity.setValue(1);
     swipeCommitScale.setValue(1);
-  }, [swipeCommitOpacity, swipeCommitScale, swipeCommitTranslateX]);
+    swipeCommitCollapseProgress.setValue(1);
+  }, [
+    swipeCommitCollapseProgress,
+    swipeCommitOpacity,
+    swipeCommitScale,
+    swipeCommitTranslateX,
+  ]);
 
   React.useEffect(() => {
     if (!isSwipeCommitAnimating) {
       resetSwipeCommitAnimationValues();
       thresholdHapticDirectionRef.current = null;
       committedSwipeActionDirectionRef.current = null;
+      swipeCommitAppearanceKeyRef.current = null;
     }
   }, [isSwipeCommitAnimating, resetSwipeCommitAnimationValues]);
+
+  React.useEffect(() => {
+    if (!isSwipeCommitAnimating) return;
+    if (swipeCommitAppearanceKeyRef.current === taskAppearanceKey) return;
+    setIsSwipeCommitAnimating(false);
+  }, [isSwipeCommitAnimating, taskAppearanceKey]);
 
   const handleRowLayout = React.useCallback((event: LayoutChangeEvent) => {
     const nextHeight = event.nativeEvent.layout.height;
@@ -590,6 +615,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       if (isSwipeCommitAnimating) return;
 
       setIsSwipeCommitAnimating(true);
+      swipeCommitAppearanceKeyRef.current = taskAppearanceKey;
       committedSwipeActionDirectionRef.current = direction;
       thresholdHapticDirectionRef.current = null;
       clearLongPressDrag();
@@ -604,7 +630,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
         direction === OpenDirection.LEFT ? -exitDistance : exitDistance;
 
       swipeCommitExitAnimationRef.current?.stop();
-      swipeCommitEntryAnimationRef.current?.stop();
+      swipeCommitCollapseAnimationRef.current?.stop();
       swipeCommitExitAnimationRef.current = Animated.parallel([
         Animated.timing(swipeCommitTranslateX, {
           toValue: translateTarget,
@@ -634,44 +660,50 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
           return;
         }
 
-        void swipeRef.current?.close({ animated: false }).catch(() => undefined);
-        performAction();
+        if (measuredRowHeight <= 0) {
+          void swipeRef.current?.close({ animated: false }).catch(
+            () => undefined,
+          );
+          performAction();
 
-        if (!isMountedRef.current) return;
-
-        const entryStartOffset = translateTarget * 0.18;
-        swipeCommitTranslateX.setValue(entryStartOffset);
-        swipeCommitOpacity.setValue(0);
-        swipeCommitScale.setValue(0.992);
-
-        requestAnimationFrame(() => {
           if (!isMountedRef.current) return;
-          swipeCommitEntryAnimationRef.current = Animated.parallel([
-            Animated.timing(swipeCommitTranslateX, {
-              toValue: 0,
-              duration: SWIPE_COMMIT_ENTRY_DURATION_MS,
-              easing: Easing.out(Easing.cubic),
-              useNativeDriver: true,
-            }),
-            Animated.timing(swipeCommitOpacity, {
-              toValue: 1,
-              duration: SWIPE_COMMIT_ENTRY_FADE_DURATION_MS,
-              easing: Easing.out(Easing.quad),
-              useNativeDriver: true,
-            }),
-            Animated.timing(swipeCommitScale, {
-              toValue: 1,
-              duration: SWIPE_COMMIT_ENTRY_DURATION_MS,
-              easing: Easing.out(Easing.quad),
-              useNativeDriver: true,
-            }),
-          ]);
-          swipeCommitEntryAnimationRef.current.start(() => {
-            swipeCommitEntryAnimationRef.current = null;
+          requestAnimationFrame(() => {
             if (!isMountedRef.current) return;
             setIsSwipeCommitAnimating(false);
           });
-        });
+          return;
+        }
+
+        swipeCommitCollapseAnimationRef.current = Animated.timing(
+          swipeCommitCollapseProgress,
+          {
+            toValue: 0,
+            duration: SWIPE_COMMIT_COLLAPSE_DURATION_MS,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
+          },
+        );
+        swipeCommitCollapseAnimationRef.current.start(
+          ({ finished: collapseFinished }) => {
+            swipeCommitCollapseAnimationRef.current = null;
+            if (!collapseFinished) {
+              if (!isMountedRef.current) return;
+              setIsSwipeCommitAnimating(false);
+              return;
+            }
+
+            void swipeRef.current?.close({ animated: false }).catch(
+              () => undefined,
+            );
+            performAction();
+
+            if (!isMountedRef.current) return;
+            requestAnimationFrame(() => {
+              if (!isMountedRef.current) return;
+              setIsSwipeCommitAnimating(false);
+            });
+          },
+        );
       });
     },
     [
@@ -679,11 +711,14 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       clearLongPressDrag,
       endSwipe,
       isSwipeCommitAnimating,
+      measuredRowHeight,
       onSwipeGestureActiveChange,
       onTouchInteractionChange,
+      swipeCommitCollapseProgress,
       swipeCommitOpacity,
       swipeCommitScale,
       swipeCommitTranslateX,
+      taskAppearanceKey,
       task.id,
       viewportWidth,
     ],
@@ -795,7 +830,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       snapPoint: number;
       isTriggerReached: boolean;
     }) => {
-      if (isSwipeCommitAnimating) return;
+      if (shouldApplySwipeCommitState) return;
 
       if (!isTriggerReached || openDirection === OpenDirection.NONE) {
         if (
@@ -814,7 +849,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       thresholdHapticDirectionRef.current = openDirection;
       triggerImpactHaptic(Haptics.ImpactFeedbackStyle.Medium);
     },
-    [isSwipeCommitAnimating],
+    [shouldApplySwipeCommitState],
   );
 
   const clipStyle = React.useMemo(
@@ -839,6 +874,41 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     ],
     [isLast, itemSpacing, itemSpacerStyle, measuredRowHeight, styles.itemSpacer],
   );
+  const swipeCommitSpacerStyle = React.useMemo(() => {
+    if (!shouldApplySwipeCommitState) return null;
+
+    return {
+      minHeight: 0,
+      marginBottom: swipeCommitCollapseProgress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0, isLast ? 0 : itemSpacing],
+      }),
+    };
+  }, [
+    isLast,
+    itemSpacing,
+    shouldApplySwipeCommitState,
+    swipeCommitCollapseProgress,
+  ]);
+  const swipeCommitClipStyle = React.useMemo(() => {
+    if (!shouldApplySwipeCommitState || measuredRowHeight <= 0) return null;
+
+    return {
+      minHeight: 0,
+      height: swipeCommitCollapseProgress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0, measuredRowHeight],
+      }),
+      opacity: swipeCommitCollapseProgress.interpolate({
+        inputRange: [0, 0.12, 1],
+        outputRange: [0, 0.86, 1],
+      }),
+    };
+  }, [
+    measuredRowHeight,
+    shouldApplySwipeCommitState,
+    swipeCommitCollapseProgress,
+  ]);
 
   const rowContentStyle = React.useMemo(
     () => [
@@ -922,10 +992,10 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   );
   const contentMotionStyle = React.useMemo(
     () => {
-      const transforms: Array<
+      const transforms: (
         | { translateX: number | Animated.Value | Animated.AnimatedAddition<number> }
         | { scale: Animated.Value }
-      > = [];
+      )[] = [];
 
       if (isActive && followHorizontalDrag && activeDragTranslateX) {
         transforms.push({ translateX: activeDragTranslateX });
@@ -940,8 +1010,10 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
         }
       }
 
-      transforms.push({ translateX: swipeCommitTranslateX });
-      transforms.push({ scale: swipeCommitScale });
+      if (shouldApplySwipeCommitState) {
+        transforms.push({ translateX: swipeCommitTranslateX });
+        transforms.push({ scale: swipeCommitScale });
+      }
 
       return {
         transform: transforms,
@@ -953,15 +1025,19 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       followHorizontalDrag,
       isActive,
       shouldUseCompactDragPreview,
+      shouldApplySwipeCommitState,
       swipeCommitScale,
       swipeCommitTranslateX,
     ],
   );
   const surfaceContentMotionStyle = React.useMemo(
-    () => ({
-      opacity: swipeCommitOpacity,
-    }),
-    [swipeCommitOpacity],
+    () =>
+      shouldApplySwipeCommitState
+        ? {
+            opacity: swipeCommitOpacity,
+          }
+        : null,
+    [shouldApplySwipeCommitState, swipeCommitOpacity],
   );
 
   const tagChips = React.useMemo<TagChipModel[]>(() => {
@@ -1272,12 +1348,13 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   );
 
   return (
-    <View style={spacerStyle}>
-      <View style={clipStyle}>
+    <Animated.View style={[spacerStyle, swipeCommitSpacerStyle]}>
+      <Animated.View style={[clipStyle, swipeCommitClipStyle]}>
         <SwipeableItem
+          key={taskAppearanceKey}
           ref={swipeRef}
           item={task}
-          swipeEnabled={!isActive && !isSwipeCommitAnimating}
+          swipeEnabled={!isActive && !shouldApplySwipeCommitState}
           activationThreshold={
             typeof swipeActivationThreshold === "number"
               ? swipeActivationThreshold
@@ -1298,7 +1375,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
               onLongPress={handleLongPressDrag}
               delayLongPress={DRAG_LONG_PRESS_DELAY_MS}
               activeOpacity={0.9}
-              disabled={isSwipeCommitAnimating}
+              disabled={shouldApplySwipeCommitState}
               onLayout={handleRowLayout}
               style={
                 shouldUseCompactDragPreview
@@ -1396,7 +1473,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
             </TouchableOpacity>
           </Animated.View>
         </SwipeableItem>
-      </View>
-    </View>
+      </Animated.View>
+    </Animated.View>
   );
 });

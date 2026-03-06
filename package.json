@@ -26,6 +26,7 @@
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
     "ai": "^6.0.103",
+    "emojibase-data": "^17.0.0",
     "expo": "^55.0.0",
     "expo-blur": "~55.0.8",
     "expo-calendar": "~55.0.9",

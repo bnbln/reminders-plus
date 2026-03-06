@@ -261,7 +261,7 @@ export default function PlusScreen() {
     if (result === "debug_unlocked") {
       Alert.alert(
         "Debug-Freischaltung aktiv",
-        "Reminds+ wurde lokal fuer diesen Debug-Build freigeschaltet, weil kein gueltiges Store-Produkt verfuegbar war.",
+        "Reminders+ wurde lokal fuer diesen Debug-Build freigeschaltet, weil kein gueltiges Store-Produkt verfuegbar war.",
         [{ text: "OK", onPress: onClose }],
       );
     }

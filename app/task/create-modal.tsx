@@ -65,7 +65,7 @@ type ComposerSelectionTag = {
   removable: boolean;
 };
 
-type RegexManagedActionId = 'date' | 'time' | 'location' | 'project' | 'routine';
+type RegexManagedActionId = 'date' | 'time' | 'style' | 'location' | 'project' | 'routine';
 type RegexAppliedSuggestions = Partial<Record<RegexManagedActionId, DetectedTaskTextSuggestion>>;
 
 const ROUTINE_LABEL_KEY_BY_TYPE: Record<RoutineType, string> = {
@@ -494,6 +494,12 @@ export default function CreateTaskModal() {
         router.push({ pathname: '/task/date-picker', params: { taskId: id, draftId: id } });
         break;
       case 'style':
+        setAppliedRegexSuggestions((prev) => {
+          if (!prev.style) return prev;
+          const next = { ...prev };
+          delete next.style;
+          return next;
+        });
         isNavigatingToChildModalRef.current = true;
         router.push({ pathname: '/task/emoji-picker', params: { taskId: id, draftId: id } });
         break;
@@ -531,6 +537,7 @@ export default function CreateTaskModal() {
   const requiresRoutineInterval = shouldPresetRoutine;
   const canSubmit = hasTitle && (!requiresRoutineInterval || hasRoutineInterval);
   const selectedProjectId = draftTask ? draftTask.projectId : initialProjectId;
+  const hasDraftTask = Boolean(draftTask);
   const isProjectPinnedByRoute = routeProjectIdIsValid && selectedProjectId === routeProjectId;
   const dismissedSuggestionKeySet = React.useMemo(
     () => new Set(dismissedSuggestionKeys),
@@ -555,6 +562,9 @@ export default function CreateTaskModal() {
         case 'time':
           next.time = suggestion;
           break;
+        case 'style':
+          next.style = suggestion;
+          break;
         case 'location':
           next.location = suggestion;
           break;
@@ -569,6 +579,19 @@ export default function CreateTaskModal() {
 
     return next;
   }, [detectedTextSuggestions, dismissedSuggestionKeySet]);
+  const availableStyleSuggestion = React.useMemo(() => {
+    const styleSuggestion = availableRegexSuggestions.style;
+    return styleSuggestion?.actionId === 'style' ? styleSuggestion : undefined;
+  }, [availableRegexSuggestions.style]);
+  const pendingStyleSuggestion = React.useMemo(() => {
+    const currentEmoji = draftTask?.emoji?.trim() ?? '';
+    const hasCustomEmoji = currentEmoji.length > 0 && currentEmoji !== '📝';
+    if (!hasDraftTask || !hasCustomEmoji || appliedRegexSuggestions.style?.actionId === 'style') {
+      return availableStyleSuggestion;
+    }
+
+    return undefined;
+  }, [appliedRegexSuggestions.style, availableStyleSuggestion, draftTask?.emoji, hasDraftTask]);
 
   const selectedTags = React.useMemo<ComposerSelectionTag[]>(() => {
     const tags: ComposerSelectionTag[] = [];
@@ -713,14 +736,63 @@ export default function CreateTaskModal() {
         didChange = true;
       }
 
+      if (prev.style?.actionId === 'style' && draftTask?.emoji !== prev.style.emoji) {
+        delete next.style;
+        didChange = true;
+      }
+
       return didChange ? next : prev;
     });
   }, [
     draftTask?.dueAt,
     draftTask?.dueHasTime,
+    draftTask?.emoji,
     draftTask?.location,
     selectedProjectId,
     selectedRoutineType,
+  ]);
+
+  React.useEffect(() => {
+    const appliedStyleSuggestion = appliedRegexSuggestions.style;
+    if (appliedStyleSuggestion?.actionId !== 'style') return;
+
+    const currentEmoji = draftTask?.emoji?.trim() ?? '';
+    if (!currentEmoji || currentEmoji !== appliedStyleSuggestion.emoji) return;
+    if (availableStyleSuggestion?.key === appliedStyleSuggestion.key) return;
+
+    const draftId = draftIdRef.current;
+    if (!draftId) return;
+
+    const nextEmoji = availableStyleSuggestion?.emoji ?? '📝';
+    setTasks((prev) =>
+      prev.map((task) => (
+        task.id === draftId
+          ? {
+            ...task,
+            emoji: nextEmoji,
+          }
+          : task
+      ))
+    );
+
+    setAppliedRegexSuggestions((prev) => {
+      if (prev.style?.actionId !== 'style') return prev;
+      if (availableStyleSuggestion?.actionId === 'style') {
+        return {
+          ...prev,
+          style: availableStyleSuggestion,
+        };
+      }
+
+      const next = { ...prev };
+      delete next.style;
+      return next;
+    });
+  }, [
+    appliedRegexSuggestions.style,
+    availableStyleSuggestion,
+    draftTask?.emoji,
+    setTasks,
   ]);
 
   const onTagPress = React.useCallback((actionId: ComposerActionId) => {
@@ -731,6 +803,7 @@ export default function CreateTaskModal() {
   React.useEffect(() => {
     const nextDateSuggestion = availableRegexSuggestions.date;
     const nextTimeSuggestion = availableRegexSuggestions.time;
+    const nextStyleSuggestion = pendingStyleSuggestion;
     const nextLocationSuggestion = availableRegexSuggestions.location;
     const nextProjectSuggestion = availableRegexSuggestions.project;
     const nextRoutineSuggestion = availableRegexSuggestions.routine;
@@ -738,6 +811,7 @@ export default function CreateTaskModal() {
     const hasAnySuggestion =
       !!nextDateSuggestion ||
       !!nextTimeSuggestion ||
+      !!nextStyleSuggestion ||
       !!nextLocationSuggestion ||
       !!nextProjectSuggestion ||
       !!nextRoutineSuggestion;
@@ -773,6 +847,15 @@ export default function CreateTaskModal() {
       ) &&
       currentTimeValue !== getSuggestionTimeValue(nextTimeSuggestion.hours, nextTimeSuggestion.minutes);
 
+    const shouldApplyStyle =
+      nextStyleSuggestion?.actionId === 'style' &&
+      (
+        !draftTask?.emoji ||
+        draftTask.emoji === '📝' ||
+        appliedRegexSuggestions.style?.actionId === 'style'
+      ) &&
+      draftTask?.emoji !== nextStyleSuggestion.emoji;
+
     const shouldApplyLocation =
       nextLocationSuggestion?.actionId === 'location' &&
       (
@@ -803,6 +886,7 @@ export default function CreateTaskModal() {
     if (
       !shouldApplyDate &&
       !shouldApplyTime &&
+      !shouldApplyStyle &&
       !shouldApplyLocation &&
       !shouldApplyProject &&
       !shouldApplyRoutine
@@ -849,6 +933,13 @@ export default function CreateTaskModal() {
           };
         }
 
+        if (shouldApplyStyle && nextStyleSuggestion?.actionId === 'style') {
+          nextTask = {
+            ...nextTask,
+            emoji: nextStyleSuggestion.emoji,
+          };
+        }
+
         if (shouldApplyLocation && nextLocationSuggestion?.actionId === 'location') {
           nextTask = {
             ...nextTask,
@@ -884,6 +975,7 @@ export default function CreateTaskModal() {
       ...prev,
       ...(shouldApplyDate && nextDateSuggestion?.actionId === 'date' ? { date: nextDateSuggestion } : {}),
       ...(shouldApplyTime && nextTimeSuggestion?.actionId === 'time' ? { time: nextTimeSuggestion } : {}),
+      ...(shouldApplyStyle && nextStyleSuggestion?.actionId === 'style' ? { style: nextStyleSuggestion } : {}),
       ...(shouldApplyLocation && nextLocationSuggestion?.actionId === 'location' ? { location: nextLocationSuggestion } : {}),
       ...(shouldApplyProject && nextProjectSuggestion?.actionId === 'project' ? { project: nextProjectSuggestion } : {}),
       ...(shouldApplyRoutine && nextRoutineSuggestion?.actionId === 'routine' ? { routine: nextRoutineSuggestion } : {}),
@@ -893,6 +985,7 @@ export default function CreateTaskModal() {
     appliedRegexSuggestions.location,
     appliedRegexSuggestions.project,
     appliedRegexSuggestions.routine,
+    appliedRegexSuggestions.style,
     appliedRegexSuggestions.time,
     availableRegexSuggestions.date,
     availableRegexSuggestions.location,
@@ -901,11 +994,13 @@ export default function CreateTaskModal() {
     availableRegexSuggestions.time,
     draftTask?.dueAt,
     draftTask?.dueHasTime,
+    draftTask?.emoji,
     draftTask?.location,
     ensureDraftTask,
     hasRoutineInterval,
     initialProjectId,
     isProjectPinnedByRoute,
+    pendingStyleSuggestion,
     selectedProjectId,
     selectedRoutineType,
     setTasks,
@@ -992,7 +1087,7 @@ export default function CreateTaskModal() {
   const appliedTitleCleanupSuggestions = React.useMemo(
     () =>
       Object.values(appliedRegexSuggestions).filter(
-        (suggestion): suggestion is DetectedTaskTextSuggestion => Boolean(suggestion)
+        (suggestion): suggestion is DetectedTaskTextSuggestion => Boolean(suggestion?.stripFromTitle)
       ),
     [appliedRegexSuggestions]
   );
@@ -1012,9 +1107,17 @@ export default function CreateTaskModal() {
     // Finalize
     isCreatedRef.current = true;
     const originalInput = trimmed;
-    const cleanedTitleCandidate = stripTaskSuggestionText(originalInput, appliedTitleCleanupSuggestions);
+    const createTimeStyleSuggestion =
+      pendingStyleSuggestion?.actionId === 'style' ? pendingStyleSuggestion : undefined;
+    const titleCleanupSuggestions = createTimeStyleSuggestion?.stripFromTitle
+      ? [...appliedTitleCleanupSuggestions, createTimeStyleSuggestion]
+      : appliedTitleCleanupSuggestions;
+    const cleanedTitleCandidate = stripTaskSuggestionText(originalInput, titleCleanupSuggestions);
     const finalTitle = cleanedTitleCandidate.length > 0 ? cleanedTitleCandidate : originalInput;
     const didStripFromTitle = finalTitle !== originalInput;
+    const resolvedEmoji =
+      createTimeStyleSuggestion?.emoji ??
+      (draftTask?.emoji?.trim().length ? draftTask.emoji : '📝');
 
     const id = draftIdRef.current;
     let createdTaskId = id ?? '';
@@ -1049,6 +1152,7 @@ export default function CreateTaskModal() {
         return prev.map(t => t.id === id ? {
           ...t,
           title: finalTitle,
+          emoji: resolvedEmoji,
           notes: didStripFromTitle ? mergeOriginalInputIntoNotes(originalInput, t.notes) : t.notes,
           section,
           orderRank,
@@ -1072,7 +1176,7 @@ export default function CreateTaskModal() {
             id: nextId,
             title: finalTitle,
             subtitle: undefined,
-            emoji: '📝',
+            emoji: resolvedEmoji,
             projectId: initialProjectId,
             dueAt: 0,
             dueHasTime: false,
@@ -1096,9 +1200,11 @@ export default function CreateTaskModal() {
     router.back();
   }, [
     appliedTitleCleanupSuggestions,
+    draftTask?.emoji,
     hasRoutineInterval,
     hasTitle,
     initialProjectId,
+    pendingStyleSuggestion,
     queueTaskPopIn,
     requiresRoutineInterval,
     router,

@@ -4,8 +4,8 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import React from "react";
 import {
-  AppState,
   Animated,
+  AppState,
   Easing,
   FlatList,
   type GestureResponderEvent,
@@ -43,10 +43,7 @@ import { FloatingAddButton } from "@/components/ui/floating-add-button";
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { SFSymbol } from "@/components/ui/sfsymbol";
 import { StreakAccentBackground } from "@/components/ui/streak-accent-background";
-import {
-  Colors,
-  LIGHT_ACCENT_SCREEN_BACKGROUND,
-} from "@/constants/theme";
+import { Colors, LIGHT_ACCENT_SCREEN_BACKGROUND } from "@/constants/theme";
 import {
   parseShowCompletedTasksParam,
   useHomeFilters,
@@ -1014,8 +1011,7 @@ const createStyles = (
       fontSize: 12,
       lineHeight: 16,
       fontWeight: WEIGHT_HEADING,
-      letterSpacing: 0.8,
-      textTransform: "uppercase" as const,
+      //letterSpacing: 0.8,
       color: text,
       opacity: ALPHA_3,
     },
@@ -1326,12 +1322,8 @@ export default function HomeScreen() {
     [calendarActiveColor, dateRailItemWidth, theme],
   );
   const { tasks, setTasks, projects } = useTasksStore();
-  const {
-    enabledTags,
-    showTagIcons,
-    showCompactSubtasks,
-    showCompletedTasks,
-  } = useHomeFilters();
+  const { enabledTags, showTagIcons, showCompactSubtasks, showCompletedTasks } =
+    useHomeFilters();
   const locale = React.useMemo(() => getIntlLocale().toLowerCase(), []);
   const isGermanLocale = locale.startsWith("de");
   const withSubtasksEnabled =
@@ -1561,7 +1553,6 @@ export default function HomeScreen() {
   const [isDragOverCalendarHeader, setIsDragOverCalendarHeader] =
     React.useState(false);
   const [, setDragDropDebugReason] = React.useState("idle");
-  const [isTaskListDragging, setIsTaskListDragging] = React.useState(false);
   const [, setActiveDragSurface] = React.useState<DragSurfaceId | null>(null);
   const dragContextRef = React.useRef<{
     taskId: string;
@@ -2061,8 +2052,7 @@ export default function HomeScreen() {
     }
     const lastRequest = lastDateSelectionRequestRef.current;
     const source =
-      lastRequest &&
-      isSameLocalDay(lastRequest.dateStart, selectedDateStart)
+      lastRequest && isSameLocalDay(lastRequest.dateStart, selectedDateStart)
         ? lastRequest.source
         : "programmatic";
     if (source === "rail") {
@@ -2076,8 +2066,7 @@ export default function HomeScreen() {
     const previousDateStart = lastAnimatedTitleDateRef.current;
     lastAnimatedTitleDateRef.current = selectedDateStart;
     const direction =
-      lastRequest &&
-      isSameLocalDay(lastRequest.dateStart, selectedDateStart)
+      lastRequest && isSameLocalDay(lastRequest.dateStart, selectedDateStart)
         ? lastRequest.direction
         : selectedDateStart >= previousDateStart
           ? 1
@@ -2531,10 +2520,7 @@ export default function HomeScreen() {
     ],
   );
   const selectDateWithoutTransition = React.useCallback(
-    (
-      nextDateStart: number,
-      source: DateSelectionSource = "programmatic",
-    ) => {
+    (nextDateStart: number, source: DateSelectionSource = "programmatic") => {
       const current = selectedDateStartRef.current;
       if (isSameLocalDay(current, nextDateStart)) return;
       const direction: 1 | -1 = nextDateStart >= current ? 1 : -1;
@@ -3212,9 +3198,6 @@ export default function HomeScreen() {
   const handleDragStateChange = React.useCallback(
     (isDragging: boolean) => {
       listDragActiveRef.current = isDragging;
-      setIsTaskListDragging((current) =>
-        current === isDragging ? current : isDragging,
-      );
       if (isDragging) {
         cancelDragSurfaceResetFrame();
         measureDateRailBounds();
@@ -3390,20 +3373,11 @@ export default function HomeScreen() {
   }, [visibleTaskDisplaySectionById, visibleTasks]);
   const visibleSections = React.useMemo(() => {
     const sections: SectionId[] = ["today"];
-    const shouldShowCompletedSection =
-      showCompletedTasksEnabled &&
-      (tasksBySection.completed.length > 0 ||
-        (isTaskListDragging && tasksBySection.today.length > 0));
-    if (shouldShowCompletedSection) {
+    if (showCompletedTasksEnabled && tasksBySection.completed.length > 0) {
       sections.push("completed");
     }
     return sections;
-  }, [
-    isTaskListDragging,
-    showCompletedTasksEnabled,
-    tasksBySection.completed.length,
-    tasksBySection.today.length,
-  ]);
+  }, [showCompletedTasksEnabled, tasksBySection.completed.length]);
 
   const firstVisibleSection = visibleSections[0] ?? "today";
 
@@ -3429,7 +3403,9 @@ export default function HomeScreen() {
       for (const task of tasksBySection[sectionId]) {
         data.push({
           type: "task",
-          key: `task-${task.id}`,
+          key: `task-${task.id}:${sectionId}:${task.completedAt ?? 0}:${
+            task.deletedAt ?? 0
+          }`,
           taskId: task.id,
         });
       }
@@ -4063,7 +4039,9 @@ export default function HomeScreen() {
                               }
                             : {
                                 opacity: outgoingTitleOpacity,
-                                transform: [{ translateY: outgoingTitleTranslateY }],
+                                transform: [
+                                  { translateY: outgoingTitleTranslateY },
+                                ],
                               },
                         ]}
                         numberOfLines={1}
@@ -4089,7 +4067,9 @@ export default function HomeScreen() {
                               }
                             : {
                                 opacity: incomingTitleOpacity,
-                                transform: [{ translateY: incomingTitleTranslateY }],
+                                transform: [
+                                  { translateY: incomingTitleTranslateY },
+                                ],
                               }
                           : {
                               opacity: 1,
@@ -4520,6 +4500,8 @@ export default function HomeScreen() {
     (!hasUpcomingSection || collapsedSections.upcoming);
 
   const archivePill = React.useMemo(() => {
+    if (showCompletedTasksEnabled) return null;
+
     const completedCount = tasks.filter(
       (t) => t.section === "completed" && !t.deletedAt,
     ).length;
@@ -4571,6 +4553,7 @@ export default function HomeScreen() {
     areCollapsibleSectionsCollapsed,
     glassSurfacePalette,
     router,
+    showCompletedTasksEnabled,
     styles,
     tasks,
     theme,

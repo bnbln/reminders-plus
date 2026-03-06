@@ -31,13 +31,13 @@ export default function InboxLayout() {
         options={{
           title: t("common.inbox"),
           headerTransparent: Platform.OS === "ios",
-          headerLeft: () => <ProfileHeaderMenuButton />,
-          headerRight: () => (
+          headerLeft: () => (
             <HeaderTrailingActions
               theme={theme}
               hiddenTags={INBOX_HIDDEN_FILTER_TAGS}
             />
           ),
+          headerRight: () => <ProfileHeaderMenuButton />,
         }}
       />
     </Stack>

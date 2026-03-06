@@ -10,12 +10,15 @@ import React from "react";
 import { Platform, Pressable } from "react-native";
 
 import { Colors } from "@/constants/theme";
+import { usePremium } from "@/context/premium-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 
 type ProfileMenuActionId =
   | "profile"
   | "status"
   | "streaks"
+  | "routines"
+  | "assist"
   | "archive"
   | "settings";
 
@@ -39,16 +42,12 @@ export function ProfileHeaderMenuButton() {
   const router = useRouter();
   const theme = useColorScheme() ?? "light";
   const menuRef = React.useRef<MenuComponentRef>(null);
+  const { hasPremiumAccess, isReady } = usePremium();
+  const assistMenuTitle =
+    !isReady || hasPremiumAccess ? "Assist" : "Reminders+";
 
   const actions = React.useMemo<MenuAction[]>(() => {
     const imageColor = Colors[theme].text;
-
-    const profile: MenuAction = {
-      id: "profile",
-      title: "Profil",
-      image: Platform.OS === "ios" ? "person.fill" : undefined,
-      imageColor: Platform.OS === "ios" ? imageColor : undefined,
-    };
 
     const mainGroup: MenuAction = {
       title: "",
@@ -67,10 +66,16 @@ export function ProfileHeaderMenuButton() {
           imageColor: Platform.OS === "ios" ? "#F97316" : undefined,
         },
         {
+          id: "routines",
+          title: "Routinen",
+          image: Platform.OS === "ios" ? "repeat" : undefined,
+          imageColor: Platform.OS === "ios" ? imageColor : undefined,
+        },
+        {
           id: "archive",
           title: "Archiv",
           image: Platform.OS === "ios" ? "archivebox.fill" : undefined,
-          imageColor: Platform.OS === "ios" ? imageColor : undefined,
+          imageColor: Platform.OS === "ios" ? "grey" : undefined,
         },
       ],
     };
@@ -79,6 +84,22 @@ export function ProfileHeaderMenuButton() {
       title: "",
       displayInline: true,
       subactions: [
+        {
+          id: "assist",
+          title: assistMenuTitle,
+          image:
+            Platform.OS === "ios"
+              ? hasPremiumAccess || !isReady
+                ? "message.badge.waveform.fill"
+                : "plus"
+              : undefined,
+          imageColor:
+            Platform.OS === "ios"
+              ? hasPremiumAccess || !isReady
+                ? "#0A84FF"
+                : "#A855F7"
+              : undefined,
+        },
         {
           id: "settings",
           title: "Einstellungen",
@@ -89,7 +110,7 @@ export function ProfileHeaderMenuButton() {
     };
 
     return [mainGroup, settingsGroup];
-  }, [theme]);
+  }, [assistMenuTitle, hasPremiumAccess, isReady, theme]);
 
   const onPressAction = React.useCallback(
     ({ nativeEvent: { event } }: any) => {
@@ -110,6 +131,21 @@ export function ProfileHeaderMenuButton() {
         return;
       }
 
+      if (actionId === "routines") {
+        router.push("/home/routines");
+        return;
+      }
+
+      if (actionId === "assist") {
+        if (!isReady || hasPremiumAccess) {
+          router.push("/assist");
+          return;
+        }
+
+        router.push({ pathname: "/plus", params: { source: "assist" } });
+        return;
+      }
+
       if (actionId === "archive") {
         router.push("/home/archive");
         return;
@@ -119,7 +155,7 @@ export function ProfileHeaderMenuButton() {
         router.push("/settings");
       }
     },
-    [router],
+    [hasPremiumAccess, isReady, router],
   );
 
   return (

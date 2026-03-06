@@ -1,4 +1,3 @@
-import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { Stack, useRouter } from "expo-router";
 import React from "react";
 import {
@@ -11,8 +10,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
-import { Colors } from "@/constants/theme";
 import { FREE_PROJECT_LIMIT } from "@/constants/premium";
+import { Colors } from "@/constants/theme";
 import { usePremium } from "@/context/premium-store";
 import { useTasksStore } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -91,17 +90,17 @@ export default function ProjectLimitModal() {
             <View style={styles.lockLoadingState}>
               <ActivityIndicator color={Colors[theme].text} />
               <Text style={styles.lockBody}>
-                Pruefe gerade deinen Reminds+ Status...
+                Pruefe gerade deinen Reminders+ Status...
               </Text>
             </View>
           ) : (
             <>
               <Text style={styles.lockTitle}>
-                Mehr als 4 Projekte brauchen Reminds+.
+                Mehr als 4 Projekte brauchen Reminders+.
               </Text>
               <Text style={styles.lockBody}>
                 Dein Free-Plan enthaelt bis zu {FREE_PROJECT_LIMIT} aktive
-                Projekte. Mit Reminds+ bekommst du unbegrenzte Projekte,
+                Projekte. Mit Reminders+ bekommst du unbegrenzte Projekte,
                 AI-Assist und die Cloud-Sync-Freischaltung.
               </Text>
 
@@ -130,7 +129,9 @@ export default function ProjectLimitModal() {
                     pressed && styles.buttonPressed,
                   ]}
                 >
-                  <Text style={styles.primaryActionText}>Reminds+ ansehen</Text>
+                  <Text style={styles.primaryActionText}>
+                    Reminders+ ansehen
+                  </Text>
                 </Pressable>
               </View>
             </>

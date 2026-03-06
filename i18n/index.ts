@@ -297,6 +297,14 @@ const DE_TRANSLATIONS: TranslationDict = {
     'seed.task.drag.subtitle': 'Halte gedrückt und ziehe mich',
     'seed.task.details.title': 'Tippe für Details',
     'seed.task.details.subtitle': 'Öffnet die Detailansicht',
+    'seed.task.inboxOverdue.title': 'Den Fokus behalten',
+    'seed.task.inboxOverdue.subtitle': 'Überfällige Aufgaben werden in der Inbox angezeigt',
+    'seed.task.inboxWithoutDate.title': 'Ordnung ohne Stress',
+    'seed.task.inboxWithoutDate.subtitle': 'Tasks ohne Fälligkeit verwalten',
+    'seed.task.favoriteColor.title': 'Lieblingsfarbe wählen',
+    'seed.task.favoriteColor.subtitle': 'In den Einstellungen wählen',
+    'seed.task.moreFeatures.title': 'Noch mehr Funktionen',
+    'seed.task.moreFeatures.subtitle': 'AI, Cloud-Sync und Projekte',
 };
 
 const EN_TRANSLATIONS: TranslationDict = {
@@ -565,6 +573,14 @@ const EN_TRANSLATIONS: TranslationDict = {
     'seed.task.drag.subtitle': 'Press and hold to drag me',
     'seed.task.details.title': 'Tap for details',
     'seed.task.details.subtitle': 'Opens the detail view',
+    'seed.task.inboxOverdue.title': 'Stay focused',
+    'seed.task.inboxOverdue.subtitle': 'Overdue tasks appear in the inbox',
+    'seed.task.inboxWithoutDate.title': 'Stay organized without stress',
+    'seed.task.inboxWithoutDate.subtitle': 'Manage tasks without a due date',
+    'seed.task.favoriteColor.title': 'Choose your favorite color',
+    'seed.task.favoriteColor.subtitle': 'Pick one in Settings',
+    'seed.task.moreFeatures.title': 'Even more features',
+    'seed.task.moreFeatures.subtitle': 'AI, cloud sync, and projects',
 };
 
 const ES_TRANSLATIONS: TranslationDict = {

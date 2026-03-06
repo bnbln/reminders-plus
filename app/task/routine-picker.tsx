@@ -6,7 +6,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { HeaderCloseButton } from "@/components/ui/header-close-button";
 import { withAlpha } from "@/components/ui/glass-surface";
-import { HeaderIconButton } from "@/components/ui/header-icon-button";
 import { Colors } from "@/constants/theme";
 import {
   type RoutineInterval,
@@ -111,26 +110,10 @@ export default function RoutinePickerScreen() {
       task?.isRoutine ? (task.routineType ?? task.routineInterval ?? null) : null,
     [task],
   );
-  const [selectedType, setSelectedType] =
-    React.useState<RoutineType | null>(selectedTypeFromTask);
-  const [didUserChangeSelection, setDidUserChangeSelection] =
-    React.useState(false);
-
-  React.useEffect(() => {
-    if (!didUserChangeSelection) {
-      setSelectedType(selectedTypeFromTask);
-    }
-  }, [didUserChangeSelection, selectedTypeFromTask]);
-
-  React.useEffect(() => {
-    setDidUserChangeSelection(false);
-  }, [taskId]);
-
-  // Save changes
-  const handleSave = React.useCallback(() => {
+  const applyRoutineSelectionAndClose = React.useCallback((nextType: RoutineType | null) => {
     if (!taskId) return;
 
-    if (selectedType === null) {
+    if (nextType === null) {
       setTasks((prev) =>
         prev.map((t) =>
           t.id === taskId
@@ -148,32 +131,31 @@ export default function RoutinePickerScreen() {
         ),
       );
     } else {
-      const legacyInterval = toLegacyRoutineInterval(selectedType);
+      const legacyInterval = toLegacyRoutineInterval(nextType);
       setTasks((prev) =>
         prev.map((t) =>
           t.id === taskId
             ? {
                 ...t,
                 isRoutine: true,
-                routineType: selectedType,
+                routineType: nextType,
                 routineInterval: legacyInterval,
                 routineWeekday:
-                  selectedType === "custom" ? t.routineWeekday : undefined,
+                  nextType === "custom" ? t.routineWeekday : undefined,
                 routineNthWeek:
-                  selectedType === "custom" ? t.routineNthWeek : undefined,
+                  nextType === "custom" ? t.routineNthWeek : undefined,
                 routineMonthDay:
-                  selectedType === "custom" ? t.routineMonthDay : undefined,
+                  nextType === "custom" ? t.routineMonthDay : undefined,
                 routineMonth:
-                  selectedType === "custom" ? t.routineMonth : undefined,
+                  nextType === "custom" ? t.routineMonth : undefined,
               }
             : t,
         ),
       );
     }
     router.back();
-  }, [taskId, selectedType, setTasks, router]);
+  }, [router, setTasks, taskId]);
 
-  // Cancel changes
   const handleCancel = React.useCallback(() => {
     router.back();
   }, [router]);
@@ -214,15 +196,6 @@ export default function RoutinePickerScreen() {
             headerLeft: () => (
               <HeaderCloseButton onPress={handleCancel} color={Colors[theme].text} />
             ),
-            headerRight: () => (
-              <HeaderIconButton onPress={handleSave}>
-                  <MaterialIcons
-                    name="check"
-                    size={24}
-                    color={Colors[theme].text}
-                  />
-              </HeaderIconButton>
-            ),
             headerShown: true,
             headerStyle: {
               backgroundColor: isDark ? "#000000" : "#F2F2F7",
@@ -239,16 +212,13 @@ export default function RoutinePickerScreen() {
           showsVerticalScrollIndicator={false}
         >
           {ROUTINE_OPTIONS.map((option) => {
-            const isActive = selectedType === option.value;
+            const isActive = selectedTypeFromTask === option.value;
             const isNone = option.value === null;
 
             return (
               <Pressable
                 key={option.labelKey}
-                onPress={() => {
-                  setDidUserChangeSelection(true);
-                  setSelectedType(option.value);
-                }}
+                onPress={() => applyRoutineSelectionAndClose(option.value)}
                 style={[styles.optionRow, isActive && styles.optionRowActive]}
               >
                 <View

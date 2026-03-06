@@ -39,8 +39,8 @@ import {
   type ViewStyle,
 } from "react-native";
 
-import { Colors } from "@/constants/theme";
 import { getPremiumPlanLabel } from "@/constants/premium";
+import { Colors } from "@/constants/theme";
 import {
   TAG_ORDER,
   type TagId,
@@ -55,12 +55,12 @@ import {
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import {
+  type CloudSyncAccountStatus,
+  type CloudSyncStatus,
   getCloudSyncStatus,
   setNativeCloudSyncEnabled,
   subscribeToCloudSyncStatus,
   syncCloudNow,
-  type CloudSyncAccountStatus,
-  type CloudSyncStatus,
 } from "@/services/cloud-sync";
 import { deriveActiveSectionFromDueAt } from "@/utils/task-dates";
 
@@ -185,7 +185,9 @@ function formatStatusDateTime(value: number | null): string | null {
   }).format(new Date(value));
 }
 
-function getCloudSyncAccountMessage(accountStatus: CloudSyncAccountStatus): string {
+function getCloudSyncAccountMessage(
+  accountStatus: CloudSyncAccountStatus,
+): string {
   switch (accountStatus) {
     case "available":
       return "Aufgaben und Projekte werden über iCloud zwischen deinen Apple-Geraeten abgeglichen.";
@@ -492,11 +494,7 @@ export default function SettingsScreen() {
   const [cloudSyncStatus, setCloudSyncStatus] =
     React.useState<CloudSyncStatus | null>(null);
   const [isCloudSyncBusy, setIsCloudSyncBusy] = React.useState(false);
-  const {
-    hasPremiumAccess,
-    isReady: isPremiumReady,
-    plan,
-  } = usePremium();
+  const { hasPremiumAccess, isReady: isPremiumReady, plan } = usePremium();
   const effectiveCloudSyncEnabled =
     Platform.OS === "ios" && cloudSyncEnabled && hasPremiumAccess;
 
@@ -581,8 +579,8 @@ export default function SettingsScreen() {
       if (Platform.OS !== "ios") return;
       if (enabled && !hasPremiumAccess) {
         Alert.alert(
-          "Reminds+ erforderlich",
-          "Cloud Sync ist Teil von Reminds+ und wird erst nach der Freischaltung aktiviert.",
+          "Reminders+ erforderlich",
+          "Cloud Sync ist Teil von Reminders+ und wird erst nach der Freischaltung aktiviert.",
         );
         router.push("/plus?source=sync");
         return;
@@ -595,7 +593,10 @@ export default function SettingsScreen() {
         setCloudSyncStatus(status);
 
         if (enabled && status.accountStatus !== "available") {
-          Alert.alert("iCloud erforderlich", getCloudSyncAccountMessage(status.accountStatus));
+          Alert.alert(
+            "iCloud erforderlich",
+            getCloudSyncAccountMessage(status.accountStatus),
+          );
         } else if (enabled && status.lastError) {
           Alert.alert("Cloud Sync", status.lastError);
         }
@@ -606,20 +607,15 @@ export default function SettingsScreen() {
         setIsCloudSyncBusy(false);
       }
     },
-    [
-      hasPremiumAccess,
-      refreshCloudSyncStatus,
-      router,
-      setCloudSyncEnabled,
-    ],
+    [hasPremiumAccess, refreshCloudSyncStatus, router, setCloudSyncEnabled],
   );
 
   const onCloudSyncNow = React.useCallback(async () => {
     if (Platform.OS !== "ios") return;
     if (!hasPremiumAccess) {
       Alert.alert(
-        "Reminds+ erforderlich",
-        "Cloud Sync ist Teil von Reminds+ und steht nach der Freischaltung bereit.",
+        "Reminders+ erforderlich",
+        "Cloud Sync ist Teil von Reminders+ und steht nach der Freischaltung bereit.",
       );
       router.push("/plus?source=sync");
       return;
@@ -635,7 +631,10 @@ export default function SettingsScreen() {
       setCloudSyncStatus(result);
 
       if (result.accountStatus !== "available") {
-        Alert.alert("iCloud erforderlich", getCloudSyncAccountMessage(result.accountStatus));
+        Alert.alert(
+          "iCloud erforderlich",
+          getCloudSyncAccountMessage(result.accountStatus),
+        );
         return;
       }
 
@@ -671,8 +670,8 @@ export default function SettingsScreen() {
 
     if (!hasPremiumAccess) {
       return cloudSyncEnabled
-        ? "Cloud Sync ist vorgemerkt, bleibt aber ohne Reminds+ pausiert."
-        : "Cloud Sync teilt Aufgaben und Projekte zwischen deinen Apple-Geraeten und ist Teil von Reminds+.";
+        ? "Cloud Sync ist vorgemerkt, bleibt aber ohne Reminders+ pausiert."
+        : "Cloud Sync teilt Aufgaben und Projekte zwischen deinen Apple-Geraeten und ist Teil von Reminders+.";
     }
 
     if (!cloudSyncEnabled) {
@@ -693,11 +692,7 @@ export default function SettingsScreen() {
     }
 
     return accountMessage;
-  }, [
-    cloudSyncEnabled,
-    cloudSyncStatus,
-    hasPremiumAccess,
-  ]);
+  }, [cloudSyncEnabled, cloudSyncStatus, hasPremiumAccess]);
 
   const onExportBackup = React.useCallback(async () => {
     if (isExportingBackup || isRestoringBackup || isImportingAppleData) return;
@@ -1110,307 +1105,312 @@ export default function SettingsScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Section title="Reminds+" cardStyle={sectionCardStyle}>
-        <View style={styles.rowBlock}>
-          <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-            Plan
-          </Text>
-          <Text style={[styles.rowValue, { color: Colors[theme].text }]}>
-            {!isPremiumReady ? "Wird geprueft..." : getPremiumPlanLabel(plan)}
-          </Text>
-        </View>
-
-        <View style={[styles.separator, { backgroundColor: borderColor }]} />
-
-        <Text style={[styles.helperText, { color: muted }]}>
-          AI-Assist, mehr als 4 Projekte und die Cloud-Sync-Freischaltung fuer Apple-Geraete.
-        </Text>
-
-        <View style={styles.buttonRow}>
-          <Button
-            title={hasPremiumAccess ? "Kaufoptionen anzeigen" : "Angebot oeffnen"}
-            onPress={() => router.push("/plus")}
-          />
-        </View>
-      </Section>
-
-      <Section title="Darstellung" cardStyle={sectionCardStyle}>
-        <View style={styles.rowBlock}>
-          <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-            Farbe
-          </Text>
-          <View style={styles.colorRow}>
-            {ACCENT_COLORS.map((color) => {
-              const selected = accentColor === color.id;
-              return (
-                <Pressable
-                  key={color.id}
-                  accessibilityRole="button"
-                  accessibilityLabel={color.label}
-                  onPress={() => setAccentColor(color.id)}
-                  style={[
-                    styles.colorButton,
-                    {
-                      backgroundColor: color.value,
-                      borderColor: selected
-                        ? Colors[theme].text
-                        : isDark
-                          ? "rgba(255,255,255,0.24)"
-                          : "rgba(17,24,28,0.18)",
-                      borderWidth: selected ? 2 : 1,
-                    },
-                  ]}
-                >
-                  {selected ? (
-                    <MaterialIcons name="check" size={14} color="#fff" />
-                  ) : null}
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-
-        <View style={[styles.separator, { backgroundColor: borderColor }]} />
-
-        <View style={styles.rowBlock}>
-          <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-            Farbmodus
-          </Text>
-          <SegmentedControl
-            values={[...APPEARANCE_LABELS]}
-            selectedIndex={APPEARANCE_MODES.indexOf(appearanceMode)}
-            onChange={(event) =>
-              onChangeAppearance(event.nativeEvent.selectedSegmentIndex)
-            }
-          />
-        </View>
-      </Section>
-
-      {Platform.OS === "ios" ? (
-        <Section title="Cloud Sync" cardStyle={sectionCardStyle}>
-          <View style={styles.switchRow}>
-            <View style={styles.switchLabelWrap}>
-              <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-                iCloud-Sync
-              </Text>
-              <Text style={[styles.helperInlineText, { color: muted }]}>
-                {effectiveCloudSyncEnabled ? "Aktiv" : "Aus"}
-              </Text>
-            </View>
-            <Switch
-              value={cloudSyncEnabled}
-              onValueChange={onToggleCloudSync}
-              disabled={isCloudSyncBusy}
-              trackColor={{ false: "#7A7A7A", true: "#34C759" }}
-            />
+        <Section title="Reminders+" cardStyle={sectionCardStyle}>
+          <View style={styles.rowBlock}>
+            <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
+              Plan
+            </Text>
+            <Text style={[styles.rowValue, { color: Colors[theme].text }]}>
+              {!isPremiumReady ? "Wird geprueft..." : getPremiumPlanLabel(plan)}
+            </Text>
           </View>
 
           <View style={[styles.separator, { backgroundColor: borderColor }]} />
 
           <Text style={[styles.helperText, { color: muted }]}>
-            {cloudSyncStatusText}
+            AI-Assist, mehr als 4 Projekte und die Cloud-Sync-Freischaltung fuer
+            Apple-Geraete.
           </Text>
 
           <View style={styles.buttonRow}>
             <Button
               title={
-                isCloudSyncBusy
-                  ? "Synchronisiere..."
-                  : cloudSyncEnabled
-                    ? "Jetzt synchronisieren"
-                    : "Sync aktivieren & starten"
+                hasPremiumAccess ? "Kaufoptionen anzeigen" : "Angebot oeffnen"
               }
-              onPress={onCloudSyncNow}
-              disabled={isCloudSyncBusy}
+              onPress={() => router.push("/plus")}
             />
           </View>
         </Section>
-      ) : null}
 
-      <Section title="Datensicherung" cardStyle={sectionCardStyle}>
-        <View style={styles.buttonStack}>
-          <Button
-            title={
-              isExportingBackup
-                ? "Exportiere Sicherung..."
-                : "Sichern & Exportieren"
-            }
-            onPress={onExportBackup}
-            disabled={
-              isExportingBackup || isRestoringBackup || isImportingAppleData
-            }
-          />
-          <Button
-            title={
-              isRestoringBackup
-                ? "Stelle Sicherung wieder her..."
-                : "Aus Sicherung wiederherstellen"
-            }
-            onPress={onRestoreBackup}
-            disabled={
-              isExportingBackup || isRestoringBackup || isImportingAppleData
-            }
-          />
-        </View>
-      </Section>
+        <Section title="Darstellung" cardStyle={sectionCardStyle}>
+          <View style={styles.rowBlock}>
+            <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
+              Farbe
+            </Text>
+            <View style={styles.colorRow}>
+              {ACCENT_COLORS.map((color) => {
+                const selected = accentColor === color.id;
+                return (
+                  <Pressable
+                    key={color.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={color.label}
+                    onPress={() => setAccentColor(color.id)}
+                    style={[
+                      styles.colorButton,
+                      {
+                        backgroundColor: color.value,
+                        borderColor: selected
+                          ? Colors[theme].text
+                          : isDark
+                            ? "rgba(255,255,255,0.24)"
+                            : "rgba(17,24,28,0.18)",
+                        borderWidth: selected ? 2 : 1,
+                      },
+                    ]}
+                  >
+                    {selected ? (
+                      <MaterialIcons name="check" size={14} color="#fff" />
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
 
-      {SHOW_APPLE_IMPORT_SECTION ? (
-        <Section title="Import" cardStyle={sectionCardStyle}>
-          <View style={styles.buttonRow}>
+          <View style={[styles.separator, { backgroundColor: borderColor }]} />
+
+          <View style={styles.rowBlock}>
+            <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
+              Farbmodus
+            </Text>
+            <SegmentedControl
+              values={[...APPEARANCE_LABELS]}
+              selectedIndex={APPEARANCE_MODES.indexOf(appearanceMode)}
+              onChange={(event) =>
+                onChangeAppearance(event.nativeEvent.selectedSegmentIndex)
+              }
+            />
+          </View>
+        </Section>
+
+        {Platform.OS === "ios" ? (
+          <Section title="Cloud Sync" cardStyle={sectionCardStyle}>
+            <View style={styles.switchRow}>
+              <View style={styles.switchLabelWrap}>
+                <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
+                  iCloud-Sync
+                </Text>
+                <Text style={[styles.helperInlineText, { color: muted }]}>
+                  {effectiveCloudSyncEnabled ? "Aktiv" : "Aus"}
+                </Text>
+              </View>
+              <Switch
+                value={cloudSyncEnabled}
+                onValueChange={onToggleCloudSync}
+                disabled={isCloudSyncBusy}
+                trackColor={{ false: "#7A7A7A", true: "#34C759" }}
+              />
+            </View>
+
+            <View
+              style={[styles.separator, { backgroundColor: borderColor }]}
+            />
+
+            <Text style={[styles.helperText, { color: muted }]}>
+              {cloudSyncStatusText}
+            </Text>
+
+            <View style={styles.buttonRow}>
+              <Button
+                title={
+                  isCloudSyncBusy
+                    ? "Synchronisiere..."
+                    : cloudSyncEnabled
+                      ? "Jetzt synchronisieren"
+                      : "Sync aktivieren & starten"
+                }
+                onPress={onCloudSyncNow}
+                disabled={isCloudSyncBusy}
+              />
+            </View>
+          </Section>
+        ) : null}
+
+        <Section title="Datensicherung" cardStyle={sectionCardStyle}>
+          <View style={styles.buttonStack}>
             <Button
               title={
-                isImportingAppleData
-                  ? "Importiere Apple Daten..."
-                  : "Apple Erinnerungen & Kalender importieren"
+                isExportingBackup
+                  ? "Exportiere Sicherung..."
+                  : "Sichern & Exportieren"
               }
-              onPress={onImportAppleData}
+              onPress={onExportBackup}
+              disabled={
+                isExportingBackup || isRestoringBackup || isImportingAppleData
+              }
+            />
+            <Button
+              title={
+                isRestoringBackup
+                  ? "Stelle Sicherung wieder her..."
+                  : "Aus Sicherung wiederherstellen"
+              }
+              onPress={onRestoreBackup}
               disabled={
                 isExportingBackup || isRestoringBackup || isImportingAppleData
               }
             />
           </View>
         </Section>
-      ) : null}
 
-      <Section title="Mitteilungen" cardStyle={sectionCardStyle}>
-        <View style={styles.rowBlock}>
-          <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-            App-Badge
-          </Text>
+        {SHOW_APPLE_IMPORT_SECTION ? (
+          <Section title="Import" cardStyle={sectionCardStyle}>
+            <View style={styles.buttonRow}>
+              <Button
+                title={
+                  isImportingAppleData
+                    ? "Importiere Apple Daten..."
+                    : "Apple Erinnerungen & Kalender importieren"
+                }
+                onPress={onImportAppleData}
+                disabled={
+                  isExportingBackup || isRestoringBackup || isImportingAppleData
+                }
+              />
+            </View>
+          </Section>
+        ) : null}
 
-          <MenuView
-            ref={menuRef}
-            actions={appBadgeActions}
-            onPressAction={onPressBadgeAction}
-            shouldOpenOnLongPress={false}
-            themeVariant={Platform.OS === "ios" ? theme : undefined}
-            isAnchoredToRight={Platform.OS === "android" ? true : undefined}
-            style={styles.badgeMenuAnchor}
-          >
-            {Platform.OS === "android" ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="App-Badge auswählen"
-                onPress={() => menuRef.current?.show?.()}
-                style={styles.badgeMenuTrigger}
-              >
-                <Text
-                  style={[styles.badgeValue, { color: Colors[theme].text }]}
+        <Section title="Mitteilungen" cardStyle={sectionCardStyle}>
+          <View style={styles.rowBlock}>
+            <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
+              App-Badge
+            </Text>
+
+            <MenuView
+              ref={menuRef}
+              actions={appBadgeActions}
+              onPressAction={onPressBadgeAction}
+              shouldOpenOnLongPress={false}
+              themeVariant={Platform.OS === "ios" ? theme : undefined}
+              isAnchoredToRight={Platform.OS === "android" ? true : undefined}
+              style={styles.badgeMenuAnchor}
+            >
+              {Platform.OS === "android" ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="App-Badge auswählen"
+                  onPress={() => menuRef.current?.show?.()}
+                  style={styles.badgeMenuTrigger}
                 >
-                  {APP_BADGE_LABELS[appBadgeMode]}
-                </Text>
-                <MaterialIcons
-                  name="keyboard-arrow-down"
-                  size={18}
-                  color={muted}
-                />
-              </Pressable>
-            ) : (
-              <View style={styles.badgeMenuTrigger}>
-                <Text
-                  style={[styles.badgeValue, { color: Colors[theme].text }]}
-                >
-                  {APP_BADGE_LABELS[appBadgeMode]}
-                </Text>
-                <MaterialIcons
-                  name="keyboard-arrow-down"
-                  size={18}
-                  color={muted}
-                />
-              </View>
-            )}
-          </MenuView>
-        </View>
+                  <Text
+                    style={[styles.badgeValue, { color: Colors[theme].text }]}
+                  >
+                    {APP_BADGE_LABELS[appBadgeMode]}
+                  </Text>
+                  <MaterialIcons
+                    name="keyboard-arrow-down"
+                    size={18}
+                    color={muted}
+                  />
+                </Pressable>
+              ) : (
+                <View style={styles.badgeMenuTrigger}>
+                  <Text
+                    style={[styles.badgeValue, { color: Colors[theme].text }]}
+                  >
+                    {APP_BADGE_LABELS[appBadgeMode]}
+                  </Text>
+                  <MaterialIcons
+                    name="keyboard-arrow-down"
+                    size={18}
+                    color={muted}
+                  />
+                </View>
+              )}
+            </MenuView>
+          </View>
 
-        <View style={[styles.separator, { backgroundColor: borderColor }]} />
+          <View style={[styles.separator, { backgroundColor: borderColor }]} />
 
-        <View style={styles.switchRow}>
-          <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-            Tägliche Zusammenfassung
-          </Text>
-          <Switch
-            value={dailySummaryEnabled}
-            onValueChange={(enabled) => {
-              setDailySummaryEnabled(enabled);
-              if (!enabled) setShowDailySummaryPicker(false);
-            }}
-            trackColor={{ false: "#7A7A7A", true: "#34C759" }}
-          />
-        </View>
+          <View style={styles.switchRow}>
+            <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
+              Tägliche Zusammenfassung
+            </Text>
+            <Switch
+              value={dailySummaryEnabled}
+              onValueChange={(enabled) => {
+                setDailySummaryEnabled(enabled);
+                if (!enabled) setShowDailySummaryPicker(false);
+              }}
+              trackColor={{ false: "#7A7A7A", true: "#34C759" }}
+            />
+          </View>
 
-        <View style={[styles.separator, { backgroundColor: borderColor }]} />
+          <View style={[styles.separator, { backgroundColor: borderColor }]} />
 
-        <View style={styles.rowBlock}>
-          <Text
-            style={[
-              styles.rowLabel,
-              { color: dailySummaryEnabled ? Colors[theme].text : muted },
-            ]}
-          >
-            Uhrzeit
-          </Text>
-          <Pressable
-            disabled={!dailySummaryEnabled}
-            onPress={() => setShowDailySummaryPicker((current) => !current)}
-            style={styles.timeButton}
-          >
+          <View style={styles.rowBlock}>
             <Text
               style={[
-                styles.timeButtonText,
+                styles.rowLabel,
                 { color: dailySummaryEnabled ? Colors[theme].text : muted },
               ]}
             >
-              {formatTime(dailySummaryTime)}
+              Uhrzeit
             </Text>
-            <MaterialIcons
-              name={
-                showDailySummaryPicker
-                  ? "keyboard-arrow-up"
-                  : "keyboard-arrow-down"
-              }
-              size={18}
-              color={dailySummaryEnabled ? muted : `${muted}80`}
-            />
-          </Pressable>
-        </View>
+            <Pressable
+              disabled={!dailySummaryEnabled}
+              onPress={() => setShowDailySummaryPicker((current) => !current)}
+              style={styles.timeButton}
+            >
+              <Text
+                style={[
+                  styles.timeButtonText,
+                  { color: dailySummaryEnabled ? Colors[theme].text : muted },
+                ]}
+              >
+                {formatTime(dailySummaryTime)}
+              </Text>
+              <MaterialIcons
+                name={
+                  showDailySummaryPicker
+                    ? "keyboard-arrow-up"
+                    : "keyboard-arrow-down"
+                }
+                size={18}
+                color={dailySummaryEnabled ? muted : `${muted}80`}
+              />
+            </Pressable>
+          </View>
 
-        {showDailySummaryPicker && dailySummaryEnabled ? (
-          <View style={styles.timePickerWrap}>
-            <DateTimePicker
-              mode="time"
-              value={dailySummaryTime}
-              display={Platform.OS === "ios" ? "spinner" : "default"}
-              onChange={onChangeSummaryTime}
+          {showDailySummaryPicker && dailySummaryEnabled ? (
+            <View style={styles.timePickerWrap}>
+              <DateTimePicker
+                mode="time"
+                value={dailySummaryTime}
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                onChange={onChangeSummaryTime}
+              />
+            </View>
+          ) : null}
+        </Section>
+
+        <Section title="Interaktionen" cardStyle={sectionCardStyle}>
+          <View style={styles.switchRow}>
+            <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
+              Haptik aktivieren
+            </Text>
+            <Switch
+              value={hapticsEnabled}
+              onValueChange={setHapticsEnabled}
+              trackColor={{ false: "#7A7A7A", true: "#34C759" }}
             />
           </View>
-        ) : null}
-      </Section>
 
-      <Section title="Interaktionen" cardStyle={sectionCardStyle}>
-        <View style={styles.switchRow}>
-          <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-            Haptik aktivieren
-          </Text>
-          <Switch
-            value={hapticsEnabled}
-            onValueChange={setHapticsEnabled}
-            trackColor={{ false: "#7A7A7A", true: "#34C759" }}
-          />
-        </View>
+          <View style={[styles.separator, { backgroundColor: borderColor }]} />
 
-        <View style={[styles.separator, { backgroundColor: borderColor }]} />
-
-        <View style={styles.switchRow}>
-          <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-            Bewegung reduzieren
-          </Text>
-          <Switch
-            value={reduceMotionEnabled}
-            onValueChange={setReduceMotionEnabled}
-            trackColor={{ false: "#7A7A7A", true: "#34C759" }}
-          />
-        </View>
-      </Section>
+          <View style={styles.switchRow}>
+            <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
+              Bewegung reduzieren
+            </Text>
+            <Switch
+              value={reduceMotionEnabled}
+              onValueChange={setReduceMotionEnabled}
+              trackColor={{ false: "#7A7A7A", true: "#34C759" }}
+            />
+          </View>
+        </Section>
 
         {/* <View
         style={[

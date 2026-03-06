@@ -27,8 +27,8 @@ export default function RoutinesTabLayout() {
         name="index"
         options={{
           title: t('home.quick.routines'),
-          headerLeft: () => <ProfileHeaderMenuButton />,
-          headerRight: () => <HeaderTrailingActions theme={theme} />,
+          headerLeft: () => <HeaderTrailingActions theme={theme} />,
+          headerRight: () => <ProfileHeaderMenuButton />,
         }}
       />
     </Stack>

@@ -1,8 +1,8 @@
-import { apple, createAppleProvider } from '@react-native-ai/apple';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { generateText } from 'ai';
-import { Stack, useRouter } from 'expo-router';
-import React from 'react';
+import { apple, createAppleProvider } from "@react-native-ai/apple";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { generateText } from "ai";
+import { Stack, useRouter } from "expo-router";
+import React from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -16,20 +16,22 @@ import {
   Text,
   TextInput,
   View,
-} from 'react-native';
+} from "react-native";
 
-import { withAlpha } from '@/components/ui/glass-surface';
-import { ThemedView } from '@/components/themed-view';
-import { Colors } from '@/constants/theme';
-import { usePremium } from '@/context/premium-store';
-import { getAccentColorValue, useAppSettings } from '@/context/settings-store';
-import { type Project, type SectionId, type Task, useTasksStore } from '@/context/tasks-store';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { isIOS26OrNewer } from '@/utils/ios-version';
-import { deriveActiveSectionFromDueAt } from '@/utils/task-dates';
+import { ThemedView } from "@/components/themed-view";
+import { withAlpha } from "@/components/ui/glass-surface";
+import { Colors } from "@/constants/theme";
+import { usePremium } from "@/context/premium-store";
+import { getAccentColorValue, useAppSettings } from "@/context/settings-store";
+import {
+  type Project,
+  type SectionId,
+  type Task,
+  useTasksStore,
+} from "@/context/tasks-store";
+import { useColorScheme } from "@/hooks/use-color-scheme";
 import {
   ASSIST_TOOL_CALL_LIMIT_ERROR,
-  createAssistTools,
   type AssistProjectCandidate,
   type AssistTaskCandidate,
   type CreateProjectToolOutput,
@@ -37,27 +39,30 @@ import {
   type FindProjectsToolOutput,
   type FindTasksToolOutput,
   type MoveTaskToolOutput,
+  createAssistTools,
   findProjectsLocally,
   findTasksLocally,
   inferProjectEmojiFromName,
   inferTaskEmojiFromTitle,
-} from '@/utils/assist-task-tools';
+} from "@/utils/assist-task-tools";
+import { isIOS26OrNewer } from "@/utils/ios-version";
+import { deriveActiveSectionFromDueAt } from "@/utils/task-dates";
 
 type Message = {
   id: string;
-  role: 'user' | 'assistant';
+  role: "user" | "assistant";
   content: string;
   actions?: AssistAction[];
 };
 
 type AssistIntent =
-  | 'create_task'
-  | 'find_task'
-  | 'move_task'
-  | 'create_project'
-  | 'find_project'
-  | 'general'
-  | 'clarify';
+  | "create_task"
+  | "find_task"
+  | "move_task"
+  | "create_project"
+  | "find_project"
+  | "general"
+  | "clarify";
 
 type AssistModelResponse = {
   intent: AssistIntent;
@@ -69,7 +74,7 @@ type AssistModelResponse = {
 };
 
 type AssistCandidate = {
-  kind: 'task' | 'project';
+  kind: "task" | "project";
   id: string;
   title: string;
   subtitle?: string;
@@ -88,7 +93,7 @@ type AssistTaskDraft = {
   notes?: string;
   color?: string;
   isRoutine?: boolean;
-  routineType?: Task['routineType'];
+  routineType?: Task["routineType"];
   routineWeekday?: number;
   routineNthWeek?: number;
   routineMonthDay?: number;
@@ -105,13 +110,13 @@ type AssistProjectDraft = {
 
 type AssistAction = {
   type:
-    | 'open-task'
-    | 'open-project'
-    | 'suggest-task'
-    | 'suggest-project'
-    | 'create-task'
-    | 'create-project'
-    | 'show-more-tasks';
+    | "open-task"
+    | "open-project"
+    | "suggest-task"
+    | "suggest-project"
+    | "create-task"
+    | "create-project"
+    | "show-more-tasks";
   candidate: AssistCandidate;
   taskDraft?: AssistTaskDraft;
   projectDraft?: AssistProjectDraft;
@@ -142,7 +147,7 @@ type CollectedToolCandidates = {
   messages: string[];
 };
 
-const ASSIST_STORAGE_KEY = '@reminds/assist_messages';
+const ASSIST_STORAGE_KEY = "@reminds/assist_messages";
 const MAX_ASSIST_TOOL_CALLS = 10;
 
 function buildSystemPrompt(): string {
@@ -193,28 +198,28 @@ function normalizeSearchText(value: string): string {
   return value
     .trim()
     .toLowerCase()
-    .replace(/[ä]/g, 'ae')
-    .replace(/[ö]/g, 'oe')
-    .replace(/[ü]/g, 'ue')
-    .replace(/[ß]/g, 'ss');
+    .replace(/[ä]/g, "ae")
+    .replace(/[ö]/g, "oe")
+    .replace(/[ü]/g, "ue")
+    .replace(/[ß]/g, "ss");
 }
 
 function cleanExtractedText(value: string): string {
   return value
     .trim()
-    .replace(/^[*\-•]+\s*/g, '')
-    .replace(/^\s*[_*`~]+|[_*`~]+\s*$/g, '')
-    .replace(/\*\*/g, '')
-    .replace(/`/g, '')
-    .replace(/^['"„“`]+|['"”`]+$/g, '')
-    .replace(/\s+/g, ' ');
+    .replace(/^[*\-•]+\s*/g, "")
+    .replace(/^\s*[_*`~]+|[_*`~]+\s*$/g, "")
+    .replace(/\*\*/g, "")
+    .replace(/`/g, "")
+    .replace(/^['"„“`]+|['"”`]+$/g, "")
+    .replace(/\s+/g, " ");
 }
 
 function normalizeHexColorSafe(value: string | undefined): string | undefined {
   if (!value) return undefined;
   const trimmed = value.trim();
   if (!trimmed) return undefined;
-  const withPrefix = trimmed.startsWith('#') ? trimmed : `#${trimmed}`;
+  const withPrefix = trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
   if (!/^#[0-9a-fA-F]{6}$/.test(withPrefix)) return undefined;
   return withPrefix.toUpperCase();
 }
@@ -225,7 +230,10 @@ function extractFirstEmojiSafe(value: string | undefined): string | undefined {
   return match?.[0];
 }
 
-function parseDueFromText(input: string): { dueAt: number; dueHasTime: boolean } {
+function parseDueFromText(input: string): {
+  dueAt: number;
+  dueHasTime: boolean;
+} {
   const normalized = normalizeSearchText(input);
   const now = new Date();
   const base = new Date(now);
@@ -234,10 +242,10 @@ function parseDueFromText(input: string): { dueAt: number; dueHasTime: boolean }
   const timeColonMatch = input.match(/\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/);
   const timeUhrMatch = input.match(/\b([01]?\d|2[0-3])\s*uhr\b/i);
   const hours = Number.parseInt(
-    (timeColonMatch?.[1] ?? timeUhrMatch?.[1] ?? '11') as string,
+    (timeColonMatch?.[1] ?? timeUhrMatch?.[1] ?? "11") as string,
     10,
   );
-  const minutes = Number.parseInt((timeColonMatch?.[2] ?? '0') as string, 10);
+  const minutes = Number.parseInt((timeColonMatch?.[2] ?? "0") as string, 10);
   const hasTime = Boolean(timeColonMatch || timeUhrMatch);
 
   const isoDateMatch = input.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
@@ -245,7 +253,15 @@ function parseDueFromText(input: string): { dueAt: number; dueHasTime: boolean }
     const year = Number.parseInt(isoDateMatch[1] as string, 10);
     const month = Number.parseInt(isoDateMatch[2] as string, 10) - 1;
     const day = Number.parseInt(isoDateMatch[3] as string, 10);
-    const resolved = new Date(year, month, day, hasTime ? hours : 11, hasTime ? minutes : 0, 0, 0);
+    const resolved = new Date(
+      year,
+      month,
+      day,
+      hasTime ? hours : 11,
+      hasTime ? minutes : 0,
+      0,
+      0,
+    );
     return { dueAt: resolved.getTime(), dueHasTime: hasTime };
   }
 
@@ -253,9 +269,19 @@ function parseDueFromText(input: string): { dueAt: number; dueHasTime: boolean }
   if (dotDateMatch) {
     const day = Number.parseInt(dotDateMatch[1] as string, 10);
     const month = Number.parseInt(dotDateMatch[2] as string, 10) - 1;
-    const yearRaw = dotDateMatch[3] ? Number.parseInt(dotDateMatch[3], 10) : now.getFullYear();
+    const yearRaw = dotDateMatch[3]
+      ? Number.parseInt(dotDateMatch[3], 10)
+      : now.getFullYear();
     const year = yearRaw < 100 ? 2000 + yearRaw : yearRaw;
-    const resolved = new Date(year, month, day, hasTime ? hours : 11, hasTime ? minutes : 0, 0, 0);
+    const resolved = new Date(
+      year,
+      month,
+      day,
+      hasTime ? hours : 11,
+      hasTime ? minutes : 0,
+      0,
+      0,
+    );
     return { dueAt: resolved.getTime(), dueHasTime: hasTime };
   }
 
@@ -269,7 +295,7 @@ function parseDueFromText(input: string): { dueAt: number; dueHasTime: boolean }
     sonntag: 0,
   };
   for (const [weekdayName, weekdayIndex] of Object.entries(weekdayMap)) {
-    if (!new RegExp(`\\b${weekdayName}\\b`, 'i').test(normalized)) continue;
+    if (!new RegExp(`\\b${weekdayName}\\b`, "i").test(normalized)) continue;
     const resolved = new Date(base);
     const current = resolved.getDay();
     let delta = (weekdayIndex - current + 7) % 7;
@@ -306,7 +332,7 @@ function resolveProjectFromDraftName(
   projects: Project[],
   projectName: string | undefined,
 ): { projectId?: string; projectName?: string } {
-  const cleanProjectName = cleanExtractedText(projectName ?? '');
+  const cleanProjectName = cleanExtractedText(projectName ?? "");
   if (!cleanProjectName) return {};
 
   const matches = findProjectsLocally(projects, cleanProjectName, {
@@ -320,7 +346,8 @@ function resolveProjectFromDraftName(
 
   const first = matches[0];
   const second = matches[1];
-  const ambiguous = Boolean(second) && (first?.score ?? 0) - (second?.score ?? 0) <= 0.02;
+  const ambiguous =
+    Boolean(second) && (first?.score ?? 0) - (second?.score ?? 0) <= 0.02;
   if (!first || ambiguous || (first.score ?? 0) < 0.85) {
     return { projectName: cleanProjectName };
   }
@@ -331,13 +358,17 @@ function resolveProjectFromDraftName(
   };
 }
 
-function extractFieldByAliases(text: string, aliases: readonly string[]): string | undefined {
+function extractFieldByAliases(
+  text: string,
+  aliases: readonly string[],
+): string | undefined {
   for (const alias of aliases) {
-    const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const match =
-      text.match(new RegExp(`\\*\\*\\s*${escaped}\\s*\\*\\*\\s*:\\s*([^\\n\\r]+)`, 'i')) ??
-      text.match(new RegExp(`\\b${escaped}\\b\\s*:\\s*([^\\n\\r]+)`, 'i'));
-    const value = cleanExtractedText(match?.[1] ?? '');
+      text.match(
+        new RegExp(`\\*\\*\\s*${escaped}\\s*\\*\\*\\s*:\\s*([^\\n\\r]+)`, "i"),
+      ) ?? text.match(new RegExp(`\\b${escaped}\\b\\s*:\\s*([^\\n\\r]+)`, "i"));
+    const value = cleanExtractedText(match?.[1] ?? "");
     if (
       !value ||
       /^(null|none|n\/a|na|keine|kein|nicht angegeben|unbekannt)$/i.test(value)
@@ -349,30 +380,42 @@ function extractFieldByAliases(text: string, aliases: readonly string[]): string
   return undefined;
 }
 
-function parseTaskDraftFromCommand(input: string, projects: Project[]): AssistTaskDraft | null {
+function parseTaskDraftFromCommand(
+  input: string,
+  projects: Project[],
+): AssistTaskDraft | null {
   const normalized = normalizeSearchText(input);
   const hasTaskKeyword = /\btask\b/.test(normalized);
-  const hasBlockingTaskIntent = /\b(?:oeffne|öffne|finde|suche|zeige|verschiebe|move|aktualisiere)\b/.test(
-    normalized,
-  );
-  const hasTaskCueWord = /\b(?:erstelle|erzeuge|lege|anlegen|neu(?:e|er|en|es)?|muss|soll(?:te)?|will|moechte|möchte|plane|planen|notiere|erinnere)\b/.test(
-    normalized,
-  );
-  const hasDateCue = /\b(?:heute|morgen|uebermorgen|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\b/.test(
-    normalized,
-  );
+  const hasBlockingTaskIntent =
+    /\b(?:oeffne|öffne|finde|suche|zeige|verschiebe|move|aktualisiere)\b/.test(
+      normalized,
+    );
+  const hasTaskCueWord =
+    /\b(?:erstelle|erzeuge|lege|anlegen|neu(?:e|er|en|es)?|muss|soll(?:te)?|will|moechte|möchte|plane|planen|notiere|erinnere)\b/.test(
+      normalized,
+    );
+  const hasDateCue =
+    /\b(?:heute|morgen|uebermorgen|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\b/.test(
+      normalized,
+    );
   const hasTimeCue =
     /\b([01]?\d|2[0-3])(?::[0-5]\d)?\s*uhr\b/.test(normalized) ||
     /\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/.test(normalized);
   const isProjectCreateCommand =
     /\bprojekt\b/.test(normalized) &&
-    /\b(?:erstelle|erzeuge|lege|erstellen|anlegen|neu(?:e|er|en|es)?)\b/.test(normalized) &&
+    /\b(?:erstelle|erzeuge|lege|erstellen|anlegen|neu(?:e|er|en|es)?)\b/.test(
+      normalized,
+    ) &&
     !hasTaskKeyword;
   const isNaturalTaskCommand =
-    !hasTaskKeyword && !isProjectCreateCommand && hasTaskCueWord && (hasDateCue || hasTimeCue);
+    !hasTaskKeyword &&
+    !isProjectCreateCommand &&
+    hasTaskCueWord &&
+    (hasDateCue || hasTimeCue);
   const isCreateTaskCommand =
     !hasBlockingTaskIntent &&
-    ((hasTaskKeyword && (hasTaskCueWord || hasDateCue || hasTimeCue)) || isNaturalTaskCommand);
+    ((hasTaskKeyword && (hasTaskCueWord || hasDateCue || hasTimeCue)) ||
+      isNaturalTaskCommand);
   if (!isCreateTaskCommand) return null;
 
   const titleCandidate =
@@ -387,47 +430,60 @@ function parseTaskDraftFromCommand(input: string, projects: Project[]): AssistTa
       /\b(?:ich\s+)?(?:muss|soll(?:te)?|will|moechte|möchte|plane|planen|notiere|erinnere(?:\s+mich(?:\s+daran)?)?)\b\s+(.+)$/i,
     )?.[1] ??
     input.match(/^\s*(.+)$/)?.[1] ??
-    '';
+    "";
 
-  let title = cleanExtractedText(titleCandidate.replace(/^task\s+/i, ''));
+  let title = cleanExtractedText(titleCandidate.replace(/^task\s+/i, ""));
   title = cleanExtractedText(
     title.replace(
       /^(?:ich\s+)?(?:muss|soll(?:te)?|will|moechte|möchte|plane|planen|notiere|erinnere(?:\s+mich(?:\s+daran)?)?)\s+/i,
-      '',
+      "",
     ),
   );
   title = cleanExtractedText(
     title.replace(
       /^(?:fuer|für)?\s*(?:heute|morgen|uebermorgen|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\b(?:\s+(?:um\s+)?\d{1,2}(?::\d{2})?\s*uhr)?\s*[:,-]?\s*/i,
-      '',
+      "",
     ),
   );
-  title = cleanExtractedText(title.replace(/^(?:um\s+)?\d{1,2}(?::\d{2})?\s*uhr\s*[:,-]?\s*/i, ''));
-  title = cleanExtractedText(title.replace(/\s+\b(?:im|in)\s+projekt\s+.+$/i, ''));
-  title = cleanExtractedText(title.replace(/\s+\bmit\s+standort\b\s+.+$/i, ''));
-  title = cleanExtractedText(title.replace(/\s+\bmit\s+notiz(?:en)?\b\s+.+$/i, ''));
+  title = cleanExtractedText(
+    title.replace(/^(?:um\s+)?\d{1,2}(?::\d{2})?\s*uhr\s*[:,-]?\s*/i, ""),
+  );
+  title = cleanExtractedText(
+    title.replace(/\s+\b(?:im|in)\s+projekt\s+.+$/i, ""),
+  );
+  title = cleanExtractedText(title.replace(/\s+\bmit\s+standort\b\s+.+$/i, ""));
+  title = cleanExtractedText(
+    title.replace(/\s+\bmit\s+notiz(?:en)?\b\s+.+$/i, ""),
+  );
   if (!title) return null;
 
   const projectNameRaw = cleanExtractedText(
     input.match(
       /\b(?:im|in)\s+projekt\s+(.+?)(?=\s+(?:mit\s+standort\b|mit\s+notiz(?:en)?\b|heute\b|morgen\b|uebermorgen\b|\d{1,2}(?::\d{2})?\s*uhr\b|\d{1,2}[:.]\d{2}\b|$))/i,
-    )?.[1] ?? '',
+    )?.[1] ?? "",
   );
-  const projectResolution = resolveProjectFromDraftName(projects, projectNameRaw);
+  const projectResolution = resolveProjectFromDraftName(
+    projects,
+    projectNameRaw,
+  );
 
   let location = cleanExtractedText(
     input.match(
       /\bmit\s+standort\s+(.+?)(?=\s+(?:mit\s+notiz(?:en)?\b|heute\b|morgen\b|uebermorgen\b|$))/i,
-    )?.[1] ?? '',
+    )?.[1] ?? "",
   );
   if (!location) {
-    const inlineLocationMatch = title.match(/^(.+?)\s+\bin\s+([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß0-9\s-]{1,40})$/);
+    const inlineLocationMatch = title.match(
+      /^(.+?)\s+\bin\s+([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß0-9\s-]{1,40})$/,
+    );
     if (inlineLocationMatch) {
       title = cleanExtractedText(inlineLocationMatch[1] ?? title);
-      location = cleanExtractedText(inlineLocationMatch[2] ?? '');
+      location = cleanExtractedText(inlineLocationMatch[2] ?? "");
     }
   }
-  const notes = cleanExtractedText(input.match(/\bmit\s+notiz(?:en)?\s+(.+?)$/i)?.[1] ?? '');
+  const notes = cleanExtractedText(
+    input.match(/\bmit\s+notiz(?:en)?\s+(.+?)$/i)?.[1] ?? "",
+  );
 
   const due = parseDueFromText(input);
 
@@ -443,12 +499,18 @@ function parseTaskDraftFromCommand(input: string, projects: Project[]): AssistTa
   };
 }
 
-function parseTaskDraftFromAssistantText(text: string, projects: Project[]): AssistTaskDraft | null {
-  const title = extractFieldByAliases(text, ['title', 'titel', 'task titel']);
+function parseTaskDraftFromAssistantText(
+  text: string,
+  projects: Project[],
+): AssistTaskDraft | null {
+  const title = extractFieldByAliases(text, ["title", "titel", "task titel"]);
   if (!title) return null;
 
-  const subtitle = extractFieldByAliases(text, ['subtitle', 'untertitel']);
-  const projectFromField = extractFieldByAliases(text, ['projektname', 'projekt']);
+  const subtitle = extractFieldByAliases(text, ["subtitle", "untertitel"]);
+  const projectFromField = extractFieldByAliases(text, [
+    "projektname",
+    "projekt",
+  ]);
   const projectNameFromSubtitle = subtitle?.match(/\bprojekt\s+(.+)/i)?.[1];
   const projectResolution = resolveProjectFromDraftName(
     projects,
@@ -456,28 +518,30 @@ function parseTaskDraftFromAssistantText(text: string, projects: Project[]): Ass
   );
 
   const dueDateField = extractFieldByAliases(text, [
-    'dueAt',
-    'dueDate',
-    'datum',
-    'date',
-    'faelligkeitsdatum',
-    'fälligkeitsdatum',
+    "dueAt",
+    "dueDate",
+    "datum",
+    "date",
+    "faelligkeitsdatum",
+    "fälligkeitsdatum",
   ]);
   const dueTimeField = extractFieldByAliases(text, [
-    'dueTime',
-    'zeit',
-    'uhrzeit',
-    'abgabezeit',
-    'faelligkeitszeit',
-    'fälligkeitszeit',
+    "dueTime",
+    "zeit",
+    "uhrzeit",
+    "abgabezeit",
+    "faelligkeitszeit",
+    "fälligkeitszeit",
   ]);
-  const dueCombined = [dueDateField, dueTimeField].filter(Boolean).join(' ');
-  const dueParsed = parseDueFromText(dueCombined || dueDateField || dueTimeField || '');
+  const dueCombined = [dueDateField, dueTimeField].filter(Boolean).join(" ");
+  const dueParsed = parseDueFromText(
+    dueCombined || dueDateField || dueTimeField || "",
+  );
   const dueAt = dueParsed.dueAt;
   const dueHasTime = dueParsed.dueHasTime;
 
   const explicitEmoji = extractFirstEmojiSafe(
-    extractFieldByAliases(text, ['emoji', 'symbol', 'icon']),
+    extractFieldByAliases(text, ["emoji", "symbol", "icon"]),
   );
   const inferredEmoji = inferTaskEmojiFromTitle(title);
 
@@ -489,41 +553,59 @@ function parseTaskDraftFromAssistantText(text: string, projects: Project[]): Ass
     projectName: projectResolution.projectName,
     dueAt,
     dueHasTime,
-    location: extractFieldByAliases(text, ['location', 'ort']),
-    notes: extractFieldByAliases(text, ['notes', 'notizen', 'notiz']),
-    color: normalizeHexColorSafe(extractFieldByAliases(text, ['color', 'farbe'])),
-    isRoutine: /true|1|ja/i.test(extractFieldByAliases(text, ['isRoutine', 'routine']) ?? ''),
-    routineType: (extractFieldByAliases(text, ['routineType']) as Task['routineType']) ?? undefined,
+    location: extractFieldByAliases(text, ["location", "ort"]),
+    notes: extractFieldByAliases(text, ["notes", "notizen", "notiz"]),
+    color: normalizeHexColorSafe(
+      extractFieldByAliases(text, ["color", "farbe"]),
+    ),
+    isRoutine: /true|1|ja/i.test(
+      extractFieldByAliases(text, ["isRoutine", "routine"]) ?? "",
+    ),
+    routineType:
+      (extractFieldByAliases(text, ["routineType"]) as Task["routineType"]) ??
+      undefined,
   };
 }
 
-function parseProjectDraftFromCommand(input: string): AssistProjectDraft | null {
+function parseProjectDraftFromCommand(
+  input: string,
+): AssistProjectDraft | null {
   const normalized = normalizeSearchText(input);
   const hasProjectCreateIntent =
     /\bprojekt\b/.test(normalized) &&
-    /\b(?:erstelle|erzeuge|lege|erstellen|anlegen|neu(?:e|er|en|es)?)\b/.test(normalized);
+    /\b(?:erstelle|erzeuge|lege|erstellen|anlegen|neu(?:e|er|en|es)?)\b/.test(
+      normalized,
+    );
   if (!hasProjectCreateIntent) return null;
 
   const nameRaw =
-    input.match(/^\s*(?:bitte\s+)?(?:erstelle|erzeuge|lege)\s+(?:ein(?:e|en|es)?\s+)?(?:neues?\s+)?projekt\s*[:\-]?\s*(.+)$/i)
-      ?.[1] ??
-    input.match(/^\s*(?:bitte\s+)?projekt\s+(?:erstellen|anlegen)\s*[:\-]?\s*(.+)$/i)?.[1] ??
-    input.match(/^\s*(?:bitte\s+)?projekt\s+(.+?)\s+(?:erstellen|anlegen)\s*$/i)?.[1] ??
+    input.match(
+      /^\s*(?:bitte\s+)?(?:erstelle|erzeuge|lege)\s+(?:ein(?:e|en|es)?\s+)?(?:neues?\s+)?projekt\s*[:\-]?\s*(.+)$/i,
+    )?.[1] ??
+    input.match(
+      /^\s*(?:bitte\s+)?projekt\s+(?:erstellen|anlegen)\s*[:\-]?\s*(.+)$/i,
+    )?.[1] ??
+    input.match(
+      /^\s*(?:bitte\s+)?projekt\s+(.+?)\s+(?:erstellen|anlegen)\s*$/i,
+    )?.[1] ??
     input.match(/^\s*(?:bitte\s+)?neues?\s+projekt\s*[:\-]?\s*(.+)$/i)?.[1] ??
     input.match(/^\s*(?:bitte\s+)?neuer\s+projekt\s*[:\-]?\s*(.+)$/i)?.[1] ??
-    '';
+    "";
 
   let name = cleanExtractedText(nameRaw);
   if (!name) return null;
 
   const description = cleanExtractedText(
-    input.match(/\b(?:beschreibung|description)\s*[:\-]?\s*(.+)$/i)?.[1] ?? '',
+    input.match(/\b(?:beschreibung|description)\s*[:\-]?\s*(.+)$/i)?.[1] ?? "",
   );
   name = cleanExtractedText(
-    name.replace(/\s+\b(?:mit\s+beschreibung|beschreibung|description)\b[\s\S]*$/i, ''),
+    name.replace(
+      /\s+\b(?:mit\s+beschreibung|beschreibung|description)\b[\s\S]*$/i,
+      "",
+    ),
   );
-  name = cleanExtractedText(name.replace(/\b(?:erstellen|anlegen)\b$/i, ''));
-  name = cleanExtractedText(name.replace(/[;:,.\-]+$/g, ''));
+  name = cleanExtractedText(name.replace(/\b(?:erstellen|anlegen)\b$/i, ""));
+  name = cleanExtractedText(name.replace(/[;:,.\-]+$/g, ""));
   if (!name) return null;
 
   const color = normalizeHexColorSafe(input.match(/#[0-9a-fA-F]{6}/)?.[0]);
@@ -533,55 +615,76 @@ function parseProjectDraftFromCommand(input: string): AssistProjectDraft | null 
     name,
     description: description || undefined,
     color,
-    emoji: (explicitEmoji ?? inferProjectEmojiFromName(`${name} ${description}`)) || '📁',
-    icon: 'folder.fill',
+    emoji:
+      (explicitEmoji ?? inferProjectEmojiFromName(`${name} ${description}`)) ||
+      "📁",
+    icon: "folder.fill",
   };
 }
 
-function parseProjectDraftFromAssistantText(text: string): AssistProjectDraft | null {
-  const name = extractFieldByAliases(text, ['name', 'projektname']);
+function parseProjectDraftFromAssistantText(
+  text: string,
+): AssistProjectDraft | null {
+  const name = extractFieldByAliases(text, ["name", "projektname"]);
   if (!name) return null;
 
-  const description = extractFieldByAliases(text, ['beschreibung', 'description']);
-  const color = normalizeHexColorSafe(extractFieldByAliases(text, ['farbe', 'color']));
+  const description = extractFieldByAliases(text, [
+    "beschreibung",
+    "description",
+  ]);
+  const color = normalizeHexColorSafe(
+    extractFieldByAliases(text, ["farbe", "color"]),
+  );
   const explicitEmoji = extractFirstEmojiSafe(
-    extractFieldByAliases(text, ['emoji', 'symbol', 'icon']),
+    extractFieldByAliases(text, ["emoji", "symbol", "icon"]),
   );
 
   return {
     name,
     description,
     color,
-    emoji: (explicitEmoji ?? inferProjectEmojiFromName(`${name} ${description ?? ''}`)) || '📁',
-    icon: 'folder.fill',
+    emoji:
+      (explicitEmoji ??
+        inferProjectEmojiFromName(`${name} ${description ?? ""}`)) ||
+      "📁",
+    icon: "folder.fill",
   };
 }
 
 function isLikelyCreateTaskPrompt(input: string): boolean {
   const normalized = normalizeSearchText(input);
   const hasTaskKeyword = /\btask\b/.test(normalized);
-  const hasBlockingTaskIntent = /\b(?:oeffne|öffne|finde|suche|zeige|verschiebe|move|aktualisiere)\b/.test(
-    normalized,
-  );
-  const hasTaskCueWord = /\b(?:erstelle|erzeuge|lege|anlegen|neu(?:e|er|en|es)?|muss|soll(?:te)?|will|moechte|möchte|plane|planen|notiere|erinnere)\b/.test(
-    normalized,
-  );
-  const hasDateCue = /\b(?:heute|morgen|uebermorgen|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\b/.test(
-    normalized,
-  );
+  const hasBlockingTaskIntent =
+    /\b(?:oeffne|öffne|finde|suche|zeige|verschiebe|move|aktualisiere)\b/.test(
+      normalized,
+    );
+  const hasTaskCueWord =
+    /\b(?:erstelle|erzeuge|lege|anlegen|neu(?:e|er|en|es)?|muss|soll(?:te)?|will|moechte|möchte|plane|planen|notiere|erinnere)\b/.test(
+      normalized,
+    );
+  const hasDateCue =
+    /\b(?:heute|morgen|uebermorgen|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\b/.test(
+      normalized,
+    );
   const hasTimeCue =
     /\b([01]?\d|2[0-3])(?::[0-5]\d)?\s*uhr\b/.test(normalized) ||
     /\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/.test(normalized);
   const isProjectCreateCommand =
     /\bprojekt\b/.test(normalized) &&
-    /\b(?:erstelle|erzeuge|lege|erstellen|anlegen|neu(?:e|er|en|es)?)\b/.test(normalized) &&
+    /\b(?:erstelle|erzeuge|lege|erstellen|anlegen|neu(?:e|er|en|es)?)\b/.test(
+      normalized,
+    ) &&
     !hasTaskKeyword;
   const isNaturalTaskCommand =
-    !hasTaskKeyword && !isProjectCreateCommand && hasTaskCueWord && (hasDateCue || hasTimeCue);
+    !hasTaskKeyword &&
+    !isProjectCreateCommand &&
+    hasTaskCueWord &&
+    (hasDateCue || hasTimeCue);
 
   return (
     !hasBlockingTaskIntent &&
-    ((hasTaskKeyword && (hasTaskCueWord || hasDateCue || hasTimeCue)) || isNaturalTaskCommand)
+    ((hasTaskKeyword && (hasTaskCueWord || hasDateCue || hasTimeCue)) ||
+      isNaturalTaskCommand)
   );
 }
 
@@ -598,56 +701,65 @@ function formatDraftDue(draft: AssistTaskDraft): string | undefined {
   if (!draft.dueAt || draft.dueAt <= 0) return undefined;
   const date = new Date(draft.dueAt);
   if (draft.dueHasTime) {
-    return date.toLocaleString('de-DE', {
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
+    return date.toLocaleString("de-DE", {
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   }
-  return date.toLocaleDateString('de-DE', {
-    day: '2-digit',
-    month: '2-digit',
+  return date.toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
   });
 }
 
 function taskCandidateFromDraft(draft: AssistTaskDraft): AssistCandidate {
-  const subtitleParts = [draft.projectName ? `Projekt ${draft.projectName}` : undefined, formatDraftDue(draft), draft.location]
+  const subtitleParts = [
+    draft.projectName ? `Projekt ${draft.projectName}` : undefined,
+    formatDraftDue(draft),
+    draft.location,
+  ]
     .filter(Boolean)
-    .join(' · ');
+    .join(" · ");
 
   return {
-    kind: 'task',
+    kind: "task",
     id: `draft-task-${Date.now()}`,
-    title: `${draft.emoji ?? '📝'} ${draft.title}`,
+    title: `${draft.emoji ?? "📝"} ${draft.title}`,
     subtitle: subtitleParts || undefined,
   };
 }
 
 function projectCandidateFromDraft(draft: AssistProjectDraft): AssistCandidate {
   return {
-    kind: 'project',
+    kind: "project",
     id: `draft-project-${Date.now()}`,
-    title: `${draft.emoji ?? '📁'} ${draft.name}`,
+    title: `${draft.emoji ?? "📁"} ${draft.name}`,
     subtitle: draft.description || undefined,
   };
 }
 
 function extractProjectQueryFromInput(input: string): string | undefined {
   const match = input.match(/\b(?:im|in)\s+projekt\s+([^,.;\n]+)(?:[,.!?]|$)/i);
-  const value = cleanExtractedText(match?.[1] ?? '');
+  const value = cleanExtractedText(match?.[1] ?? "");
   return value || undefined;
 }
 
 function isKnowledgeTaskQuestion(input: string): boolean {
   const normalized = normalizeSearchText(input);
   if (!/\b(?:aufgabe|aufgaben|task|tasks)\b/.test(normalized)) return false;
-  return /\b(?:welche|welcher|welches|was|zeige|liste|list|gib|stehen|sind)\b/.test(normalized);
+  return /\b(?:welche|welcher|welches|was|zeige|liste|list|gib|stehen|sind)\b/.test(
+    normalized,
+  );
 }
 
 function wantsSingleTaskResult(input: string): boolean {
   const normalized = normalizeSearchText(input);
-  const asksPlural = /\b(?:alle|mehrere|aufgaben|tasks|welche\s+aufgaben|welche\s+tasks)\b/.test(normalized);
+  const asksPlural =
+    /\b(?:alle|mehrere|aufgaben|tasks|welche\s+aufgaben|welche\s+tasks)\b/.test(
+      normalized,
+    );
   const asksSingle =
     /\b(?:ein(?:e|en)?|nur\s+ein(?:e|en)?|genau\s+ein(?:e|en)?|naechst(?:e|en)|nächst(?:e|en))\b/.test(
       normalized,
@@ -660,7 +772,9 @@ function sortTasksByDeadlineRelevance(
   nowMs: number = Date.now(),
 ): AssistTaskCandidate[] {
   const safeDueAt = (value: unknown): number | null =>
-    typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
+    typeof value === "number" && Number.isFinite(value) && value > 0
+      ? value
+      : null;
 
   return [...candidates].sort((left, right) => {
     const leftDue = safeDueAt(left.dueAt);
@@ -674,7 +788,8 @@ function sortTasksByDeadlineRelevance(
     if (leftOverdue !== rightOverdue) return leftOverdue ? 1 : -1;
 
     if (leftDue !== null && rightDue !== null) {
-      const distanceDelta = Math.abs(leftDue - nowMs) - Math.abs(rightDue - nowMs);
+      const distanceDelta =
+        Math.abs(leftDue - nowMs) - Math.abs(rightDue - nowMs);
       if (distanceDelta !== 0) return distanceDelta;
     } else if (leftDue !== null) {
       return -1;
@@ -692,7 +807,9 @@ function sortTasksByDeadlineRelevance(
 function isKnowledgeProjectQuestion(input: string): boolean {
   const normalized = normalizeSearchText(input);
   if (!/\b(?:projekt|projekte)\b/.test(normalized)) return false;
-  return /\b(?:welche|welcher|welches|was|zeige|liste|list|gib|sind)\b/.test(normalized);
+  return /\b(?:welche|welcher|welches|was|zeige|liste|list|gib|sind)\b/.test(
+    normalized,
+  );
 }
 
 function resolveDirectKnowledgeRequest({
@@ -708,16 +825,21 @@ function resolveDirectKnowledgeRequest({
 
   if (isKnowledgeTaskQuestion(input)) {
     const asksSingleTask = wantsSingleTaskResult(input);
-    const wantsNow = normalized.includes('jetzt');
-    const section: SectionId | undefined = normalized.includes('heute') || wantsNow
-      ? 'today'
-      : normalized.includes('erledigt')
-        ? 'completed'
-        : normalized.includes('morgen') || normalized.includes('ansteh') || normalized.includes('upcoming')
-          ? 'upcoming'
-          : undefined;
+    const wantsNow = normalized.includes("jetzt");
+    const section: SectionId | undefined =
+      normalized.includes("heute") || wantsNow
+        ? "today"
+        : normalized.includes("erledigt")
+          ? "completed"
+          : normalized.includes("morgen") ||
+              normalized.includes("ansteh") ||
+              normalized.includes("upcoming")
+            ? "upcoming"
+            : undefined;
     const projectQuery = extractProjectQueryFromInput(input);
-    const includeCompleted = section === 'completed' || /(?:\berledigt\b|\bcompleted\b)/.test(normalized);
+    const includeCompleted =
+      section === "completed" ||
+      /(?:\berledigt\b|\bcompleted\b)/.test(normalized);
 
     let matches = findTasksLocally(tasks, projects, {
       section,
@@ -726,7 +848,7 @@ function resolveDirectKnowledgeRequest({
       projectQuery,
       limit: 20,
     });
-    if (matches.length === 0 && wantsNow && section === 'today') {
+    if (matches.length === 0 && wantsNow && section === "today") {
       matches = findTasksLocally(tasks, projects, {
         includeCompleted,
         includeDeleted: false,
@@ -736,57 +858,63 @@ function resolveDirectKnowledgeRequest({
     }
 
     if (matches.length === 0) {
-      if (section === 'today') {
-        return { content: 'Heute stehen keine Aufgaben an.' };
+      if (section === "today") {
+        return { content: "Heute stehen keine Aufgaben an." };
       }
-      return { content: 'Ich habe keine passenden Aufgaben gefunden.' };
+      return { content: "Ich habe keine passenden Aufgaben gefunden." };
     }
 
     if (asksSingleTask) {
       const ranked = sortTasksByDeadlineRelevance(matches);
       const primary = ranked[0];
       if (!primary) {
-        return { content: 'Ich habe keine passende Aufgabe gefunden.' };
+        return { content: "Ich habe keine passende Aufgabe gefunden." };
       }
 
-      const remainingTaskIds = ranked.slice(1).map((entry) => entry.id).filter(Boolean);
+      const remainingTaskIds = ranked
+        .slice(1)
+        .map((entry) => entry.id)
+        .filter(Boolean);
       const actions: AssistAction[] = [
         {
-          type: 'open-task',
+          type: "open-task",
           candidate: taskCandidateFromToolCandidate(primary),
         },
       ];
       if (remainingTaskIds.length > 0) {
         actions.push({
-          type: 'show-more-tasks',
+          type: "show-more-tasks",
           candidate: {
-            kind: 'task',
+            kind: "task",
             id: `show-more-tasks:${Date.now()}`,
-            title: 'Weitere passende Aufgaben',
+            title: "Weitere passende Aufgaben",
             subtitle: `${remainingTaskIds.length} weitere`,
           },
           taskIdsToShow: remainingTaskIds,
         });
       }
-      const hasPrimaryDueAt = typeof primary.dueAt === 'number' && Number.isFinite(primary.dueAt) && primary.dueAt > 0;
+      const hasPrimaryDueAt =
+        typeof primary.dueAt === "number" &&
+        Number.isFinite(primary.dueAt) &&
+        primary.dueAt > 0;
 
       return {
         content: hasPrimaryDueAt
-          ? 'Ich habe den relevantesten Task mit der naechsten Deadline fuer dich ausgewaehlt.'
-          : 'Ich habe den relevantesten Task fuer dich ausgewaehlt.',
+          ? "Ich habe den relevantesten Task mit der naechsten Deadline fuer dich ausgewaehlt."
+          : "Ich habe den relevantesten Task fuer dich ausgewaehlt.",
         actions,
       };
     }
 
     const actions: AssistAction[] = matches.map((match) => ({
-      type: 'suggest-task',
+      type: "suggest-task",
       candidate: taskCandidateFromToolCandidate(match),
     }));
 
     const content =
-      section === 'today'
-        ? `Heute stehen ${matches.length} Aufgabe${matches.length === 1 ? '' : 'n'} an.`
-        : `Ich habe ${matches.length} passende Aufgabe${matches.length === 1 ? '' : 'n'} gefunden.`;
+      section === "today"
+        ? `Heute stehen ${matches.length} Aufgabe${matches.length === 1 ? "" : "n"} an.`
+        : `Ich habe ${matches.length} passende Aufgabe${matches.length === 1 ? "" : "n"} gefunden.`;
 
     return {
       content,
@@ -795,16 +923,19 @@ function resolveDirectKnowledgeRequest({
   }
 
   if (isKnowledgeProjectQuestion(input)) {
-    const matches = findProjectsLocally(projects, '', { includeDeleted: false, limit: 20 });
+    const matches = findProjectsLocally(projects, "", {
+      includeDeleted: false,
+      limit: 20,
+    });
     if (matches.length === 0) {
-      return { content: 'Ich habe keine Projekte gefunden.' };
+      return { content: "Ich habe keine Projekte gefunden." };
     }
     const actions: AssistAction[] = matches.map((match) => ({
-      type: 'suggest-project',
+      type: "suggest-project",
       candidate: projectCandidateFromToolCandidate(match),
     }));
     return {
-      content: `Ich habe ${matches.length} Projekt${matches.length === 1 ? '' : 'e'} gefunden.`,
+      content: `Ich habe ${matches.length} Projekt${matches.length === 1 ? "" : "e"} gefunden.`,
       actions,
     };
   }
@@ -814,18 +945,18 @@ function resolveDirectKnowledgeRequest({
 
 function isAssistIntent(value: string): value is AssistIntent {
   return (
-    value === 'create_task' ||
-    value === 'find_task' ||
-    value === 'move_task' ||
-    value === 'create_project' ||
-    value === 'find_project' ||
-    value === 'general' ||
-    value === 'clarify'
+    value === "create_task" ||
+    value === "find_task" ||
+    value === "move_task" ||
+    value === "create_project" ||
+    value === "find_project" ||
+    value === "general" ||
+    value === "clarify"
   );
 }
 
 function parseAssistModelResponse(value: unknown): AssistModelResponse | null {
-  if (typeof value === 'string') {
+  if (typeof value === "string") {
     const trimmed = value.trim();
     if (!trimmed) return null;
     try {
@@ -835,14 +966,15 @@ function parseAssistModelResponse(value: unknown): AssistModelResponse | null {
     }
   }
 
-  if (!value || typeof value !== 'object') return null;
+  if (!value || typeof value !== "object") return null;
   const raw = value as Record<string, unknown>;
-  if (typeof raw.intent !== 'string' || !isAssistIntent(raw.intent)) return null;
+  if (typeof raw.intent !== "string" || !isAssistIntent(raw.intent))
+    return null;
 
   const toStringList = (candidate: unknown): string[] | undefined => {
     if (!Array.isArray(candidate)) return undefined;
     const values = candidate
-      .filter((entry): entry is string => typeof entry === 'string')
+      .filter((entry): entry is string => typeof entry === "string")
       .map((entry) => entry.trim())
       .filter(Boolean);
     return values.length > 0 ? values.slice(0, 5) : undefined;
@@ -850,13 +982,13 @@ function parseAssistModelResponse(value: unknown): AssistModelResponse | null {
 
   return {
     intent: raw.intent,
-    answer: typeof raw.answer === 'string' ? raw.answer.trim() : '',
+    answer: typeof raw.answer === "string" ? raw.answer.trim() : "",
     openTaskId:
-      typeof raw.openTaskId === 'string' && raw.openTaskId.trim()
+      typeof raw.openTaskId === "string" && raw.openTaskId.trim()
         ? raw.openTaskId.trim()
         : undefined,
     openProjectId:
-      typeof raw.openProjectId === 'string' && raw.openProjectId.trim()
+      typeof raw.openProjectId === "string" && raw.openProjectId.trim()
         ? raw.openProjectId.trim()
         : undefined,
     suggestTaskIds: toStringList(raw.suggestTaskIds),
@@ -865,17 +997,17 @@ function parseAssistModelResponse(value: unknown): AssistModelResponse | null {
 }
 
 function parseToolResultPayload(raw: unknown): unknown {
-  if (typeof raw === 'string') {
+  if (typeof raw === "string") {
     try {
       return JSON.parse(raw);
     } catch {
       return null;
     }
   }
-  if (raw && typeof raw === 'object') {
+  if (raw && typeof raw === "object") {
     const value = raw as Record<string, unknown>;
-    if (value.type === 'json' && value.value != null) return value.value;
-    if (value.type === 'text' && typeof value.value === 'string') {
+    if (value.type === "json" && value.value != null) return value.value;
+    if (value.type === "text" && typeof value.value === "string") {
       try {
         return JSON.parse(value.value);
       } catch {
@@ -888,82 +1020,99 @@ function parseToolResultPayload(raw: unknown): unknown {
 
 function parseFindTasksToolResult(raw: unknown): FindTasksToolOutput | null {
   const parsed = parseToolResultPayload(raw);
-  if (!parsed || typeof parsed !== 'object') return null;
+  if (!parsed || typeof parsed !== "object") return null;
   const value = parsed as Partial<FindTasksToolOutput>;
   if (!Array.isArray(value.results)) return null;
   return {
-    status: value.status ?? 'ok',
-    query: typeof value.query === 'string' ? value.query : undefined,
+    status: value.status ?? "ok",
+    query: typeof value.query === "string" ? value.query : undefined,
     filters: value.filters,
-    results: value.results.filter(
-      (entry): entry is AssistTaskCandidate =>
-        Boolean(
-          entry &&
-            typeof entry.id === 'string' &&
-            typeof entry.title === 'string' &&
-            typeof entry.section === 'string',
-        ),
+    results: value.results.filter((entry): entry is AssistTaskCandidate =>
+      Boolean(
+        entry &&
+        typeof entry.id === "string" &&
+        typeof entry.title === "string" &&
+        typeof entry.section === "string",
+      ),
     ),
-    message: typeof value.message === 'string' ? value.message : undefined,
+    message: typeof value.message === "string" ? value.message : undefined,
   };
 }
 
-function parseFindProjectsToolResult(raw: unknown): FindProjectsToolOutput | null {
+function parseFindProjectsToolResult(
+  raw: unknown,
+): FindProjectsToolOutput | null {
   const parsed = parseToolResultPayload(raw);
-  if (!parsed || typeof parsed !== 'object') return null;
+  if (!parsed || typeof parsed !== "object") return null;
   const value = parsed as Partial<FindProjectsToolOutput>;
   if (!Array.isArray(value.results)) return null;
   return {
-    status: value.status ?? 'ok',
-    query: typeof value.query === 'string' ? value.query : undefined,
+    status: value.status ?? "ok",
+    query: typeof value.query === "string" ? value.query : undefined,
     includeDeleted: value.includeDeleted,
-    results: value.results.filter(
-      (entry): entry is AssistProjectCandidate =>
-        Boolean(entry && typeof entry.id === 'string' && typeof entry.name === 'string'),
+    results: value.results.filter((entry): entry is AssistProjectCandidate =>
+      Boolean(
+        entry && typeof entry.id === "string" && typeof entry.name === "string",
+      ),
     ),
-    message: typeof value.message === 'string' ? value.message : undefined,
+    message: typeof value.message === "string" ? value.message : undefined,
   };
 }
 
 function parseCreateTaskToolResult(raw: unknown): CreateTaskToolOutput | null {
   const parsed = parseToolResultPayload(raw);
-  if (!parsed || typeof parsed !== 'object') return null;
+  if (!parsed || typeof parsed !== "object") return null;
   const value = parsed as Partial<CreateTaskToolOutput>;
   return {
-    status: value.status ?? 'error',
+    status: value.status ?? "error",
     task:
-      value.task && typeof value.task.id === 'string' && typeof value.task.title === 'string'
+      value.task &&
+      typeof value.task.id === "string" &&
+      typeof value.task.title === "string"
         ? value.task
         : undefined,
     project:
-      value.project && typeof value.project.id === 'string' && typeof value.project.name === 'string'
+      value.project &&
+      typeof value.project.id === "string" &&
+      typeof value.project.name === "string"
         ? value.project
         : undefined,
-    message: typeof value.message === 'string' ? value.message : undefined,
+    message: typeof value.message === "string" ? value.message : undefined,
     projectCandidates: Array.isArray(value.projectCandidates)
       ? value.projectCandidates.filter(
           (entry): entry is AssistProjectCandidate =>
-            Boolean(entry && typeof entry.id === 'string' && typeof entry.name === 'string'),
+            Boolean(
+              entry &&
+              typeof entry.id === "string" &&
+              typeof entry.name === "string",
+            ),
         )
       : undefined,
   };
 }
 
-function parseCreateProjectToolResult(raw: unknown): CreateProjectToolOutput | null {
+function parseCreateProjectToolResult(
+  raw: unknown,
+): CreateProjectToolOutput | null {
   const parsed = parseToolResultPayload(raw);
-  if (!parsed || typeof parsed !== 'object') return null;
+  if (!parsed || typeof parsed !== "object") return null;
   const value = parsed as Partial<CreateProjectToolOutput>;
   return {
-    status: value.status ?? 'error',
+    status: value.status ?? "error",
     project:
-      value.project && typeof value.project.id === 'string' && typeof value.project.name === 'string'
+      value.project &&
+      typeof value.project.id === "string" &&
+      typeof value.project.name === "string"
         ? value.project
         : undefined,
-    message: typeof value.message === 'string' ? value.message : undefined,
+    message: typeof value.message === "string" ? value.message : undefined,
     similarProjects: Array.isArray(value.similarProjects)
-      ? value.similarProjects.filter(
-          (entry): entry is AssistProjectCandidate =>
-            Boolean(entry && typeof entry.id === 'string' && typeof entry.name === 'string'),
+      ? value.similarProjects.filter((entry): entry is AssistProjectCandidate =>
+          Boolean(
+            entry &&
+            typeof entry.id === "string" &&
+            typeof entry.name === "string",
+          ),
         )
       : undefined,
   };
@@ -971,29 +1120,40 @@ function parseCreateProjectToolResult(raw: unknown): CreateProjectToolOutput | n
 
 function parseMoveTaskToolResult(raw: unknown): MoveTaskToolOutput | null {
   const parsed = parseToolResultPayload(raw);
-  if (!parsed || typeof parsed !== 'object') return null;
+  if (!parsed || typeof parsed !== "object") return null;
   const value = parsed as Partial<MoveTaskToolOutput>;
   return {
-    status: value.status ?? 'error',
+    status: value.status ?? "error",
     task:
-      value.task && typeof value.task.id === 'string' && typeof value.task.title === 'string'
+      value.task &&
+      typeof value.task.id === "string" &&
+      typeof value.task.title === "string"
         ? value.task
         : undefined,
     project:
-      value.project && typeof value.project.id === 'string' && typeof value.project.name === 'string'
+      value.project &&
+      typeof value.project.id === "string" &&
+      typeof value.project.name === "string"
         ? value.project
         : undefined,
-    message: typeof value.message === 'string' ? value.message : undefined,
+    message: typeof value.message === "string" ? value.message : undefined,
     taskCandidates: Array.isArray(value.taskCandidates)
-      ? value.taskCandidates.filter(
-          (entry): entry is AssistTaskCandidate =>
-            Boolean(entry && typeof entry.id === 'string' && typeof entry.title === 'string'),
+      ? value.taskCandidates.filter((entry): entry is AssistTaskCandidate =>
+          Boolean(
+            entry &&
+            typeof entry.id === "string" &&
+            typeof entry.title === "string",
+          ),
         )
       : undefined,
     projectCandidates: Array.isArray(value.projectCandidates)
       ? value.projectCandidates.filter(
           (entry): entry is AssistProjectCandidate =>
-            Boolean(entry && typeof entry.id === 'string' && typeof entry.name === 'string'),
+            Boolean(
+              entry &&
+              typeof entry.id === "string" &&
+              typeof entry.name === "string",
+            ),
         )
       : undefined,
   };
@@ -1005,10 +1165,11 @@ function extractToolResultEntries(result: any): ToolResultEntry[] {
   const pushFrom = (collection: unknown) => {
     if (!Array.isArray(collection)) return;
     for (const entry of collection) {
-      if (!entry || typeof entry !== 'object') continue;
+      if (!entry || typeof entry !== "object") continue;
       const value = entry as Record<string, unknown>;
       entries.push({
-        toolName: typeof value.toolName === 'string' ? value.toolName : undefined,
+        toolName:
+          typeof value.toolName === "string" ? value.toolName : undefined,
         output: value.output,
         result: value.result,
       });
@@ -1018,7 +1179,7 @@ function extractToolResultEntries(result: any): ToolResultEntry[] {
   pushFrom(result?.toolResults);
   if (Array.isArray(result?.steps)) {
     for (const step of result.steps) {
-      if (!step || typeof step !== 'object') continue;
+      if (!step || typeof step !== "object") continue;
       pushFrom((step as Record<string, unknown>).toolResults);
     }
   }
@@ -1026,7 +1187,9 @@ function extractToolResultEntries(result: any): ToolResultEntry[] {
   return entries;
 }
 
-function collectToolCandidates(entries: ToolResultEntry[]): CollectedToolCandidates {
+function collectToolCandidates(
+  entries: ToolResultEntry[],
+): CollectedToolCandidates {
   const tasks: AssistTaskCandidate[] = [];
   const projects: AssistProjectCandidate[] = [];
   let taskToolWasCalled = false;
@@ -1041,7 +1204,7 @@ function collectToolCandidates(entries: ToolResultEntry[]): CollectedToolCandida
   for (const entry of entries) {
     const payload = entry.output ?? entry.result;
 
-    if (entry.toolName === 'findTasks') {
+    if (entry.toolName === "findTasks") {
       taskToolWasCalled = true;
       const parsed = parseFindTasksToolResult(payload);
       if (!parsed) continue;
@@ -1051,7 +1214,7 @@ function collectToolCandidates(entries: ToolResultEntry[]): CollectedToolCandida
       continue;
     }
 
-    if (entry.toolName === 'findProjects') {
+    if (entry.toolName === "findProjects") {
       projectToolWasCalled = true;
       const parsed = parseFindProjectsToolResult(payload);
       if (!parsed) continue;
@@ -1061,7 +1224,7 @@ function collectToolCandidates(entries: ToolResultEntry[]): CollectedToolCandida
       continue;
     }
 
-    if (entry.toolName === 'createTask') {
+    if (entry.toolName === "createTask") {
       taskToolWasCalled = true;
       const parsed = parseCreateTaskToolResult(payload);
       if (!parsed) continue;
@@ -1075,7 +1238,7 @@ function collectToolCandidates(entries: ToolResultEntry[]): CollectedToolCandida
       continue;
     }
 
-    if (entry.toolName === 'moveTask') {
+    if (entry.toolName === "moveTask") {
       taskToolWasCalled = true;
       const parsed = parseMoveTaskToolResult(payload);
       if (!parsed) continue;
@@ -1090,7 +1253,7 @@ function collectToolCandidates(entries: ToolResultEntry[]): CollectedToolCandida
       continue;
     }
 
-    if (entry.toolName === 'createProject') {
+    if (entry.toolName === "createProject") {
       projectToolWasCalled = true;
       const parsed = parseCreateProjectToolResult(payload);
       if (!parsed) continue;
@@ -1120,8 +1283,12 @@ function collectToolCandidates(entries: ToolResultEntry[]): CollectedToolCandida
   }
 
   return {
-    tasks: Array.from(dedupeTasks.values()).sort((left, right) => (right.score ?? 0) - (left.score ?? 0)),
-    projects: Array.from(dedupeProjects.values()).sort((left, right) => (right.score ?? 0) - (left.score ?? 0)),
+    tasks: Array.from(dedupeTasks.values()).sort(
+      (left, right) => (right.score ?? 0) - (left.score ?? 0),
+    ),
+    projects: Array.from(dedupeProjects.values()).sort(
+      (left, right) => (right.score ?? 0) - (left.score ?? 0),
+    ),
     taskToolWasCalled,
     projectToolWasCalled,
     taskQuery,
@@ -1133,59 +1300,71 @@ function collectToolCandidates(entries: ToolResultEntry[]): CollectedToolCandida
   };
 }
 
-function isAmbiguousByScore<T extends { score?: number }>(values: T[]): boolean {
+function isAmbiguousByScore<T extends { score?: number }>(
+  values: T[],
+): boolean {
   if (values.length <= 1) return false;
   const first = values[0]?.score ?? 0;
   const second = values[1]?.score ?? 0;
   return first - second <= 0.02;
 }
 
-function formatTaskSubtitle(task: Task | AssistTaskCandidate, projectName?: string): string {
+function formatTaskSubtitle(
+  task: Task | AssistTaskCandidate,
+  projectName?: string,
+): string {
   const parts: string[] = [];
 
   if (projectName) parts.push(projectName);
 
   const dueAt = task.dueAt;
-  if (typeof dueAt === 'number' && dueAt > 0) {
+  if (typeof dueAt === "number" && dueAt > 0) {
     const date = new Date(dueAt);
     const hasTime = Boolean(task.dueHasTime);
     parts.push(
       hasTime
-        ? date.toLocaleString('de-DE', {
-            day: '2-digit',
-            month: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
+        ? date.toLocaleString("de-DE", {
+            day: "2-digit",
+            month: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
           })
-        : date.toLocaleDateString('de-DE', {
-            day: '2-digit',
-            month: '2-digit',
+        : date.toLocaleDateString("de-DE", {
+            day: "2-digit",
+            month: "2-digit",
           }),
     );
   }
 
   parts.push(task.section);
   if (task.location) parts.push(task.location);
-  if (task.isRoutine) parts.push(task.routineType ?? 'routine');
+  if (task.isRoutine) parts.push(task.routineType ?? "routine");
 
-  return parts.join(' · ');
+  return parts.join(" · ");
 }
 
-function taskCandidateFromTask(task: Task, projectsById: Map<string, Project>): AssistCandidate {
-  const projectName = task.projectId ? projectsById.get(task.projectId)?.name : undefined;
-  const title = `${task.emoji ?? '📝'} ${task.title}`;
+function taskCandidateFromTask(
+  task: Task,
+  projectsById: Map<string, Project>,
+): AssistCandidate {
+  const projectName = task.projectId
+    ? projectsById.get(task.projectId)?.name
+    : undefined;
+  const title = `${task.emoji ?? "📝"} ${task.title}`;
   return {
-    kind: 'task',
+    kind: "task",
     id: task.id,
     title,
     subtitle: formatTaskSubtitle(task, projectName),
   };
 }
 
-function taskCandidateFromToolCandidate(candidate: AssistTaskCandidate): AssistCandidate {
-  const title = `${candidate.emoji ?? '📝'} ${candidate.title}`;
+function taskCandidateFromToolCandidate(
+  candidate: AssistTaskCandidate,
+): AssistCandidate {
+  const title = `${candidate.emoji ?? "📝"} ${candidate.title}`;
   return {
-    kind: 'task',
+    kind: "task",
     id: candidate.id,
     title,
     subtitle: formatTaskSubtitle(candidate, candidate.projectName),
@@ -1194,19 +1373,21 @@ function taskCandidateFromToolCandidate(candidate: AssistTaskCandidate): AssistC
 }
 
 function projectCandidateFromProject(project: Project): AssistCandidate {
-  const title = `${project.emoji ?? '📁'} ${project.name}`;
+  const title = `${project.emoji ?? "📁"} ${project.name}`;
   return {
-    kind: 'project',
+    kind: "project",
     id: project.id,
     title,
     subtitle: project.description || undefined,
   };
 }
 
-function projectCandidateFromToolCandidate(candidate: AssistProjectCandidate): AssistCandidate {
-  const title = `${candidate.emoji ?? '📁'} ${candidate.name}`;
+function projectCandidateFromToolCandidate(
+  candidate: AssistProjectCandidate,
+): AssistCandidate {
+  const title = `${candidate.emoji ?? "📁"} ${candidate.name}`;
   return {
-    kind: 'project',
+    kind: "project",
     id: candidate.id,
     title,
     subtitle: candidate.description || undefined,
@@ -1253,23 +1434,31 @@ function buildDefaultAssistantMessage({
 }): string {
   const cleanAnswer = answer.trim();
 
-  const hasOpenTask = actions.some((entry) => entry.type === 'open-task');
-  const hasOpenProject = actions.some((entry) => entry.type === 'open-project');
-  const hasSuggestTask = actions.some((entry) => entry.type === 'suggest-task');
-  const hasSuggestProject = actions.some((entry) => entry.type === 'suggest-project');
-  const hasCreateTask = actions.some((entry) => entry.type === 'create-task');
-  const hasCreateProject = actions.some((entry) => entry.type === 'create-project');
-  const taskSuggestionCount = actions.filter((entry) => entry.type === 'suggest-task').length;
-  const projectSuggestionCount = actions.filter((entry) => entry.type === 'suggest-project').length;
+  const hasOpenTask = actions.some((entry) => entry.type === "open-task");
+  const hasOpenProject = actions.some((entry) => entry.type === "open-project");
+  const hasSuggestTask = actions.some((entry) => entry.type === "suggest-task");
+  const hasSuggestProject = actions.some(
+    (entry) => entry.type === "suggest-project",
+  );
+  const hasCreateTask = actions.some((entry) => entry.type === "create-task");
+  const hasCreateProject = actions.some(
+    (entry) => entry.type === "create-project",
+  );
+  const taskSuggestionCount = actions.filter(
+    (entry) => entry.type === "suggest-task",
+  ).length;
+  const projectSuggestionCount = actions.filter(
+    (entry) => entry.type === "suggest-project",
+  ).length;
 
   if (toolCandidates.createdTask) {
-    return 'Ich habe den Task erstellt.';
+    return "Ich habe den Task erstellt.";
   }
   if (toolCandidates.movedTask) {
-    return 'Ich habe den Task aktualisiert.';
+    return "Ich habe den Task aktualisiert.";
   }
   if (toolCandidates.createdProject) {
-    return 'Ich habe das Projekt erstellt.';
+    return "Ich habe das Projekt erstellt.";
   }
   if (hasCreateTask) {
     return 'Ich habe einen Task-Entwurf vorbereitet. Tippe auf "Task erstellen".';
@@ -1279,42 +1468,47 @@ function buildDefaultAssistantMessage({
   }
 
   if (hasOpenTask && hasOpenProject) {
-    return 'Ich habe einen passenden Task und ein passendes Projekt gefunden.';
+    return "Ich habe einen passenden Task und ein passendes Projekt gefunden.";
   }
   if (hasOpenTask) {
-    return 'Ich habe einen passenden Task gefunden.';
+    return "Ich habe einen passenden Task gefunden.";
   }
   if (hasOpenProject) {
-    return 'Ich habe ein passendes Projekt gefunden.';
+    return "Ich habe ein passendes Projekt gefunden.";
   }
   if (hasSuggestTask && hasSuggestProject) {
-    return `Ich habe ${taskSuggestionCount} passende Aufgabe${taskSuggestionCount === 1 ? '' : 'n'} und ${projectSuggestionCount} passende Projekt${projectSuggestionCount === 1 ? '' : 'e'} gefunden.`;
+    return `Ich habe ${taskSuggestionCount} passende Aufgabe${taskSuggestionCount === 1 ? "" : "n"} und ${projectSuggestionCount} passende Projekt${projectSuggestionCount === 1 ? "" : "e"} gefunden.`;
   }
   if (hasSuggestTask) {
-    return `Ich habe ${taskSuggestionCount} passende Aufgabe${taskSuggestionCount === 1 ? '' : 'n'} gefunden.`;
+    return `Ich habe ${taskSuggestionCount} passende Aufgabe${taskSuggestionCount === 1 ? "" : "n"} gefunden.`;
   }
   if (hasSuggestProject) {
-    return `Ich habe ${projectSuggestionCount} passende Projekt${projectSuggestionCount === 1 ? '' : 'e'} gefunden.`;
+    return `Ich habe ${projectSuggestionCount} passende Projekt${projectSuggestionCount === 1 ? "" : "e"} gefunden.`;
   }
 
   if (toolCandidates.taskToolWasCalled && toolCandidates.tasks.length === 0) {
     return toolCandidates.taskQuery
       ? `Ich habe keinen passenden Task fuer "${toolCandidates.taskQuery}" gefunden.`
-      : 'Ich habe keinen passenden Task gefunden.';
+      : "Ich habe keinen passenden Task gefunden.";
   }
 
-  if (toolCandidates.projectToolWasCalled && toolCandidates.projects.length === 0) {
+  if (
+    toolCandidates.projectToolWasCalled &&
+    toolCandidates.projects.length === 0
+  ) {
     return toolCandidates.projectQuery
       ? `Ich habe kein passendes Projekt fuer "${toolCandidates.projectQuery}" gefunden.`
-      : 'Ich habe kein passendes Projekt gefunden.';
+      : "Ich habe kein passendes Projekt gefunden.";
   }
 
   if (toolCandidates.messages.length > 0) {
-    return toolCandidates.messages[toolCandidates.messages.length - 1] as string;
+    return toolCandidates.messages[
+      toolCandidates.messages.length - 1
+    ] as string;
   }
 
-  if (intent === 'clarify') {
-    return 'Ich brauche noch eine kurze Praezisierung, um den richtigen Task oder das richtige Projekt auszuwaehlen.';
+  if (intent === "clarify") {
+    return "Ich brauche noch eine kurze Praezisierung, um den richtigen Task oder das richtige Projekt auszuwaehlen.";
   }
 
   if (
@@ -1325,7 +1519,7 @@ function buildDefaultAssistantMessage({
     return cleanAnswer;
   }
 
-  return 'Wie kann ich dir bei Tasks oder Projekten helfen?';
+  return "Wie kann ich dir bei Tasks oder Projekten helfen?";
 }
 
 function resolveTaskCandidateById({
@@ -1339,7 +1533,9 @@ function resolveTaskCandidateById({
   projectsById: Map<string, Project>;
   toolCandidates: CollectedToolCandidates;
 }): AssistCandidate | null {
-  const taskFromStore = tasks.find((entry) => entry.id === taskId && !entry.deletedAt);
+  const taskFromStore = tasks.find(
+    (entry) => entry.id === taskId && !entry.deletedAt,
+  );
   if (taskFromStore) {
     return taskCandidateFromTask(taskFromStore, projectsById);
   }
@@ -1361,12 +1557,16 @@ function resolveProjectCandidateById({
   projects: Project[];
   toolCandidates: CollectedToolCandidates;
 }): AssistCandidate | null {
-  const projectFromStore = projects.find((entry) => entry.id === projectId && !entry.deletedAt);
+  const projectFromStore = projects.find(
+    (entry) => entry.id === projectId && !entry.deletedAt,
+  );
   if (projectFromStore) {
     return projectCandidateFromProject(projectFromStore);
   }
 
-  const fromTool = toolCandidates.projects.find((entry) => entry.id === projectId);
+  const fromTool = toolCandidates.projects.find(
+    (entry) => entry.id === projectId,
+  );
   if (fromTool) {
     return projectCandidateFromToolCandidate(fromTool);
   }
@@ -1386,9 +1586,11 @@ function buildActionsFromResponse({
   projects: Project[];
 }): AssistAction[] {
   const actions: AssistAction[] = [];
-  const projectsById = new Map(projects.map((project) => [project.id, project] as const));
-  const wantsTaskCollection = response.intent === 'find_task';
-  const wantsProjectCollection = response.intent === 'find_project';
+  const projectsById = new Map(
+    projects.map((project) => [project.id, project] as const),
+  );
+  const wantsTaskCollection = response.intent === "find_task";
+  const wantsProjectCollection = response.intent === "find_project";
   const maxTaskSuggestions = wantsTaskCollection ? 20 : 3;
   const maxProjectSuggestions = wantsProjectCollection ? 20 : 3;
 
@@ -1400,7 +1602,7 @@ function buildActionsFromResponse({
       toolCandidates,
     });
     if (candidate) {
-      actions.push({ type: 'open-task', candidate });
+      actions.push({ type: "open-task", candidate });
     }
   }
 
@@ -1411,35 +1613,55 @@ function buildActionsFromResponse({
       toolCandidates,
     });
     if (candidate) {
-      actions.push({ type: 'open-project', candidate });
+      actions.push({ type: "open-project", candidate });
     }
   }
 
   const hasTaskAction = () =>
-    actions.some((entry) => entry.type === 'open-task' || entry.type === 'suggest-task');
+    actions.some(
+      (entry) => entry.type === "open-task" || entry.type === "suggest-task",
+    );
   const hasProjectAction = () =>
-    actions.some((entry) => entry.type === 'open-project' || entry.type === 'suggest-project');
+    actions.some(
+      (entry) =>
+        entry.type === "open-project" || entry.type === "suggest-project",
+    );
 
-  if (!hasTaskAction() && (response.intent === 'create_task' || response.intent === 'move_task')) {
+  if (
+    !hasTaskAction() &&
+    (response.intent === "create_task" || response.intent === "move_task")
+  ) {
     const direct = toolCandidates.createdTask ?? toolCandidates.movedTask;
     if (direct) {
       actions.push({
-        type: 'open-task',
+        type: "open-task",
         candidate: taskCandidateFromToolCandidate(direct),
       });
     }
   }
 
-  if (!hasProjectAction() && response.intent === 'create_project' && toolCandidates.createdProject) {
+  if (
+    !hasProjectAction() &&
+    response.intent === "create_project" &&
+    toolCandidates.createdProject
+  ) {
     actions.push({
-      type: 'open-project',
-      candidate: projectCandidateFromToolCandidate(toolCandidates.createdProject),
+      type: "open-project",
+      candidate: projectCandidateFromToolCandidate(
+        toolCandidates.createdProject,
+      ),
     });
   }
 
   if (!hasTaskAction()) {
-    if (Array.isArray(response.suggestTaskIds) && response.suggestTaskIds.length > 0) {
-      for (const taskId of response.suggestTaskIds.slice(0, maxTaskSuggestions)) {
+    if (
+      Array.isArray(response.suggestTaskIds) &&
+      response.suggestTaskIds.length > 0
+    ) {
+      for (const taskId of response.suggestTaskIds.slice(
+        0,
+        maxTaskSuggestions,
+      )) {
         const candidate = resolveTaskCandidateById({
           taskId,
           tasks,
@@ -1447,7 +1669,7 @@ function buildActionsFromResponse({
           toolCandidates,
         });
         if (candidate) {
-          actions.push({ type: 'suggest-task', candidate });
+          actions.push({ type: "suggest-task", candidate });
         }
       }
     } else if (
@@ -1456,30 +1678,47 @@ function buildActionsFromResponse({
       !isAmbiguousByScore(toolCandidates.tasks)
     ) {
       actions.push({
-        type: 'open-task',
-        candidate: taskCandidateFromToolCandidate(toolCandidates.tasks[0] as AssistTaskCandidate),
+        type: "open-task",
+        candidate: taskCandidateFromToolCandidate(
+          toolCandidates.tasks[0] as AssistTaskCandidate,
+        ),
       });
     } else if (toolCandidates.tasks.length > 1) {
-      for (const candidate of toolCandidates.tasks.slice(0, maxTaskSuggestions)) {
+      for (const candidate of toolCandidates.tasks.slice(
+        0,
+        maxTaskSuggestions,
+      )) {
         actions.push({
-          type: 'suggest-task',
+          type: "suggest-task",
           candidate: taskCandidateFromToolCandidate(candidate),
         });
       }
     } else if (wantsTaskCollection && toolCandidates.tasks.length === 1) {
       actions.push({
-        type: 'suggest-task',
-        candidate: taskCandidateFromToolCandidate(toolCandidates.tasks[0] as AssistTaskCandidate),
+        type: "suggest-task",
+        candidate: taskCandidateFromToolCandidate(
+          toolCandidates.tasks[0] as AssistTaskCandidate,
+        ),
       });
     }
   }
 
   if (!hasProjectAction()) {
-    if (Array.isArray(response.suggestProjectIds) && response.suggestProjectIds.length > 0) {
-      for (const projectId of response.suggestProjectIds.slice(0, maxProjectSuggestions)) {
-        const candidate = resolveProjectCandidateById({ projectId, projects, toolCandidates });
+    if (
+      Array.isArray(response.suggestProjectIds) &&
+      response.suggestProjectIds.length > 0
+    ) {
+      for (const projectId of response.suggestProjectIds.slice(
+        0,
+        maxProjectSuggestions,
+      )) {
+        const candidate = resolveProjectCandidateById({
+          projectId,
+          projects,
+          toolCandidates,
+        });
         if (candidate) {
-          actions.push({ type: 'suggest-project', candidate });
+          actions.push({ type: "suggest-project", candidate });
         }
       }
     } else if (
@@ -1488,20 +1727,27 @@ function buildActionsFromResponse({
       !isAmbiguousByScore(toolCandidates.projects)
     ) {
       actions.push({
-        type: 'open-project',
-        candidate: projectCandidateFromToolCandidate(toolCandidates.projects[0] as AssistProjectCandidate),
+        type: "open-project",
+        candidate: projectCandidateFromToolCandidate(
+          toolCandidates.projects[0] as AssistProjectCandidate,
+        ),
       });
     } else if (toolCandidates.projects.length > 1) {
-      for (const candidate of toolCandidates.projects.slice(0, maxProjectSuggestions)) {
+      for (const candidate of toolCandidates.projects.slice(
+        0,
+        maxProjectSuggestions,
+      )) {
         actions.push({
-          type: 'suggest-project',
+          type: "suggest-project",
           candidate: projectCandidateFromToolCandidate(candidate),
         });
       }
     } else if (wantsProjectCollection && toolCandidates.projects.length === 1) {
       actions.push({
-        type: 'suggest-project',
-        candidate: projectCandidateFromToolCandidate(toolCandidates.projects[0] as AssistProjectCandidate),
+        type: "suggest-project",
+        candidate: projectCandidateFromToolCandidate(
+          toolCandidates.projects[0] as AssistProjectCandidate,
+        ),
       });
     }
   }
@@ -1512,8 +1758,8 @@ function buildActionsFromResponse({
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
-  if (typeof error === 'string') return error;
-  return '';
+  if (typeof error === "string") return error;
+  return "";
 }
 
 function isToolCallLimitError(error: unknown): boolean {
@@ -1521,11 +1767,12 @@ function isToolCallLimitError(error: unknown): boolean {
 }
 
 function isAppleGenerationError(error: unknown): boolean {
-  const normalized = getErrorMessage(error).replace(/\s+/g, '');
+  const normalized = getErrorMessage(error).replace(/\s+/g, "");
   if (!normalized) return false;
   return (
-    /FoundationModels\.LanguageModelSession\.GenerationError/i.test(normalized) ||
-    /GenerationError/i.test(normalized)
+    /FoundationModels\.LanguageModelSession\.GenerationError/i.test(
+      normalized,
+    ) || /GenerationError/i.test(normalized)
   );
 }
 
@@ -1553,7 +1800,7 @@ function toMutedTintColor(color: string): string {
 function getReadableTextColor(hexColor: string): string {
   const normalized = hexColor.trim();
   const longHex = normalized.match(/^#([0-9a-f]{6})$/i);
-  if (!longHex) return '#FFFFFF';
+  if (!longHex) return "#FFFFFF";
 
   const hex = longHex[1];
   const red = Number.parseInt(hex.slice(0, 2), 16);
@@ -1561,10 +1808,16 @@ function getReadableTextColor(hexColor: string): string {
   const blue = Number.parseInt(hex.slice(4, 6), 16);
   const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
 
-  return luminance >= 0.72 ? '#11181C' : '#FFFFFF';
+  return luminance >= 0.72 ? "#11181C" : "#FFFFFF";
 }
 
-function TypingAnimation({ bubbleColor, textColor }: { bubbleColor: string; textColor: string }) {
+function TypingAnimation({
+  bubbleColor,
+  textColor,
+}: {
+  bubbleColor: string;
+  textColor: string;
+}) {
   const [dotCount, setDotCount] = React.useState(1);
 
   React.useEffect(() => {
@@ -1575,10 +1828,16 @@ function TypingAnimation({ bubbleColor, textColor }: { bubbleColor: string; text
   }, []);
 
   return (
-    <View style={[styles.messageBubble, styles.assistantBubble, { backgroundColor: bubbleColor }]}> 
+    <View
+      style={[
+        styles.messageBubble,
+        styles.assistantBubble,
+        { backgroundColor: bubbleColor },
+      ]}
+    >
       <Text style={[styles.typingText, { color: textColor }]}>
-        {'.'.repeat(dotCount)}
-        {' '.repeat(3 - dotCount)}
+        {".".repeat(dotCount)}
+        {" ".repeat(3 - dotCount)}
       </Text>
     </View>
   );
@@ -1598,59 +1857,71 @@ function AssistEntityActionButton({
   action: AssistAction;
   tintColor: string;
   tintTextColor: string;
-  colorScheme: 'light' | 'dark';
+  colorScheme: "light" | "dark";
   onCreateTaskDraft: (messageId: string, action: AssistAction) => void;
   onCreateProjectDraft: (messageId: string, action: AssistAction) => void;
   onShowMoreTasks: (messageId: string, action: AssistAction) => void;
 }) {
   const router = useRouter();
-  const isDark = colorScheme === 'dark';
-  const cardBackground = isDark ? 'rgba(255,255,255,0.08)' : '#edf2f6';
-  const primaryTextColor = isDark ? '#f2f2f7' : '#1c1c1e';
-  const secondaryTextColor = isDark ? '#d1d1d6' : '#3a3a3c';
+  const isDark = colorScheme === "dark";
+  const cardBackground = isDark ? "rgba(255,255,255,0.08)" : "#edf2f6";
+  const primaryTextColor = isDark ? "#f2f2f7" : "#1c1c1e";
+  const secondaryTextColor = isDark ? "#d1d1d6" : "#3a3a3c";
   const buttonColor = toMutedTintColor(tintColor);
 
   const verb =
-    action.type === 'create-task'
-      ? 'Task erstellen'
-      : action.type === 'create-project'
-        ? 'Projekt erstellen'
-      : action.type === 'show-more-tasks'
-        ? 'Weitere anzeigen'
-      : action.type === 'open-task'
-      ? 'Task oeffnen'
-      : action.type === 'open-project'
-        ? 'Projekt oeffnen'
-        : action.type === 'suggest-task'
-          ? 'Task anzeigen'
-          : 'Projekt anzeigen';
+    action.type === "create-task"
+      ? "Task erstellen"
+      : action.type === "create-project"
+        ? "Projekt erstellen"
+        : action.type === "show-more-tasks"
+          ? "Weitere anzeigen"
+          : action.type === "open-task"
+            ? "Task oeffnen"
+            : action.type === "open-project"
+              ? "Projekt oeffnen"
+              : action.type === "suggest-task"
+                ? "Task anzeigen"
+                : "Projekt anzeigen";
 
   const handlePress = () => {
-    if (action.type === 'create-task' && action.taskDraft) {
+    if (action.type === "create-task" && action.taskDraft) {
       onCreateTaskDraft(messageId, action);
       return;
     }
-    if (action.type === 'create-project' && action.projectDraft) {
+    if (action.type === "create-project" && action.projectDraft) {
       onCreateProjectDraft(messageId, action);
       return;
     }
-    if (action.type === 'show-more-tasks') {
+    if (action.type === "show-more-tasks") {
       onShowMoreTasks(messageId, action);
       return;
     }
-    if (action.candidate.kind === 'task') {
-      router.push({ pathname: '/task/[id]', params: { id: action.candidate.id } });
+    if (action.candidate.kind === "task") {
+      router.push({
+        pathname: "/task/[id]",
+        params: { id: action.candidate.id },
+      });
       return;
     }
-    router.push({ pathname: '/project/[id]', params: { id: action.candidate.id } });
+    router.push({
+      pathname: "/project/[id]",
+      params: { id: action.candidate.id },
+    });
   };
 
   return (
     <View style={styles.entityActionContainer}>
-      <View style={[styles.entityActionCard, { backgroundColor: cardBackground }]}> 
-        <Text style={[styles.entityActionTitle, { color: primaryTextColor }]}>{action.candidate.title}</Text>
+      <View
+        style={[styles.entityActionCard, { backgroundColor: cardBackground }]}
+      >
+        <Text style={[styles.entityActionTitle, { color: primaryTextColor }]}>
+          {action.candidate.title}
+        </Text>
         {action.candidate.subtitle ? (
-          <Text style={[styles.entityActionSubtitle, { color: secondaryTextColor }]}>
+          <Text
+            style={[styles.entityActionSubtitle, { color: secondaryTextColor }]}
+          >
             {action.candidate.subtitle}
           </Text>
         ) : null}
@@ -1663,8 +1934,12 @@ function AssistEntityActionButton({
           pressed && { opacity: 0.8 },
         ]}
       >
-        <Text style={[styles.openEntityButtonText, { color: tintTextColor }]}>{verb}</Text>
-        <Text style={[styles.openEntityButtonIcon, { color: tintTextColor }]}>→</Text>
+        <Text style={[styles.openEntityButtonText, { color: tintTextColor }]}>
+          {verb}
+        </Text>
+        <Text style={[styles.openEntityButtonIcon, { color: tintTextColor }]}>
+          →
+        </Text>
       </Pressable>
     </View>
   );
@@ -1672,7 +1947,7 @@ function AssistEntityActionButton({
 
 function AssistUnlockedScreen() {
   const [messages, setMessages] = React.useState<Message[]>([]);
-  const [input, setInput] = React.useState('');
+  const [input, setInput] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(false);
   const [isAIAvailable, setIsAIAvailable] = React.useState(true);
   const [isKeyboardVisible, setIsKeyboardVisible] = React.useState(false);
@@ -1680,7 +1955,8 @@ function AssistUnlockedScreen() {
   const scrollViewRef = React.useRef<ScrollView>(null);
   const router = useRouter();
   const rawColorScheme = useColorScheme();
-  const resolvedColorScheme: 'light' | 'dark' = rawColorScheme === 'dark' ? 'dark' : 'light';
+  const resolvedColorScheme: "light" | "dark" =
+    rawColorScheme === "dark" ? "dark" : "light";
   const colors = Colors[resolvedColorScheme];
   const { accentColor } = useAppSettings();
   const accentColorValue = React.useMemo(
@@ -1725,13 +2001,15 @@ function AssistUnlockedScreen() {
   }, [messages]);
 
   React.useEffect(() => {
-    const available = Platform.OS === 'ios' && apple.isAvailable();
+    const available = Platform.OS === "ios" && apple.isAvailable();
     setIsAIAvailable(available);
   }, []);
 
   React.useEffect(() => {
-    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
 
     const showSubscription = Keyboard.addListener(showEvent, () => {
       setIsKeyboardVisible(true);
@@ -1746,7 +2024,8 @@ function AssistUnlockedScreen() {
     };
   }, []);
 
-  const inputContainerPaddingBottom = Platform.OS === 'ios' ? (isKeyboardVisible ? 12 : 36) : 24;
+  const inputContainerPaddingBottom =
+    Platform.OS === "ios" ? (isKeyboardVisible ? 12 : 36) : 24;
 
   const scrollToBottom = React.useCallback((animated: boolean = true) => {
     const runScroll = () => {
@@ -1780,59 +2059,62 @@ function AssistUnlockedScreen() {
 
   const handleClearHistory = React.useCallback(() => {
     Alert.alert(
-      'Verlauf loeschen',
-      'Moechtest du den gesamten Chat-Verlauf wirklich loeschen?',
+      "Verlauf loeschen",
+      "Moechtest du den gesamten Chat-Verlauf wirklich loeschen?",
       [
         {
-          text: 'Loeschen',
-          style: 'destructive',
+          text: "Loeschen",
+          style: "destructive",
           onPress: async () => {
             await AsyncStorage.removeItem(ASSIST_STORAGE_KEY);
             pendingRestoreScrollRef.current = false;
             setMessages([]);
           },
         },
-        { text: 'Abbrechen', style: 'cancel' },
+        { text: "Abbrechen", style: "cancel" },
       ],
     );
   }, []);
 
   const handleCreateTaskDraft = React.useCallback(
     (messageId: string, action: AssistAction) => {
-      if (action.type !== 'create-task' || !action.taskDraft) return;
+      if (action.type !== "create-task" || !action.taskDraft) return;
       const draft = action.taskDraft;
       const lockKey = `task:${messageId}:${action.candidate.id}`;
       const existingTaskId = createdActionTargetsRef.current.get(lockKey);
       if (existingTaskId) {
-        router.push({ pathname: '/task/[id]', params: { id: existingTaskId } });
+        router.push({ pathname: "/task/[id]", params: { id: existingTaskId } });
         return;
       }
 
-      const dueAt = typeof draft.dueAt === 'number' && Number.isFinite(draft.dueAt) ? draft.dueAt : 0;
-      const section: SectionId = dueAt > 0 ? deriveActiveSectionFromDueAt(dueAt) : 'upcoming';
+      const dueAt =
+        typeof draft.dueAt === "number" && Number.isFinite(draft.dueAt)
+          ? draft.dueAt
+          : 0;
+      const section: SectionId =
+        dueAt > 0 ? deriveActiveSectionFromDueAt(dueAt) : "upcoming";
       const nextTaskId = `t-${Date.now()}-${Math.random().toString(16).slice(2)}`;
       const openCandidate: AssistCandidate = {
-        kind: 'task',
+        kind: "task",
         id: nextTaskId,
-        title: `${draft.emoji ?? '📝'} ${draft.title}`,
+        title: `${draft.emoji ?? "📝"} ${draft.title}`,
         subtitle: taskCandidateFromDraft(draft).subtitle,
       };
 
       setTasks((prev) => {
         const minRank = prev
           .filter((entry) => !entry.deletedAt && entry.section === section)
-          .reduce<number | null>(
-            (acc, entry) => (acc === null ? entry.orderRank : Math.min(acc, entry.orderRank)),
-            null,
-          );
+          .reduce<
+            number | null
+          >((acc, entry) => (acc === null ? entry.orderRank : Math.min(acc, entry.orderRank)), null);
         const orderRank = (minRank ?? 1000) - 1000;
 
         const next: Task = {
           id: nextTaskId,
           title: draft.title,
           subtitle: draft.subtitle,
-          emoji: draft.emoji ?? '📝',
-          projectId: draft.projectId ?? '',
+          emoji: draft.emoji ?? "📝",
+          projectId: draft.projectId ?? "",
           dueAt,
           dueHasTime: draft.dueHasTime ?? false,
           completedAt: undefined,
@@ -1857,9 +2139,12 @@ function AssistUnlockedScreen() {
         prev.map((message) => {
           if (message.id !== messageId) return message;
           const nextActions = (message.actions ?? []).map((entry) => {
-            if (entry.type === 'create-task' && entry.candidate.id === action.candidate.id) {
+            if (
+              entry.type === "create-task" &&
+              entry.candidate.id === action.candidate.id
+            ) {
               return {
-                type: 'open-task' as const,
+                type: "open-task" as const,
                 candidate: openCandidate,
               };
             }
@@ -1871,19 +2156,22 @@ function AssistUnlockedScreen() {
           };
         }),
       );
-      router.push({ pathname: '/task/[id]', params: { id: nextTaskId } });
+      router.push({ pathname: "/task/[id]", params: { id: nextTaskId } });
     },
     [router, setTasks],
   );
 
   const handleCreateProjectDraft = React.useCallback(
     (messageId: string, action: AssistAction) => {
-      if (action.type !== 'create-project' || !action.projectDraft) return;
+      if (action.type !== "create-project" || !action.projectDraft) return;
       const draft = action.projectDraft;
       const lockKey = `project:${messageId}:${action.candidate.id}`;
       const existingProjectId = createdActionTargetsRef.current.get(lockKey);
       if (existingProjectId) {
-        router.push({ pathname: '/project/[id]', params: { id: existingProjectId } });
+        router.push({
+          pathname: "/project/[id]",
+          params: { id: existingProjectId },
+        });
         return;
       }
 
@@ -1891,20 +2179,20 @@ function AssistUnlockedScreen() {
       if (!name) return;
 
       const nextProjectId = `p-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-      const color = normalizeHexColorSafe(draft.color) ?? '#2563EB';
+      const color = normalizeHexColorSafe(draft.color) ?? "#2563EB";
       const emoji =
         extractFirstEmojiSafe(draft.emoji) ??
-        inferProjectEmojiFromName(`${name} ${draft.description ?? ''}`) ??
-        '📁';
-      const icon = cleanExtractedText(draft.icon ?? '') || 'folder.fill';
+        inferProjectEmojiFromName(`${name} ${draft.description ?? ""}`) ??
+        "📁";
+      const icon = cleanExtractedText(draft.icon ?? "") || "folder.fill";
 
       const nextProject: Project = {
         id: nextProjectId,
         name,
         color,
-        emoji: emoji || '📁',
+        emoji: emoji || "📁",
         icon,
-        description: cleanExtractedText(draft.description ?? '') || undefined,
+        description: cleanExtractedText(draft.description ?? "") || undefined,
         completed: false,
         deletedAt: undefined,
       };
@@ -1915,9 +2203,12 @@ function AssistUnlockedScreen() {
         prev.map((message) => {
           if (message.id !== messageId) return message;
           const nextActions = (message.actions ?? []).map((entry) => {
-            if (entry.type === 'create-project' && entry.candidate.id === action.candidate.id) {
+            if (
+              entry.type === "create-project" &&
+              entry.candidate.id === action.candidate.id
+            ) {
               return {
-                type: 'open-project' as const,
+                type: "open-project" as const,
                 candidate: projectCandidateFromProject(nextProject),
               };
             }
@@ -1929,17 +2220,20 @@ function AssistUnlockedScreen() {
           };
         }),
       );
-      router.push({ pathname: '/project/[id]', params: { id: nextProjectId } });
+      router.push({ pathname: "/project/[id]", params: { id: nextProjectId } });
     },
     [router, setProjects],
   );
 
   const handleShowMoreTasks = React.useCallback(
     (messageId: string, action: AssistAction) => {
-      if (action.type !== 'show-more-tasks') return;
+      if (action.type !== "show-more-tasks") return;
 
       const taskIds = Array.isArray(action.taskIdsToShow)
-        ? action.taskIdsToShow.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+        ? action.taskIdsToShow.filter(
+            (value): value is string =>
+              typeof value === "string" && value.trim().length > 0,
+          )
         : [];
       if (taskIds.length === 0) return;
 
@@ -1947,14 +2241,16 @@ function AssistUnlockedScreen() {
         projectsRef.current.map((project) => [project.id, project] as const),
       );
       const taskById = new Map(
-        tasksRef.current.filter((task) => !task.deletedAt).map((task) => [task.id, task] as const),
+        tasksRef.current
+          .filter((task) => !task.deletedAt)
+          .map((task) => [task.id, task] as const),
       );
 
       const nextActions: AssistAction[] = taskIds
         .map((taskId) => taskById.get(taskId))
         .filter((task): task is Task => Boolean(task))
         .map((task) => ({
-          type: 'suggest-task',
+          type: "suggest-task",
           candidate: taskCandidateFromTask(task, projectsById),
         }));
 
@@ -1962,7 +2258,11 @@ function AssistUnlockedScreen() {
         const withoutShowMore = prev.map((message) => {
           if (message.id !== messageId) return message;
           const remainingActions = (message.actions ?? []).filter(
-            (entry) => !(entry.type === 'show-more-tasks' && entry.candidate.id === action.candidate.id),
+            (entry) =>
+              !(
+                entry.type === "show-more-tasks" &&
+                entry.candidate.id === action.candidate.id
+              ),
           );
           return {
             ...message,
@@ -1975,8 +2275,8 @@ function AssistUnlockedScreen() {
             ...withoutShowMore,
             {
               id: `${Date.now() + 1}`,
-              role: 'assistant',
-              content: 'Ich habe keine weiteren passenden Aufgaben gefunden.',
+              role: "assistant",
+              content: "Ich habe keine weiteren passenden Aufgaben gefunden.",
             },
           ];
         }
@@ -1985,8 +2285,8 @@ function AssistUnlockedScreen() {
           ...withoutShowMore,
           {
             id: `${Date.now() + 1}`,
-            role: 'assistant',
-            content: `Ich zeige dir ${nextActions.length} weitere passende Aufgabe${nextActions.length === 1 ? '' : 'n'}.`,
+            role: "assistant",
+            content: `Ich zeige dir ${nextActions.length} weitere passende Aufgabe${nextActions.length === 1 ? "" : "n"}.`,
             actions: nextActions,
           },
         ];
@@ -2001,12 +2301,12 @@ function AssistUnlockedScreen() {
 
     const userMessage: Message = {
       id: Date.now().toString(),
-      role: 'user',
+      role: "user",
       content: input.trim(),
     };
 
     setMessages((prev) => [...prev, userMessage]);
-    setInput('');
+    setInput("");
     setIsLoading(true);
     scrollToBottom();
 
@@ -2020,8 +2320,9 @@ function AssistUnlockedScreen() {
           ...prev,
           {
             id: assistantMessageId,
-            role: 'assistant',
-            content: 'Apple Foundation Models sind auf diesem Geraet nicht verfuegbar.',
+            role: "assistant",
+            content:
+              "Apple Foundation Models sind auf diesem Geraet nicht verfuegbar.",
           },
         ]);
         return;
@@ -2037,7 +2338,7 @@ function AssistUnlockedScreen() {
           ...prev,
           {
             id: assistantMessageId,
-            role: 'assistant',
+            role: "assistant",
             content: directKnowledge.content,
             actions: directKnowledge.actions,
           },
@@ -2045,17 +2346,20 @@ function AssistUnlockedScreen() {
         return;
       }
 
-      const quickProjectDraft = parseProjectDraftFromCommand(userMessage.content);
+      const quickProjectDraft = parseProjectDraftFromCommand(
+        userMessage.content,
+      );
       if (quickProjectDraft) {
         setMessages((prev) => [
           ...prev,
           {
             id: assistantMessageId,
-            role: 'assistant',
-            content: 'Ich habe einen Projekt-Entwurf vorbereitet. Tippe auf "Projekt erstellen".',
+            role: "assistant",
+            content:
+              'Ich habe einen Projekt-Entwurf vorbereitet. Tippe auf "Projekt erstellen".',
             actions: [
               {
-                type: 'create-project',
+                type: "create-project",
                 candidate: projectCandidateFromDraft(quickProjectDraft),
                 projectDraft: quickProjectDraft,
               },
@@ -2065,22 +2369,25 @@ function AssistUnlockedScreen() {
         return;
       }
 
-      const quickTaskDraft = parseTaskDraftFromCommand(userMessage.content, projectsRef.current);
+      const quickTaskDraft = parseTaskDraftFromCommand(
+        userMessage.content,
+        projectsRef.current,
+      );
       if (quickTaskDraft) {
         const projectWarning =
           quickTaskDraft.projectName && !quickTaskDraft.projectId
             ? ` Projekt "${quickTaskDraft.projectName}" konnte ich nicht sicher zuordnen.`
-            : '';
+            : "";
 
         setMessages((prev) => [
           ...prev,
           {
             id: assistantMessageId,
-            role: 'assistant',
+            role: "assistant",
             content: `Ich habe einen Task-Entwurf vorbereitet.${projectWarning} Tippe auf "Task erstellen".`,
             actions: [
               {
-                type: 'create-task',
+                type: "create-task",
                 candidate: taskCandidateFromDraft(quickTaskDraft),
                 taskDraft: quickTaskDraft,
               },
@@ -2132,7 +2439,10 @@ function AssistUnlockedScreen() {
         if (!isAppleGenerationError(primaryError)) {
           throw primaryError;
         }
-        console.warn('[assist] primary generation failed, retrying with compact tool prompt', primaryError);
+        console.warn(
+          "[assist] primary generation failed, retrying with compact tool prompt",
+          primaryError,
+        );
 
         try {
           result = await runGeneration({
@@ -2144,7 +2454,10 @@ function AssistUnlockedScreen() {
           if (!isAppleGenerationError(secondaryError)) {
             throw secondaryError;
           }
-          console.warn('[assist] compact tool retry failed, retrying text-only', secondaryError);
+          console.warn(
+            "[assist] compact tool retry failed, retrying text-only",
+            secondaryError,
+          );
 
           result = await runGeneration({
             systemPrompt: buildCompactSystemPrompt(),
@@ -2165,43 +2478,52 @@ function AssistUnlockedScreen() {
         !toolCandidates.movedTask &&
         !toolCandidates.createdProject
       ) {
-        const userAskedTaskCreate = isLikelyCreateTaskPrompt(userMessage.content);
-        const userAskedProjectCreate = isLikelyCreateProjectPrompt(userMessage.content);
+        const userAskedTaskCreate = isLikelyCreateTaskPrompt(
+          userMessage.content,
+        );
+        const userAskedProjectCreate = isLikelyCreateProjectPrompt(
+          userMessage.content,
+        );
 
         const emitTaskDraft = (draftFromAssistant: AssistTaskDraft) => {
           const projectWarning =
             draftFromAssistant.projectName && !draftFromAssistant.projectId
               ? ` Projekt "${draftFromAssistant.projectName}" konnte ich nicht sicher zuordnen.`
-              : '';
+              : "";
 
           setMessages((prev) => [
             ...prev,
             {
               id: assistantMessageId,
-              role: 'assistant',
+              role: "assistant",
               content: `Ich habe einen Task-Entwurf vorbereitet.${projectWarning} Tippe auf "Task erstellen".`,
               actions: [
                 {
-                  type: 'create-task',
+                  type: "create-task",
                   candidate: taskCandidateFromDraft(draftFromAssistant),
-                taskDraft: draftFromAssistant,
-              },
-            ],
-          },
-        ]);
+                  taskDraft: draftFromAssistant,
+                },
+              ],
+            },
+          ]);
         };
 
-        const emitProjectDraft = (projectDraftFromAssistant: AssistProjectDraft) => {
+        const emitProjectDraft = (
+          projectDraftFromAssistant: AssistProjectDraft,
+        ) => {
           setMessages((prev) => [
             ...prev,
             {
               id: assistantMessageId,
-              role: 'assistant',
-              content: 'Ich habe einen Projekt-Entwurf vorbereitet. Tippe auf "Projekt erstellen".',
+              role: "assistant",
+              content:
+                'Ich habe einen Projekt-Entwurf vorbereitet. Tippe auf "Projekt erstellen".',
               actions: [
                 {
-                  type: 'create-project',
-                  candidate: projectCandidateFromDraft(projectDraftFromAssistant),
+                  type: "create-project",
+                  candidate: projectCandidateFromDraft(
+                    projectDraftFromAssistant,
+                  ),
                   projectDraft: projectDraftFromAssistant,
                 },
               ],
@@ -2210,24 +2532,34 @@ function AssistUnlockedScreen() {
         };
 
         if (userAskedTaskCreate) {
-          const taskDraft = parseTaskDraftFromAssistantText(result.text ?? '', projectsRef.current);
+          const taskDraft = parseTaskDraftFromAssistantText(
+            result.text ?? "",
+            projectsRef.current,
+          );
           if (taskDraft) {
             emitTaskDraft(taskDraft);
             return;
           }
         } else if (userAskedProjectCreate) {
-          const projectDraft = parseProjectDraftFromAssistantText(result.text ?? '');
+          const projectDraft = parseProjectDraftFromAssistantText(
+            result.text ?? "",
+          );
           if (projectDraft) {
             emitProjectDraft(projectDraft);
             return;
           }
         } else {
-          const taskDraft = parseTaskDraftFromAssistantText(result.text ?? '', projectsRef.current);
+          const taskDraft = parseTaskDraftFromAssistantText(
+            result.text ?? "",
+            projectsRef.current,
+          );
           if (taskDraft) {
             emitTaskDraft(taskDraft);
             return;
           }
-          const projectDraft = parseProjectDraftFromAssistantText(result.text ?? '');
+          const projectDraft = parseProjectDraftFromAssistantText(
+            result.text ?? "",
+          );
           if (projectDraft) {
             emitProjectDraft(projectDraft);
             return;
@@ -2236,8 +2568,8 @@ function AssistUnlockedScreen() {
       }
 
       const fallbackResponse: AssistModelResponse = {
-        intent: 'general',
-        answer: result.text?.trim() ?? '',
+        intent: "general",
+        answer: result.text?.trim() ?? "",
       };
       const safeResponse = structuredResponse ?? fallbackResponse;
 
@@ -2261,29 +2593,30 @@ function AssistUnlockedScreen() {
         ...prev,
         {
           id: assistantMessageId,
-          role: 'assistant',
+          role: "assistant",
           content: assistantContent,
           actions: actions.length > 0 ? actions : undefined,
         },
       ]);
     } catch (error) {
       const errorMessage = getErrorMessage(error);
-      console.error('[assist] handleSend failed:', error);
+      console.error("[assist] handleSend failed:", error);
       const content = isToolCallLimitError(error)
-        ? 'Ich habe zu viele Tool-Aufrufe gebraucht. Formuliere bitte etwas konkreter.'
+        ? "Ich habe zu viele Tool-Aufrufe gebraucht. Formuliere bitte etwas konkreter."
         : isAppleGenerationError(error)
-          ? 'Apple Foundation Models konnten die Anfrage gerade nicht verarbeiten. Versuche es bitte erneut oder formuliere die Anfrage kuerzer.'
-        : errorMessage && /not available|availability|foundation models/i.test(errorMessage)
-          ? 'Apple Foundation Models sind aktuell nicht verfuegbar.'
-          : __DEV__ && errorMessage
-            ? `Entschuldigung, es gab einen Fehler bei der Verarbeitung deiner Anfrage. (${errorMessage})`
-            : 'Entschuldigung, es gab einen Fehler bei der Verarbeitung deiner Anfrage.';
+          ? "Apple Foundation Models konnten die Anfrage gerade nicht verarbeiten. Versuche es bitte erneut oder formuliere die Anfrage kuerzer."
+          : errorMessage &&
+              /not available|availability|foundation models/i.test(errorMessage)
+            ? "Apple Foundation Models sind aktuell nicht verfuegbar."
+            : __DEV__ && errorMessage
+              ? `Entschuldigung, es gab einen Fehler bei der Verarbeitung deiner Anfrage. (${errorMessage})`
+              : "Entschuldigung, es gab einen Fehler bei der Verarbeitung deiner Anfrage.";
 
       setMessages((prev) => [
         ...prev,
         {
           id: `${Date.now() + 1}`,
-          role: 'assistant',
+          role: "assistant",
           content,
         },
       ]);
@@ -2293,33 +2626,46 @@ function AssistUnlockedScreen() {
     }
   }, [input, isAIAvailable, isLoading, scrollToBottom, setProjects, setTasks]);
 
-  const isDarkMode = resolvedColorScheme === 'dark';
+  const isDarkMode = resolvedColorScheme === "dark";
   const userBubbleBg = accentColorValue;
   const userBubbleTextColor = getReadableTextColor(userBubbleBg);
   const assistantBubbleBg = withAlpha(userBubbleBg, isDarkMode ? 0.24 : 0.16);
   const assistantTextColor = colors.text;
-  const inputBgColor = isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)';
-  const inputBorderColor = isDarkMode ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.12)';
-  const inputTopBorderColor = isDarkMode ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.08)';
+  const inputBgColor = isDarkMode
+    ? "rgba(255,255,255,0.08)"
+    : "rgba(0,0,0,0.04)";
+  const inputBorderColor = isDarkMode
+    ? "rgba(255,255,255,0.14)"
+    : "rgba(0,0,0,0.12)";
+  const inputTopBorderColor = isDarkMode
+    ? "rgba(255,255,255,0.14)"
+    : "rgba(0,0,0,0.08)";
 
   return (
     <ThemedView style={styles.container}>
       <Stack.Screen
         options={{
-          title: 'Assist',
+          title: "Assist",
           headerLargeTitle: false,
-          headerBackButtonDisplayMode: 'minimal',
-          headerTitleAlign: Platform.OS === 'ios' ? 'left' : 'center',
-          headerTransparent: Platform.OS === 'ios',
+          headerBackButtonDisplayMode: "minimal",
+          headerTitleAlign: Platform.OS === "ios" ? "left" : "center",
+          headerTransparent: Platform.OS === "ios",
           headerTintColor: colors.text,
           headerRight: () => (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Verlauf loeschen"
               onPress={handleClearHistory}
-              style={({ pressed }) => [styles.headerClearButton, pressed && { opacity: 0.6 }]}
+              style={({ pressed }) => [
+                styles.headerClearButton,
+                pressed && { opacity: 0.6 },
+              ]}
             >
-              <Text style={[styles.headerClearButtonText, { color: colors.text }]}>Leeren</Text>
+              <Text
+                style={[styles.headerClearButtonText, { color: colors.text }]}
+              >
+                Leeren
+              </Text>
             </Pressable>
           ),
         }}
@@ -2327,17 +2673,24 @@ function AssistUnlockedScreen() {
 
       {!isAIAvailable ? (
         <View style={styles.centeredMessage}>
-          <Text style={[styles.errorTitle, { color: colors.text }]}>Apple Intelligence nicht verfuegbar</Text>
-          <Text style={[styles.errorMessage, { color: colors.text }]}>Assist benoetigt ein iOS 26+ Geraet mit aktivierter Apple Intelligence.</Text>
+          <Text style={[styles.errorTitle, { color: colors.text }]}>
+            Apple Intelligence nicht verfuegbar
+          </Text>
+          <Text style={[styles.errorMessage, { color: colors.text }]}>
+            Assist benoetigt ein iOS 26+ Geraet mit aktivierter Apple
+            Intelligence.
+          </Text>
           {!isIOS26OrNewer() ? (
-            <Text style={[styles.errorHint, { color: colors.icon }]}>Aktuelles iOS ist aelter als 26.</Text>
+            <Text style={[styles.errorHint, { color: colors.icon }]}>
+              Aktuelles iOS ist aelter als 26.
+            </Text>
           ) : null}
         </View>
       ) : (
         <KeyboardAvoidingView
           style={styles.keyboardView}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
         >
           <ScrollView
             ref={scrollViewRef}
@@ -2350,8 +2703,14 @@ function AssistUnlockedScreen() {
           >
             {messages.length === 0 && (
               <View style={styles.emptyState}>
-                <Text style={[styles.emptyTitle, { color: colors.text }]}>Willkommen bei Assist</Text>
-                <Text style={[styles.emptySubtitle, { color: colors.icon }]}>Beispiele: Finde alle Routinen mit Standort. Erstelle Task morgen 14:00 im Projekt Arbeit. Verschiebe Einkauf nach Privat.</Text>
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                  Willkommen bei Assist
+                </Text>
+                <Text style={[styles.emptySubtitle, { color: colors.icon }]}>
+                  Beispiele: Finde alle Routinen mit Standort. Erstelle Task
+                  morgen 14:00 im Projekt Arbeit. Verschiebe Einkauf nach
+                  Privat.
+                </Text>
               </View>
             )}
 
@@ -2360,24 +2719,35 @@ function AssistUnlockedScreen() {
                 key={message.id}
                 style={[
                   styles.messageContainer,
-                  message.role === 'user' ? styles.userMessageContainer : styles.assistantMessageContainer,
+                  message.role === "user"
+                    ? styles.userMessageContainer
+                    : styles.assistantMessageContainer,
                 ]}
               >
                 <View
                   style={[
                     styles.messageBubble,
-                    message.role === 'user'
+                    message.role === "user"
                       ? [styles.userBubble, { backgroundColor: userBubbleBg }]
-                      : [styles.assistantBubble, { backgroundColor: assistantBubbleBg }],
+                      : [
+                          styles.assistantBubble,
+                          { backgroundColor: assistantBubbleBg },
+                        ],
                   ]}
                 >
                   <Text
                     selectable
                     style={[
                       styles.messageText,
-                      message.role === 'user'
-                        ? [styles.userMessageText, { color: userBubbleTextColor }]
-                        : [styles.assistantMessageText, { color: assistantTextColor }],
+                      message.role === "user"
+                        ? [
+                            styles.userMessageText,
+                            { color: userBubbleTextColor },
+                          ]
+                        : [
+                            styles.assistantMessageText,
+                            { color: assistantTextColor },
+                          ],
                     ]}
                   >
                     {message.content}
@@ -2406,7 +2776,10 @@ function AssistUnlockedScreen() {
 
             {isLoading && (
               <View style={styles.assistantMessageContainer}>
-                <TypingAnimation bubbleColor={assistantBubbleBg} textColor={assistantTextColor} />
+                <TypingAnimation
+                  bubbleColor={assistantBubbleBg}
+                  textColor={assistantTextColor}
+                />
               </View>
             )}
           </ScrollView>
@@ -2435,7 +2808,11 @@ function AssistUnlockedScreen() {
                 value={input}
                 onChangeText={setInput}
                 placeholder="z.B. Erstelle Task heute 18:00 mit Standort Supermarkt"
-                placeholderTextColor={resolvedColorScheme === 'dark' ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)'}
+                placeholderTextColor={
+                  resolvedColorScheme === "dark"
+                    ? "rgba(255,255,255,0.4)"
+                    : "rgba(0,0,0,0.4)"
+                }
                 multiline
                 maxLength={700}
                 editable={!isLoading}
@@ -2455,7 +2832,14 @@ function AssistUnlockedScreen() {
                 {isLoading ? (
                   <ActivityIndicator size="small" color={userBubbleTextColor} />
                 ) : (
-                  <Text style={[styles.sendButtonText, { color: userBubbleTextColor }]}>↑</Text>
+                  <Text
+                    style={[
+                      styles.sendButtonText,
+                      { color: userBubbleTextColor },
+                    ]}
+                  >
+                    ↑
+                  </Text>
                 )}
               </Pressable>
             </View>
@@ -2469,9 +2853,10 @@ function AssistUnlockedScreen() {
 export default function AssistScreen() {
   const router = useRouter();
   const rawColorScheme = useColorScheme();
-  const resolvedColorScheme: 'light' | 'dark' = rawColorScheme === 'dark' ? 'dark' : 'light';
+  const resolvedColorScheme: "light" | "dark" =
+    rawColorScheme === "dark" ? "dark" : "light";
   const colors = Colors[resolvedColorScheme];
-  const isDark = resolvedColorScheme === 'dark';
+  const isDark = resolvedColorScheme === "dark";
   const { hasPremiumAccess, isReady } = usePremium();
 
   if (!isReady) {
@@ -2479,8 +2864,8 @@ export default function AssistScreen() {
       <ThemedView
         style={{
           flex: 1,
-          alignItems: 'center',
-          justifyContent: 'center',
+          alignItems: "center",
+          justifyContent: "center",
           paddingHorizontal: 24,
           gap: 14,
           backgroundColor: colors.background,
@@ -2491,11 +2876,11 @@ export default function AssistScreen() {
           style={{
             fontSize: 15,
             lineHeight: 21,
-            textAlign: 'center',
+            textAlign: "center",
             color: withAlpha(colors.text, 0.72),
           }}
         >
-          Pruefe deinen Reminds+ Status im App Store...
+          Pruefe deinen Reminders+ Status im App Store...
         </Text>
       </ThemedView>
     );
@@ -2506,7 +2891,7 @@ export default function AssistScreen() {
       <ThemedView
         style={{
           flex: 1,
-          justifyContent: 'center',
+          justifyContent: "center",
           paddingHorizontal: 18,
           backgroundColor: colors.background,
         }}
@@ -2517,23 +2902,23 @@ export default function AssistScreen() {
             paddingHorizontal: 20,
             paddingVertical: 22,
             gap: 14,
-            backgroundColor: isDark ? '#18212B' : '#FFF5E6',
+            backgroundColor: isDark ? "#18212B" : "#FFF5E6",
             borderWidth: StyleSheet.hairlineWidth,
             borderColor: isDark
-              ? 'rgba(255,255,255,0.08)'
-              : 'rgba(17,24,28,0.08)',
+              ? "rgba(255,255,255,0.08)"
+              : "rgba(17,24,28,0.08)",
           }}
         >
           <Text
             style={{
               fontSize: 30,
               lineHeight: 34,
-              fontWeight: '800',
+              fontWeight: "800",
               letterSpacing: -0.8,
               color: colors.text,
             }}
           >
-            AI-Assist braucht Reminds+.
+            AI-Assist braucht Reminders+.
           </Text>
           <Text
             style={{
@@ -2542,32 +2927,37 @@ export default function AssistScreen() {
               color: withAlpha(colors.text, 0.74),
             }}
           >
-            Mit Reminds+ schaltest du unseren Assist View, mehr als vier Projekte
-            und die Cloud-Sync-Freischaltung fuer Apple-Geraete frei.
+            Mit Reminders+ schaltest du unseren Assist View, mehr als vier
+            Projekte und die Cloud-Sync-Freischaltung fuer Apple-Geraete frei.
           </Text>
 
           <Pressable
             accessibilityRole="button"
-            onPress={() => router.replace({ pathname: '/plus', params: { source: 'assist' } })}
+            onPress={() =>
+              router.replace({
+                pathname: "/plus",
+                params: { source: "assist" },
+              })
+            }
             style={({ pressed }) => [
               {
                 minHeight: 48,
                 borderRadius: 16,
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: '#FF8A00',
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "#FF8A00",
               },
               pressed && { opacity: 0.86 },
             ]}
           >
             <Text
               style={{
-                color: '#FFFFFF',
+                color: "#FFFFFF",
                 fontSize: 15,
-                fontWeight: '700',
+                fontWeight: "700",
               }}
             >
-              Reminds+ ansehen
+              Reminders+ ansehen
             </Text>
           </Pressable>
         </View>
@@ -2594,31 +2984,31 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: 60,
     paddingHorizontal: 24,
   },
   emptyTitle: {
     fontSize: 26,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 10,
-    textAlign: 'center',
+    textAlign: "center",
   },
   emptySubtitle: {
     fontSize: 15,
     lineHeight: 22,
-    textAlign: 'center',
+    textAlign: "center",
   },
   messageContainer: {
     marginBottom: 12,
-    maxWidth: '84%',
+    maxWidth: "84%",
   },
   userMessageContainer: {
-    alignSelf: 'flex-end',
+    alignSelf: "flex-end",
   },
   assistantMessageContainer: {
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
   },
   messageBubble: {
     borderRadius: 18,
@@ -2636,14 +3026,14 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   userMessageText: {
-    color: '#ffffff',
+    color: "#ffffff",
   },
   assistantMessageText: {
-    color: '#ffffff',
+    color: "#ffffff",
   },
   typingText: {
     fontSize: 24,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: 4,
   },
   inputContainer: {
@@ -2652,10 +3042,10 @@ const styles = StyleSheet.create({
     paddingTop: 12,
   },
   inputWrapper: {
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
     borderRadius: 24,
     borderWidth: 1,
-    flexDirection: 'row',
+    flexDirection: "row",
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
@@ -2667,10 +3057,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   sendButton: {
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: 20,
     height: 36,
-    justifyContent: 'center',
+    justifyContent: "center",
     marginLeft: 6,
     width: 36,
   },
@@ -2681,57 +3071,57 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   sendButtonText: {
-    color: '#ffffff',
+    color: "#ffffff",
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   centeredMessage: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 28,
   },
   errorTitle: {
     marginBottom: 12,
-    textAlign: 'center',
+    textAlign: "center",
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   errorMessage: {
     fontSize: 16,
     lineHeight: 24,
     opacity: 0.75,
-    textAlign: 'center',
+    textAlign: "center",
   },
   errorHint: {
     marginTop: 8,
     fontSize: 13,
     lineHeight: 18,
-    textAlign: 'center',
+    textAlign: "center",
   },
   actionButtonContainer: {
     marginTop: 4,
   },
   openEntityButton: {
-    alignItems: 'center',
+    alignItems: "center",
     borderTopLeftRadius: 0,
     borderTopRightRadius: 0,
     borderBottomLeftRadius: 4,
     borderBottomRightRadius: 14,
-    flexDirection: 'row',
-    justifyContent: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
     paddingHorizontal: 20,
     paddingVertical: 12,
   },
   openEntityButtonText: {
-    color: '#ffffff',
+    color: "#ffffff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   openEntityButtonIcon: {
-    color: '#ffffff',
+    color: "#ffffff",
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
     marginLeft: 8,
   },
   entityActionContainer: {
@@ -2748,20 +3138,20 @@ const styles = StyleSheet.create({
   },
   entityActionTitle: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   entityActionSubtitle: {
     fontSize: 14,
     lineHeight: 20,
   },
   headerClearButton: {
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     height: 36,
     paddingHorizontal: 8,
   },
   headerClearButtonText: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });

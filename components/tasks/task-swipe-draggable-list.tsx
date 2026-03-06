@@ -496,6 +496,11 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     }
     return taskMeta;
   }, [flatListData]);
+  const flatListIndexByKey = React.useMemo(
+    () =>
+      new Map(flatListData.map((item, index) => [item.key, index] as const)),
+    [flatListData],
+  );
 
   const listActivationDistance = LIST_ACTIVATION_DISTANCE_DEFAULT;
   const simultaneousHandlers = React.useMemo(
@@ -508,7 +513,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
 
   const renderItem = React.useCallback(
     ({ item, drag, isActive, getIndex }: RenderItemParams<TaskSwipeDraggableListItem>) => {
-      const index = getIndex();
+      const index = flatListIndexByKey.get(item.key) ?? getIndex() ?? -1;
       if (item.kind === 'header') {
         return renderHeaderRow ? renderHeaderRow(item.sectionId) : null;
       }
@@ -636,6 +641,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       reportSwipeGestureActive,
       reportRowTouchInteraction,
       flatListData.length,
+      flatListIndexByKey,
       revealProgress,
       revealStaggerStep,
       revealTranslateY,

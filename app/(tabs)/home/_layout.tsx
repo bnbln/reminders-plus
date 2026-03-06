@@ -1,6 +1,6 @@
 import { Stack } from 'expo-router';
 import React from 'react';
-import { Platform } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 
 import { HeaderTrailingActions } from '@/components/navigation/header-trailing-actions';
 import { ProfileHeaderMenuButton } from '@/components/navigation/profile-header-menu-button';
@@ -30,13 +30,13 @@ export default function HomeLayout() {
         name="index"
         options={{
           title: t('common.today'),
-          headerLeft: () => <ProfileHeaderMenuButton />,
-          headerRight: () => (
+          headerLeft: () => (
             <HeaderTrailingActions
               theme={theme}
               showCompletedTasksToggle={true}
             />
           ),
+          headerRight: () => <ProfileHeaderMenuButton />,
         }}
       />
       <Stack.Screen
@@ -44,6 +44,7 @@ export default function HomeLayout() {
         options={{
           title: t('archive.title'),
           headerTransparent: Platform.OS === 'ios',
+          headerRight: () => <ProfileHeaderMenuButton />,
         }}
       />
 
@@ -54,6 +55,7 @@ export default function HomeLayout() {
           headerLargeTitle: false,
           headerBackButtonDisplayMode: 'minimal',
           headerTransparent: Platform.OS === 'ios',
+          headerRight: () => <ProfileHeaderMenuButton />,
         }}
       />
       <Stack.Screen
@@ -63,13 +65,13 @@ export default function HomeLayout() {
           headerLargeTitle: false,
           headerBackButtonDisplayMode: 'minimal',
           headerTransparent: Platform.OS === 'ios',
-          headerLeft: () => <ProfileHeaderMenuButton />,
-          headerRight: () => (
+          headerLeft: () => (
             <HeaderTrailingActions
               theme={theme}
               hiddenTags={INBOX_HIDDEN_FILTER_TAGS}
             />
           ),
+          headerRight: () => <ProfileHeaderMenuButton />,
         }}
       />
       <Stack.Screen
@@ -79,8 +81,12 @@ export default function HomeLayout() {
           headerLargeTitle: false,
           headerBackButtonDisplayMode: 'minimal',
           headerTransparent: Platform.OS === 'ios',
-          headerLeft: () => <ProfileHeaderMenuButton />,
-          headerRight: () => <HeaderTrailingActions theme={theme} />,
+          headerRight: () => (
+            <View style={styles.headerRightRow}>
+              <HeaderTrailingActions theme={theme} />
+              <ProfileHeaderMenuButton />
+            </View>
+          ),
         }}
       />
       <Stack.Screen
@@ -90,10 +96,18 @@ export default function HomeLayout() {
           headerLargeTitle: false,
           headerBackButtonDisplayMode: 'minimal',
           headerTransparent: Platform.OS === 'ios',
-          headerLeft: () => <ProfileHeaderMenuButton />,
-          headerRight: () => <HeaderTrailingActions theme={theme} />,
+          headerLeft: () => <HeaderTrailingActions theme={theme} />,
+          headerRight: () => <ProfileHeaderMenuButton />,
         }}
       />
     </Stack>
   );
 }
+
+const styles = StyleSheet.create({
+  headerRightRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+});
