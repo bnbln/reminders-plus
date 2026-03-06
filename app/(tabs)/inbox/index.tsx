@@ -5,7 +5,6 @@ import {
   LayoutAnimation,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -39,6 +38,7 @@ const IOS_LIGHT_ELEVATED_SURFACE = "#FFFFFF";
 const HOME_TASK_ROW_SURFACE_LIGHT = IOS_LIGHT_ELEVATED_SURFACE;
 const HOME_TASK_ROW_SURFACE_DARK = "rgba(35, 35, 35, 0.2)";
 const SECTION_SIDE_INSET = 0;
+const INBOX_SECTION_ORDER: InboxSectionId[] = ["overdue", "withoutDate"];
 
 type InboxSectionId = "overdue" | "withoutDate";
 
@@ -65,6 +65,48 @@ function isOverdue(task: Task, nowMs: number) {
   return task.dueAt < nowMs;
 }
 
+function deriveInboxSection(
+  task: Task,
+  nowMs: number,
+): InboxSectionId | null {
+  if (isOverdue(task, nowMs)) return "overdue";
+  if (hasNoDueDate(task)) return "withoutDate";
+  return null;
+}
+
+function adjustTaskForInboxSection(
+  task: Task,
+  sectionId: InboxSectionId,
+  nowMs: number,
+): Task {
+  if (sectionId === "withoutDate") {
+    return {
+      ...task,
+      section: "upcoming",
+      dueAt: 0,
+      dueHasTime: false,
+      completedAt: undefined,
+    };
+  }
+
+  if (isOverdue(task, nowMs)) {
+    return {
+      ...task,
+      section: deriveActiveSectionFromDueAt(task.dueAt, nowMs),
+      completedAt: undefined,
+    };
+  }
+
+  const nextDueAt = Math.max(1, nowMs - 60_000);
+  return {
+    ...task,
+    section: deriveActiveSectionFromDueAt(nextDueAt, nowMs),
+    dueAt: nextDueAt,
+    dueHasTime: true,
+    completedAt: undefined,
+  };
+}
+
 export default function InboxScreen() {
   const router = useRouter();
   const theme = useColorScheme() ?? "light";
@@ -82,6 +124,7 @@ export default function InboxScreen() {
       : params.withSubtasks === "1";
   const { tasks, setTasks, projects } = useTasksStore();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const [isListDragging, setIsListDragging] = React.useState(false);
   const [collapsedSections, setCollapsedSections] = React.useState<
     Record<InboxSectionId, boolean>
   >({
@@ -132,6 +175,8 @@ export default function InboxScreen() {
   );
 
   const swipeListData = React.useMemo<TaskSwipeDraggableListItem[]>(() => {
+    // Keep both section markers in the drag data so empty sections can still
+    // become visible drop targets once a drag begins.
     const data: TaskSwipeDraggableListItem[] = [
       { kind: "header", key: "h-overdue", sectionId: "overdue" },
     ];
@@ -142,11 +187,7 @@ export default function InboxScreen() {
       }
     }
 
-    data.push({
-      kind: "header",
-      key: "h-withoutDate",
-      sectionId: "withoutDate",
-    });
+    data.push({ kind: "header", key: "h-withoutDate", sectionId: "withoutDate" });
 
     if (!collapsedSections.withoutDate) {
       for (const task of withoutDateTasks) {
@@ -162,6 +203,74 @@ export default function InboxScreen() {
     overdueTasks,
     withoutDateTasks,
   ]);
+
+  const applyOrderFromSwipeListData = React.useCallback(
+    (data: TaskSwipeDraggableListItem[]) => {
+      setTasks((prev) => {
+        const nowReference = Date.now();
+        const tasksById = new Map(prev.map((task) => [task.id, task] as const));
+        const draggableTaskIdSet = new Set(
+          data
+            .filter(
+              (
+                item,
+              ): item is Extract<TaskSwipeDraggableListItem, { kind: "task" }> =>
+                item.kind === "task",
+            )
+            .map((item) => item.taskId),
+        );
+        const bySection: Record<InboxSectionId, string[]> = {
+          overdue: [],
+          withoutDate: [],
+        };
+        let currentSection: InboxSectionId = INBOX_SECTION_ORDER[0];
+
+        for (const item of data) {
+          if (item.kind === "header") {
+            currentSection =
+              item.sectionId === "withoutDate" ? "withoutDate" : "overdue";
+            continue;
+          }
+
+          const task = tasksById.get(item.taskId);
+          if (!task) continue;
+          bySection[currentSection].push(item.taskId);
+        }
+
+        const nextById = new Map(tasksById);
+        for (const sectionId of INBOX_SECTION_ORDER) {
+          const reorderedVisibleIds = bySection[sectionId];
+          const reorderedVisibleSet = new Set(reorderedVisibleIds);
+          const stableHiddenIds = prev
+            .filter((task) => {
+              if (task.deletedAt || task.section === "completed") return false;
+              return (
+                deriveInboxSection(task, nowReference) === sectionId &&
+                !draggableTaskIdSet.has(task.id)
+              );
+            })
+            .sort((a, b) => a.orderRank - b.orderRank)
+            .map((task) => task.id);
+
+          const finalOrder = [...reorderedVisibleIds, ...stableHiddenIds];
+          finalOrder.forEach((taskId, index) => {
+            const currentTask = nextById.get(taskId);
+            if (!currentTask) return;
+            const nextTask = reorderedVisibleSet.has(taskId)
+              ? adjustTaskForInboxSection(currentTask, sectionId, nowReference)
+              : currentTask;
+            nextById.set(taskId, {
+              ...nextTask,
+              orderRank: (index + 1) * 1000,
+            });
+          });
+        }
+
+        return prev.map((task) => nextById.get(task.id) ?? task);
+      });
+    },
+    [setTasks],
+  );
 
   const onPressTask = React.useCallback(
     (taskId: string) => {
@@ -287,9 +396,14 @@ export default function InboxScreen() {
     (sectionId: string) => {
       const id: InboxSectionId =
         sectionId === "withoutDate" ? "withoutDate" : "overdue";
-      const isCollapsed = collapsedSections[id];
       const count =
         id === "overdue" ? overdueTasks.length : withoutDateTasks.length;
+      if (count === 0) {
+        if (id === "overdue") return null;
+        if (!isListDragging) return null;
+      }
+
+      const isCollapsed = collapsedSections[id];
       const title =
         id === "overdue" ? t("tags.overdue") : t("home.section.withoutDate");
       const isOverdueSection = id === "overdue";
@@ -352,6 +466,7 @@ export default function InboxScreen() {
     },
     [
       collapsedSections,
+      isListDragging,
       overdueTasks.length,
       styles.sectionChevron,
       styles.sectionCountBadge,
@@ -376,52 +491,41 @@ export default function InboxScreen() {
   }, [router]);
 
   const hasAnyTask = overdueTasks.length > 0 || withoutDateTasks.length > 0;
-  const listRenderKey = React.useMemo(
-    () =>
-      `inbox:${rowLayoutSeed}:o${collapsedSections.overdue ? 1 : 0}:w${
-        collapsedSections.withoutDate ? 1 : 0
-      }`,
-    [collapsedSections.overdue, collapsedSections.withoutDate, rowLayoutSeed],
-  );
 
   return (
     <View style={styles.container}>
-      <ScrollView
-        key={listRenderKey}
-        style={styles.scroll}
+      <TaskSwipeDraggableList
+        renderMode="auto"
+        theme={theme}
+        isDark={isDark}
+        tasks={tasksForList}
+        data={swipeListData}
+        renderHeaderRow={renderSectionHeaderRow}
+        projectsById={projectsById}
+        rowStyles={styles}
+        itemSpacing={HOME_TASK_ITEM_SPACING}
         contentContainerStyle={styles.content}
+        containerStyle={{ backgroundColor: screenBackground }}
         contentInsetAdjustmentBehavior="automatic"
-        showsVerticalScrollIndicator={false}
-      >
-        <TaskSwipeDraggableList
-          renderMode="static"
-          theme={theme}
-          isDark={isDark}
-          tasks={tasksForList}
-          data={swipeListData}
-          renderHeaderRow={renderSectionHeaderRow}
-          projectsById={projectsById}
-          rowStyles={styles}
-          itemSpacing={HOME_TASK_ITEM_SPACING}
-          containerStyle={{ backgroundColor: screenBackground }}
-          animateDataLayoutChanges={false}
-          empty={null}
-          footer={
-            hasAnyTask ? null : (
-              <View style={styles.empty}>
-                <Text style={styles.emptyText}>{t("inbox.empty")}</Text>
-              </View>
-            )
-          }
-          enabledTags={enabledTags}
-          showTaskIcons={showTagIcons}
-          showCompactSubtasks={withSubtasksEnabled}
-          onPressTask={onPressTask}
-          toggleComplete={toggleComplete}
-          toggleSubtask={toggleSubtask}
-          deleteTask={deleteTask}
-        />
-      </ScrollView>
+        animateDataLayoutChanges={false}
+        empty={null}
+        footer={
+          hasAnyTask ? null : (
+            <View style={styles.empty}>
+              <Text style={styles.emptyText}>{t("inbox.empty")}</Text>
+            </View>
+          )
+        }
+        enabledTags={enabledTags}
+        showTaskIcons={showTagIcons}
+        showCompactSubtasks={withSubtasksEnabled}
+        onPressTask={onPressTask}
+        toggleComplete={toggleComplete}
+        toggleSubtask={toggleSubtask}
+        deleteTask={deleteTask}
+        onReorderData={applyOrderFromSwipeListData}
+        onDragStateChange={setIsListDragging}
+      />
 
       {showFloatingAddButton ? (
         <FloatingAddButton onPress={handleAddTask} />
@@ -460,9 +564,6 @@ const createStyles = (theme: keyof typeof Colors) => {
     container: {
       flex: 1,
       backgroundColor: screenBackground,
-    },
-    scroll: {
-      flex: 1,
     },
     content: {
       paddingHorizontal: 16,
@@ -539,7 +640,7 @@ const createStyles = (theme: keyof typeof Colors) => {
       alignSelf: "stretch",
     },
     swipeClip: {
-      borderRadius: 12,
+      borderRadius: 20,
       overflow: "hidden",
       backgroundColor: "transparent",
       marginHorizontal: 0,
@@ -573,7 +674,7 @@ const createStyles = (theme: keyof typeof Colors) => {
     row: {
       minHeight: 52,
       width: "100%",
-      borderRadius: 12,
+      borderRadius: 20,
       backgroundColor: rowCardSurface,
       justifyContent: "center",
       paddingHorizontal: 12,

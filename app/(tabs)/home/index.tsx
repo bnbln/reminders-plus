@@ -85,6 +85,10 @@ const DATE_RAIL_ITEM_GAP = 6;
 const DATE_RAIL_FADE_WIDTH = 96;
 const STREAK_PROGRESS_DAYS = 7;
 const HOME_TASK_ITEM_SPACING = 8;
+const HOME_METRICS_BOTTOM_GAP = 16;
+const HOME_TASK_LIST_TOP_GAP = 16;
+const HOME_CALENDAR_LIST_GAP = 20;
+const HOME_ARCHIVE_PILL_TOP_GAP = 24;
 const TASK_ROW_SIDE_BLEED = 8;
 const HERO_HEADER_OVERLAP = 268;
 const TASK_ROW_HORIZONTAL_PADDING = 12;
@@ -492,7 +496,7 @@ const createStyles = (
     topHeroSurface: {
       paddingTop: 0,
       // Keep vertical spacing between streak card and the shared day panel.
-      paddingBottom: CONTENT_STACK_GAP,
+      paddingBottom: HOME_METRICS_BOTTOM_GAP,
     },
     metricsGridWrap: {
       marginTop: 0,
@@ -602,7 +606,7 @@ const createStyles = (
       paddingBottom: 6,
       marginHorizontal: 0,
       marginTop: 0,
-      marginBottom: 6,
+      marginBottom: HOME_CALENDAR_LIST_GAP,
       zIndex: 100,
     },
     dateRailWrapCollapsed: {
@@ -954,7 +958,7 @@ const createStyles = (
     sectionHeader: {
       flexDirection: "row",
       alignItems: "center",
-      marginTop: 12,
+      marginTop: HOME_TASK_LIST_TOP_GAP,
       marginBottom: 6,
       paddingHorizontal: SECTION_SIDE_INSET,
     },
@@ -1009,7 +1013,7 @@ const createStyles = (
       alignSelf: "stretch",
     },
     swipeClip: {
-      borderRadius: 12,
+      borderRadius: 20,
       overflow: "hidden",
       backgroundColor: "transparent",
       marginHorizontal: 0,
@@ -1043,7 +1047,7 @@ const createStyles = (
     row: {
       minHeight: 52,
       width: "100%",
-      borderRadius: 12,
+      borderRadius: 20,
       backgroundColor: rowCardSurface,
       justifyContent: "center",
       paddingHorizontal: 12,
@@ -1170,7 +1174,7 @@ const createStyles = (
       color: withAlpha(text, ALPHA_3),
     },
     archivePillFooter: {
-      paddingTop: 16,
+      paddingTop: HOME_ARCHIVE_PILL_TOP_GAP,
       paddingBottom: 24,
       alignItems: "center",
     },

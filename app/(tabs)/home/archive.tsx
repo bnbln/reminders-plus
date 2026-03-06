@@ -384,7 +384,7 @@ const createStyles = (theme: keyof typeof Colors) => {
       alignSelf: "stretch",
     },
     swipeClip: {
-      borderRadius: 12,
+      borderRadius: 20,
       overflow: "hidden",
       backgroundColor: "transparent",
       marginHorizontal: 0,
@@ -418,7 +418,7 @@ const createStyles = (theme: keyof typeof Colors) => {
     row: {
       minHeight: 52,
       width: "100%",
-      borderRadius: 12,
+      borderRadius: 20,
       backgroundColor: rowCardSurface,
       justifyContent: "center",
       paddingHorizontal: 12,

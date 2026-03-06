@@ -69,7 +69,7 @@ export function createSharedTaskRowStyles({
   tagTextColor,
   dangerBackground,
   dangerBorderColor,
-  swipeClipRadius = 12,
+  swipeClipRadius = 20,
   swipeClipMarginHorizontal = 0,
   dragRowRadius = swipeClipRadius,
   dragShadow,
@@ -134,7 +134,7 @@ export function createSharedTaskRowStyles({
     },
     row: {
       minHeight: rowMinHeight,
-      borderRadius: 0,
+      borderRadius: swipeClipRadius,
       backgroundColor: rowSurface,
       justifyContent: "center" as const,
       paddingHorizontal: rowPaddingHorizontal,

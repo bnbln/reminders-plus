@@ -1250,7 +1250,7 @@ const createRowStyles = (theme: ThemeName): SwipeTaskRowStyles => {
       alignSelf: "stretch",
     },
     swipeClip: {
-      borderRadius: 12,
+      borderRadius: 20,
       overflow: "hidden",
       backgroundColor: "transparent",
       marginHorizontal: 0,
@@ -1285,7 +1285,7 @@ const createRowStyles = (theme: ThemeName): SwipeTaskRowStyles => {
     row: {
       minHeight: 52,
       width: "100%",
-      borderRadius: 12,
+      borderRadius: 20,
       backgroundColor: rowCardSurface,
       justifyContent: "center",
       paddingHorizontal: 12,
