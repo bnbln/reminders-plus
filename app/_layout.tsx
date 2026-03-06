@@ -31,7 +31,8 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
   const theme = colorScheme ?? "light";
   const segments = useSegments();
-  const showSettingsAccentBackground = segments[0] === "settings";
+  const showSettingsAccentBackground =
+    segments[0] === "settings" || segments[0] === "cloud-sync";
   const themedContentStyle = React.useMemo(
     () => ({ backgroundColor: Colors[theme].background }),
     [theme],
@@ -222,6 +223,14 @@ export default function RootLayout() {
                       ...tabLikeHeaderOptions,
                       contentStyle: { backgroundColor: "transparent" },
                       title: "Einstellungen",
+                    }}
+                  />
+                  <Stack.Screen
+                    name="cloud-sync"
+                    options={{
+                      ...tabLikeHeaderOptions,
+                      contentStyle: { backgroundColor: "transparent" },
+                      title: "CloudSync",
                     }}
                   />
                   <Stack.Screen

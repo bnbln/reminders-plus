@@ -282,6 +282,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     [dynamicPopInTaskIds],
   );
   const previousTaskKeyByIdRef = React.useRef<Map<string, string> | null>(null);
+  const suppressDynamicPopInUntilRef = React.useRef(0);
 
   const isDraggingRef = React.useRef(false);
   const placeholderIndexRef = React.useRef<number>(-1);
@@ -417,6 +418,10 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     },
     [consumeTaskPopIn]
   );
+  const suppressDynamicPopIns = React.useCallback((durationMs = 520) => {
+    suppressDynamicPopInUntilRef.current = Date.now() + durationMs;
+    setDynamicPopInTaskIds([]);
+  }, []);
 
   React.useEffect(() => {
     if (isFocused) return;
@@ -479,6 +484,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     previousTaskKeyByIdRef.current = nextTaskKeyById;
     if (!previousTaskKeyById) return;
     if (!isFocused || reduceMotionEnabled) return;
+    if (suppressDynamicPopInUntilRef.current > Date.now()) return;
 
     const changedTaskIds: string[] = [];
     let structuralChangeCount = 0;
@@ -847,6 +853,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   const handleDragBegin = React.useCallback(
     (fromIndex: number) => {
       isDraggingRef.current = true;
+      suppressDynamicPopIns();
       resetActiveDragTranslationX();
       onDragStateChange?.(true);
       placeholderIndexRef.current = fromIndex;
@@ -867,6 +874,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       onDragStateChange,
       resetActiveDragTranslationX,
       resolvedData,
+      suppressDynamicPopIns,
     ],
   );
 
@@ -913,6 +921,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       const nextData = data.filter(
         (item) => item.kind === "header" || tasksById.has(item.taskId),
       );
+      suppressDynamicPopIns();
       const handledExternally =
         onDragEndMeta?.({ data: nextData, from, to }) === true;
       if (handledExternally) {
@@ -950,6 +959,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       onReorder,
       onReorderData,
       resetActiveDragTranslationX,
+      suppressDynamicPopIns,
       tasksById,
     ],
   );

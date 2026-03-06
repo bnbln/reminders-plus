@@ -19,6 +19,7 @@ type ProfileMenuActionId =
   | "streaks"
   | "routines"
   | "assist"
+  | "cloudSync"
   | "archive"
   | "settings";
 
@@ -43,8 +44,6 @@ export function ProfileHeaderMenuButton() {
   const theme = useColorScheme() ?? "light";
   const menuRef = React.useRef<MenuComponentRef>(null);
   const { hasPremiumAccess, isReady } = usePremium();
-  const assistMenuTitle =
-    !isReady || hasPremiumAccess ? "Assist" : "Reminders+";
 
   const actions = React.useMemo<MenuAction[]>(() => {
     const imageColor = Colors[theme].text;
@@ -69,7 +68,7 @@ export function ProfileHeaderMenuButton() {
           id: "routines",
           title: "Routinen",
           image: Platform.OS === "ios" ? "repeat" : undefined,
-          imageColor: Platform.OS === "ios" ? imageColor : undefined,
+          imageColor: Platform.OS === "ios" ? "#0A84FF" : undefined,
         },
         {
           id: "archive",
@@ -80,26 +79,30 @@ export function ProfileHeaderMenuButton() {
       ],
     };
 
-    const settingsGroup: MenuAction = {
+    const premiumGroup: MenuAction = {
       title: "",
       displayInline: true,
       subactions: [
         {
           id: "assist",
-          title: assistMenuTitle,
+          title: "Assist",
           image:
-            Platform.OS === "ios"
-              ? hasPremiumAccess || !isReady
-                ? "message.badge.waveform.fill"
-                : "plus"
-              : undefined,
-          imageColor:
-            Platform.OS === "ios"
-              ? hasPremiumAccess || !isReady
-                ? "#0A84FF"
-                : "#A855F7"
-              : undefined,
+            Platform.OS === "ios" ? "message.badge.waveform.fill" : undefined,
+          imageColor: Platform.OS === "ios" ? "#0A84FF" : undefined,
         },
+        {
+          id: "cloudSync",
+          title: "CloudSync",
+          image: Platform.OS === "ios" ? "icloud.fill" : undefined,
+          imageColor: Platform.OS === "ios" ? "#0A84FF" : undefined,
+        },
+      ],
+    };
+
+    const settingsGroup: MenuAction = {
+      title: "",
+      displayInline: true,
+      subactions: [
         {
           id: "settings",
           title: "Einstellungen",
@@ -109,8 +112,8 @@ export function ProfileHeaderMenuButton() {
       ],
     };
 
-    return [mainGroup, settingsGroup];
-  }, [assistMenuTitle, hasPremiumAccess, isReady, theme]);
+    return [mainGroup, premiumGroup, settingsGroup];
+  }, [theme]);
 
   const onPressAction = React.useCallback(
     ({ nativeEvent: { event } }: any) => {
@@ -143,6 +146,16 @@ export function ProfileHeaderMenuButton() {
         }
 
         router.push({ pathname: "/plus", params: { source: "assist" } });
+        return;
+      }
+
+      if (actionId === "cloudSync") {
+        if (!isReady || hasPremiumAccess) {
+          router.push("/cloud-sync");
+          return;
+        }
+
+        router.push({ pathname: "/plus", params: { source: "sync" } });
         return;
       }
 

@@ -1438,7 +1438,7 @@ export default function CreateTaskModal() {
   const lightBackdropGradient = React.useMemo(
     () =>
       [
-        withAlpha(LIGHT_ACCENT_SCREEN_BACKGROUND, 0.24),
+        withAlpha(LIGHT_ACCENT_SCREEN_BACKGROUND, 0),
         withAlpha(LIGHT_ACCENT_SCREEN_BACKGROUND, 0.66),
         withAlpha(LIGHT_ACCENT_SCREEN_BACKGROUND, 0.94),
       ] as const,
@@ -1459,7 +1459,7 @@ export default function CreateTaskModal() {
             colors={lightBackdropGradient}
             locations={[0, 0.56, 1]}
             start={{ x: 0.5, y: 0 }}
-            end={{ x: 0.5, y: 0.4 }}
+            end={{ x: 0.5, y: 1 }}
             style={StyleSheet.absoluteFillObject}
           />
         ) : null}
