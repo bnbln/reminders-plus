@@ -1,6 +1,7 @@
 import React from "react";
-import { AppState } from "react-native";
+import { AppState, Platform } from "react-native";
 
+import { usePremium } from "@/context/premium-store";
 import { useAppSettings } from "@/context/settings-store";
 import {
   syncAppBadgeCount,
@@ -13,6 +14,11 @@ import {
   markCompletedOnboardingSeed,
 } from "@/storage/tasks-onboarding-seed";
 import { loadTasksSnapshot, saveTasksSnapshot } from "@/storage/tasks-storage";
+import {
+  setNativeCloudSyncEnabled,
+  subscribeToCloudSyncRemoteApplies,
+  syncCloudNow,
+} from "@/services/cloud-sync";
 import {
   deriveActiveSectionFromDueAt,
   getStartOfLocalDayMs,
@@ -120,6 +126,15 @@ export const getDueAtForSection = (section: SectionId) => {
 };
 
 const SNAPSHOT_VERSION = 1 as const;
+
+function getTasksContentSignature(tasks: Task[], projects: Project[]): string {
+  return JSON.stringify({ tasks, projects });
+}
+
+function getSnapshotSavedAt(raw: any): number {
+  const savedAt = raw?.savedAt;
+  return typeof savedAt === "number" && Number.isFinite(savedAt) ? savedAt : 0;
+}
 
 function isSectionId(v: unknown): v is SectionId {
   return v === "today" || v === "upcoming" || v === "completed";
@@ -570,7 +585,9 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     appBadgeMode,
     dailySummaryEnabled,
     dailySummaryMinutes,
+    cloudSyncEnabled,
   } = useAppSettings();
+  const { hasPremiumAccess } = usePremium();
   const [tasks, setTasksState] = React.useState<Task[]>([]);
   const setTasks = React.useCallback<React.Dispatch<React.SetStateAction<Task[]>>>(
     (value) => {
@@ -588,6 +605,83 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
   const hydratedRef = React.useRef(false);
   const persistEnabledRef = React.useRef(false);
   const dayAnchorRef = React.useRef(getStartOfLocalDayMs());
+  const tasksRef = React.useRef<Task[]>([]);
+  const projectsRef = React.useRef<Project[]>([]);
+  const lastPersistedContentSignatureRef = React.useRef("");
+  const lastKnownLocalSavedAtRef = React.useRef(0);
+  const effectiveCloudSyncEnabled =
+    Platform.OS === "ios" && cloudSyncEnabled && hasPremiumAccess;
+
+  React.useEffect(() => {
+    tasksRef.current = tasks;
+  }, [tasks]);
+
+  React.useEffect(() => {
+    projectsRef.current = projects;
+  }, [projects]);
+
+  const persistSnapshotIfNeeded = React.useCallback(async (): Promise<boolean> => {
+    if (!hydratedRef.current) return false;
+    if (!persistEnabledRef.current) return false;
+
+    const nextTasks = tasksRef.current;
+    const nextProjects = projectsRef.current;
+    const nextSignature = getTasksContentSignature(nextTasks, nextProjects);
+    if (nextSignature === lastPersistedContentSignatureRef.current) {
+      return false;
+    }
+
+    const savedAt = Date.now();
+    await saveTasksSnapshot({
+      schemaVersion: SNAPSHOT_VERSION,
+      savedAt,
+      tasks: nextTasks,
+      projects: nextProjects,
+    });
+    lastPersistedContentSignatureRef.current = nextSignature;
+    lastKnownLocalSavedAtRef.current = savedAt;
+    return true;
+  }, []);
+
+  const reloadSnapshotFromDiskIfNeeded = React.useCallback(async () => {
+    if (!hydratedRef.current) return false;
+    if (!persistEnabledRef.current) return false;
+
+    const res = await loadTasksSnapshot();
+    if (res.status !== "ok") return false;
+
+    const next = normalizeSnapshot(res.snapshot);
+    const nextSignature = getTasksContentSignature(next.tasks, next.projects);
+    const nextSavedAt = getSnapshotSavedAt(res.snapshot);
+    const currentSignature = getTasksContentSignature(
+      tasksRef.current,
+      projectsRef.current,
+    );
+
+    if (nextSignature === currentSignature) {
+      lastPersistedContentSignatureRef.current = nextSignature;
+      if (nextSavedAt > 0) {
+        lastKnownLocalSavedAtRef.current = nextSavedAt;
+      }
+      return false;
+    }
+
+    if (
+      nextSavedAt > 0 &&
+      lastKnownLocalSavedAtRef.current > 0 &&
+      nextSavedAt < lastKnownLocalSavedAtRef.current
+    ) {
+      return false;
+    }
+
+    lastPersistedContentSignatureRef.current = nextSignature;
+    if (nextSavedAt > 0) {
+      lastKnownLocalSavedAtRef.current = nextSavedAt;
+    }
+    setProjects(next.projects);
+    setTasks(next.tasks);
+    return true;
+  }, [setTasks]);
 
   // Hydrate from local encrypted snapshot once.
   React.useEffect(() => {
@@ -599,6 +693,11 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
         if (cancelled) return;
         if (res.status === "ok") {
           const next = normalizeSnapshot(res.snapshot);
+          lastPersistedContentSignatureRef.current = getTasksContentSignature(
+            next.tasks,
+            next.projects,
+          );
+          lastKnownLocalSavedAtRef.current = getSnapshotSavedAt(res.snapshot);
           setTasks(next.tasks);
           setProjects(next.projects);
           persistEnabledRef.current = true;
@@ -656,8 +755,29 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     };
 
     const appStateSub = AppState.addEventListener("change", (nextState) => {
-      if (nextState !== "active") return;
-      reconcileTimeDependentTasks();
+      if (nextState === "active") {
+        reconcileTimeDependentTasks();
+        void (async () => {
+          await reloadSnapshotFromDiskIfNeeded();
+          if (!effectiveCloudSyncEnabled) return;
+          const result = await syncCloudNow();
+          if (result.didPullRemote) {
+            await reloadSnapshotFromDiskIfNeeded();
+          }
+        })();
+      }
+
+      if (nextState === "background") {
+        void (async () => {
+          const didPersist = await persistSnapshotIfNeeded();
+          if (!effectiveCloudSyncEnabled) return;
+          if (!didPersist && !persistEnabledRef.current) return;
+          const result = await syncCloudNow();
+          if (result.didPullRemote) {
+            await reloadSnapshotFromDiskIfNeeded();
+          }
+        })();
+      }
     });
     const timer = setInterval(reconcileTimeDependentTasks, 60_000);
 
@@ -665,7 +785,12 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
       appStateSub.remove();
       clearInterval(timer);
     };
-  }, [setTasks]);
+  }, [
+    effectiveCloudSyncEnabled,
+    persistSnapshotIfNeeded,
+    reloadSnapshotFromDiskIfNeeded,
+    setTasks,
+  ]);
 
   // Persist on change (after hydration). Debounced to avoid excessive writes on drag/reorder.
   React.useEffect(() => {
@@ -673,18 +798,42 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     if (!persistEnabledRef.current) return;
 
     const handle = setTimeout(() => {
-      void saveTasksSnapshot({
-        schemaVersion: SNAPSHOT_VERSION,
-        savedAt: Date.now(),
-        tasks,
-        projects,
-      });
+      void (async () => {
+        const didPersist = await persistSnapshotIfNeeded();
+        if (!effectiveCloudSyncEnabled || !didPersist) return;
+        const result = await syncCloudNow();
+        if (result.didPullRemote) {
+          await reloadSnapshotFromDiskIfNeeded();
+        }
+      })();
     }, 250);
 
     return () => {
       clearTimeout(handle);
     };
-  }, [projects, tasks]);
+  }, [
+    effectiveCloudSyncEnabled,
+    persistSnapshotIfNeeded,
+    projects,
+    reloadSnapshotFromDiskIfNeeded,
+    tasks,
+  ]);
+
+  React.useEffect(() => {
+    if (!hasSettingsHydrated) return;
+    void setNativeCloudSyncEnabled(effectiveCloudSyncEnabled);
+  }, [effectiveCloudSyncEnabled, hasSettingsHydrated]);
+
+  React.useEffect(() => {
+    if (!effectiveCloudSyncEnabled) return;
+    const subscription = subscribeToCloudSyncRemoteApplies(() => {
+      void reloadSnapshotFromDiskIfNeeded();
+    });
+
+    return () => {
+      subscription?.remove();
+    };
+  }, [effectiveCloudSyncEnabled, reloadSnapshotFromDiskIfNeeded]);
 
   // Keep iOS scheduled notifications in sync with tasks.
   React.useEffect(() => {

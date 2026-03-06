@@ -8,10 +8,12 @@ import { HeaderCloseButton } from '@/components/ui/header-close-button';
 import { withAlpha } from '@/components/ui/glass-surface';
 import { HeaderIconButton } from '@/components/ui/header-icon-button';
 import { SFSymbol } from '@/components/ui/sfsymbol';
+import { usePremium } from '@/context/premium-store';
 import { Colors } from '@/constants/theme';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
+import { shouldRouteToProjectLimitGate } from '@/utils/project-creation-gate';
 
 export default function ProjectPickerScreen() {
     const router = useRouter();
@@ -27,8 +29,13 @@ export default function ProjectPickerScreen() {
     const insets = useSafeAreaInsets();
 
     const { tasks, setTasks, projects } = useTasksStore();
+    const { hasPremiumAccess, isReady } = usePremium();
     const task = React.useMemo(() => tasks.find((t) => t.id === taskId), [tasks, taskId]);
     const visibleProjects = React.useMemo(() => projects.filter((project) => !project.deletedAt), [projects]);
+    const activeProjectCount = React.useMemo(
+        () => projects.filter((project) => !project.deletedAt).length,
+        [projects]
+    );
 
     // Local state
     const [selectedProjectId, setSelectedProjectId] = React.useState<string | null | undefined>(undefined);
@@ -59,8 +66,16 @@ export default function ProjectPickerScreen() {
     const handleCreateProject = React.useCallback(() => {
         // Navigate to create project modal
         // Since we are in a modal, pushing another modal might stack them
-        router.push('/project/create-modal');
-    }, [router]);
+        router.push(
+            shouldRouteToProjectLimitGate({
+                activeProjectCount,
+                hasPremiumAccess,
+                isReady,
+            })
+                ? '/project/limit-modal'
+                : '/project/create-modal'
+        );
+    }, [activeProjectCount, hasPremiumAccess, isReady, router]);
 
 
     return (

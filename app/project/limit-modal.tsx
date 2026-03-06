@@ -1,0 +1,231 @@
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { Stack, useRouter } from "expo-router";
+import React from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
+import { Colors } from "@/constants/theme";
+import { FREE_PROJECT_LIMIT } from "@/constants/premium";
+import { usePremium } from "@/context/premium-store";
+import { useTasksStore } from "@/context/tasks-store";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { t } from "@/i18n";
+
+type ThemeName = keyof typeof Colors;
+
+export default function ProjectLimitModal() {
+  const router = useRouter();
+  const theme = (useColorScheme() ?? "light") as ThemeName;
+  const isDark = theme === "dark";
+  const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const insets = useSafeAreaInsets();
+  const { hasPremiumAccess, isReady } = usePremium();
+  const { projects } = useTasksStore();
+
+  const activeProjectCount = React.useMemo(
+    () => projects.filter((project) => !project.deletedAt).length,
+    [projects],
+  );
+
+  React.useEffect(() => {
+    if (!isReady) return;
+
+    if (hasPremiumAccess || activeProjectCount < FREE_PROJECT_LIMIT) {
+      router.replace("/project/create-modal");
+    }
+  }, [activeProjectCount, hasPremiumAccess, isReady, router]);
+
+  const onClose = React.useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace("/explore");
+  }, [router]);
+
+  return (
+    <View style={styles.root}>
+      <Stack.Screen
+        options={{
+          title: t("projectEdit.newProject"),
+          headerShown: false,
+          contentStyle: { backgroundColor: "transparent" },
+          presentation: "transparentModal",
+          animation: "fade",
+        }}
+      />
+
+      <Pressable
+        style={styles.backdrop}
+        accessibilityRole="button"
+        accessibilityLabel={t("taskCreate.close")}
+        onPress={onClose}
+      />
+
+      <View
+        style={[
+          styles.lockHost,
+          { paddingBottom: Math.max(16, insets.bottom - 8) },
+        ]}
+        pointerEvents="box-none"
+      >
+        <GlassSurface
+          style={styles.lockCard}
+          glassEffectStyle="regular"
+          tintColor={withAlpha(Colors[theme].background, isDark ? 0.18 : 0.34)}
+          fallbackBackgroundColor={withAlpha(
+            Colors[theme].background,
+            isDark ? 0.92 : 0.96,
+          )}
+          isInteractive
+        >
+          {!isReady ? (
+            <View style={styles.lockLoadingState}>
+              <ActivityIndicator color={Colors[theme].text} />
+              <Text style={styles.lockBody}>
+                Pruefe gerade deinen Reminds+ Status...
+              </Text>
+            </View>
+          ) : (
+            <>
+              <Text style={styles.lockTitle}>
+                Mehr als 4 Projekte brauchen Reminds+.
+              </Text>
+              <Text style={styles.lockBody}>
+                Dein Free-Plan enthaelt bis zu {FREE_PROJECT_LIMIT} aktive
+                Projekte. Mit Reminds+ bekommst du unbegrenzte Projekte,
+                AI-Assist und die Cloud-Sync-Freischaltung.
+              </Text>
+
+              <View style={styles.lockButtonRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={onClose}
+                  style={({ pressed }) => [
+                    styles.secondaryAction,
+                    pressed && styles.buttonPressed,
+                  ]}
+                >
+                  <Text style={styles.secondaryActionText}>Spaeter</Text>
+                </Pressable>
+
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() =>
+                    router.push({
+                      pathname: "/plus",
+                      params: { source: "projects" },
+                    })
+                  }
+                  style={({ pressed }) => [
+                    styles.primaryAction,
+                    pressed && styles.buttonPressed,
+                  ]}
+                >
+                  <Text style={styles.primaryActionText}>Reminds+ ansehen</Text>
+                </Pressable>
+              </View>
+            </>
+          )}
+        </GlassSurface>
+      </View>
+    </View>
+  );
+}
+
+const createStyles = (theme: ThemeName) => {
+  const isDark = theme === "dark";
+  const text = Colors[theme].text;
+  const cardBorder = isDark
+    ? "rgba(255,255,255,0.1)"
+    : "rgba(255,255,255,0.34)";
+
+  return StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor: "transparent",
+    },
+    lockHost: {
+      flex: 1,
+      justifyContent: "flex-end",
+      paddingHorizontal: 12,
+      paddingTop: 12,
+    },
+    lockCard: {
+      borderRadius: 26,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: cardBorder,
+      paddingHorizontal: 18,
+      paddingVertical: 18,
+      gap: 14,
+      shadowColor: "#000",
+      shadowOpacity: isDark ? 0.34 : 0.16,
+      shadowRadius: 24,
+      shadowOffset: { width: 0, height: 10 },
+    },
+    lockLoadingState: {
+      minHeight: 90,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 12,
+    },
+    lockTitle: {
+      fontSize: 24,
+      lineHeight: 28,
+      fontWeight: "800",
+      letterSpacing: -0.6,
+      color: text,
+    },
+    lockBody: {
+      fontSize: 15,
+      lineHeight: 22,
+      color: withAlpha(text, 0.72),
+    },
+    lockButtonRow: {
+      flexDirection: "row",
+      gap: 10,
+    },
+    secondaryAction: {
+      flex: 1,
+      minHeight: 46,
+      borderRadius: 15,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: withAlpha(text, isDark ? 0.08 : 0.06),
+    },
+    secondaryActionText: {
+      fontSize: 15,
+      fontWeight: "700",
+      color: text,
+    },
+    primaryAction: {
+      flex: 1.3,
+      minHeight: 46,
+      borderRadius: 15,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "#FF8A00",
+    },
+    primaryActionText: {
+      fontSize: 15,
+      fontWeight: "700",
+      color: "#FFFFFF",
+    },
+    backdrop: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: isDark ? "rgba(0,0,0,0.58)" : "rgba(0,0,0,0.14)",
+    },
+    buttonPressed: {
+      opacity: 0.86,
+      transform: [{ scale: 0.98 }],
+    },
+  });
+};

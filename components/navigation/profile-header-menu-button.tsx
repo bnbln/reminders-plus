@@ -57,14 +57,14 @@ export function ProfileHeaderMenuButton() {
         {
           id: "status",
           title: "Status",
-          image: Platform.OS === "ios" ? "waveform.path.ecg" : undefined,
-          imageColor: Platform.OS === "ios" ? imageColor : undefined,
+          image: Platform.OS === "ios" ? "arrow.up.right" : undefined,
+          imageColor: Platform.OS === "ios" ? "#22C55E" : undefined,
         },
         {
           id: "streaks",
           title: "Streaks",
           image: Platform.OS === "ios" ? "flame.fill" : undefined,
-          imageColor: Platform.OS === "ios" ? imageColor : undefined,
+          imageColor: Platform.OS === "ios" ? "#F97316" : undefined,
         },
         {
           id: "archive",

@@ -12,10 +12,10 @@
 		335C3CBDE108721FE0842F3B /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = F45E905FFA679E56B278FA31 /* PrivacyInfo.xcprivacy */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
 		5F14A910888310B0C33DD664 /* libPods-reminds.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 001AC81043E76A82EC47AE51 /* libPods-reminds.a */; };
+		62B2C128021F41A68EBE4D66 /* Reminder+.icon in Resources */ = {isa = PBXBuildFile; fileRef = 744BC80286F442E395B64A4D /* Reminder+.icon */; };
 		A1C7F2D53D9A4B1E8C7F2301 /* TaskAccessoryContextBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = A1C7F2D43D9A4B1E8C7F2301 /* TaskAccessoryContextBridge.m */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
-		62B2C128021F41A68EBE4D66 /* Reminder+.icon in Resources */ = {isa = PBXBuildFile; fileRef = 744BC80286F442E395B64A4D /* Reminder+.icon */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -25,6 +25,7 @@
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = reminds/Info.plist; sourceTree = "<group>"; };
 		3138CF7B98F7506EDA9CCC6C /* Pods-reminds.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-reminds.release.xcconfig"; path = "Target Support Files/Pods-reminds/Pods-reminds.release.xcconfig"; sourceTree = "<group>"; };
 		4FB1D35A320B4126CFF83087 /* Pods-reminds.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-reminds.debug.xcconfig"; path = "Target Support Files/Pods-reminds/Pods-reminds.debug.xcconfig"; sourceTree = "<group>"; };
+		744BC80286F442E395B64A4D /* Reminder+.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = "Reminder+.icon"; sourceTree = "<group>"; };
 		78E4151E927615194994A1C2 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-reminds/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		A1C7F2D43D9A4B1E8C7F2301 /* TaskAccessoryContextBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = TaskAccessoryContextBridge.m; path = reminds/TaskAccessoryContextBridge.m; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = reminds/SplashScreen.storyboard; sourceTree = "<group>"; };
@@ -33,7 +34,6 @@
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = reminds/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* reminds-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "reminds-Bridging-Header.h"; path = "reminds/reminds-Bridging-Header.h"; sourceTree = "<group>"; };
 		F45E905FFA679E56B278FA31 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = reminds/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		744BC80286F442E395B64A4D /* Reminder+.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = "Reminder+.icon"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -379,7 +379,7 @@
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
 				PRODUCT_BUNDLE_IDENTIFIER = com.anonymous.reminds;
-				PRODUCT_NAME = "reminds";
+				PRODUCT_NAME = reminds;
 				SWIFT_OBJC_BRIDGING_HEADER = "reminds/reminds-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -413,7 +413,7 @@
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
 				PRODUCT_BUNDLE_IDENTIFIER = com.anonymous.reminds;
-				PRODUCT_NAME = "reminds";
+				PRODUCT_NAME = reminds;
 				SWIFT_OBJC_BRIDGING_HEADER = "reminds/reminds-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";

@@ -1,3 +1,5 @@
+import CloudKit
+import CryptoKit
 internal import Expo
 import React
 import ReactAppDependencyProvider
@@ -42,6 +44,8 @@ class AppDelegate: ExpoAppDelegate {
     window?.backgroundColor = UIColor.remindsAppBackground
     window?.rootViewController?.view.backgroundColor = UIColor.remindsAppBackground
     applyReactRootViewBackground()
+    CloudSyncCoordinator.shared.start()
+    application.registerForRemoteNotifications()
 
     if #available(iOS 26.0, *) {
       let coordinator = TabBarAccessoryCoordinator(windowProvider: { [weak self] in
@@ -72,6 +76,26 @@ class AppDelegate: ExpoAppDelegate {
   ) -> Bool {
     let result = RCTLinkingManager.application(application, continue: userActivity, restorationHandler: restorationHandler)
     return super.application(application, continue: userActivity, restorationHandler: restorationHandler) || result
+  }
+
+  override func application(
+    _ application: UIApplication,
+    didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+    fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+  ) {
+    if CloudSyncCoordinator.shared.canHandleRemoteNotification(userInfo: userInfo) {
+      Task { @MainActor in
+        let result = await CloudSyncCoordinator.shared.handleRemoteNotification(userInfo: userInfo)
+        completionHandler(result)
+      }
+      return
+    }
+
+    super.application(
+      application,
+      didReceiveRemoteNotification: userInfo,
+      fetchCompletionHandler: completionHandler
+    )
   }
 
   private func applyReactRootViewBackground() {
@@ -972,5 +996,726 @@ class ReactNativeDelegate: ExpoReactNativeFactoryDelegate {
 #else
     return Bundle.main.url(forResource: "main", withExtension: "jsbundle")
 #endif
+  }
+}
+
+@objc(CloudSyncBridge)
+final class CloudSyncBridge: RCTEventEmitter {
+  override static func requiresMainQueueSetup() -> Bool {
+    true
+  }
+
+  override func supportedEvents() -> [String]! {
+    [
+      CloudSyncCoordinator.EventName.statusChanged,
+      CloudSyncCoordinator.EventName.remoteSnapshotApplied,
+    ]
+  }
+
+  override init() {
+    super.init()
+    Task { @MainActor in
+      CloudSyncCoordinator.shared.attachEmitter(self)
+    }
+  }
+
+  override func startObserving() {
+    Task { @MainActor in
+      CloudSyncCoordinator.shared.attachEmitter(self)
+      CloudSyncCoordinator.shared.setHasListeners(true)
+    }
+  }
+
+  override func stopObserving() {
+    Task { @MainActor in
+      CloudSyncCoordinator.shared.setHasListeners(false)
+    }
+  }
+
+  @objc(getStatus:rejecter:)
+  func getStatus(
+    _ resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    Task { @MainActor in
+      resolve(await CloudSyncCoordinator.shared.statusDictionary())
+    }
+  }
+
+  @objc(setEnabled:resolver:rejecter:)
+  func setEnabled(
+    _ enabled: NSNumber,
+    resolver resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    Task { @MainActor in
+      resolve(await CloudSyncCoordinator.shared.setEnabled(enabled.boolValue))
+    }
+  }
+
+  @objc(syncNow:rejecter:)
+  func syncNow(
+    _ resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    Task { @MainActor in
+      resolve(await CloudSyncCoordinator.shared.syncNow(reason: .manual))
+    }
+  }
+}
+
+enum CloudSyncReason: String {
+  case launch
+  case activate
+  case background
+  case enable
+  case manual
+  case remotePush
+}
+
+private struct LocalCloudSnapshot {
+  let data: Data
+  let savedAt: Int64
+  let schemaVersion: Int64
+  let signature: String
+}
+
+private struct RemoteCloudSnapshot {
+  let record: CKRecord
+  let data: Data
+  let savedAt: Int64
+  let signature: String
+}
+
+private struct CloudSyncOutcome {
+  let didPullRemote: Bool
+  let didPushLocal: Bool
+}
+
+@MainActor
+final class CloudSyncCoordinator: NSObject {
+  enum EventName {
+    static let statusChanged = "cloudSyncStatusChanged"
+    static let remoteSnapshotApplied = "cloudSyncRemoteSnapshotApplied"
+  }
+
+  private enum DefaultsKey {
+    static let enabled = "reminds.cloudSync.enabled.v1"
+    static let deviceId = "reminds.cloudSync.deviceId.v1"
+    static let lastSyncAt = "reminds.cloudSync.lastSyncAt.v1"
+    static let lastPushAt = "reminds.cloudSync.lastPushAt.v1"
+    static let lastPullAt = "reminds.cloudSync.lastPullAt.v1"
+    static let lastError = "reminds.cloudSync.lastError.v1"
+    static let lastErrorIsTransient = "reminds.cloudSync.lastErrorIsTransient.v1"
+    static let lastKnownLocalSavedAt = "reminds.cloudSync.lastKnownLocalSavedAt.v1"
+    static let lastKnownRemoteSavedAt = "reminds.cloudSync.lastKnownRemoteSavedAt.v1"
+    static let lastAccountStatus = "reminds.cloudSync.lastAccountStatus.v1"
+  }
+
+  private enum RecordConfig {
+    static let type = "RemindsSyncSnapshot"
+    static let name = "primary"
+    static let subscriptionId = "reminds-cloud-sync-v1"
+    static let payloadAsset = "payloadAsset"
+    static let savedAt = "savedAt"
+    static let schemaVersion = "schemaVersion"
+    static let signature = "signature"
+    static let deviceId = "deviceId"
+  }
+
+  private enum FileConfig {
+    static let localSnapshotName = "reminds.tasks.v1.json"
+  }
+
+  static let shared = CloudSyncCoordinator()
+
+  private let defaults = UserDefaults.standard
+  private weak var emitter: CloudSyncBridge?
+  private var hasListeners = false
+  private var hasStarted = false
+  private var isSyncing = false
+
+  private override init() {
+    super.init()
+  }
+
+  private var isEnabled: Bool {
+    defaults.bool(forKey: DefaultsKey.enabled)
+  }
+
+  private var cloudContainerIdentifier: String {
+    let bundleIdentifier = Bundle.main.bundleIdentifier ?? "com.anonymous.reminds"
+    return "iCloud.\(bundleIdentifier)"
+  }
+
+  private var container: CKContainer {
+    CKContainer(identifier: cloudContainerIdentifier)
+  }
+
+  private var database: CKDatabase {
+    container.privateCloudDatabase
+  }
+
+  private var recordID: CKRecord.ID {
+    CKRecord.ID(recordName: RecordConfig.name)
+  }
+
+  private var deviceId: String {
+    if let existing = defaults.string(forKey: DefaultsKey.deviceId), !existing.isEmpty {
+      return existing
+    }
+
+    let created = UUID().uuidString
+    defaults.set(created, forKey: DefaultsKey.deviceId)
+    return created
+  }
+
+  private var localSnapshotURL: URL {
+    let fileManager = FileManager.default
+    if let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first {
+      return documentsURL.appendingPathComponent(FileConfig.localSnapshotName)
+    }
+    return fileManager.temporaryDirectory.appendingPathComponent(FileConfig.localSnapshotName)
+  }
+
+  func start() {
+    guard !hasStarted else { return }
+    hasStarted = true
+
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(handleDidBecomeActive),
+      name: UIApplication.didBecomeActiveNotification,
+      object: nil
+    )
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(handleDidEnterBackground),
+      name: UIApplication.didEnterBackgroundNotification,
+      object: nil
+    )
+
+    defaults.register(defaults: [
+      DefaultsKey.lastAccountStatus: "unknown",
+    ])
+
+    if isEnabled {
+      enqueueSync(reason: .launch)
+    } else {
+      emitStatusChanged()
+    }
+  }
+
+  func attachEmitter(_ emitter: CloudSyncBridge) {
+    self.emitter = emitter
+  }
+
+  func setHasListeners(_ hasListeners: Bool) {
+    self.hasListeners = hasListeners
+    if hasListeners {
+      emitStatusChanged()
+    }
+  }
+
+  func setEnabled(_ enabled: Bool) async -> [String: Any] {
+    defaults.set(enabled, forKey: DefaultsKey.enabled)
+    if enabled {
+      UIApplication.shared.registerForRemoteNotifications()
+      return await syncNow(reason: .enable)
+    }
+
+    clearLastError()
+    emitStatusChanged()
+    return await statusDictionary()
+  }
+
+  func syncNow(reason: CloudSyncReason) async -> [String: Any] {
+    let outcome = await performSync(reason: reason)
+    var status = await statusDictionary()
+    status["didPullRemote"] = outcome.didPullRemote
+    status["didPushLocal"] = outcome.didPushLocal
+    return status
+  }
+
+  func canHandleRemoteNotification(userInfo: [AnyHashable: Any]) -> Bool {
+    guard let notification = CKNotification(fromRemoteNotificationDictionary: userInfo) else {
+      return false
+    }
+    return notification.subscriptionID == RecordConfig.subscriptionId
+  }
+
+  func handleRemoteNotification(userInfo: [AnyHashable: Any]) async -> UIBackgroundFetchResult {
+    guard isEnabled else { return .noData }
+    let outcome = await performSync(reason: .remotePush)
+    return outcome.didPullRemote || outcome.didPushLocal ? .newData : .noData
+  }
+
+  func statusDictionary(refreshAccountStatus: Bool = true) async -> [String: Any] {
+    var accountStatusLabel = defaults.string(forKey: DefaultsKey.lastAccountStatus) ?? "unknown"
+    if refreshAccountStatus {
+      let accountStatus = await fetchAccountStatus()
+      accountStatusLabel = label(for: accountStatus)
+      defaults.set(accountStatusLabel, forKey: DefaultsKey.lastAccountStatus)
+    }
+
+    if accountStatusLabel == "available" && defaults.bool(forKey: DefaultsKey.lastErrorIsTransient) {
+      accountStatusLabel = "temporarilyUnavailable"
+    }
+
+    return [
+      "isSupported": true,
+      "isEnabled": isEnabled,
+      "isSyncing": isSyncing,
+      "accountStatus": accountStatusLabel,
+      "lastSyncAt": boxedNumber(for: DefaultsKey.lastSyncAt),
+      "lastPushAt": boxedNumber(for: DefaultsKey.lastPushAt),
+      "lastPullAt": boxedNumber(for: DefaultsKey.lastPullAt),
+      "lastKnownLocalSavedAt": boxedNumber(for: DefaultsKey.lastKnownLocalSavedAt),
+      "lastKnownRemoteSavedAt": boxedNumber(for: DefaultsKey.lastKnownRemoteSavedAt),
+      "lastError": defaults.string(forKey: DefaultsKey.lastError) ?? NSNull(),
+      "containerIdentifier": cloudContainerIdentifier,
+    ]
+  }
+
+  @objc private func handleDidBecomeActive() {
+    guard isEnabled else { return }
+    enqueueSync(reason: .activate)
+  }
+
+  @objc private func handleDidEnterBackground() {
+    guard isEnabled else { return }
+
+    var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
+    backgroundTaskId = UIApplication.shared.beginBackgroundTask(withName: "CloudSyncBackground") {
+      guard backgroundTaskId != .invalid else { return }
+      UIApplication.shared.endBackgroundTask(backgroundTaskId)
+      backgroundTaskId = .invalid
+    }
+
+    Task { @MainActor in
+      _ = await syncNow(reason: .background)
+      guard backgroundTaskId != .invalid else { return }
+      UIApplication.shared.endBackgroundTask(backgroundTaskId)
+      backgroundTaskId = .invalid
+    }
+  }
+
+  private func enqueueSync(reason: CloudSyncReason) {
+    Task { @MainActor in
+      _ = await syncNow(reason: reason)
+    }
+  }
+
+  private func performSync(reason: CloudSyncReason) async -> CloudSyncOutcome {
+    guard isEnabled else {
+      return CloudSyncOutcome(didPullRemote: false, didPushLocal: false)
+    }
+
+    if isSyncing {
+      return CloudSyncOutcome(didPullRemote: false, didPushLocal: false)
+    }
+
+    isSyncing = true
+    emitStatusChanged()
+
+    defer {
+      isSyncing = false
+      emitStatusChanged()
+    }
+
+    let accountStatus = await fetchAccountStatus()
+    let accountStatusLabel = label(for: accountStatus)
+    defaults.set(accountStatusLabel, forKey: DefaultsKey.lastAccountStatus)
+
+    guard accountStatus == .available else {
+      clearLastError()
+      return CloudSyncOutcome(didPullRemote: false, didPushLocal: false)
+    }
+
+    do {
+      let outcome = try await syncLocalAndRemote()
+      defaults.set(currentTimestampMs(), forKey: DefaultsKey.lastSyncAt)
+
+      do {
+        try await ensureSubscriptionIfPossible()
+        clearLastError()
+      } catch {
+        rememberError(error)
+      }
+
+      return outcome
+    } catch {
+      rememberError(error)
+      if reason == .manual || reason == .enable {
+        emitStatusChanged()
+      }
+      return CloudSyncOutcome(didPullRemote: false, didPushLocal: false)
+    }
+  }
+
+  private func syncLocalAndRemote() async throws -> CloudSyncOutcome {
+    let localSnapshot = readLocalSnapshot()
+    let remoteSnapshot = try await fetchRemoteSnapshot()
+
+    switch (localSnapshot, remoteSnapshot) {
+    case (nil, nil):
+      return CloudSyncOutcome(didPullRemote: false, didPushLocal: false)
+
+    case let (local?, nil):
+      try await uploadLocalSnapshot(local, existingRecord: nil)
+      return CloudSyncOutcome(didPullRemote: false, didPushLocal: true)
+
+    case let (nil, remote?):
+      try writeRemoteSnapshotLocally(remote)
+      return CloudSyncOutcome(didPullRemote: true, didPushLocal: false)
+
+    case let (local?, remote?):
+      if remote.savedAt > local.savedAt {
+        try writeRemoteSnapshotLocally(remote)
+        return CloudSyncOutcome(didPullRemote: true, didPushLocal: false)
+      }
+
+      if local.savedAt > remote.savedAt {
+        try await uploadLocalSnapshot(local, existingRecord: remote.record)
+        return CloudSyncOutcome(didPullRemote: false, didPushLocal: true)
+      }
+
+      if local.signature == remote.signature {
+        defaults.set(local.savedAt, forKey: DefaultsKey.lastKnownLocalSavedAt)
+        defaults.set(remote.savedAt, forKey: DefaultsKey.lastKnownRemoteSavedAt)
+        return CloudSyncOutcome(didPullRemote: false, didPushLocal: false)
+      }
+
+      try writeRemoteSnapshotLocally(remote)
+      return CloudSyncOutcome(didPullRemote: true, didPushLocal: false)
+    }
+  }
+
+  private func ensureSubscription() async throws {
+    let subscription = CKQuerySubscription(
+      recordType: RecordConfig.type,
+      predicate: NSPredicate(value: true),
+      subscriptionID: RecordConfig.subscriptionId,
+      options: [.firesOnRecordCreation, .firesOnRecordUpdate]
+    )
+    let notificationInfo = CKSubscription.NotificationInfo()
+    notificationInfo.shouldSendContentAvailable = true
+    subscription.notificationInfo = notificationInfo
+    _ = try await saveSubscription(subscription)
+  }
+
+  private func ensureSubscriptionIfPossible() async throws {
+    if readLocalSnapshot() != nil {
+      try await ensureSubscription()
+      return
+    }
+
+    guard try await fetchRemoteSnapshot() != nil else {
+      return
+    }
+
+    try await ensureSubscription()
+  }
+
+  private func readLocalSnapshot() -> LocalCloudSnapshot? {
+    guard FileManager.default.fileExists(atPath: localSnapshotURL.path) else {
+      return nil
+    }
+
+    do {
+      let data = try Data(contentsOf: localSnapshotURL)
+      guard
+        let jsonObject = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+      else {
+        return nil
+      }
+
+      let savedAt = extractSavedAt(from: jsonObject)
+      let schemaVersion = extractSchemaVersion(from: jsonObject)
+      return LocalCloudSnapshot(
+        data: data,
+        savedAt: savedAt,
+        schemaVersion: schemaVersion,
+        signature: sha256Hex(for: data)
+      )
+    } catch {
+      return nil
+    }
+  }
+
+  private func fetchRemoteSnapshot() async throws -> RemoteCloudSnapshot? {
+    guard let record = try await fetchRecord(recordID) else {
+      return nil
+    }
+
+    guard
+      let asset = record[RecordConfig.payloadAsset] as? CKAsset,
+      let fileURL = asset.fileURL
+    else {
+      return nil
+    }
+
+    let data = try Data(contentsOf: fileURL)
+    let savedAt = (record[RecordConfig.savedAt] as? NSNumber)?.int64Value ?? 0
+    let signature = (record[RecordConfig.signature] as? String) ?? sha256Hex(for: data)
+
+    return RemoteCloudSnapshot(
+      record: record,
+      data: data,
+      savedAt: savedAt,
+      signature: signature
+    )
+  }
+
+  private func uploadLocalSnapshot(
+    _ snapshot: LocalCloudSnapshot,
+    existingRecord: CKRecord?
+  ) async throws {
+    let assetURL = FileManager.default.temporaryDirectory
+      .appendingPathComponent("reminds-cloud-sync-\(UUID().uuidString).json")
+    try snapshot.data.write(to: assetURL, options: .atomic)
+
+    let record = existingRecord ?? CKRecord(recordType: RecordConfig.type, recordID: recordID)
+    record[RecordConfig.payloadAsset] = CKAsset(fileURL: assetURL)
+    record[RecordConfig.savedAt] = NSNumber(value: snapshot.savedAt)
+    record[RecordConfig.schemaVersion] = NSNumber(value: snapshot.schemaVersion)
+    record[RecordConfig.signature] = snapshot.signature as NSString
+    record[RecordConfig.deviceId] = deviceId as NSString
+
+    defer {
+      try? FileManager.default.removeItem(at: assetURL)
+    }
+
+    _ = try await saveRecord(record)
+    defaults.set(currentTimestampMs(), forKey: DefaultsKey.lastPushAt)
+    defaults.set(snapshot.savedAt, forKey: DefaultsKey.lastKnownLocalSavedAt)
+    defaults.set(snapshot.savedAt, forKey: DefaultsKey.lastKnownRemoteSavedAt)
+  }
+
+  private func writeRemoteSnapshotLocally(_ snapshot: RemoteCloudSnapshot) throws {
+    try snapshot.data.write(to: localSnapshotURL, options: .atomic)
+    defaults.set(currentTimestampMs(), forKey: DefaultsKey.lastPullAt)
+    defaults.set(snapshot.savedAt, forKey: DefaultsKey.lastKnownLocalSavedAt)
+    defaults.set(snapshot.savedAt, forKey: DefaultsKey.lastKnownRemoteSavedAt)
+    emitRemoteSnapshotApplied(savedAt: snapshot.savedAt)
+  }
+
+  private func fetchAccountStatus() async -> CKAccountStatus {
+    await withCheckedContinuation { continuation in
+      container.accountStatus { status, _ in
+        continuation.resume(returning: status)
+      }
+    }
+  }
+
+  private func fetchRecord(_ recordID: CKRecord.ID) async throws -> CKRecord? {
+    try await withCheckedThrowingContinuation { continuation in
+      database.fetch(withRecordID: recordID) { record, error in
+        if let ckError = error as? CKError, ckError.code == .unknownItem {
+          continuation.resume(returning: nil)
+          return
+        }
+
+        if let error {
+          continuation.resume(throwing: error)
+          return
+        }
+
+        continuation.resume(returning: record)
+      }
+    }
+  }
+
+  private func saveRecord(_ record: CKRecord) async throws -> CKRecord {
+    try await withCheckedThrowingContinuation { continuation in
+      database.save(record) { savedRecord, error in
+        if let error {
+          continuation.resume(throwing: error)
+          return
+        }
+
+        guard let savedRecord else {
+          continuation.resume(throwing: NSError(
+            domain: "CloudSyncCoordinator",
+            code: 1,
+            userInfo: [NSLocalizedDescriptionKey: "CloudKit record save returned no record."]
+          ))
+          return
+        }
+
+        continuation.resume(returning: savedRecord)
+      }
+    }
+  }
+
+  private func saveSubscription(_ subscription: CKSubscription) async throws -> CKSubscription {
+    try await withCheckedThrowingContinuation { continuation in
+      database.save(subscription) { savedSubscription, error in
+        if let error {
+          continuation.resume(throwing: error)
+          return
+        }
+
+        guard let savedSubscription else {
+          continuation.resume(throwing: NSError(
+            domain: "CloudSyncCoordinator",
+            code: 2,
+            userInfo: [NSLocalizedDescriptionKey: "CloudKit subscription save returned no subscription."]
+          ))
+          return
+        }
+
+        continuation.resume(returning: savedSubscription)
+      }
+    }
+  }
+
+  private func rememberError(_ error: Error) {
+    defaults.set(errorMessage(for: error), forKey: DefaultsKey.lastError)
+    defaults.set(isTransient(error: error), forKey: DefaultsKey.lastErrorIsTransient)
+  }
+
+  private func clearLastError() {
+    defaults.removeObject(forKey: DefaultsKey.lastError)
+    defaults.removeObject(forKey: DefaultsKey.lastErrorIsTransient)
+  }
+
+  private func emitStatusChanged() {
+    guard hasListeners, let emitter else { return }
+    Task { @MainActor in
+      emitter.sendEvent(
+        withName: EventName.statusChanged,
+        body: await statusDictionary(refreshAccountStatus: false)
+      )
+    }
+  }
+
+  private func emitRemoteSnapshotApplied(savedAt: Int64) {
+    guard hasListeners, let emitter else { return }
+    emitter.sendEvent(
+      withName: EventName.remoteSnapshotApplied,
+      body: ["savedAt": NSNumber(value: savedAt)]
+    )
+    emitStatusChanged()
+  }
+
+  private func boxedNumber(for key: String) -> Any {
+    guard let value = defaults.object(forKey: key) as? NSNumber else {
+      return NSNull()
+    }
+    return value
+  }
+
+  private func currentTimestampMs() -> NSNumber {
+    NSNumber(value: Int64(Date().timeIntervalSince1970 * 1000))
+  }
+
+  private func extractSavedAt(from jsonObject: [String: Any]) -> Int64 {
+    if let savedAt = jsonObject["savedAt"] as? NSNumber {
+      return savedAt.int64Value
+    }
+    if let savedAt = jsonObject["savedAt"] as? Double {
+      return Int64(savedAt)
+    }
+    return 0
+  }
+
+  private func extractSchemaVersion(from jsonObject: [String: Any]) -> Int64 {
+    if let schemaVersion = jsonObject["schemaVersion"] as? NSNumber {
+      return schemaVersion.int64Value
+    }
+    if let schemaVersion = jsonObject["schemaVersion"] as? Double {
+      return Int64(schemaVersion)
+    }
+    return 1
+  }
+
+  private func sha256Hex(for data: Data) -> String {
+    SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+  }
+
+  private func label(for accountStatus: CKAccountStatus) -> String {
+    switch accountStatus {
+    case .available:
+      return "available"
+    case .noAccount:
+      return "noAccount"
+    case .restricted:
+      return "restricted"
+    case .couldNotDetermine:
+      return "couldNotDetermine"
+    @unknown default:
+      return "unknown"
+    }
+  }
+
+  private func isTransient(error: Error) -> Bool {
+    guard let ckError = error as? CKError else { return false }
+    switch ckError.code {
+    case .networkFailure, .networkUnavailable, .serviceUnavailable, .requestRateLimited, .zoneBusy:
+      return true
+    default:
+      return false
+    }
+  }
+
+  private func errorMessage(for error: Error) -> String {
+    guard let ckError = error as? CKError else {
+      return error.localizedDescription
+    }
+
+    switch ckError.code {
+    case .networkFailure, .networkUnavailable, .serviceUnavailable, .requestRateLimited, .zoneBusy:
+      return "iCloud ist gerade nicht erreichbar."
+    case .notAuthenticated:
+      return "Bitte melde dich in den iOS Einstellungen bei iCloud an."
+    case .permissionFailure:
+      return "Der Zugriff auf CloudKit ist fuer diese App noch nicht freigeschaltet."
+    case .missingEntitlement:
+      return "Der App fehlt die iCloud- oder CloudKit-Berechtigung im Signaturprofil."
+    case .badContainer:
+      return "Der konfigurierte iCloud-Container passt nicht zum Bundle Identifier oder ist im Apple Developer Portal noch nicht freigeschaltet."
+    case .serverRejectedRequest:
+      if let detail = cloudKitFailureDetail(for: ckError) {
+        return "CloudKit hat die Anfrage abgelehnt: \(detail)"
+      }
+      return "CloudKit hat die Anfrage abgelehnt. In TestFlight- oder Release-Builds ist meist das CloudKit-Schema noch nicht in Production deployed."
+    case .badDatabase:
+      return "Die CloudKit-Datenbank hat diese Anfrage abgelehnt."
+    case .quotaExceeded:
+      return "Der verfuegbare iCloud-Speicher reicht fuer den Sync gerade nicht aus."
+    default:
+      if let detail = cloudKitFailureDetail(for: ckError) {
+        return detail
+      }
+      return ckError.localizedDescription
+    }
+  }
+
+  private func cloudKitFailureDetail(for error: CKError) -> String? {
+    if let failureReason = error.userInfo[NSLocalizedFailureReasonErrorKey] as? String {
+      let trimmed = failureReason.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !trimmed.isEmpty {
+        return trimmed
+      }
+    }
+
+    if let underlyingError = error.userInfo[NSUnderlyingErrorKey] as? NSError {
+      if let failureReason = underlyingError.userInfo[NSLocalizedFailureReasonErrorKey] as? String {
+        let trimmed = failureReason.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+          return trimmed
+        }
+      }
+
+      let description = underlyingError.localizedDescription.trimmingCharacters(
+        in: .whitespacesAndNewlines
+      )
+      if !description.isEmpty && description != error.localizedDescription {
+        return description
+      }
+    }
+
+    return nil
   }
 }

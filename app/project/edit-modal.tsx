@@ -16,9 +16,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { SFSymbol } from '@/components/ui/sfsymbol';
 import { Colors } from '@/constants/theme';
+import { usePremium } from '@/context/premium-store';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
+import { shouldRouteToProjectLimitGate } from '@/utils/project-creation-gate';
 
 type ThemeName = keyof typeof Colors;
 
@@ -118,12 +120,17 @@ export default function ProjectEditScreen() {
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   const { projects, setProjects, setTasks } = useTasksStore();
+  const { hasPremiumAccess, isReady } = usePremium();
 
   const project = React.useMemo(
     () => (id ? projects.find((candidate) => candidate.id === id) : undefined),
     [id, projects]
   );
   const isCreate = !id || !project;
+  const activeProjectCount = React.useMemo(
+    () => projects.filter((candidate) => !candidate.deletedAt).length,
+    [projects]
+  );
 
   const [name, setName] = React.useState(project?.name ?? '');
   const [description, setDescription] = React.useState(project?.description ?? '');
@@ -139,9 +146,17 @@ export default function ProjectEditScreen() {
 
   React.useEffect(() => {
     if (isCreate) {
-      router.replace('/project/create-modal');
+      router.replace(
+        shouldRouteToProjectLimitGate({
+          activeProjectCount,
+          hasPremiumAccess,
+          isReady,
+        })
+          ? '/project/limit-modal'
+          : '/project/create-modal'
+      );
     }
-  }, [isCreate, router]);
+  }, [activeProjectCount, hasPremiumAccess, isCreate, isReady, router]);
 
   React.useEffect(() => {
     if (!project) return;

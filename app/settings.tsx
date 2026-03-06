@@ -23,6 +23,7 @@ import SegmentedControl from "@react-native-segmented-control/segmented-control"
 import * as Calendar from "expo-calendar";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
+import { useRouter } from "expo-router";
 import React from "react";
 import {
   Alert,
@@ -39,11 +40,13 @@ import {
 } from "react-native";
 
 import { Colors } from "@/constants/theme";
+import { getPremiumPlanLabel } from "@/constants/premium";
 import {
   TAG_ORDER,
   type TagId,
   useHomeFilters,
 } from "@/context/home-filters-store";
+import { usePremium } from "@/context/premium-store";
 import {
   type Project,
   type SectionId,
@@ -51,6 +54,14 @@ import {
   useTasksStore,
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import {
+  getCloudSyncStatus,
+  setNativeCloudSyncEnabled,
+  subscribeToCloudSyncStatus,
+  syncCloudNow,
+  type CloudSyncAccountStatus,
+  type CloudSyncStatus,
+} from "@/services/cloud-sync";
 import { deriveActiveSectionFromDueAt } from "@/utils/task-dates";
 
 type ThemeName = keyof typeof Colors;
@@ -65,7 +76,6 @@ const APP_BADGE_LABELS: Record<AppBadgeMode, string> = {
   hidden: "Hidden",
 };
 
-const SHOW_SYNC_INTEGRATION_SECTION = false;
 const SHOW_APPLE_IMPORT_SECTION = false;
 
 type BackupSchemaVersion = 1;
@@ -84,6 +94,7 @@ type AppBackupPayload = {
     appBadgeMode: AppBadgeMode;
     dailySummaryEnabled: boolean;
     dailySummaryMinutes: number;
+    cloudSyncEnabled: boolean;
   };
   homeFilters: {
     enabledTags: TagId[];
@@ -161,6 +172,34 @@ function toErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   if (typeof error === "string") return error;
   return "Unbekannter Fehler";
+}
+
+function formatStatusDateTime(value: number | null): string | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+
+  return new Intl.DateTimeFormat("de-DE", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+function getCloudSyncAccountMessage(accountStatus: CloudSyncAccountStatus): string {
+  switch (accountStatus) {
+    case "available":
+      return "Aufgaben und Projekte werden über iCloud zwischen deinen Apple-Geraeten abgeglichen.";
+    case "noAccount":
+      return "Bitte melde dich in den iOS Einstellungen mit einer Apple-ID bei iCloud an.";
+    case "restricted":
+      return "iCloud ist auf diesem Geraet aktuell eingeschraenkt.";
+    case "couldNotDetermine":
+      return "Der iCloud-Status konnte gerade nicht bestimmt werden.";
+    case "temporarilyUnavailable":
+      return "iCloud ist gerade nicht erreichbar. Der Sync versucht es spaeter erneut.";
+    default:
+      return "Der iCloud-Status ist aktuell unbekannt.";
+  }
 }
 
 function sanitizeTagIds(value: unknown): TagId[] {
@@ -352,6 +391,10 @@ function parseBackupPayload(rawJson: string): AppBackupPayload {
       dailySummaryMinutes: normalizeDailySummaryMinutes(
         appSettings.dailySummaryMinutes,
       ),
+      cloudSyncEnabled:
+        typeof appSettings.cloudSyncEnabled === "boolean"
+          ? appSettings.cloudSyncEnabled
+          : false,
     },
     homeFilters: {
       enabledTags: sanitizeTagIds(homeFilters.enabledTags),
@@ -398,6 +441,7 @@ function Section({
 }
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const theme = (useColorScheme() ?? "light") as ThemeName;
   const isDark = theme === "dark";
   const menuRef = React.useRef<MenuComponentRef>(null);
@@ -418,6 +462,7 @@ export default function SettingsScreen() {
     appBadgeMode,
     dailySummaryEnabled,
     dailySummaryMinutes,
+    cloudSyncEnabled,
     setAccentColor,
     setAppearanceMode,
     setHapticsEnabled,
@@ -425,10 +470,8 @@ export default function SettingsScreen() {
     setAppBadgeMode,
     setDailySummaryEnabled,
     setDailySummaryMinutes,
+    setCloudSyncEnabled,
   } = useAppSettings();
-
-  const [icloudSyncEnabled, setIcloudSyncEnabled] = React.useState(true);
-  const [siriShortcutsEnabled, setSiriShortcutsEnabled] = React.useState(true);
 
   const dailySummaryTime = React.useMemo(() => {
     const initial = new Date();
@@ -446,6 +489,16 @@ export default function SettingsScreen() {
   const [isExportingBackup, setIsExportingBackup] = React.useState(false);
   const [isRestoringBackup, setIsRestoringBackup] = React.useState(false);
   const [isImportingAppleData, setIsImportingAppleData] = React.useState(false);
+  const [cloudSyncStatus, setCloudSyncStatus] =
+    React.useState<CloudSyncStatus | null>(null);
+  const [isCloudSyncBusy, setIsCloudSyncBusy] = React.useState(false);
+  const {
+    hasPremiumAccess,
+    isReady: isPremiumReady,
+    plan,
+  } = usePremium();
+  const effectiveCloudSyncEnabled =
+    Platform.OS === "ios" && cloudSyncEnabled && hasPremiumAccess;
 
   const borderColor = isDark ? "rgba(255,255,255,0.11)" : "rgba(17,24,28,0.09)";
   const cardBackground = isDark ? "#1C1C1E" : "#F2F2F7";
@@ -505,6 +558,147 @@ export default function SettingsScreen() {
     [setDailySummaryMinutes],
   );
 
+  const refreshCloudSyncStatus = React.useCallback(async () => {
+    if (Platform.OS !== "ios") return;
+    const status = await getCloudSyncStatus();
+    setCloudSyncStatus(status);
+  }, []);
+
+  React.useEffect(() => {
+    if (Platform.OS !== "ios") return;
+    void refreshCloudSyncStatus();
+    const subscription = subscribeToCloudSyncStatus((status) => {
+      setCloudSyncStatus(status);
+    });
+
+    return () => {
+      subscription?.remove();
+    };
+  }, [refreshCloudSyncStatus]);
+
+  const onToggleCloudSync = React.useCallback(
+    async (enabled: boolean) => {
+      if (Platform.OS !== "ios") return;
+      if (enabled && !hasPremiumAccess) {
+        Alert.alert(
+          "Reminds+ erforderlich",
+          "Cloud Sync ist Teil von Reminds+ und wird erst nach der Freischaltung aktiviert.",
+        );
+        router.push("/plus?source=sync");
+        return;
+      }
+
+      setIsCloudSyncBusy(true);
+      try {
+        const status = await setNativeCloudSyncEnabled(enabled);
+        setCloudSyncEnabled(enabled);
+        setCloudSyncStatus(status);
+
+        if (enabled && status.accountStatus !== "available") {
+          Alert.alert("iCloud erforderlich", getCloudSyncAccountMessage(status.accountStatus));
+        } else if (enabled && status.lastError) {
+          Alert.alert("Cloud Sync", status.lastError);
+        }
+      } catch (error) {
+        Alert.alert("Cloud Sync fehlgeschlagen", toErrorMessage(error));
+        await refreshCloudSyncStatus();
+      } finally {
+        setIsCloudSyncBusy(false);
+      }
+    },
+    [
+      hasPremiumAccess,
+      refreshCloudSyncStatus,
+      router,
+      setCloudSyncEnabled,
+    ],
+  );
+
+  const onCloudSyncNow = React.useCallback(async () => {
+    if (Platform.OS !== "ios") return;
+    if (!hasPremiumAccess) {
+      Alert.alert(
+        "Reminds+ erforderlich",
+        "Cloud Sync ist Teil von Reminds+ und steht nach der Freischaltung bereit.",
+      );
+      router.push("/plus?source=sync");
+      return;
+    }
+    if (!cloudSyncEnabled) {
+      await onToggleCloudSync(true);
+      return;
+    }
+
+    setIsCloudSyncBusy(true);
+    try {
+      const result = await syncCloudNow();
+      setCloudSyncStatus(result);
+
+      if (result.accountStatus !== "available") {
+        Alert.alert("iCloud erforderlich", getCloudSyncAccountMessage(result.accountStatus));
+        return;
+      }
+
+      if (result.lastError) {
+        Alert.alert("Cloud Sync", result.lastError);
+        return;
+      }
+
+      const summary = result.didPullRemote
+        ? "Die neuesten Aenderungen wurden aus iCloud geladen."
+        : result.didPushLocal
+          ? "Deine lokalen Aenderungen wurden nach iCloud geladen."
+          : "Alle Geraete sind bereits auf dem aktuellen Stand.";
+      Alert.alert("Synchronisierung abgeschlossen", summary);
+    } catch (error) {
+      Alert.alert("Synchronisierung fehlgeschlagen", toErrorMessage(error));
+      await refreshCloudSyncStatus();
+    } finally {
+      setIsCloudSyncBusy(false);
+    }
+  }, [
+    cloudSyncEnabled,
+    hasPremiumAccess,
+    onToggleCloudSync,
+    refreshCloudSyncStatus,
+    router,
+  ]);
+
+  const cloudSyncStatusText = React.useMemo(() => {
+    if (Platform.OS !== "ios") {
+      return "Cloud Sync ist nur auf iPhone und iPad verfuegbar.";
+    }
+
+    if (!hasPremiumAccess) {
+      return cloudSyncEnabled
+        ? "Cloud Sync ist vorgemerkt, bleibt aber ohne Reminds+ pausiert."
+        : "Cloud Sync teilt Aufgaben und Projekte zwischen deinen Apple-Geraeten und ist Teil von Reminds+.";
+    }
+
+    if (!cloudSyncEnabled) {
+      return "Nach dem Einschalten werden Aufgaben und Projekte bei App-Start, Rueckkehr in die App und im Hintergrund synchronisiert.";
+    }
+
+    const lastSync = formatStatusDateTime(cloudSyncStatus?.lastSyncAt ?? null);
+    const accountMessage = getCloudSyncAccountMessage(
+      cloudSyncStatus?.accountStatus ?? "unknown",
+    );
+
+    if (cloudSyncStatus?.lastError) {
+      return `${accountMessage} Letzter Fehler: ${cloudSyncStatus.lastError}`;
+    }
+
+    if (lastSync) {
+      return `${accountMessage} Letzter erfolgreicher Sync: ${lastSync}.`;
+    }
+
+    return accountMessage;
+  }, [
+    cloudSyncEnabled,
+    cloudSyncStatus,
+    hasPremiumAccess,
+  ]);
+
   const onExportBackup = React.useCallback(async () => {
     if (isExportingBackup || isRestoringBackup || isImportingAppleData) return;
     setIsExportingBackup(true);
@@ -524,6 +718,7 @@ export default function SettingsScreen() {
           appBadgeMode,
           dailySummaryEnabled,
           dailySummaryMinutes,
+          cloudSyncEnabled,
         },
         homeFilters: {
           enabledTags: TAG_ORDER.filter((tagId) => enabledTags.has(tagId)),
@@ -546,6 +741,7 @@ export default function SettingsScreen() {
     appearanceMode,
     dailySummaryEnabled,
     dailySummaryMinutes,
+    cloudSyncEnabled,
     enabledTags,
     hapticsEnabled,
     isExportingBackup,
@@ -578,6 +774,7 @@ export default function SettingsScreen() {
       setAppBadgeMode(backup.appSettings.appBadgeMode);
       setDailySummaryEnabled(backup.appSettings.dailySummaryEnabled);
       setDailySummaryMinutes(backup.appSettings.dailySummaryMinutes);
+      setCloudSyncEnabled(backup.appSettings.cloudSyncEnabled);
 
       const nextEnabledTags = new Set<TagId>(backup.homeFilters.enabledTags);
       setEnabledTags(() => nextEnabledTags);
@@ -599,6 +796,7 @@ export default function SettingsScreen() {
     isRestoringBackup,
     setAccentColor,
     setAppBadgeMode,
+    setCloudSyncEnabled,
     setAppearanceMode,
     setDailySummaryEnabled,
     setDailySummaryMinutes,
@@ -911,6 +1109,30 @@ export default function SettingsScreen() {
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
     >
+      <Section title="Reminds+" cardStyle={sectionCardStyle}>
+        <View style={styles.rowBlock}>
+          <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
+            Plan
+          </Text>
+          <Text style={[styles.rowValue, { color: Colors[theme].text }]}>
+            {!isPremiumReady ? "Wird geprueft..." : getPremiumPlanLabel(plan)}
+          </Text>
+        </View>
+
+        <View style={[styles.separator, { backgroundColor: borderColor }]} />
+
+        <Text style={[styles.helperText, { color: muted }]}>
+          AI-Assist, mehr als 4 Projekte und die Cloud-Sync-Freischaltung fuer Apple-Geraete.
+        </Text>
+
+        <View style={styles.buttonRow}>
+          <Button
+            title={hasPremiumAccess ? "Kaufoptionen anzeigen" : "Angebot oeffnen"}
+            onPress={() => router.push("/plus")}
+          />
+        </View>
+      </Section>
+
       <Section title="Darstellung" cardStyle={sectionCardStyle}>
         <View style={styles.rowBlock}>
           <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
@@ -963,36 +1185,43 @@ export default function SettingsScreen() {
         </View>
       </Section>
 
-      {SHOW_SYNC_INTEGRATION_SECTION ? (
-        <Section title="Sync & Integration" cardStyle={sectionCardStyle}>
+      {Platform.OS === "ios" ? (
+        <Section title="Cloud Sync" cardStyle={sectionCardStyle}>
           <View style={styles.switchRow}>
-            <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-              iCloud-Sync
-            </Text>
+            <View style={styles.switchLabelWrap}>
+              <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
+                iCloud-Sync
+              </Text>
+              <Text style={[styles.helperInlineText, { color: muted }]}>
+                {effectiveCloudSyncEnabled ? "Aktiv" : "Aus"}
+              </Text>
+            </View>
             <Switch
-              value={icloudSyncEnabled}
-              onValueChange={setIcloudSyncEnabled}
+              value={cloudSyncEnabled}
+              onValueChange={onToggleCloudSync}
+              disabled={isCloudSyncBusy}
               trackColor={{ false: "#7A7A7A", true: "#34C759" }}
             />
           </View>
 
           <View style={[styles.separator, { backgroundColor: borderColor }]} />
 
-          <View style={styles.switchRow}>
-            <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-              Siri & Kurzbefehle
-            </Text>
-            <Switch
-              value={siriShortcutsEnabled}
-              onValueChange={setSiriShortcutsEnabled}
-              trackColor={{ false: "#7A7A7A", true: "#34C759" }}
-            />
-          </View>
-
-          <View style={[styles.separator, { backgroundColor: borderColor }]} />
+          <Text style={[styles.helperText, { color: muted }]}>
+            {cloudSyncStatusText}
+          </Text>
 
           <View style={styles.buttonRow}>
-            <Button title="Jetzt synchronisieren" onPress={() => {}} />
+            <Button
+              title={
+                isCloudSyncBusy
+                  ? "Synchronisiere..."
+                  : cloudSyncEnabled
+                    ? "Jetzt synchronisieren"
+                    : "Sync aktivieren & starten"
+              }
+              onPress={onCloudSyncNow}
+              disabled={isCloudSyncBusy}
+            />
           </View>
         </Section>
       ) : null}
@@ -1230,9 +1459,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
+  switchLabelWrap: {
+    flexShrink: 1,
+    gap: 2,
+    paddingRight: 12,
+  },
   rowLabel: {
     fontSize: 16,
     fontWeight: "500",
+  },
+  helperInlineText: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  rowValue: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  helperText: {
+    fontSize: 13,
+    lineHeight: 19,
+    paddingHorizontal: 14,
   },
   buttonRow: {
     paddingHorizontal: 14,

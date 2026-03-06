@@ -47,6 +47,7 @@ type PersistedSettings = {
   appBadgeMode: AppBadgeMode;
   dailySummaryEnabled: boolean;
   dailySummaryMinutes: number;
+  cloudSyncEnabled: boolean;
 };
 
 type SettingsSnapshot = PersistedSettings & {
@@ -63,6 +64,7 @@ const DEFAULT_SETTINGS: PersistedSettings = {
   appBadgeMode: DEFAULT_APP_BADGE_MODE,
   dailySummaryEnabled: false,
   dailySummaryMinutes: DEFAULT_DAILY_SUMMARY_MINUTES,
+  cloudSyncEnabled: false,
 };
 
 const ACCENT_COLOR_VALUE_BY_ID = ACCENT_COLORS.reduce(
@@ -120,6 +122,8 @@ function sanitizeStoredSettings(value: unknown): PersistedSettings | null {
     .dailySummaryEnabled;
   const dailySummaryMinutes = (value as { dailySummaryMinutes?: unknown })
     .dailySummaryMinutes;
+  const cloudSyncEnabled = (value as { cloudSyncEnabled?: unknown })
+    .cloudSyncEnabled;
   return {
     appearanceMode: isAppearanceMode(appearanceMode)
       ? appearanceMode
@@ -143,6 +147,10 @@ function sanitizeStoredSettings(value: unknown): PersistedSettings | null {
         ? dailySummaryEnabled
         : DEFAULT_SETTINGS.dailySummaryEnabled,
     dailySummaryMinutes: normalizeDailySummaryMinutes(dailySummaryMinutes),
+    cloudSyncEnabled:
+      typeof cloudSyncEnabled === "boolean"
+        ? cloudSyncEnabled
+        : DEFAULT_SETTINGS.cloudSyncEnabled,
   };
 }
 
@@ -244,6 +252,7 @@ function updateSettings(next: PersistedSettings) {
     snapshot.appBadgeMode !== next.appBadgeMode ||
     snapshot.dailySummaryEnabled !== next.dailySummaryEnabled ||
     snapshot.dailySummaryMinutes !== next.dailySummaryMinutes ||
+    snapshot.cloudSyncEnabled !== next.cloudSyncEnabled ||
     !snapshot.hasHydrated;
   if (!hasChanged) return;
 
@@ -279,6 +288,7 @@ function patchSettings(partial: Partial<PersistedSettings>) {
       partial.dailySummaryMinutes !== undefined
         ? normalizeDailySummaryMinutes(partial.dailySummaryMinutes)
         : snapshot.dailySummaryMinutes,
+    cloudSyncEnabled: partial.cloudSyncEnabled ?? snapshot.cloudSyncEnabled,
   });
 }
 
@@ -358,6 +368,10 @@ export function useAppSettings() {
     [],
   );
 
+  const setCloudSyncEnabled = React.useCallback((cloudSyncEnabled: boolean) => {
+    patchSettings({ cloudSyncEnabled });
+  }, []);
+
   return {
     ...state,
     setAppearanceMode,
@@ -367,5 +381,6 @@ export function useAppSettings() {
     setAppBadgeMode,
     setDailySummaryEnabled,
     setDailySummaryMinutes,
+    setCloudSyncEnabled,
   };
 }

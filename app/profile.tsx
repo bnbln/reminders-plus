@@ -1,7 +1,10 @@
 import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 
+import { getPremiumPlanLabel } from '@/constants/premium';
 import { Colors } from '@/constants/theme';
+import { usePremium } from '@/context/premium-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 type ThemeName = keyof typeof Colors;
@@ -56,12 +59,28 @@ const createStyles = (theme: ThemeName) => {
       fontWeight: '600',
       color: text,
     },
+    ctaButton: {
+      marginTop: 6,
+      minHeight: 44,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: Colors[theme].tint,
+      paddingHorizontal: 14,
+    },
+    ctaButtonText: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: '#FFFFFF',
+    },
   });
 };
 
 export default function ProfileScreen() {
+  const router = useRouter();
   const theme = (useColorScheme() ?? 'light') as ThemeName;
   const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const { hasPremiumAccess, isReady, plan } = usePremium();
 
   return (
     <ScrollView
@@ -74,8 +93,8 @@ export default function ProfileScreen() {
       <View style={styles.card}>
         <Text style={styles.title}>Profil</Text>
         <Text style={styles.subtitle}>
-          Platzhalter-Screen ohne Backend-Logik. Hier können später Profil- und Accountdaten
-          angebunden werden.
+          Accountdaten laufen aktuell lokal. Deinen Kaufstatus fuer Reminds+ kannst du hier
+          direkt einsehen.
         </Text>
       </View>
 
@@ -90,8 +109,19 @@ export default function ProfileScreen() {
         </View>
         <View style={styles.row}>
           <Text style={styles.rowLabel}>Plan</Text>
-          <Text style={styles.rowValue}>Free</Text>
+          <Text style={styles.rowValue}>
+            {isReady ? getPremiumPlanLabel(plan) : 'Wird geprueft...'}
+          </Text>
         </View>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/plus')}
+          style={({ pressed }) => [styles.ctaButton, pressed && { opacity: 0.86 }]}
+        >
+          <Text style={styles.ctaButtonText}>
+            {hasPremiumAccess ? 'Reminds+ verwalten' : 'Reminds+ ansehen'}
+          </Text>
+        </Pressable>
       </View>
     </ScrollView>
   );

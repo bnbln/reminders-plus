@@ -6,18 +6,29 @@ import { Platform } from "react-native";
 
 import { HeaderIconButton } from "@/components/ui/header-icon-button";
 import { Colors } from "@/constants/theme";
+import { usePremium } from "@/context/premium-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 
 export function AssistHeaderButton() {
   const router = useRouter();
   const theme = useColorScheme() ?? "light";
   const color = Colors[theme].text;
+  const { hasPremiumAccess, isReady } = usePremium();
+
+  const handlePress = React.useCallback(() => {
+    if (!isReady || hasPremiumAccess) {
+      router.push("/assist");
+      return;
+    }
+
+    router.push({ pathname: "/plus", params: { source: "assist" } });
+  }, [hasPremiumAccess, isReady, router]);
 
   return (
     <HeaderIconButton
       accessibilityRole="button"
       accessibilityLabel="Assistant"
-      onPress={() => router.push("/assist")}
+      onPress={handlePress}
     >
       {Platform.OS === "ios" ? (
         <SymbolView

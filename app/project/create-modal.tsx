@@ -16,9 +16,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { SFSymbol } from '@/components/ui/sfsymbol';
 import { Colors } from '@/constants/theme';
+import { usePremium } from '@/context/premium-store';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
+import { shouldRouteToProjectLimitGate } from '@/utils/project-creation-gate';
 
 type ThemeName = keyof typeof Colors;
 
@@ -118,7 +120,8 @@ export default function ProjectCreateModal() {
   const isDark = theme === 'dark';
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
-  const { setProjects } = useTasksStore();
+  const { projects, setProjects } = useTasksStore();
+  const { hasPremiumAccess, isReady } = usePremium();
 
   const [name, setName] = React.useState('');
   const [description, setDescription] = React.useState('');
@@ -131,6 +134,10 @@ export default function ProjectCreateModal() {
   const activeInputRef = React.useRef<'title' | 'description'>('title');
 
   const canSubmit = name.trim().length > 0;
+  const activeProjectCount = React.useMemo(
+    () => projects.filter((project) => !project.deletedAt).length,
+    [projects]
+  );
 
   React.useEffect(() => {
     const timer = setTimeout(() => titleInputRef.current?.focus(), 0);
@@ -160,7 +167,7 @@ export default function ProjectCreateModal() {
     activeInputRef.current = 'description';
   }, []);
 
-  const onCreate = React.useCallback(() => {
+  const createProject = React.useCallback(() => {
     const trimmedName = name.trim();
     if (!trimmedName) return;
 
@@ -183,6 +190,23 @@ export default function ProjectCreateModal() {
 
     router.back();
   }, [color, description, icon, name, router, selectedEmoji, setProjects]);
+
+  const onCreate = React.useCallback(() => {
+    if (!name.trim()) return;
+
+    if (
+      shouldRouteToProjectLimitGate({
+        activeProjectCount,
+        hasPremiumAccess,
+        isReady,
+      })
+    ) {
+      router.replace('/project/limit-modal');
+      return;
+    }
+
+    createProject();
+  }, [activeProjectCount, createProject, hasPremiumAccess, isReady, name, router]);
 
   const onBackdropPress = React.useCallback(() => {
     router.back();

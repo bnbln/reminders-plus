@@ -21,6 +21,7 @@ import {
 import { withAlpha } from '@/components/ui/glass-surface';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
+import { usePremium } from '@/context/premium-store';
 import { getAccentColorValue, useAppSettings } from '@/context/settings-store';
 import { type Project, type SectionId, type Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -1669,7 +1670,7 @@ function AssistEntityActionButton({
   );
 }
 
-export default function AssistScreen() {
+function AssistUnlockedScreen() {
   const [messages, setMessages] = React.useState<Message[]>([]);
   const [input, setInput] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(false);
@@ -2463,6 +2464,118 @@ export default function AssistScreen() {
       )}
     </ThemedView>
   );
+}
+
+export default function AssistScreen() {
+  const router = useRouter();
+  const rawColorScheme = useColorScheme();
+  const resolvedColorScheme: 'light' | 'dark' = rawColorScheme === 'dark' ? 'dark' : 'light';
+  const colors = Colors[resolvedColorScheme];
+  const isDark = resolvedColorScheme === 'dark';
+  const { hasPremiumAccess, isReady } = usePremium();
+
+  if (!isReady) {
+    return (
+      <ThemedView
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingHorizontal: 24,
+          gap: 14,
+          backgroundColor: colors.background,
+        }}
+      >
+        <ActivityIndicator color={colors.text} />
+        <Text
+          style={{
+            fontSize: 15,
+            lineHeight: 21,
+            textAlign: 'center',
+            color: withAlpha(colors.text, 0.72),
+          }}
+        >
+          Pruefe deinen Reminds+ Status im App Store...
+        </Text>
+      </ThemedView>
+    );
+  }
+
+  if (!hasPremiumAccess) {
+    return (
+      <ThemedView
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          paddingHorizontal: 18,
+          backgroundColor: colors.background,
+        }}
+      >
+        <View
+          style={{
+            borderRadius: 28,
+            paddingHorizontal: 20,
+            paddingVertical: 22,
+            gap: 14,
+            backgroundColor: isDark ? '#18212B' : '#FFF5E6',
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: isDark
+              ? 'rgba(255,255,255,0.08)'
+              : 'rgba(17,24,28,0.08)',
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 30,
+              lineHeight: 34,
+              fontWeight: '800',
+              letterSpacing: -0.8,
+              color: colors.text,
+            }}
+          >
+            AI-Assist braucht Reminds+.
+          </Text>
+          <Text
+            style={{
+              fontSize: 15,
+              lineHeight: 22,
+              color: withAlpha(colors.text, 0.74),
+            }}
+          >
+            Mit Reminds+ schaltest du unseren Assist View, mehr als vier Projekte
+            und die Cloud-Sync-Freischaltung fuer Apple-Geraete frei.
+          </Text>
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.replace({ pathname: '/plus', params: { source: 'assist' } })}
+            style={({ pressed }) => [
+              {
+                minHeight: 48,
+                borderRadius: 16,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#FF8A00',
+              },
+              pressed && { opacity: 0.86 },
+            ]}
+          >
+            <Text
+              style={{
+                color: '#FFFFFF',
+                fontSize: 15,
+                fontWeight: '700',
+              }}
+            >
+              Reminds+ ansehen
+            </Text>
+          </Pressable>
+        </View>
+      </ThemedView>
+    );
+  }
+
+  return <AssistUnlockedScreen />;
 }
 
 const styles = StyleSheet.create({

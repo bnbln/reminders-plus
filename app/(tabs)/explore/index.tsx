@@ -14,9 +14,11 @@ import { FloatingAddButton } from "@/components/ui/floating-add-button";
 import { GlassSurface } from "@/components/ui/glass-surface";
 import { SFSymbol } from "@/components/ui/sfsymbol";
 import { Colors } from "@/constants/theme";
+import { usePremium } from "@/context/premium-store";
 import { Project, useTasksStore } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { isIOS26OrNewer } from "@/utils/ios-version";
+import { shouldRouteToProjectLimitGate } from "@/utils/project-creation-gate";
 
 type ThemeName = keyof typeof Colors;
 const GRID_HORIZONTAL_PADDING = 16;
@@ -206,6 +208,11 @@ export default function ExploreScreen() {
   );
 
   const { projects, tasks } = useTasksStore();
+  const { hasPremiumAccess, isReady } = usePremium();
+  const activeProjectCount = React.useMemo(
+    () => projects.filter((project) => !project.deletedAt).length,
+    [projects],
+  );
 
   const taskCounts = React.useMemo(() => {
     const counts = new Map<string, number>();
@@ -222,8 +229,16 @@ export default function ExploreScreen() {
   }, [projects]);
 
   const onCreateProject = React.useCallback(() => {
-    router.push("/project/create-modal");
-  }, [router]);
+    router.push(
+      shouldRouteToProjectLimitGate({
+        activeProjectCount,
+        hasPremiumAccess,
+        isReady,
+      })
+        ? "/project/limit-modal"
+        : "/project/create-modal",
+    );
+  }, [activeProjectCount, hasPremiumAccess, isReady, router]);
 
   const onPressProject = React.useCallback(
     (id: string) => {
