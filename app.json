@@ -2,7 +2,7 @@
   "expo": {
     "name": "reminds",
     "slug": "reminds",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "reminds",
@@ -18,9 +18,7 @@
         "NSRemindersFullAccessUsageDescription": "Wir importieren Erinnerungen aus Apple Erinnerungen in deine App.",
         "NSLocationWhenInUseUsageDescription": "Wir verwenden deinen Standort, um den aktuellen Ort für den Task vorzuschlagen.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Wir verwenden deinen Standort, um den aktuellen Ort für den Task vorzuschlagen.",
-        "UIBackgroundModes": [
-          "remote-notification"
-        ]
+        "UIBackgroundModes": ["remote-notification"]
       }
     },
     "android": {
