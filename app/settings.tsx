@@ -1101,15 +1101,16 @@ export default function SettingsScreen() {
   ]);
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: Colors[theme].background }}
-      contentContainerStyle={styles.content}
-      contentInsetAdjustmentBehavior="automatic"
-      alwaysBounceVertical
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-    >
-      <Section title="Reminds+" cardStyle={sectionCardStyle}>
+    <View style={{ flex: 1, backgroundColor: "transparent" }}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        contentInsetAdjustmentBehavior="automatic"
+        alwaysBounceVertical
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Section title="Reminds+" cardStyle={sectionCardStyle}>
         <View style={styles.rowBlock}>
           <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
             Plan
@@ -1411,7 +1412,7 @@ export default function SettingsScreen() {
         </View>
       </Section>
 
-      {/* <View
+        {/* <View
         style={[
           styles.footerNote,
           {
@@ -1423,12 +1424,16 @@ export default function SettingsScreen() {
         <Text style={[styles.footerText, { color: muted }]}>
           Datensicherung ist aktiv. Cloud-Sync und Apple-Import sind aktuell ausgeblendet.
         </Text>
-      </View> */}
-    </ScrollView>
+        </View> */}
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  scroll: {
+    flex: 1,
+  },
   content: {
     paddingHorizontal: 16,
     paddingTop: 12,

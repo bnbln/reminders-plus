@@ -5,6 +5,7 @@ import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { TaskSwipeDraggableList } from "@/components/tasks/task-swipe-draggable-list";
 import { withAlpha } from "@/components/ui/glass-surface";
+import { StreakAccentBackground } from "@/components/ui/streak-accent-background";
 import { Colors } from "@/constants/theme";
 import { useHomeFilters } from "@/context/home-filters-store";
 import { type Task, useTasksStore } from "@/context/tasks-store";
@@ -26,9 +27,6 @@ export default function SearchIndex() {
   }>();
   const theme = useColorScheme() ?? "light";
   const isDark = theme === "dark";
-  const screenBackground = isDark
-    ? Colors[theme].background
-    : IOS_LIGHT_BASE_BACKGROUND;
   const styles = React.useMemo(() => createStyles(theme), [theme]);
 
   const { tasks, setTasks, projects } = useTasksStore();
@@ -140,7 +138,8 @@ export default function SearchIndex() {
   const isEmptyWithoutQuery = query.length === 0;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: "transparent" }]}>
+      <StreakAccentBackground isDark={isDark} />
       <ScrollView
         key={listRenderKey}
         style={styles.scroll}
@@ -159,7 +158,7 @@ export default function SearchIndex() {
           rowStyles={styles}
           itemSpacing={SEARCH_TASK_ITEM_SPACING}
           contentContainerStyle={styles.listContent}
-          containerStyle={{ backgroundColor: screenBackground }}
+          containerStyle={{ backgroundColor: "transparent" }}
           empty={
             <View style={styles.empty}>
               <View style={styles.emptyCard}>
@@ -213,12 +212,11 @@ const createStyles = (theme: keyof typeof Colors) => {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: isDark
-        ? Colors[theme].background
-        : IOS_LIGHT_BASE_BACKGROUND,
+      backgroundColor: "transparent",
     },
     scroll: {
       flex: 1,
+      backgroundColor: "transparent",
     },
     content: {
       paddingHorizontal: 16,

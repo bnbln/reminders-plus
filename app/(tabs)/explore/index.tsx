@@ -16,6 +16,7 @@ import {
 import { FloatingAddButton } from "@/components/ui/floating-add-button";
 import { GlassSurface } from "@/components/ui/glass-surface";
 import { SFSymbol } from "@/components/ui/sfsymbol";
+import { StreakAccentBackground } from "@/components/ui/streak-accent-background";
 import { Colors } from "@/constants/theme";
 import { usePremium } from "@/context/premium-store";
 import { Project, useTasksStore } from "@/context/tasks-store";
@@ -33,7 +34,6 @@ const GRID_GAP = 16;
 const GRID_COLUMNS = 2;
 const PROJECT_TILE_HEIGHT = 124;
 const DRAG_SCALE_ACTIVE = 1.03;
-const IOS_LIGHT_BASE_BACKGROUND = "#F2F2F7";
 const IOS_LIGHT_ELEVATED_SURFACE = "#FFFFFF";
 const IOS_LIGHT_SEPARATOR = "rgba(60, 60, 67, 0.22)";
 
@@ -61,7 +61,7 @@ const createExploreTheme = (theme: ThemeName): ExploreTheme => {
 
   return {
     screenBackground: useAppleLightPalette
-      ? IOS_LIGHT_BASE_BACKGROUND
+      ? "#F2F2F7"
       : Colors[theme].background,
     cardBackgroundColor: isDark ? "#1C1C1E" : IOS_LIGHT_ELEVATED_SURFACE,
     cardBorderColor: isDark
@@ -82,7 +82,7 @@ const createStyles = (palette: ExploreTheme, tileWidth: number) => {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: palette.screenBackground,
+      backgroundColor: "transparent",
     },
     scroll: {
       flex: 1,
@@ -641,11 +641,12 @@ export default function ExploreScreen() {
 
   return (
     <View
-      style={styles.container}
+      style={[styles.container, { backgroundColor: "transparent" }]}
       onTouchMove={handleGridTouchMove}
       onTouchEnd={handleGridTouchEnd}
       onTouchCancel={handleGridTouchEnd}
     >
+      <StreakAccentBackground isDark={theme === "dark"} />
       <ScrollView
         style={styles.scroll}
         scrollEnabled={!draggingProjectId}

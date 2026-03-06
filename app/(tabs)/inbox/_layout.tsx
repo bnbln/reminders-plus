@@ -9,7 +9,6 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
 
 const INBOX_HIDDEN_FILTER_TAGS = ["overdue", "datetime"] as const;
-const HOME_LIGHT_BACKGROUND = "#F2F2F7";
 
 export default function InboxLayout() {
   const theme = useColorScheme() ?? "light";
@@ -20,10 +19,7 @@ export default function InboxLayout() {
       screenOptions={{
         headerLargeTitle: Platform.OS === "ios",
         headerShadowVisible: false,
-        contentStyle: {
-          backgroundColor:
-            theme === "dark" ? Colors[theme].background : HOME_LIGHT_BACKGROUND,
-        },
+        contentStyle: { backgroundColor: "transparent" },
         headerTintColor: Colors[theme].text,
         headerTitleAlign,
         headerTitleStyle: { color: Colors[theme].text },

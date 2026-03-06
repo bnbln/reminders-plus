@@ -27,7 +27,6 @@ import {
   DatePicker as ExpoSwiftUIDatePicker,
   Host as ExpoSwiftUIHost,
 } from "@expo/ui/swift-ui";
-import { BlurView } from "expo-blur";
 import { datePickerStyle as expoSwiftDatePickerStyleModifier } from "@expo/ui/swift-ui/modifiers";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -43,7 +42,11 @@ import { AnimatedNumber } from "@/components/ui/animated-number";
 import { FloatingAddButton } from "@/components/ui/floating-add-button";
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { SFSymbol } from "@/components/ui/sfsymbol";
-import { Colors } from "@/constants/theme";
+import { StreakAccentBackground } from "@/components/ui/streak-accent-background";
+import {
+  Colors,
+  LIGHT_ACCENT_SCREEN_BACKGROUND,
+} from "@/constants/theme";
 import { useHomeFilters } from "@/context/home-filters-store";
 import { getAccentColorValue, useAppSettings } from "@/context/settings-store";
 import { useTaskCreateContext } from "@/context/task-create-context";
@@ -98,6 +101,9 @@ const TASK_ROW_HORIZONTAL_PADDING = 12;
 const CONTENT_STACK_GAP = 10;
 const DATE_TRANSITION_DURATION = 250;
 const DATE_TRANSITION_FALLBACK_DELAY_MS = 140;
+const DATE_RAIL_TITLE_TRANSITION_DURATION = 300;
+const DATE_RAIL_TITLE_SCRUB_DURATION = 190;
+const DATE_RAIL_TITLE_TRANSITION_DISTANCE = 10;
 const DRAG_RAIL_HOVER_INTENT_MS = 80;
 const IOS_LIGHT_BASE_BACKGROUND = "#F2F2F7"; // systemGroupedBackground
 const IOS_LIGHT_ELEVATED_SURFACE = "#FFFFFF"; // secondarySystemGroupedBackground
@@ -297,8 +303,16 @@ type DateListTransitionState = {
   toDateStart: number;
   direction: 1 | -1;
 };
+type DateRailTitleTransitionState = {
+  currentText: string;
+  previousText: string | null;
+  direction: 1 | -1;
+  animationToken: number;
+  phase: "idle" | "preparing" | "animating";
+};
 type DateSelectionSource =
   | "press"
+  | "rail"
   | "swipe"
   | "momentum"
   | "picker"
@@ -451,9 +465,6 @@ const createStyles = (
   const RADIUS_PILL = 999;
   // ───────────────────────────────────────────────────
 
-  const screenBackground = isDark
-    ? Colors[theme].background
-    : IOS_LIGHT_BASE_BACKGROUND;
   const hairline = isDark
     ? withAlpha(text, ALPHA_4)
     : useAppleLightPalette
@@ -483,28 +494,7 @@ const createStyles = (
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: screenBackground,
-    },
-    backgroundAccentLayer: {
-      ...StyleSheet.absoluteFillObject,
-      overflow: "hidden",
-    },
-    backgroundAccentBackdrop: {
-      ...StyleSheet.absoluteFillObject,
-    },
-    backgroundAccentOrb: {
-      position: "absolute",
-      overflow: "visible",
-    },
-    backgroundAccentOrbFill: {
-      ...StyleSheet.absoluteFillObject,
-      overflow: "hidden",
-    },
-    backgroundAccentBlur: {
-      ...StyleSheet.absoluteFillObject,
-    },
-    backgroundAccentFade: {
-      ...StyleSheet.absoluteFillObject,
+      backgroundColor: "transparent",
     },
     content: {
       paddingHorizontal: GRID_HORIZONTAL_PADDING,
@@ -714,17 +704,21 @@ const createStyles = (
       overflow: "hidden",
       alignItems: "flex-start",
       justifyContent: "center",
+      position: "relative",
     },
     dateRailTitleTextTransitionHost: {
       height: 24,
+      width: "100%",
       alignItems: "flex-start",
       justifyContent: "center",
+      position: "relative",
     },
     dateRailTitleTextMeasure: {
       opacity: 0,
     },
     dateRailTitleTextTransitionText: {
       position: "absolute",
+      top: 0,
       left: 0,
       right: 0,
     },
@@ -1278,14 +1272,13 @@ export default function HomeScreen() {
   const useAppleLightPalette = !isDark && Platform.OS === "ios";
   const screenBackground = isDark
     ? Colors[theme].background
-    : IOS_LIGHT_BASE_BACKGROUND;
+    : LIGHT_ACCENT_SCREEN_BACKGROUND;
   const accessoryBridge = NativeModules.TaskAccessoryContextBridge as
     | TaskAccessoryContextBridge
     | undefined;
   const { setMode, setPresetDateStart } = useTaskCreateContext();
   const { accentColor, reduceMotionEnabled } = useAppSettings();
-  const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
-  const backgroundAccentBackdropRef = React.useRef<View | null>(null);
+  const { width: viewportWidth } = useWindowDimensions();
   const isScreenFocusedRef = React.useRef(false);
 
   const [isCalendarPickerOpen, setIsCalendarPickerOpen] = React.useState(false);
@@ -1319,34 +1312,6 @@ export default function HomeScreen() {
     () => getAccentColorValue(accentColor),
     [accentColor],
   );
-  const homeBackgroundAccentOrbs = React.useMemo(() => {
-    const safeWidth = Math.max(viewportWidth, 360);
-    const safeHeight = Math.max(viewportHeight, 720);
-    const orbCount = 9;
-
-    return Array.from({ length: orbCount }, (_, index) => {
-      const progress = index / (orbCount - 1);
-      const softness = 1 - progress;
-      const density = Math.pow(softness, 1.28);
-      const baseOpacity =
-        (isDark ? 0.085 : 0.07) * density + (isDark ? 0.014 : 0.012);
-
-      return {
-        width: safeWidth * (2.9 - progress * 1.78),
-        height: safeHeight * (1.26 - progress * 0.78),
-        bottom: -safeHeight * (0.74 - progress * 0.48),
-        leftOffset:
-          (index % 2 === 0 ? -1 : 1) * safeWidth * 0.018 * softness,
-        baseOpacity,
-        focusOpacity: baseOpacity * (isDark ? 0.74 : 0.68),
-        shadowOpacity:
-          Platform.OS === "ios"
-            ? (isDark ? 0.24 : 0.18) * Math.pow(softness, 1.6)
-            : 0,
-        shadowRadius: safeWidth * (0.18 - progress * 0.07),
-      };
-    });
-  }, [isDark, viewportHeight, viewportWidth]);
   const styles = React.useMemo(
     () => createStyles(theme, dateRailItemWidth, calendarActiveColor),
     [calendarActiveColor, dateRailItemWidth, theme],
@@ -1419,14 +1384,7 @@ export default function HomeScreen() {
       cancelled = true;
     };
   }, []);
-  const { currentStreak, todayCompletedCount } = useStreaks();
-  const hasCompletedTaskToday = todayCompletedCount > 0;
-  const backgroundAccentTranslateY = React.useRef(
-    new Animated.Value(hasCompletedTaskToday ? 0 : viewportHeight),
-  ).current;
-  const backgroundAccentOpacity = React.useRef(
-    new Animated.Value(hasCompletedTaskToday ? 1 : 0),
-  ).current;
+  const { currentStreak } = useStreaks();
   const [selectedDateStart, setSelectedDateStart] = React.useState(() =>
     getStartOfToday(),
   );
@@ -1516,12 +1474,26 @@ export default function HomeScreen() {
     typeof setTimeout
   > | null>(null);
   const dateListTransitionSettleRafRef = React.useRef<number | null>(null);
+  const dateRailTitlePendingDurationRef = React.useRef<number | null>(null);
+  const dateRailTitleDeferredRequestRef = React.useRef<{
+    dateStart: number;
+    title: string;
+  } | null>(null);
+  const dateRailMomentumActiveRef = React.useRef(false);
   const dateRailTitleAnimationRef =
     React.useRef<Animated.CompositeAnimation | null>(null);
   const dateListTransitionProgressAnimationRef =
     React.useRef<Animated.CompositeAnimation | null>(null);
   const listTransitionRunningRef = React.useRef(false);
   const lastAnimatedTitleDateRef = React.useRef(selectedDateStart);
+  const dateRailTitleTransitionStateRef =
+    React.useRef<DateRailTitleTransitionState>({
+      currentText: t("common.today"),
+      previousText: null,
+      direction: 1,
+      animationToken: 0,
+      phase: "idle",
+    });
   const queuedDateStartRef = React.useRef<number | null>(null);
   const queuedDirectionRef = React.useRef<1 | -1>(1);
   const listDateStartRef = React.useRef(listDateStart);
@@ -1530,6 +1502,7 @@ export default function HomeScreen() {
     dateStart: number;
     source: DateSelectionSource;
     at: number;
+    direction: 1 | -1;
   } | null>(null);
   React.useEffect(() => {
     listDateStartRef.current = listDateStart;
@@ -1543,44 +1516,6 @@ export default function HomeScreen() {
       Math.abs(current - viewportWidth) < 1 ? current : viewportWidth,
     );
   }, [viewportWidth]);
-  React.useEffect(() => {
-    backgroundAccentTranslateY.stopAnimation();
-    backgroundAccentOpacity.stopAnimation();
-
-    const targetTranslateY = hasCompletedTaskToday ? 0 : viewportHeight;
-    const targetOpacity = hasCompletedTaskToday ? 1 : 0;
-
-    if (reduceMotionEnabled) {
-      backgroundAccentTranslateY.setValue(targetTranslateY);
-      backgroundAccentOpacity.setValue(targetOpacity);
-      return;
-    }
-
-    Animated.parallel([
-      Animated.spring(backgroundAccentTranslateY, {
-        toValue: targetTranslateY,
-        stiffness: hasCompletedTaskToday ? 58 : 52,
-        damping: hasCompletedTaskToday ? 18 : 22,
-        mass: 1.28,
-        overshootClamping: true,
-        useNativeDriver: true,
-      }),
-      Animated.timing(backgroundAccentOpacity, {
-        toValue: targetOpacity,
-        duration: hasCompletedTaskToday ? 1280 : 820,
-        easing: hasCompletedTaskToday
-          ? Easing.bezier(0.22, 1, 0.36, 1)
-          : Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [
-    backgroundAccentOpacity,
-    backgroundAccentTranslateY,
-    hasCompletedTaskToday,
-    reduceMotionEnabled,
-    viewportHeight,
-  ]);
   const dayLabelFormatter = React.useMemo(
     () => new Intl.DateTimeFormat(undefined, { weekday: "narrow" }),
     [],
@@ -1770,9 +1705,42 @@ export default function HomeScreen() {
     },
     [currentWeekStart, dateTitleFormatter, todayStart, weekdayTitleFormatter],
   );
-  const dynamicHeaderTitle = React.useMemo(
-    () => getDynamicHeaderTitle(selectedDateStart),
-    [getDynamicHeaderTitle, selectedDateStart],
+  const [dateRailTitleTransitionState, setDateRailTitleTransitionState] =
+    React.useState<DateRailTitleTransitionState>(() => ({
+      currentText: getDynamicHeaderTitle(selectedDateStart),
+      previousText: null,
+      direction: 1,
+      animationToken: 0,
+      phase: "idle",
+    }));
+  const updateDateRailTitleTransitionState = React.useCallback(
+    (
+      updater:
+        | DateRailTitleTransitionState
+        | ((
+            current: DateRailTitleTransitionState,
+          ) => DateRailTitleTransitionState),
+    ) => {
+      setDateRailTitleTransitionState((current) => {
+        const next =
+          typeof updater === "function"
+            ? (
+                updater as (
+                  current: DateRailTitleTransitionState,
+                ) => DateRailTitleTransitionState
+              )(current)
+            : updater;
+        dateRailTitleTransitionStateRef.current = next;
+        return current.currentText === next.currentText &&
+          current.previousText === next.previousText &&
+          current.direction === next.direction &&
+          current.animationToken === next.animationToken &&
+          current.phase === next.phase
+          ? current
+          : next;
+      });
+    },
+    [],
   );
   React.useLayoutEffect(() => {
     navigation.setOptions({ title: t("common.today") });
@@ -1876,46 +1844,233 @@ export default function HomeScreen() {
     cancelAnimationFrame(dateListTransitionSettleRafRef.current);
     dateListTransitionSettleRafRef.current = null;
   }, []);
+  const clearDeferredDateRailTitle = React.useCallback(() => {
+    dateRailTitleDeferredRequestRef.current = null;
+  }, []);
   const stopDateRailTitleAnimation = React.useCallback(() => {
     const runningAnimation = dateRailTitleAnimationRef.current;
     if (!runningAnimation) return;
     runningAnimation.stop();
     dateRailTitleAnimationRef.current = null;
   }, []);
+  const commitDateRailTitle = React.useCallback(
+    (title: string, direction: 1 | -1) => {
+      dateRailTitlePendingDurationRef.current = null;
+      stopDateRailTitleAnimation();
+      dateRailTitleMotion.stopAnimation();
+      dateRailTitleMotion.setValue(1);
+      updateDateRailTitleTransitionState((current) =>
+        current.currentText === title &&
+        current.previousText == null &&
+        current.direction === direction &&
+        current.phase === "idle"
+          ? current
+          : {
+              currentText: title,
+              previousText: null,
+              direction,
+              animationToken: current.animationToken,
+              phase: "idle",
+            },
+      );
+    },
+    [
+      dateRailTitleMotion,
+      stopDateRailTitleAnimation,
+      updateDateRailTitleTransitionState,
+    ],
+  );
   const resetDateRailTitleMotion = React.useCallback(() => {
-    stopDateRailTitleAnimation();
+    const current = dateRailTitleTransitionStateRef.current;
+    commitDateRailTitle(current.currentText, current.direction);
+  }, [commitDateRailTitle]);
+  const animateDateRailTitle = React.useCallback(
+    (nextTitle: string, direction: 1 | -1, source: DateSelectionSource) => {
+      if (reduceMotionEnabled) {
+        commitDateRailTitle(nextTitle, direction);
+        return;
+      }
+
+      const duration =
+        source === "rail"
+          ? DATE_RAIL_TITLE_SCRUB_DURATION
+          : source === "swipe"
+            ? DATE_RAIL_TITLE_TRANSITION_DURATION - 24
+            : DATE_RAIL_TITLE_TRANSITION_DURATION;
+
+      dateRailTitlePendingDurationRef.current = null;
+      stopDateRailTitleAnimation();
+      dateRailTitleMotion.stopAnimation((motionValue) => {
+        const current = dateRailTitleTransitionStateRef.current;
+        const progress = clamp(motionValue, 0, 1);
+        const outgoingVisibility =
+          progress <= 0.78
+            ? 1 - (progress / 0.78) * 0.76
+            : Math.max(0, 0.24 - ((progress - 0.78) / 0.22) * 0.24);
+        const incomingVisibility = progress;
+        const visibleTitle =
+          current.previousText != null &&
+          outgoingVisibility > incomingVisibility
+            ? current.previousText
+            : current.currentText;
+
+        if (visibleTitle === nextTitle) {
+          commitDateRailTitle(nextTitle, direction);
+          return;
+        }
+
+        dateRailTitlePendingDurationRef.current = duration;
+        updateDateRailTitleTransitionState((currentState) => ({
+          currentText: nextTitle,
+          previousText: visibleTitle,
+          direction,
+          animationToken: currentState.animationToken + 1,
+          phase: "preparing",
+        }));
+      });
+    },
+    [
+      commitDateRailTitle,
+      dateRailTitleMotion,
+      reduceMotionEnabled,
+      stopDateRailTitleAnimation,
+      updateDateRailTitleTransitionState,
+    ],
+  );
+  const flushDeferredDateRailTitle = React.useCallback(() => {
+    const deferred = dateRailTitleDeferredRequestRef.current;
+    if (!deferred) return;
+    dateRailTitleDeferredRequestRef.current = null;
+
+    const currentTitleDateStart = lastAnimatedTitleDateRef.current;
+    if (isSameLocalDay(currentTitleDateStart, deferred.dateStart)) {
+      commitDateRailTitle(
+        deferred.title,
+        deferred.dateStart >= currentTitleDateStart ? 1 : -1,
+      );
+      return;
+    }
+
+    const direction: 1 | -1 =
+      deferred.dateStart >= currentTitleDateStart ? 1 : -1;
+    lastAnimatedTitleDateRef.current = deferred.dateStart;
+    animateDateRailTitle(deferred.title, direction, "rail");
+  }, [animateDateRailTitle, commitDateRailTitle]);
+  React.useLayoutEffect(() => {
+    if (
+      dateRailTitleTransitionState.phase !== "preparing" ||
+      dateRailTitleTransitionState.previousText == null
+    ) {
+      return;
+    }
+
     dateRailTitleMotion.stopAnimation();
-    dateRailTitleMotion.setValue(1);
-  }, [dateRailTitleMotion, stopDateRailTitleAnimation]);
-  React.useEffect(() => {
-    if (isSameLocalDay(lastAnimatedTitleDateRef.current, selectedDateStart)) {
-      return;
-    }
-    lastAnimatedTitleDateRef.current = selectedDateStart;
-    if (reduceMotionEnabled) {
-      resetDateRailTitleMotion();
-      return;
-    }
-    stopDateRailTitleAnimation();
     dateRailTitleMotion.setValue(0);
+    updateDateRailTitleTransitionState((current) =>
+      current.phase !== "preparing"
+        ? current
+        : {
+            ...current,
+            phase: "animating",
+          },
+    );
+  }, [
+    dateRailTitleMotion,
+    dateRailTitleTransitionState.animationToken,
+    dateRailTitleTransitionState.phase,
+    dateRailTitleTransitionState.previousText,
+    updateDateRailTitleTransitionState,
+  ]);
+
+  React.useLayoutEffect(() => {
+    const duration = dateRailTitlePendingDurationRef.current;
+    if (
+      duration == null ||
+      dateRailTitleTransitionState.phase !== "animating" ||
+      dateRailTitleTransitionState.previousText == null
+    ) {
+      return;
+    }
+
+    stopDateRailTitleAnimation();
     const animation = Animated.timing(dateRailTitleMotion, {
       toValue: 1,
-      duration: 170,
-      easing: Easing.out(Easing.cubic),
+      duration,
+      easing: Easing.inOut(Easing.cubic),
       useNativeDriver: true,
     });
     dateRailTitleAnimationRef.current = animation;
-    animation.start(() => {
+    animation.start(({ finished }) => {
       if (dateRailTitleAnimationRef.current === animation) {
         dateRailTitleAnimationRef.current = null;
       }
+      if (!finished) return;
+      dateRailTitlePendingDurationRef.current = null;
+      updateDateRailTitleTransitionState((current) =>
+        current.previousText == null
+          ? current
+          : {
+              ...current,
+              previousText: null,
+              phase: "idle",
+            },
+      );
     });
+    return () => {
+      if (dateRailTitleAnimationRef.current === animation) {
+        animation.stop();
+        dateRailTitleAnimationRef.current = null;
+      }
+    };
   }, [
     dateRailTitleMotion,
-    reduceMotionEnabled,
-    resetDateRailTitleMotion,
-    selectedDateStart,
+    dateRailTitleTransitionState.animationToken,
+    dateRailTitleTransitionState.phase,
+    dateRailTitleTransitionState.previousText,
     stopDateRailTitleAnimation,
+    updateDateRailTitleTransitionState,
+  ]);
+  React.useEffect(() => {
+    const nextTitle = getDynamicHeaderTitle(selectedDateStart);
+    if (isSameLocalDay(lastAnimatedTitleDateRef.current, selectedDateStart)) {
+      clearDeferredDateRailTitle();
+      const current = dateRailTitleTransitionStateRef.current;
+      if (current.currentText !== nextTitle || current.previousText != null) {
+        commitDateRailTitle(nextTitle, current.direction);
+      }
+      return;
+    }
+    const lastRequest = lastDateSelectionRequestRef.current;
+    const source =
+      lastRequest &&
+      isSameLocalDay(lastRequest.dateStart, selectedDateStart)
+        ? lastRequest.source
+        : "programmatic";
+    if (source === "rail") {
+      dateRailTitleDeferredRequestRef.current = {
+        dateStart: selectedDateStart,
+        title: nextTitle,
+      };
+      return;
+    }
+
+    const previousDateStart = lastAnimatedTitleDateRef.current;
+    lastAnimatedTitleDateRef.current = selectedDateStart;
+    const direction =
+      lastRequest &&
+      isSameLocalDay(lastRequest.dateStart, selectedDateStart)
+        ? lastRequest.direction
+        : selectedDateStart >= previousDateStart
+          ? 1
+          : -1;
+    clearDeferredDateRailTitle();
+    animateDateRailTitle(nextTitle, direction, source);
+  }, [
+    animateDateRailTitle,
+    clearDeferredDateRailTitle,
+    commitDateRailTitle,
+    getDynamicHeaderTitle,
+    selectedDateStart,
   ]);
   const resetDateListMotion = React.useCallback(() => {
     dateListTranslateX.stopAnimation();
@@ -2320,17 +2475,18 @@ export default function HomeScreen() {
       ) {
         return;
       }
+      const direction: 1 | -1 =
+        directionHint ?? (nextDateStart > current ? 1 : -1);
       lastDateSelectionRequestRef.current = {
         dateStart: nextDateStart,
         source,
         at: now,
+        direction,
       };
       const fromHasTodayTasks = hasTodayTasksForDateStart(
         listDateStartRef.current,
       );
       const toHasTodayTasks = hasTodayTasksForDateStart(nextDateStart);
-      const direction: 1 | -1 =
-        directionHint ?? (nextDateStart > current ? 1 : -1);
       selectedDateStartRef.current = nextDateStart;
       setPresetDateStart(nextDateStart);
       setSelectedDateStart(nextDateStart);
@@ -2356,35 +2512,46 @@ export default function HomeScreen() {
     ],
   );
   const selectDateWithoutTransition = React.useCallback(
-    (nextDateStart: number) => {
+    (
+      nextDateStart: number,
+      source: DateSelectionSource = "programmatic",
+    ) => {
       const current = selectedDateStartRef.current;
       if (isSameLocalDay(current, nextDateStart)) return;
+      const direction: 1 | -1 = nextDateStart >= current ? 1 : -1;
       lastDateSelectionRequestRef.current = {
         dateStart: nextDateStart,
-        source: "programmatic",
+        source,
         at: Date.now(),
+        direction,
       };
       selectedDateStartRef.current = nextDateStart;
       setPresetDateStart(nextDateStart);
       setSelectedDateStart(nextDateStart);
-      setListDateWithoutTransition(nextDateStart, false);
+      setListDateWithoutTransition(nextDateStart, false, source === "rail");
     },
     [setListDateWithoutTransition, setPresetDateStart],
   );
   React.useEffect(
     () => () => {
       cancelDateListTransitionStart();
+      clearDeferredDateRailTitle();
       resetDateListMotion();
       resetDateRailTitleMotion();
       resetDateListTransitionMotion();
+      dateRailTitlePendingDurationRef.current = null;
+      dateRailMomentumActiveRef.current = false;
+      stopDateRailTitleAnimation();
       todayCollapseAnimationRef.current?.stop();
       upcomingCollapseAnimationRef.current?.stop();
     },
     [
       cancelDateListTransitionStart,
+      clearDeferredDateRailTitle,
+      resetDateListTransitionMotion,
       resetDateListMotion,
       resetDateRailTitleMotion,
-      resetDateListTransitionMotion,
+      stopDateRailTitleAnimation,
     ],
   );
   const handleSelectDate = React.useCallback(
@@ -2549,7 +2716,7 @@ export default function HomeScreen() {
             }
             const nextDay = dateRailDays[nextIndex];
             if (nextDay) {
-              selectDateWithoutTransition(nextDay.timestamp);
+              selectDateWithoutTransition(nextDay.timestamp, "rail");
             }
           },
         },
@@ -2563,19 +2730,34 @@ export default function HomeScreen() {
   );
   const handleDateRailScrollBeginDrag = React.useCallback(() => {
     dateRailDraggedRef.current = true;
+    dateRailMomentumActiveRef.current = false;
     dateRailSelectionLockTargetIndexRef.current = null;
     dateRailSelectionLockUntilRef.current = 0;
+  }, []);
+  const handleDateRailScrollEndDrag = React.useCallback(() => {
+    dateRailDraggedRef.current = false;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (dateRailMomentumActiveRef.current) return;
+        flushDeferredDateRailTitle();
+      });
+    });
+  }, [flushDeferredDateRailTitle]);
+  const handleDateRailMomentumBegin = React.useCallback(() => {
+    dateRailMomentumActiveRef.current = true;
   }, []);
 
   const handleDateRailMomentumEnd = React.useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       dateRailDraggedRef.current = false;
+      dateRailMomentumActiveRef.current = false;
       const offset = event.nativeEvent.contentOffset.x;
       dateRailScrollOffsetRef.current = offset;
       dateRailSelectionLockTargetIndexRef.current = null;
       dateRailSelectionLockUntilRef.current = 0;
+      flushDeferredDateRailTitle();
     },
-    [],
+    [flushDeferredDateRailTitle],
   );
   React.useEffect(() => {
     const rafId = requestAnimationFrame(() => {
@@ -3793,9 +3975,31 @@ export default function HomeScreen() {
 
   const dateRailPanel = React.useMemo(() => {
     if (firstVisibleSection !== "today") return null;
-    const titleTranslateY = dateRailTitleMotion.interpolate({
+    const isPreparingTitleTransition =
+      dateRailTitleTransitionState.phase === "preparing";
+    const outgoingTitleOpacity = dateRailTitleMotion.interpolate({
+      inputRange: [0, 0.78, 1],
+      outputRange: [1, 0.24, 0],
+    });
+    const incomingTitleOpacity = dateRailTitleMotion.interpolate({
       inputRange: [0, 1],
-      outputRange: [8, 0],
+      outputRange: [0, 1],
+    });
+    const outgoingTitleTranslateY = dateRailTitleMotion.interpolate({
+      inputRange: [0, 1],
+      outputRange: [
+        0,
+        -DATE_RAIL_TITLE_TRANSITION_DISTANCE *
+          dateRailTitleTransitionState.direction,
+      ],
+    });
+    const incomingTitleTranslateY = dateRailTitleMotion.interpolate({
+      inputRange: [0, 1],
+      outputRange: [
+        DATE_RAIL_TITLE_TRANSITION_DISTANCE *
+          dateRailTitleTransitionState.direction,
+        0,
+      ],
     });
     return (
       <View
@@ -3808,18 +4012,57 @@ export default function HomeScreen() {
             <View style={styles.dateRailHeadlineRow}>
               <View style={styles.dateRailHeadlineTextHost}>
                 <View style={styles.dateRailTitleTextViewport}>
-                  <Animated.Text
-                    style={[
-                      styles.dateRailTitle,
-                      {
-                        opacity: dateRailTitleMotion,
-                        transform: [{ translateY: titleTranslateY }],
-                      },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {dynamicHeaderTitle}
-                  </Animated.Text>
+                  <View style={styles.dateRailTitleTextTransitionHost}>
+                    {dateRailTitleTransitionState.previousText ? (
+                      <Animated.Text
+                        style={[
+                          styles.dateRailTitle,
+                          styles.dateRailTitleTextTransitionText,
+                          isPreparingTitleTransition
+                            ? {
+                                opacity: 1,
+                                transform: [{ translateY: 0 }],
+                              }
+                            : {
+                                opacity: outgoingTitleOpacity,
+                                transform: [{ translateY: outgoingTitleTranslateY }],
+                              },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {dateRailTitleTransitionState.previousText}
+                      </Animated.Text>
+                    ) : null}
+                    <Animated.Text
+                      style={[
+                        styles.dateRailTitle,
+                        styles.dateRailTitleTextTransitionText,
+                        dateRailTitleTransitionState.previousText
+                          ? isPreparingTitleTransition
+                            ? {
+                                opacity: 0,
+                                transform: [
+                                  {
+                                    translateY:
+                                      DATE_RAIL_TITLE_TRANSITION_DISTANCE *
+                                      dateRailTitleTransitionState.direction,
+                                  },
+                                ],
+                              }
+                            : {
+                                opacity: incomingTitleOpacity,
+                                transform: [{ translateY: incomingTitleTranslateY }],
+                              }
+                          : {
+                              opacity: 1,
+                              transform: [{ translateY: 0 }],
+                            },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {dateRailTitleTransitionState.currentText}
+                    </Animated.Text>
+                  </View>
                 </View>
               </View>
 
@@ -4046,6 +4289,8 @@ export default function HomeScreen() {
               onScrollToIndexFailed={handleDateRailScrollToIndexFailed}
               onScroll={handleDateRailScroll}
               onScrollBeginDrag={handleDateRailScrollBeginDrag}
+              onScrollEndDrag={handleDateRailScrollEndDrag}
+              onMomentumScrollBegin={handleDateRailMomentumBegin}
               onMomentumScrollEnd={handleDateRailMomentumEnd}
               showsHorizontalScrollIndicator={false}
               snapToInterval={dateRailSnapInterval}
@@ -4139,14 +4384,16 @@ export default function HomeScreen() {
     dateRailSnapInterval,
     dateRailScrollX,
     dateRailTitleMotion,
+    dateRailTitleTransitionState,
     dragDetectedDateStart,
     dragHoveredDateStart,
-    dynamicHeaderTitle,
     firstVisibleSection,
     getDateRailItemLayout,
     handleDateRailMomentumEnd,
+    handleDateRailMomentumBegin,
     handleDateRailScroll,
     handleDateRailScrollBeginDrag,
+    handleDateRailScrollEndDrag,
     handleDateRailScrollToIndexFailed,
     handleGlobalDragTouchCancel,
     handleGlobalDragTouchEnd,
@@ -4258,99 +4505,13 @@ export default function HomeScreen() {
 
   return (
     <View
-      style={styles.container}
+      style={[styles.container, { backgroundColor: "transparent" }]}
       onTouchMove={handleGlobalDragTouchMove}
       onTouchEnd={handleGlobalDragTouchEnd}
       onTouchEndCapture={handleGlobalDragTouchEnd}
       onTouchCancel={handleGlobalDragTouchCancel}
     >
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.backgroundAccentLayer,
-          {
-            opacity: backgroundAccentOpacity,
-            transform: [{ translateY: backgroundAccentTranslateY }],
-          },
-        ]}
-      >
-        <View
-          ref={backgroundAccentBackdropRef}
-          pointerEvents="none"
-          style={styles.backgroundAccentBackdrop}
-        >
-          {homeBackgroundAccentOrbs.map((orb, index) => (
-            <View
-              key={`home-accent-orb-${index}`}
-              style={[
-                styles.backgroundAccentOrb,
-                {
-                  width: orb.width,
-                  height: orb.height,
-                  left: (viewportWidth - orb.width) / 2 + orb.leftOffset,
-                  bottom: orb.bottom,
-                  borderRadius: Math.max(orb.width, orb.height),
-                  shadowColor: calendarActiveColor,
-                  shadowOpacity: orb.shadowOpacity,
-                  shadowRadius: orb.shadowRadius,
-                  shadowOffset: { width: 0, height: 0 },
-                },
-              ]}
-            >
-              <LinearGradient
-                colors={[
-                  withAlpha(calendarActiveColor, 0),
-                  withAlpha(calendarActiveColor, orb.baseOpacity * 0.4),
-                  withAlpha(calendarActiveColor, orb.baseOpacity),
-                ]}
-                locations={[0, 0.56, 1]}
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
-                style={[
-                  styles.backgroundAccentOrbFill,
-                  { borderRadius: Math.max(orb.width, orb.height) },
-                ]}
-              >
-                <LinearGradient
-                  colors={[
-                    withAlpha(calendarActiveColor, 0),
-                    withAlpha(calendarActiveColor, orb.focusOpacity),
-                    withAlpha(calendarActiveColor, orb.focusOpacity),
-                    withAlpha(calendarActiveColor, 0),
-                  ]}
-                  locations={[0, 0.24, 0.76, 1]}
-                  start={{ x: 0, y: 0.5 }}
-                  end={{ x: 1, y: 0.5 }}
-                  style={StyleSheet.absoluteFill}
-                />
-              </LinearGradient>
-            </View>
-          ))}
-        </View>
-        <BlurView
-          pointerEvents="none"
-          style={styles.backgroundAccentBlur}
-          tint={isDark ? "dark" : "light"}
-          intensity={92}
-          blurReductionFactor={2}
-          blurMethod="dimezisBlurViewSdk31Plus"
-          blurTarget={backgroundAccentBackdropRef}
-        />
-        <LinearGradient
-          colors={[
-            screenBackground,
-            withAlpha(screenBackground, 0.985),
-            withAlpha(screenBackground, 0.88),
-            withAlpha(screenBackground, 0.58),
-            withAlpha(screenBackground, 0.22),
-            withAlpha(screenBackground, 0),
-          ]}
-          locations={[0, 0.12, 0.28, 0.48, 0.72, 1]}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-          style={styles.backgroundAccentFade}
-        />
-      </Animated.View>
+      <StreakAccentBackground isDark={isDark} />
       <TaskSwipeDraggableList
         ref={todayListRef}
         theme={theme}

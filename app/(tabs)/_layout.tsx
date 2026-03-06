@@ -7,7 +7,8 @@ import { DynamicColorIOS, NativeModules, Platform, StyleSheet, View } from "reac
 
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Colors } from "@/constants/theme";
+import { preloadStreakAccentBackgroundAssets } from "@/components/ui/streak-accent-background";
+import { Colors, LIGHT_ACCENT_SCREEN_BACKGROUND } from "@/constants/theme";
 import { useTaskCreateContext } from "@/context/task-create-context";
 import { TabBarMinimizeProvider } from "@/context/tabbar-minimize-store";
 import { useTasksStore } from "@/context/tasks-store";
@@ -23,7 +24,7 @@ type TaskAccessoryContextBridge = {
     selectedDateStart?: number | null,
   ) => void;
 };
-const HOME_LIGHT_BACKGROUND = "#F2F2F7";
+const HOME_LIGHT_BACKGROUND = LIGHT_ACCENT_SCREEN_BACKGROUND;
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
@@ -37,6 +38,10 @@ export default function TabLayout() {
   const { projects } = useTasksStore();
   const accessoryBridge = NativeModules
     .TaskAccessoryContextBridge as TaskAccessoryContextBridge | undefined;
+
+  React.useEffect(() => {
+    void preloadStreakAccentBackgroundAssets();
+  }, []);
 
   const routeProjectId = React.useMemo(() => {
     const rawRouteId = Array.isArray(routeIdParam) ? routeIdParam[0] : routeIdParam;
@@ -278,7 +283,10 @@ export default function TabLayout() {
               : Colors[theme].tint
           }
         >
-          <NativeTabs.Trigger name="home">
+          <NativeTabs.Trigger
+            name="home"
+            contentStyle={{ backgroundColor: "transparent" }}
+          >
             <NativeTabs.Trigger.Label>{t("common.today")}</NativeTabs.Trigger.Label>
             {Platform.select({
               ios: (
@@ -299,7 +307,10 @@ export default function TabLayout() {
             })}
           </NativeTabs.Trigger>
 
-          <NativeTabs.Trigger name="inbox">
+          <NativeTabs.Trigger
+            name="inbox"
+            contentStyle={{ backgroundColor: "transparent" }}
+          >
             <NativeTabs.Trigger.Label>{t("common.inbox")}</NativeTabs.Trigger.Label>
             {Platform.select({
               ios: <NativeTabs.Trigger.Icon sf={{ default: "tray", selected: "tray.fill" }} />,
@@ -312,7 +323,11 @@ export default function TabLayout() {
           </NativeTabs.Trigger>
 
           {isIOS26Plus ? (
-            <NativeTabs.Trigger name="search" role="search">
+            <NativeTabs.Trigger
+              name="search"
+              role="search"
+              contentStyle={{ backgroundColor: "transparent" }}
+            >
               <NativeTabs.Trigger.Label>{t("tabs.search")}</NativeTabs.Trigger.Label>
               {Platform.select({
                 ios: (
@@ -331,7 +346,10 @@ export default function TabLayout() {
               })}
             </NativeTabs.Trigger>
           ) : (
-            <NativeTabs.Trigger name="search">
+            <NativeTabs.Trigger
+              name="search"
+              contentStyle={{ backgroundColor: "transparent" }}
+            >
               <NativeTabs.Trigger.Label>{t("tabs.search")}</NativeTabs.Trigger.Label>
               {Platform.select({
                 ios: (
@@ -351,7 +369,10 @@ export default function TabLayout() {
             </NativeTabs.Trigger>
           )}
 
-          <NativeTabs.Trigger name="explore">
+          <NativeTabs.Trigger
+            name="explore"
+            contentStyle={{ backgroundColor: "transparent" }}
+          >
             <NativeTabs.Trigger.Label>{t("tabs.projects")}</NativeTabs.Trigger.Label>
             {Platform.select({
               ios: <NativeTabs.Trigger.Icon sf={{ default: "folder", selected: "folder.fill" }} />,
@@ -363,7 +384,10 @@ export default function TabLayout() {
             })}
           </NativeTabs.Trigger>
 
-          <NativeTabs.Trigger name="routines">
+          <NativeTabs.Trigger
+            name="routines"
+            contentStyle={{ backgroundColor: "transparent" }}
+          >
             <NativeTabs.Trigger.Label>{t("home.quick.routines")}</NativeTabs.Trigger.Label>
             {Platform.select({
               ios: <NativeTabs.Trigger.Icon sf={{ default: "repeat", selected: "repeat" }} />,

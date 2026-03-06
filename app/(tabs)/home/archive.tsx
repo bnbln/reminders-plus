@@ -20,6 +20,7 @@ import {
 
 import { TaskSwipeDraggableList } from "@/components/tasks/task-swipe-draggable-list";
 import { withAlpha } from "@/components/ui/glass-surface";
+import { StreakAccentBackground } from "@/components/ui/streak-accent-background";
 import { Colors } from "@/constants/theme";
 import { useHomeFilters } from "@/context/home-filters-store";
 import {
@@ -254,7 +255,8 @@ export default function ArchiveScreen() {
   }, [shouldUseNativeExpoSegmentedPicker, styles, tab]);
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, { backgroundColor: "transparent" }]}>
+      <StreakAccentBackground isDark={isDark} />
       <Stack.Screen
         options={
           {
@@ -282,6 +284,7 @@ export default function ArchiveScreen() {
           projectsById={projectsById}
           rowStyles={styles}
           itemSpacing={ARCHIVE_TASK_ITEM_SPACING}
+          containerStyle={{ backgroundColor: "transparent" }}
           header={listHeader}
           empty={
             <View style={styles.empty}>
@@ -331,9 +334,7 @@ const createStyles = (theme: keyof typeof Colors) => {
   return StyleSheet.create({
     screen: {
       flex: 1,
-      backgroundColor: isDark
-        ? Colors[theme].background
-        : IOS_LIGHT_BASE_BACKGROUND,
+      backgroundColor: "transparent",
     },
     scroll: {
       flex: 1,

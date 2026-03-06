@@ -6,6 +6,7 @@ import { NativeModules, Platform, Pressable, ScrollView, StyleSheet, Text, View,
 
 import { FloatingAddButton } from '@/components/ui/floating-add-button';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
+import { StreakAccentBackground } from '@/components/ui/streak-accent-background';
 import { Colors } from '@/constants/theme';
 import { useTaskCreateContext } from '@/context/task-create-context';
 import { Task, useTasksStore } from '@/context/tasks-store';
@@ -133,7 +134,7 @@ const createStyles = (theme: ThemeName, compact: boolean) => {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: Colors[theme].background,
+      backgroundColor: 'transparent',
     },
     content: {
       paddingHorizontal: 16,
@@ -404,6 +405,7 @@ export default function RoutinesScreen() {
 
   return (
     <View style={styles.container}>
+      <StreakAccentBackground isDark={isDark} />
       <ScrollView
         style={styles.container}
         contentInsetAdjustmentBehavior="automatic"

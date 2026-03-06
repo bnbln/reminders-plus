@@ -17,7 +17,7 @@ export default function ExploreLayout() {
       screenOptions={{
         headerLargeTitle: Platform.OS === 'ios',
         headerShadowVisible: false,
-        contentStyle: { backgroundColor: Colors[theme].background },
+        contentStyle: { backgroundColor: 'transparent' },
         headerTintColor: Colors[theme].text,
         headerTitleAlign,
         headerTitleStyle: { color: Colors[theme].text },

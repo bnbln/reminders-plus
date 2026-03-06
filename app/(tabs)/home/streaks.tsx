@@ -12,6 +12,7 @@ import {
 
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { SFSymbol } from "@/components/ui/sfsymbol";
+import { StreakAccentBackground } from "@/components/ui/streak-accent-background";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { ChartDataPoint, useStreaks } from "@/hooks/use-streaks";
@@ -31,7 +32,10 @@ const createStyles = (theme: ThemeName, compact: boolean) => {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: Colors[theme].background,
+      backgroundColor: "transparent",
+    },
+    scroll: {
+      flex: 1,
     },
     content: {
       paddingHorizontal: 16,
@@ -317,15 +321,17 @@ export default function StreaksScreen() {
   );
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentInsetAdjustmentBehavior="automatic"
-      alwaysBounceVertical
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* Hero Streak Section */}
-      <View style={styles.hero}>
+    <View style={[styles.container, { backgroundColor: "transparent" }]}>
+      <StreakAccentBackground isDark={isDark} />
+      <ScrollView
+        style={styles.scroll}
+        contentInsetAdjustmentBehavior="automatic"
+        alwaysBounceVertical
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Hero Streak Section */}
+        <View style={styles.hero}>
         {Platform.OS === "ios" ? (
           <SFSymbol
             name="flame.fill"
@@ -352,9 +358,9 @@ export default function StreaksScreen() {
         </View>
       </View>
 
-      {/* Stats Grid - Exact QuickNavGrid style */}
-      <View style={styles.quickGridWrap}>
-        <View style={styles.quickGrid}>
+        {/* Stats Grid - Exact QuickNavGrid style */}
+        <View style={styles.quickGridWrap}>
+          <View style={styles.quickGrid}>
           <StatTile
             title={t("streaks.stats.today")}
             value={countLabel(
@@ -403,57 +409,58 @@ export default function StreaksScreen() {
             glassTint={gridGlassTint}
             glassFallback={gridGlassFallback}
           />
-        </View>
-      </View>
-
-      {/* Chart Section */}
-      <GlassSurface
-        style={styles.chartCard}
-        glassEffectStyle="regular"
-        tintColor={chartGlassTint}
-        fallbackBackgroundColor={chartGlassFallback}
-      >
-        <View style={styles.chartHeader}>
-          <Text style={styles.cardTitle}>{t("streaks.chart.activity")}</Text>
-          {/* Segmented Control */}
-          <SegmentedControl
-            style={styles.segmentedControl}
-            values={ranges.map((item) => item.label)}
-            selectedIndex={activeRangeIndex}
-            onChange={(event) => {
-              const nextIndex = event.nativeEvent.selectedSegmentIndex;
-              const nextRange = ranges[nextIndex]?.value;
-              if (!nextRange || nextRange === range) return;
-              setRange(nextRange);
-            }}
-          />
+          </View>
         </View>
 
-        <View style={styles.chartBody}>
-          {chartData.map((item, index) => (
-            <ChartBar
-              key={index}
-              item={item}
-              max={maxVal}
-              textColor={textColor}
-              isDark={isDark}
+        {/* Chart Section */}
+        <GlassSurface
+          style={styles.chartCard}
+          glassEffectStyle="regular"
+          tintColor={chartGlassTint}
+          fallbackBackgroundColor={chartGlassFallback}
+        >
+          <View style={styles.chartHeader}>
+            <Text style={styles.cardTitle}>{t("streaks.chart.activity")}</Text>
+            {/* Segmented Control */}
+            <SegmentedControl
+              style={styles.segmentedControl}
+              values={ranges.map((item) => item.label)}
+              selectedIndex={activeRangeIndex}
+              onChange={(event) => {
+                const nextIndex = event.nativeEvent.selectedSegmentIndex;
+                const nextRange = ranges[nextIndex]?.value;
+                if (!nextRange || nextRange === range) return;
+                setRange(nextRange);
+              }}
             />
-          ))}
-          {chartData.length === 0 && (
-            <View style={styles.emptyChart}>
-              <Text
-                style={{
-                  color: withAlpha(textColor, 0.5),
-                  fontSize: 12,
-                  fontWeight: "700",
-                }}
-              >
-                {t("streaks.chart.noData")}
-              </Text>
-            </View>
-          )}
-        </View>
-      </GlassSurface>
-    </ScrollView>
+          </View>
+
+          <View style={styles.chartBody}>
+            {chartData.map((item, index) => (
+              <ChartBar
+                key={index}
+                item={item}
+                max={maxVal}
+                textColor={textColor}
+                isDark={isDark}
+              />
+            ))}
+            {chartData.length === 0 && (
+              <View style={styles.emptyChart}>
+                <Text
+                  style={{
+                    color: withAlpha(textColor, 0.5),
+                    fontSize: 12,
+                    fontWeight: "700",
+                  }}
+                >
+                  {t("streaks.chart.noData")}
+                </Text>
+              </View>
+            )}
+          </View>
+        </GlassSurface>
+      </ScrollView>
+    </View>
   );
 }

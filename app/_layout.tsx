@@ -3,13 +3,17 @@ import {
   DefaultTheme,
   ThemeProvider,
 } from "@react-navigation/native";
-import { Stack } from "expo-router";
+import { Stack, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React from "react";
-import { I18nManager, Platform } from "react-native";
+import { I18nManager, Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 
+import {
+  preloadStreakAccentBackgroundAssets,
+  StreakAccentBackground,
+} from "@/components/ui/streak-accent-background";
 import { Colors } from "@/constants/theme";
 import { HomeFiltersProvider } from "@/context/home-filters-store";
 import { PremiumProvider } from "@/context/premium-store";
@@ -26,6 +30,8 @@ export const unstable_settings = {
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const theme = colorScheme ?? "light";
+  const segments = useSegments();
+  const showSettingsAccentBackground = segments[0] === "settings";
   const themedContentStyle = React.useMemo(
     () => ({ backgroundColor: Colors[theme].background }),
     [theme],
@@ -71,6 +77,10 @@ export default function RootLayout() {
     }
   }, []);
 
+  React.useEffect(() => {
+    void preloadStreakAccentBackgroundAssets();
+  }, []);
+
   return (
     <GestureHandlerRootView
       style={{ flex: 1, backgroundColor: Colors[theme].background }}
@@ -80,11 +90,18 @@ export default function RootLayout() {
           <TaskCreateProvider>
             <HomeFiltersProvider>
               <ThemeProvider value={navigationTheme}>
-                <Stack
-                  screenOptions={{
-                    contentStyle: themedContentStyle,
-                  }}
+                <View
+                  style={{ flex: 1, backgroundColor: Colors[theme].background }}
                 >
+                  <StreakAccentBackground
+                    isDark={theme === "dark"}
+                    enabled={showSettingsAccentBackground}
+                  />
+                  <Stack
+                    screenOptions={{
+                      contentStyle: themedContentStyle,
+                    }}
+                  >
                   <Stack.Screen
                     name="(tabs)"
                     options={{ headerShown: false }}
@@ -203,6 +220,7 @@ export default function RootLayout() {
                     name="settings"
                     options={{
                       ...tabLikeHeaderOptions,
+                      contentStyle: { backgroundColor: "transparent" },
                       title: "Einstellungen",
                     }}
                   />
@@ -214,7 +232,8 @@ export default function RootLayout() {
                       headerLargeTitle: false,
                     }}
                   />
-                </Stack>
+                  </Stack>
+                </View>
                 <StatusBar style={theme === "dark" ? "light" : "dark"} />
               </ThemeProvider>
             </HomeFiltersProvider>

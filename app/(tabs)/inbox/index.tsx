@@ -16,6 +16,7 @@ import {
 } from "@/components/tasks/task-swipe-draggable-list";
 import { FloatingAddButton } from "@/components/ui/floating-add-button";
 import { withAlpha } from "@/components/ui/glass-surface";
+import { StreakAccentBackground } from "@/components/ui/streak-accent-background";
 import { Colors } from "@/constants/theme";
 import { useHomeFilters } from "@/context/home-filters-store";
 import {
@@ -111,9 +112,6 @@ export default function InboxScreen() {
   const router = useRouter();
   const theme = useColorScheme() ?? "light";
   const isDark = theme === "dark";
-  const screenBackground = isDark
-    ? Colors[theme].background
-    : IOS_LIGHT_BASE_BACKGROUND;
   const showFloatingAddButton = Platform.OS === "ios" && !isIOS26OrNewer();
   const params = useLocalSearchParams<{ withSubtasks?: string }>();
 
@@ -493,7 +491,8 @@ export default function InboxScreen() {
   const hasAnyTask = overdueTasks.length > 0 || withoutDateTasks.length > 0;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: "transparent" }]}>
+      <StreakAccentBackground isDark={isDark} />
       <TaskSwipeDraggableList
         renderMode="auto"
         theme={theme}
@@ -505,7 +504,7 @@ export default function InboxScreen() {
         rowStyles={styles}
         itemSpacing={HOME_TASK_ITEM_SPACING}
         contentContainerStyle={styles.content}
-        containerStyle={{ backgroundColor: screenBackground }}
+        containerStyle={{ backgroundColor: "transparent" }}
         contentInsetAdjustmentBehavior="automatic"
         animateDataLayoutChanges={false}
         empty={null}
@@ -545,9 +544,6 @@ const createStyles = (theme: keyof typeof Colors) => {
   const WEIGHT_SUBTLE = "500" as const;
   const RADIUS_PILL = 999;
 
-  const screenBackground = isDark
-    ? Colors[theme].background
-    : IOS_LIGHT_BASE_BACKGROUND;
   const rowCardSurface = isDark
     ? HOME_TASK_ROW_SURFACE_DARK
     : HOME_TASK_ROW_SURFACE_LIGHT;
@@ -563,7 +559,7 @@ const createStyles = (theme: keyof typeof Colors) => {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: screenBackground,
+      backgroundColor: "transparent",
     },
     content: {
       paddingHorizontal: 16,

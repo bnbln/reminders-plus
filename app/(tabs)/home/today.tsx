@@ -10,6 +10,7 @@ import {
 } from '@/components/tasks/task-row-style-tokens';
 import { FloatingAddButton } from '@/components/ui/floating-add-button';
 import { withAlpha } from '@/components/ui/glass-surface';
+import { StreakAccentBackground } from '@/components/ui/streak-accent-background';
 import { Colors } from '@/constants/theme';
 import { useHomeFilters } from '@/context/home-filters-store';
 import { useTaskCreateContext } from '@/context/task-create-context';
@@ -181,6 +182,7 @@ export default function TodayScreen() {
 
   return (
     <View style={styles.container}>
+      <StreakAccentBackground isDark={theme === 'dark'} />
       <TaskSwipeDraggableList
         theme={theme}
         isDark={theme === 'dark'}
@@ -201,6 +203,7 @@ export default function TodayScreen() {
         toggleSubtask={toggleSubtask}
         deleteTask={deleteTask}
         onReorder={applyOrderFromListData}
+        containerStyle={{ backgroundColor: 'transparent' }}
       />
 
       {showFloatingAddButton ? <FloatingAddButton onPress={handleAddTask} /> : null}
@@ -243,7 +246,7 @@ const createStyles = (theme: keyof typeof Colors) => {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: Colors[theme].background,
+      backgroundColor: 'transparent',
     },
     content: {
       paddingHorizontal: SPACING.md,
