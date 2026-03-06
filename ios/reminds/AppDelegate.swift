@@ -599,7 +599,7 @@ private final class AddReminderAccessoryButton: UIControl {
   private var currentMode: Mode = .task
   private var currentTitle = AddReminderAccessoryButton.localizedTaskTitle()
   private let accentBlue = UIColor(red: 10.0 / 255.0, green: 132.0 / 255.0, blue: 1.0, alpha: 1)
-  private let accentBlueTranslucent = UIColor(red: 10.0 / 255.0, green: 132.0 / 255.0, blue: 1.0, alpha: 0.46)
+  private let darkAccessoryFill = UIColor(white: 1.0, alpha: 0.12)
   private let iconSize: CGFloat = 16
   private let expandedHorizontalInset: CGFloat = 16
   private let inlineHorizontalInset: CGFloat = 10
@@ -614,7 +614,7 @@ private final class AddReminderAccessoryButton: UIControl {
     let view = UIImageView(image: UIImage(systemName: "plus", withConfiguration: config))
     view.translatesAutoresizingMaskIntoConstraints = false
     view.contentMode = .scaleAspectFit
-    view.tintColor = accentBlue
+    // view.tintColor = accentBlue
     view.isUserInteractionEnabled = false
     return view
   }()
@@ -758,7 +758,7 @@ private final class AddReminderAccessoryButton: UIControl {
     let contentColor = isDark ? UIColor.white : accentBlue
     iconView.tintColor = contentColor
     titleTextLabel.textColor = contentColor
-    tintOverlayView.backgroundColor = isDark ? accentBlueTranslucent : .clear
+    tintOverlayView.backgroundColor = isDark ? darkAccessoryFill : .clear
     if !isHighlighted {
       contentStack.alpha = 1
       tintOverlayView.alpha = 1

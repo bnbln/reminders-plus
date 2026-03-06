@@ -261,8 +261,8 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     [isDark, theme]
   );
 
-  const swipeCompleteBg = React.useMemo(() => (isDark ? '#30D158' : '#34C759'), [isDark]);
-  const swipeDeleteBg = React.useMemo(() => (isDark ? '#FF453A' : '#FF3B30'), [isDark]);
+  const swipeCompleteBg = React.useMemo(() => '#22C55E', []);
+  const swipeDeleteBg = React.useMemo(() => '#F4512C', []);
 
   const enabledTagsResolved = React.useMemo(() => enabledTags ?? new Set<TagId>(), [enabledTags]);
   const showTaskIconsResolved = React.useMemo(() => showTaskIcons ?? true, [showTaskIcons]);

@@ -26,6 +26,7 @@ import {
   DatePicker as ExpoSwiftUIDatePicker,
   Host as ExpoSwiftUIHost,
 } from "@expo/ui/swift-ui";
+import { BlurView } from "expo-blur";
 import { datePickerStyle as expoSwiftDatePickerStyleModifier } from "@expo/ui/swift-ui/modifiers";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -266,7 +267,6 @@ type HomeMetricsProps = {
 };
 
 type HomeMetricsTheme = {
-  topSurface: string;
   cardBackgroundColor: string;
   borderColor: string;
   primaryText: string;
@@ -474,6 +474,27 @@ const createStyles = (
     container: {
       flex: 1,
       backgroundColor: screenBackground,
+    },
+    backgroundAccentLayer: {
+      ...StyleSheet.absoluteFillObject,
+      overflow: "hidden",
+    },
+    backgroundAccentBackdrop: {
+      ...StyleSheet.absoluteFillObject,
+    },
+    backgroundAccentOrb: {
+      position: "absolute",
+      overflow: "visible",
+    },
+    backgroundAccentOrbFill: {
+      ...StyleSheet.absoluteFillObject,
+      overflow: "hidden",
+    },
+    backgroundAccentBlur: {
+      ...StyleSheet.absoluteFillObject,
+    },
+    backgroundAccentFade: {
+      ...StyleSheet.absoluteFillObject,
     },
     content: {
       paddingHorizontal: GRID_HORIZONTAL_PADDING,
@@ -1253,7 +1274,8 @@ export default function HomeScreen() {
     | undefined;
   const { setMode, setPresetDateStart } = useTaskCreateContext();
   const { accentColor, reduceMotionEnabled } = useAppSettings();
-  const { width: viewportWidth } = useWindowDimensions();
+  const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
+  const backgroundAccentBackdropRef = React.useRef<View | null>(null);
 
   const [isCalendarPickerOpen, setIsCalendarPickerOpen] = React.useState(false);
   const isExpoUISwiftPickerAvailable =
@@ -1285,6 +1307,34 @@ export default function HomeScreen() {
     () => getAccentColorValue(accentColor),
     [accentColor],
   );
+  const homeBackgroundAccentOrbs = React.useMemo(() => {
+    const safeWidth = Math.max(viewportWidth, 360);
+    const safeHeight = Math.max(viewportHeight, 720);
+    const orbCount = 9;
+
+    return Array.from({ length: orbCount }, (_, index) => {
+      const progress = index / (orbCount - 1);
+      const softness = 1 - progress;
+      const density = Math.pow(softness, 1.28);
+      const baseOpacity =
+        (isDark ? 0.085 : 0.07) * density + (isDark ? 0.014 : 0.012);
+
+      return {
+        width: safeWidth * (2.9 - progress * 1.78),
+        height: safeHeight * (1.26 - progress * 0.78),
+        bottom: -safeHeight * (0.74 - progress * 0.48),
+        leftOffset:
+          (index % 2 === 0 ? -1 : 1) * safeWidth * 0.018 * softness,
+        baseOpacity,
+        focusOpacity: baseOpacity * (isDark ? 0.74 : 0.68),
+        shadowOpacity:
+          Platform.OS === "ios"
+            ? (isDark ? 0.24 : 0.18) * Math.pow(softness, 1.6)
+            : 0,
+        shadowRadius: safeWidth * (0.18 - progress * 0.07),
+      };
+    });
+  }, [isDark, viewportHeight, viewportWidth]);
   const styles = React.useMemo(
     () => createStyles(theme, dateRailItemWidth, calendarActiveColor),
     [calendarActiveColor, dateRailItemWidth, theme],
@@ -1580,9 +1630,6 @@ export default function HomeScreen() {
 
   const homeMetricsTheme = React.useMemo<HomeMetricsTheme>(() => {
     return {
-      topSurface: useAppleLightPalette
-        ? IOS_LIGHT_BASE_BACKGROUND
-        : Colors[theme].background,
       cardBackgroundColor: isDark ? "#1C1C1E" : IOS_LIGHT_ELEVATED_SURFACE,
       borderColor: isDark
         ? "rgba(255,255,255,0.14)"
@@ -1596,7 +1643,7 @@ export default function HomeScreen() {
           ? "#8E8E93"
           : "#94A3B8",
     };
-  }, [isDark, theme, useAppleLightPalette]);
+  }, [isDark, useAppleLightPalette]);
 
   const homeEnabledSections = React.useMemo(() => {
     const withoutCompleted = enabledSections.filter((s) => s !== "completed");
@@ -4054,14 +4101,7 @@ export default function HomeScreen() {
     if (sectionId === "today") {
       return (
         <View style={styles.topHeroWrap}>
-          <View
-            style={[
-              styles.topHeroSurface,
-              {
-                backgroundColor: homeMetricsTheme.topSurface,
-              },
-            ]}
-          >
+          <View style={styles.topHeroSurface}>
             <HomeMetricsGrid
               metrics={homeMetricsProps}
               styles={styles}
@@ -4142,6 +4182,84 @@ export default function HomeScreen() {
       onTouchEndCapture={handleGlobalDragTouchEnd}
       onTouchCancel={handleGlobalDragTouchCancel}
     >
+      <View pointerEvents="none" style={styles.backgroundAccentLayer}>
+        <View
+          ref={backgroundAccentBackdropRef}
+          pointerEvents="none"
+          style={styles.backgroundAccentBackdrop}
+        >
+          {homeBackgroundAccentOrbs.map((orb, index) => (
+            <View
+              key={`home-accent-orb-${index}`}
+              style={[
+                styles.backgroundAccentOrb,
+                {
+                  width: orb.width,
+                  height: orb.height,
+                  left: (viewportWidth - orb.width) / 2 + orb.leftOffset,
+                  bottom: orb.bottom,
+                  borderRadius: Math.max(orb.width, orb.height),
+                  shadowColor: calendarActiveColor,
+                  shadowOpacity: orb.shadowOpacity,
+                  shadowRadius: orb.shadowRadius,
+                  shadowOffset: { width: 0, height: 0 },
+                },
+              ]}
+            >
+              <LinearGradient
+                colors={[
+                  withAlpha(calendarActiveColor, 0),
+                  withAlpha(calendarActiveColor, orb.baseOpacity * 0.4),
+                  withAlpha(calendarActiveColor, orb.baseOpacity),
+                ]}
+                locations={[0, 0.56, 1]}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={[
+                  styles.backgroundAccentOrbFill,
+                  { borderRadius: Math.max(orb.width, orb.height) },
+                ]}
+              >
+                <LinearGradient
+                  colors={[
+                    withAlpha(calendarActiveColor, 0),
+                    withAlpha(calendarActiveColor, orb.focusOpacity),
+                    withAlpha(calendarActiveColor, orb.focusOpacity),
+                    withAlpha(calendarActiveColor, 0),
+                  ]}
+                  locations={[0, 0.24, 0.76, 1]}
+                  start={{ x: 0, y: 0.5 }}
+                  end={{ x: 1, y: 0.5 }}
+                  style={StyleSheet.absoluteFill}
+                />
+              </LinearGradient>
+            </View>
+          ))}
+        </View>
+        <BlurView
+          pointerEvents="none"
+          style={styles.backgroundAccentBlur}
+          tint={isDark ? "dark" : "light"}
+          intensity={92}
+          blurReductionFactor={2}
+          blurMethod="dimezisBlurViewSdk31Plus"
+          blurTarget={backgroundAccentBackdropRef}
+        />
+        <LinearGradient
+          colors={[
+            screenBackground,
+            withAlpha(screenBackground, 0.985),
+            withAlpha(screenBackground, 0.88),
+            withAlpha(screenBackground, 0.58),
+            withAlpha(screenBackground, 0.22),
+            withAlpha(screenBackground, 0),
+          ]}
+          locations={[0, 0.12, 0.28, 0.48, 0.72, 1]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={styles.backgroundAccentFade}
+        />
+      </View>
       <TaskSwipeDraggableList
         ref={todayListRef}
         theme={theme}
@@ -4174,7 +4292,7 @@ export default function HomeScreen() {
         onRowTouchStateChange={handleRowTouchStateChange}
         renderMode="auto"
         animateDataLayoutChanges={false}
-        containerStyle={{ backgroundColor: screenBackground }}
+        containerStyle={{ backgroundColor: "transparent" }}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={styles.taskListContent}
         header={

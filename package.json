@@ -27,6 +27,7 @@
     "@react-navigation/native": "^7.1.8",
     "ai": "^6.0.103",
     "expo": "^55.0.0",
+    "expo-blur": "~55.0.8",
     "expo-calendar": "~55.0.9",
     "expo-constants": "~55.0.7",
     "expo-document-picker": "~55.0.8",
