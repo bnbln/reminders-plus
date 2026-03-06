@@ -598,7 +598,6 @@ private final class AddReminderAccessoryButton: UIControl {
 
   private var currentMode: Mode = .task
   private var currentTitle = AddReminderAccessoryButton.localizedTaskTitle()
-  private let accentBlue = UIColor(red: 10.0 / 255.0, green: 132.0 / 255.0, blue: 1.0, alpha: 1)
   private let darkAccessoryFill = UIColor(white: 1.0, alpha: 0.12)
   private let iconSize: CGFloat = 16
   private let expandedHorizontalInset: CGFloat = 16
@@ -614,7 +613,6 @@ private final class AddReminderAccessoryButton: UIControl {
     let view = UIImageView(image: UIImage(systemName: "plus", withConfiguration: config))
     view.translatesAutoresizingMaskIntoConstraints = false
     view.contentMode = .scaleAspectFit
-    // view.tintColor = accentBlue
     view.isUserInteractionEnabled = false
     return view
   }()
@@ -623,7 +621,7 @@ private final class AddReminderAccessoryButton: UIControl {
     let label = UILabel()
     label.translatesAutoresizingMaskIntoConstraints = false
     label.text = currentTitle
-    label.textColor = accentBlue
+    label.textColor = .label
     let baseFont = UIFont.preferredFont(forTextStyle: .subheadline)
     let semiboldFont = UIFont.systemFont(ofSize: baseFont.pointSize, weight: .semibold)
     label.font = UIFontMetrics(forTextStyle: .subheadline).scaledFont(for: semiboldFont)
@@ -755,7 +753,7 @@ private final class AddReminderAccessoryButton: UIControl {
 
   private func updateAppearanceForColorScheme() {
     let isDark = traitCollection.userInterfaceStyle == .dark
-    let contentColor = isDark ? UIColor.white : accentBlue
+    let contentColor = isDark ? UIColor.white : UIColor.black
     iconView.tintColor = contentColor
     titleTextLabel.textColor = contentColor
     tintOverlayView.backgroundColor = isDark ? darkAccessoryFill : .clear

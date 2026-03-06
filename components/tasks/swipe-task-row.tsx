@@ -44,6 +44,7 @@ const SWIPE_TRIGGER_SNAP = 152;
 const SWIPE_ACTIVATION_THRESHOLD = 10;
 const SWIPE_DAMPING = 7;
 const SWIPE_OVER_SWIPE = 480;
+const SWIPE_SNAP_PROGRESS = SWIPE_STOP / SWIPE_TRIGGER_SNAP;
 const COMPACT_SUBTASK_ICON_SIZE = 18;
 const COMPACT_SUBTASK_TEXT_SIZE = 14;
 const DRAG_LONG_PRESS_DELAY_MS = 260;
@@ -122,7 +123,7 @@ function SwipeActionUnderlay({
     return {
       backgroundColor: interpolateColor(
         progress,
-        [0, 0.12, 0.32, 1],
+        [0, 0.12, 0.28, SWIPE_SNAP_PROGRESS],
         [
           "rgba(0,0,0,0)",
           underlayColorStops.soft,
@@ -146,7 +147,7 @@ function SwipeActionUnderlay({
       opacity: isDark
         ? interpolate(
             progress,
-            [0, 0.08, 0.18, 1],
+            [0, 0.08, 0.16, SWIPE_SNAP_PROGRESS],
             [0, 0.22, 0.92, 1],
             Extrapolation.CLAMP,
           )

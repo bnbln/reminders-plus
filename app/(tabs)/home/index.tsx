@@ -4,6 +4,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import React from "react";
 import {
+  AppState,
   Animated,
   Easing,
   FlatList,
@@ -38,6 +39,7 @@ import {
   type TaskSwipeDraggableListHandle,
   type TaskSwipeDraggableListItem,
 } from "@/components/tasks/task-swipe-draggable-list";
+import { AnimatedNumber } from "@/components/ui/animated-number";
 import { FloatingAddButton } from "@/components/ui/floating-add-button";
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { SFSymbol } from "@/components/ui/sfsymbol";
@@ -312,10 +314,14 @@ const isSameLocalMonth = (left: number, right: number) => {
 };
 
 function HomeMetricsGrid({
+  animateValues,
+  metricsAnimationCycle,
   metrics,
   styles,
   theme,
 }: {
+  animateValues: boolean;
+  metricsAnimationCycle: number;
   metrics: HomeMetricsProps;
   styles: ReturnType<typeof createStyles>;
   theme: HomeMetricsTheme;
@@ -358,14 +364,16 @@ function HomeMetricsGrid({
                   STATUS
                 </Text>
               </View>
-              <Text
-                style={[
+              <AnimatedNumber
+                animateFromZeroOnMount
+                formattedNumber={`${metrics.completionPercentage}%`}
+                replayKey={metricsAnimationCycle}
+                shouldAnimate={animateValues}
+                textStyle={[
                   styles.metricsPrimaryValue,
                   { color: theme.primaryText },
                 ]}
-              >
-                {metrics.completionPercentage}%
-              </Text>
+              />
             </View>
           </GlassSurface>
         </Pressable>
@@ -400,14 +408,16 @@ function HomeMetricsGrid({
                   STREAK
                 </Text>
               </View>
-              <Text
-                style={[
+              <AnimatedNumber
+                animateFromZeroOnMount
+                formattedNumber={`${metrics.currentStreak}`}
+                replayKey={metricsAnimationCycle}
+                shouldAnimate={animateValues}
+                textStyle={[
                   styles.metricsPrimaryValue,
                   { color: theme.primaryText },
                 ]}
-              >
-                {metrics.currentStreak}
-              </Text>
+              />
             </View>
           </GlassSurface>
         </Pressable>
@@ -1276,8 +1286,10 @@ export default function HomeScreen() {
   const { accentColor, reduceMotionEnabled } = useAppSettings();
   const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
   const backgroundAccentBackdropRef = React.useRef<View | null>(null);
+  const isScreenFocusedRef = React.useRef(false);
 
   const [isCalendarPickerOpen, setIsCalendarPickerOpen] = React.useState(false);
+  const [metricsAnimationCycle, setMetricsAnimationCycle] = React.useState(0);
   const isExpoUISwiftPickerAvailable =
     Platform.OS === "ios" &&
     !!(NativeModules as Record<string, unknown> | undefined)?.ExpoUI;
@@ -1426,10 +1438,13 @@ export default function HomeScreen() {
   );
   useFocusEffect(
     React.useCallback(() => {
+      isScreenFocusedRef.current = true;
       setMode("today");
       setPresetDateStart(selectedDateStart);
       setTodayAccessoryContext(selectedDateStart);
-      return undefined;
+      return () => {
+        isScreenFocusedRef.current = false;
+      };
     }, [
       selectedDateStart,
       setMode,
@@ -1437,6 +1452,19 @@ export default function HomeScreen() {
       setTodayAccessoryContext,
     ]),
   );
+  React.useEffect(() => {
+    const appStateSubscription = AppState.addEventListener(
+      "change",
+      (nextState) => {
+        if (nextState !== "active" || !isScreenFocusedRef.current) return;
+        setMetricsAnimationCycle((previous) => previous + 1);
+      },
+    );
+
+    return () => {
+      appStateSubscription.remove();
+    };
+  }, []);
   React.useEffect(() => {
     setPresetDateStart(selectedDateStart);
     setTodayAccessoryContext(selectedDateStart);
@@ -4103,6 +4131,8 @@ export default function HomeScreen() {
         <View style={styles.topHeroWrap}>
           <View style={styles.topHeroSurface}>
             <HomeMetricsGrid
+              animateValues={!reduceMotionEnabled}
+              metricsAnimationCycle={metricsAnimationCycle}
               metrics={homeMetricsProps}
               styles={styles}
               theme={homeMetricsTheme}
@@ -4112,7 +4142,14 @@ export default function HomeScreen() {
       );
     }
     return null;
-  }, [firstVisibleSection, homeMetricsProps, homeMetricsTheme, styles]);
+  }, [
+    firstVisibleSection,
+    homeMetricsProps,
+    homeMetricsTheme,
+    metricsAnimationCycle,
+    reduceMotionEnabled,
+    styles,
+  ]);
   const areCollapsibleSectionsCollapsed =
     (!hasTodaySection || collapsedSections.today) &&
     (!hasUpcomingSection || collapsedSections.upcoming);

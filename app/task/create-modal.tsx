@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
+import { getAccentColorValue, useAppSettings } from '@/context/settings-store';
 import { useTaskCreateContext } from '@/context/task-create-context';
 import {
   useTasksStore,
@@ -175,6 +176,7 @@ export default function CreateTaskModal() {
     presetDateStart,
     queueTaskPopIn,
   } = useTaskCreateContext();
+  const { accentColor } = useAppSettings();
 
   const { tasks, projects, setTasks } = useTasksStore();
   const routeDraftId = React.useMemo(() => {
@@ -1148,13 +1150,14 @@ export default function CreateTaskModal() {
     Platform.OS === 'ios' &&
     isLiquidGlassAvailable() &&
     (glassApiAvailableFn ? glassApiAvailableFn() : true);
+  const accentColorValue = getAccentColorValue(accentColor);
   const plusTint = withAlpha(Colors[theme].background, isDark ? 0.20 : 0.26);
   const inputTint = withAlpha(Colors[theme].background, isDark ? 0.22 : 0.33);
   const menuTint = withAlpha(Colors[theme].background, isDark ? 0.24 : 0.38);
   const neutralFallback = withAlpha(Colors[theme].background, isDark ? 0.86 : 0.90);
   const expandedMenuFallback = withAlpha(Colors[theme].background, isDark ? 0.84 : 0.88);
-  const sendTint = withAlpha('#007AFF', isDark ? 0.88 : 0.78);
-  const sendFallback = '#007AFF';
+  const sendTint = withAlpha(accentColorValue, isDark ? 0.88 : 0.78);
+  const sendFallback = accentColorValue;
   const sendIconColor = 'white';
   const composerBottom = Math.max(14, insets.bottom - 16);
   const menuBottom = 66;

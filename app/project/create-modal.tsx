@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { SFSymbol } from '@/components/ui/sfsymbol';
 import { Colors } from '@/constants/theme';
+import { getAccentColorValue, useAppSettings } from '@/context/settings-store';
 import { usePremium } from '@/context/premium-store';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -120,6 +121,7 @@ export default function ProjectCreateModal() {
   const isDark = theme === 'dark';
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
+  const { accentColor } = useAppSettings();
   const { projects, setProjects } = useTasksStore();
   const { hasPremiumAccess, isReady } = usePremium();
 
@@ -293,7 +295,8 @@ export default function ProjectCreateModal() {
   const fieldTint = withAlpha(Colors[theme].background, isDark ? 0.2 : 0.34);
   const fieldFallback = withAlpha(Colors[theme].background, isDark ? 0.82 : 0.92);
   const pickerFallback = withAlpha(Colors[theme].background, isDark ? 0.8 : 0.9);
-  const sendTint = withAlpha('#007AFF', isDark ? 0.88 : 0.78);
+  const accentColorValue = getAccentColorValue(accentColor);
+  const sendTint = withAlpha(accentColorValue, isDark ? 0.88 : 0.78);
   const disabledSendTint = withAlpha(Colors[theme].background, isDark ? 0.24 : 0.32);
 
   const previewEmoji = selectedEmoji.trim();
@@ -444,7 +447,7 @@ export default function ProjectCreateModal() {
                 style={[styles.sendSurface, !canSubmit && styles.sendSurfaceDisabled]}
                 glassEffectStyle="regular"
                 tintColor={canSubmit ? sendTint : disabledSendTint}
-                fallbackBackgroundColor={canSubmit ? '#007AFF' : pickerFallback}
+                fallbackBackgroundColor={canSubmit ? accentColorValue : pickerFallback}
                 isInteractive
               >
                 <MaterialIcons
