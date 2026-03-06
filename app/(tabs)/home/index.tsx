@@ -1419,7 +1419,14 @@ export default function HomeScreen() {
       cancelled = true;
     };
   }, []);
-  const { currentStreak } = useStreaks();
+  const { currentStreak, todayCompletedCount } = useStreaks();
+  const hasCompletedTaskToday = todayCompletedCount > 0;
+  const backgroundAccentTranslateY = React.useRef(
+    new Animated.Value(hasCompletedTaskToday ? 0 : viewportHeight),
+  ).current;
+  const backgroundAccentOpacity = React.useRef(
+    new Animated.Value(hasCompletedTaskToday ? 1 : 0),
+  ).current;
   const [selectedDateStart, setSelectedDateStart] = React.useState(() =>
     getStartOfToday(),
   );
@@ -1536,6 +1543,44 @@ export default function HomeScreen() {
       Math.abs(current - viewportWidth) < 1 ? current : viewportWidth,
     );
   }, [viewportWidth]);
+  React.useEffect(() => {
+    backgroundAccentTranslateY.stopAnimation();
+    backgroundAccentOpacity.stopAnimation();
+
+    const targetTranslateY = hasCompletedTaskToday ? 0 : viewportHeight;
+    const targetOpacity = hasCompletedTaskToday ? 1 : 0;
+
+    if (reduceMotionEnabled) {
+      backgroundAccentTranslateY.setValue(targetTranslateY);
+      backgroundAccentOpacity.setValue(targetOpacity);
+      return;
+    }
+
+    Animated.parallel([
+      Animated.spring(backgroundAccentTranslateY, {
+        toValue: targetTranslateY,
+        stiffness: hasCompletedTaskToday ? 58 : 52,
+        damping: hasCompletedTaskToday ? 18 : 22,
+        mass: 1.28,
+        overshootClamping: true,
+        useNativeDriver: true,
+      }),
+      Animated.timing(backgroundAccentOpacity, {
+        toValue: targetOpacity,
+        duration: hasCompletedTaskToday ? 1280 : 820,
+        easing: hasCompletedTaskToday
+          ? Easing.bezier(0.22, 1, 0.36, 1)
+          : Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [
+    backgroundAccentOpacity,
+    backgroundAccentTranslateY,
+    hasCompletedTaskToday,
+    reduceMotionEnabled,
+    viewportHeight,
+  ]);
   const dayLabelFormatter = React.useMemo(
     () => new Intl.DateTimeFormat(undefined, { weekday: "narrow" }),
     [],
@@ -4219,7 +4264,16 @@ export default function HomeScreen() {
       onTouchEndCapture={handleGlobalDragTouchEnd}
       onTouchCancel={handleGlobalDragTouchCancel}
     >
-      <View pointerEvents="none" style={styles.backgroundAccentLayer}>
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.backgroundAccentLayer,
+          {
+            opacity: backgroundAccentOpacity,
+            transform: [{ translateY: backgroundAccentTranslateY }],
+          },
+        ]}
+      >
         <View
           ref={backgroundAccentBackdropRef}
           pointerEvents="none"
@@ -4296,7 +4350,7 @@ export default function HomeScreen() {
           end={{ x: 0.5, y: 1 }}
           style={styles.backgroundAccentFade}
         />
-      </View>
+      </Animated.View>
       <TaskSwipeDraggableList
         ref={todayListRef}
         theme={theme}
