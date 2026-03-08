@@ -8,8 +8,6 @@ import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
 
-const INBOX_HIDDEN_FILTER_TAGS = ['overdue', 'datetime'] as const;
-
 export default function HomeLayout() {
   const theme = useColorScheme() ?? 'light';
   const headerTitleAlign: 'left' | 'center' = 'left';
@@ -34,6 +32,8 @@ export default function HomeLayout() {
             <HeaderTrailingActions
               theme={theme}
               showCompletedTasksToggle={true}
+              showProjectTasksToggle={true}
+              showRoutineTasksToggle={true}
             />
           ),
           headerRight: () => <ProfileHeaderMenuButton />,
@@ -66,10 +66,7 @@ export default function HomeLayout() {
           headerBackButtonDisplayMode: 'minimal',
           headerTransparent: Platform.OS === 'ios',
           headerLeft: () => (
-            <HeaderTrailingActions
-              theme={theme}
-              hiddenTags={INBOX_HIDDEN_FILTER_TAGS}
-            />
+            <HeaderTrailingActions theme={theme} />
           ),
           headerRight: () => <ProfileHeaderMenuButton />,
         }}

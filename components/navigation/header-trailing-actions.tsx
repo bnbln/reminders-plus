@@ -8,6 +8,8 @@ type HeaderTrailingActionsProps = {
   hiddenTags?: React.ComponentProps<typeof FilterMenuButton>["hiddenTags"];
   showFilter?: boolean;
   showCompletedTasksToggle?: boolean;
+  showProjectTasksToggle?: boolean;
+  showRoutineTasksToggle?: boolean;
 };
 
 export function HeaderTrailingActions({
@@ -15,6 +17,8 @@ export function HeaderTrailingActions({
   hiddenTags,
   showFilter = true,
   showCompletedTasksToggle = false,
+  showProjectTasksToggle = false,
+  showRoutineTasksToggle = false,
 }: HeaderTrailingActionsProps) {
   if (!showFilter) {
     return null;
@@ -25,6 +29,8 @@ export function HeaderTrailingActions({
       theme={theme}
       hiddenTags={hiddenTags}
       showCompletedTasksToggle={showCompletedTasksToggle}
+      showProjectTasksToggle={showProjectTasksToggle}
+      showRoutineTasksToggle={showRoutineTasksToggle}
     />
   );
 }

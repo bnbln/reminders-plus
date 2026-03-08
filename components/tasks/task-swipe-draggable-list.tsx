@@ -165,6 +165,8 @@ export type TaskSwipeDraggableListProps = {
   rowSwipeActivationThreshold?: number;
   /** When set, datetime tags matching this day are suppressed in task rows. */
   selectedDateStart?: number;
+  /** When true, prepend overdue date before the overdue time in row meta. */
+  showOverdueDatePrefix?: boolean;
 
   onPressTask: (taskId: string) => void;
   toggleComplete: (taskId: string) => void;
@@ -246,6 +248,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     dragTranslateXCompensation = 0,
     rowSwipeActivationThreshold,
     selectedDateStart,
+    showOverdueDatePrefix = false,
     onPressTask,
     toggleComplete,
     toggleSubtask,
@@ -713,6 +716,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           shouldPopIn={shouldAnimatePopIn}
           onPopInAnimationEnd={handlePopInAnimationEnd}
           selectedDateStart={selectedDateStart}
+          showOverdueDatePrefix={showOverdueDatePrefix}
           itemSpacerStyle={rowStyleOverrides?.itemSpacerStyle}
           swipeClipStyle={rowStyleOverrides?.swipeClipStyle}
           rowStyle={rowStyleOverrides?.rowStyle}
@@ -742,6 +746,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       rowStyles,
       registerClose,
       selectedDateStart,
+      showOverdueDatePrefix,
       showTaskIconsResolved,
       showCompactSubtasks,
       dragCompactPreview,
@@ -821,6 +826,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           shouldPopIn={shouldAnimatePopIn}
           onPopInAnimationEnd={handlePopInAnimationEnd}
           selectedDateStart={selectedDateStart}
+          showOverdueDatePrefix={showOverdueDatePrefix}
           itemSpacerStyle={rowStyleOverrides?.itemSpacerStyle}
           swipeClipStyle={rowStyleOverrides?.swipeClipStyle}
           rowStyle={rowStyleOverrides?.rowStyle}
@@ -850,6 +856,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       renderHeaderRow,
       rowStyles,
       selectedDateStart,
+      showOverdueDatePrefix,
       showTaskIconsResolved,
       showCompactSubtasks,
       dragCompactPreview,

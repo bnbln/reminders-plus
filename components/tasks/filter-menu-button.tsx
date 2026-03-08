@@ -14,6 +14,8 @@ import {
   getTagTitle,
   parseCompactSubtasksParam,
   parseShowCompletedTasksParam,
+  parseShowProjectTasksParam,
+  parseShowRoutineTasksParam,
   parseTagIconsParam,
   parseTagsParam,
   serializeTagsParam,
@@ -69,12 +71,16 @@ type FilterMenuButtonProps = {
   theme: keyof typeof Colors;
   hiddenTags?: readonly TagId[];
   showCompletedTasksToggle?: boolean;
+  showProjectTasksToggle?: boolean;
+  showRoutineTasksToggle?: boolean;
 };
 
 export function FilterMenuButton({
   theme,
   hiddenTags = EMPTY_TAGS,
   showCompletedTasksToggle = false,
+  showProjectTasksToggle = false,
+  showRoutineTasksToggle = false,
 }: FilterMenuButtonProps) {
   const router = useRouter();
   const menuRef = React.useRef<MenuComponentRef>(null);
@@ -84,6 +90,8 @@ export function FilterMenuButton({
     tagIcons?: string;
     withSubtasks?: string;
     completed?: string;
+    projects?: string;
+    routines?: string;
   }>();
   const {
     enabledTags,
@@ -94,6 +102,10 @@ export function FilterMenuButton({
     setShowCompactSubtasks,
     showCompletedTasks,
     setShowCompletedTasks,
+    showProjectTasks,
+    setShowProjectTasks,
+    showRoutineTasks,
+    setShowRoutineTasks,
   } = useHomeFilters();
 
   const hiddenTagSet = React.useMemo(() => new Set(hiddenTags), [hiddenTags]);
@@ -140,17 +152,33 @@ export function FilterMenuButton({
         prev === nextCompleted ? prev : nextCompleted,
       );
     }
+
+    if (showProjectTasksToggle && params.projects !== undefined) {
+      const nextProjects = parseShowProjectTasksParam(params.projects);
+      setShowProjectTasks((prev) => (prev === nextProjects ? prev : nextProjects));
+    }
+
+    if (showRoutineTasksToggle && params.routines !== undefined) {
+      const nextRoutines = parseShowRoutineTasksParam(params.routines);
+      setShowRoutineTasks((prev) => (prev === nextRoutines ? prev : nextRoutines));
+    }
   }, [
     availableTagSet,
     params.completed,
+    params.projects,
+    params.routines,
     params.tagIcons,
     params.tags,
     params.withSubtasks,
     setShowCompletedTasks,
     setEnabledTags,
+    setShowProjectTasks,
+    setShowRoutineTasks,
     setShowCompactSubtasks,
     setShowTagIcons,
     showCompletedTasksToggle,
+    showProjectTasksToggle,
+    showRoutineTasksToggle,
   ]);
 
   const pendingReopenRef = React.useRef(false);
@@ -181,7 +209,57 @@ export function FilterMenuButton({
       imageColor: Platform.OS === "ios" ? iconColor : undefined,
     };
 
-    const toggles: MenuAction[] = [
+    const visibilityToggles: MenuAction[] = [
+      ...(showProjectTasksToggle
+        ? [
+            {
+              id: "toggleProjectTasks",
+              title: t("tags.project"),
+              image: Platform.OS === "ios" ? "folder.fill" : undefined,
+              imageColor: Platform.OS === "ios" ? iconColor : undefined,
+              state:
+                Platform.OS === "ios"
+                  ? showProjectTasks
+                    ? "on"
+                    : "off"
+                  : undefined,
+            } satisfies MenuAction,
+          ]
+        : []),
+      ...(showRoutineTasksToggle
+        ? [
+            {
+              id: "toggleRoutineTasks",
+              title: t("taskDetail.property.routine"),
+              image: Platform.OS === "ios" ? "repeat" : undefined,
+              imageColor: Platform.OS === "ios" ? iconColor : undefined,
+              state:
+                Platform.OS === "ios"
+                  ? showRoutineTasks
+                    ? "on"
+                    : "off"
+                  : undefined,
+            } satisfies MenuAction,
+          ]
+        : []),
+      ...(showCompletedTasksToggle
+        ? [
+            {
+              id: "toggleCompletedTasks",
+              title: t("home.filter.completedTasks"),
+              image: Platform.OS === "ios" ? "checkmark.circle" : undefined,
+              imageColor: Platform.OS === "ios" ? iconColor : undefined,
+              state:
+                Platform.OS === "ios"
+                  ? showCompletedTasks
+                    ? "on"
+                    : "off"
+                  : undefined,
+            } satisfies MenuAction,
+          ]
+        : []),
+    ];
+    const tagToggles: MenuAction[] = [
       {
         id: "toggleTagIcons",
         title: t("home.filter.icons"),
@@ -202,22 +280,6 @@ export function FilterMenuButton({
               : "off"
             : undefined,
       },
-      ...(showCompletedTasksToggle
-        ? [
-            {
-              id: "toggleCompletedTasks",
-              title: t("home.filter.completedTasks"),
-              image: Platform.OS === "ios" ? "checkmark.circle" : undefined,
-              imageColor: Platform.OS === "ios" ? iconColor : undefined,
-              state:
-                Platform.OS === "ios"
-                  ? showCompletedTasks
-                    ? "on"
-                    : "off"
-                  : undefined,
-            } satisfies MenuAction,
-          ]
-        : []),
       ...availableTags.map((tag) => {
         const on = scopedEnabledTags.has(tag);
         return {
@@ -230,23 +292,44 @@ export function FilterMenuButton({
       }),
     ];
 
-    // `displayInline` creates a visual separator before this group on iOS.
-    const inlineGroup: MenuAction = {
-      // Empty title avoids an extra blank row (large spacing) above the first toggle.
+    if (Platform.OS !== "ios") {
+      return [
+        ...visibilityToggles,
+        ...tagToggles,
+        showAll,
+        hideAll,
+      ];
+    }
+
+    const grouped: MenuAction[] = [];
+    if (visibilityToggles.length > 0) {
+      grouped.push({
+        title: "",
+        displayInline: true,
+        subactions: visibilityToggles,
+      });
+    }
+    grouped.push({
       title: "",
       displayInline: true,
-      subactions: toggles,
-    };
-
-    return availableTags.length > 0
-      ? [showAll, hideAll, inlineGroup]
-      : [inlineGroup];
+      subactions: tagToggles,
+    });
+    grouped.push({
+      title: "",
+      displayInline: true,
+      subactions: [showAll, hideAll],
+    });
+    return grouped;
   }, [
     availableTags,
     scopedEnabledTags,
     showCompactSubtasks,
     showCompletedTasks,
     showCompletedTasksToggle,
+    showProjectTasks,
+    showProjectTasksToggle,
+    showRoutineTasks,
+    showRoutineTasksToggle,
     showTagIcons,
     theme,
   ]);
@@ -306,6 +389,22 @@ export function FilterMenuButton({
         return;
       }
 
+      if (showProjectTasksToggle && id === "toggleProjectTasks") {
+        const next = !showProjectTasks;
+        setShowProjectTasks(next);
+        router.setParams({ projects: next ? "1" : "0" });
+        scheduleReopen();
+        return;
+      }
+
+      if (showRoutineTasksToggle && id === "toggleRoutineTasks") {
+        const next = !showRoutineTasks;
+        setShowRoutineTasks(next);
+        router.setParams({ routines: next ? "1" : "0" });
+        scheduleReopen();
+        return;
+      }
+
       if (availableTagSet.has(id as TagId)) {
         const tag = id as TagId;
         setEnabledTags((prev) => {
@@ -327,10 +426,16 @@ export function FilterMenuButton({
       setEnabledTags,
       setShowCompactSubtasks,
       setShowCompletedTasks,
+      setShowProjectTasks,
+      setShowRoutineTasks,
       setShowTagIcons,
       showCompactSubtasks,
       showCompletedTasks,
       showCompletedTasksToggle,
+      showProjectTasks,
+      showProjectTasksToggle,
+      showRoutineTasks,
+      showRoutineTasksToggle,
       showTagIcons,
     ],
   );

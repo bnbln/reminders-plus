@@ -8,8 +8,6 @@ import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
 
-const INBOX_HIDDEN_FILTER_TAGS = ["overdue", "datetime"] as const;
-
 export default function InboxLayout() {
   const theme = useColorScheme() ?? "light";
   const headerTitleAlign: "left" | "center" = "left";
@@ -31,12 +29,7 @@ export default function InboxLayout() {
         options={{
           title: t("common.inbox"),
           headerTransparent: Platform.OS === "ios",
-          headerLeft: () => (
-            <HeaderTrailingActions
-              theme={theme}
-              hiddenTags={INBOX_HIDDEN_FILTER_TAGS}
-            />
-          ),
+          headerLeft: () => <HeaderTrailingActions theme={theme} />,
           headerRight: () => <ProfileHeaderMenuButton />,
         }}
       />

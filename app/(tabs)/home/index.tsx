@@ -46,6 +46,8 @@ import { StreakAccentBackground } from "@/components/ui/streak-accent-background
 import { Colors, LIGHT_ACCENT_SCREEN_BACKGROUND } from "@/constants/theme";
 import {
   parseShowCompletedTasksParam,
+  parseShowProjectTasksParam,
+  parseShowRoutineTasksParam,
   useHomeFilters,
 } from "@/context/home-filters-store";
 import { getAccentColorValue, useAppSettings } from "@/context/settings-store";
@@ -1304,6 +1306,8 @@ export default function HomeScreen() {
     withNotes?: string;
     withSubtasks?: string;
     completed?: string;
+    projects?: string;
+    routines?: string;
   }>();
   const enabledSections = React.useMemo(
     () => parseSectionsParam(params.sections),
@@ -1329,8 +1333,14 @@ export default function HomeScreen() {
     [calendarActiveColor, dateRailItemWidth, theme],
   );
   const { tasks, setTasks, projects } = useTasksStore();
-  const { enabledTags, showTagIcons, showCompactSubtasks, showCompletedTasks } =
-    useHomeFilters();
+  const {
+    enabledTags,
+    showTagIcons,
+    showCompactSubtasks,
+    showCompletedTasks,
+    showProjectTasks,
+    showRoutineTasks,
+  } = useHomeFilters();
   const locale = React.useMemo(() => getIntlLocale().toLowerCase(), []);
   const isGermanLocale = locale.startsWith("de");
   const withSubtasksEnabled =
@@ -1341,6 +1351,14 @@ export default function HomeScreen() {
     params.completed === undefined
       ? showCompletedTasks
       : parseShowCompletedTasksParam(params.completed);
+  const showProjectTasksEnabled =
+    params.projects === undefined
+      ? showProjectTasks
+      : parseShowProjectTasksParam(params.projects);
+  const showRoutineTasksEnabled =
+    params.routines === undefined
+      ? showRoutineTasks
+      : parseShowRoutineTasksParam(params.routines);
   const [showGestureHint, setShowGestureHint] = React.useState(false);
   const [
     shouldHighlightDropTargetsOnFirstDrag,
@@ -2378,12 +2396,27 @@ export default function HomeScreen() {
     },
     [applyDayChangeWithoutTransition],
   );
+  const isTaskVisibleByTypeToggle = React.useCallback(
+    (task: Task) => {
+      const hasProject = typeof task.projectId === "string" && task.projectId.trim().length > 0;
+      const isRoutineTask =
+        task.isRoutine === true ||
+        typeof task.routineType === "string" ||
+        typeof task.routineInterval === "string";
+
+      if (!showProjectTasksEnabled && hasProject) return false;
+      if (!showRoutineTasksEnabled && isRoutineTask) return false;
+      return true;
+    },
+    [showProjectTasksEnabled, showRoutineTasksEnabled],
+  );
   const hasVisibleTasksForDateStart = React.useCallback(
     (targetDateStart: number) => {
       const targetIsToday = isSameLocalDay(targetDateStart, todayStart);
       for (const task of tasks) {
         if (task.deletedAt) continue;
         if (withNotesEnabled && !task.subtitle) continue;
+        if (!isTaskVisibleByTypeToggle(task)) continue;
 
         const isCompletedOnTargetDay =
           hasValidDueAt(task.completedAt) &&
@@ -2412,6 +2445,7 @@ export default function HomeScreen() {
     },
     [
       homeEnabledSections,
+      isTaskVisibleByTypeToggle,
       showCompletedTasksEnabled,
       tasks,
       todayStart,
@@ -3257,6 +3291,7 @@ export default function HomeScreen() {
       const base = tasks.filter((t) => {
         if (t.deletedAt) return false;
         if (withNotesEnabled && !t.subtitle) return false;
+        if (!isTaskVisibleByTypeToggle(t)) return false;
 
         const isCompletedOnTargetDay =
           hasValidDueAt(t.completedAt) &&
@@ -3295,7 +3330,7 @@ export default function HomeScreen() {
       });
       return normalizedBase;
     },
-    [homeEnabledSections, tasks, todayStart, withNotesEnabled],
+    [homeEnabledSections, isTaskVisibleByTypeToggle, tasks, todayStart, withNotesEnabled],
   );
   const getDisplayedTasksForDateStart = React.useCallback(
     (targetDateStart: number) => {

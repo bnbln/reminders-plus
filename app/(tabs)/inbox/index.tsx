@@ -506,6 +506,7 @@ export default function InboxScreen() {
         enabledTags={enabledTags}
         showTaskIcons={showTagIcons}
         showCompactSubtasks={withSubtasksEnabled}
+        showOverdueDatePrefix={true}
         onPressTask={onPressTask}
         toggleComplete={toggleComplete}
         toggleSubtask={toggleSubtask}

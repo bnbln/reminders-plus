@@ -56,7 +56,6 @@ const BOARD_SIDE_PADDING = 16;
 const EDGE_AUTO_SCROLL_ZONE = 112;
 const EDGE_AUTO_SCROLL_MAX_STEP = 20;
 const EDGE_AUTO_SCROLL_MIN_STEP = 2;
-const DRAG_ACCENT = "#F4512C";
 const PROJECT_ROW_SWIPE_ACTIVATION_THRESHOLD = 10;
 
 const clamp = (value: number, min: number, max: number) =>
@@ -126,6 +125,7 @@ function KanbanColumn({
   columnWidth,
   isDragSource,
   isDropTarget,
+  dropTargetAccentColor,
   columnBackgroundColor,
   columnBottomPadding,
   boardScrollRef,
@@ -152,6 +152,7 @@ function KanbanColumn({
   columnWidth: number;
   isDragSource: boolean;
   isDropTarget: boolean;
+  dropTargetAccentColor: string;
   columnBackgroundColor: string;
   columnBottomPadding: number;
   boardScrollRef: React.RefObject<GHScrollView | null>;
@@ -199,6 +200,16 @@ function KanbanColumn({
       style={[
         styles.column,
         isDropTarget ? styles.columnDropTarget : null,
+        isDropTarget
+          ? {
+              borderColor: dropTargetAccentColor,
+              backgroundColor: withAlpha(
+                dropTargetAccentColor,
+                theme === "dark" ? 0.2 : 0.12,
+              ),
+              shadowColor: dropTargetAccentColor,
+            }
+          : null,
         {
           width: columnWidth,
           backgroundColor: columnBackgroundColor,
@@ -1124,6 +1135,7 @@ export default function ProjectDetailScreen() {
                 activeDragSourceSection !== null &&
                 activeDropSection === section
               }
+              dropTargetAccentColor={project.color}
               columnBackgroundColor={columnBackgroundColor}
               columnBottomPadding={columnBottomPadding}
               boardScrollRef={boardScrollRef}
@@ -1223,9 +1235,6 @@ const createStyles = (theme: ThemeName) => {
     },
     columnDropTarget: {
       borderWidth: 2,
-      borderColor: DRAG_ACCENT,
-      backgroundColor: withAlpha(DRAG_ACCENT, theme === "dark" ? 0.2 : 0.12),
-      shadowColor: DRAG_ACCENT,
       shadowOpacity: theme === "dark" ? 0.34 : 0.2,
       shadowRadius: 14,
       shadowOffset: { width: 0, height: 8 },

@@ -28,8 +28,6 @@ import Reanimated, {
 
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import {
-  getTagTitle,
-  TAG_ORDER,
   type TagId,
 } from "@/context/home-filters-store";
 import type { Project, Task } from "@/context/tasks-store";
@@ -81,9 +79,7 @@ function hexToPastel(
 
 type TagChipModel = {
   key: string;
-  tagId: TagId;
   label: string;
-  tone?: "neutral" | "danger";
 };
 
 type SwipeActionUnderlayProps = {
@@ -203,47 +199,6 @@ function SwipeActionUnderlay({
   );
 }
 
-const extractHashtags = (value: string | undefined): string[] => {
-  if (!value) return [];
-  const matches = value.match(/#[\p{L}0-9_]+/gu) ?? [];
-  const unique: string[] = [];
-  for (const m of matches) {
-    const norm = m.toLowerCase();
-    if (!unique.some((x) => x.toLowerCase() === norm)) unique.push(m);
-  }
-  return unique;
-};
-
-const formatDueLabel = (dueAt: number, dueHasTime?: boolean) => {
-  if (!Number.isFinite(dueAt) || dueAt <= 0) return t("taskDetail.due.none");
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-
-  const due = new Date(dueAt);
-  const dueDay = new Date(due.getFullYear(), due.getMonth(), due.getDate());
-
-  const dayLabel =
-    dueDay.getTime() === today.getTime()
-      ? t("taskDetail.relative.today")
-      : dueDay.getTime() === tomorrow.getTime()
-        ? t("taskDetail.relative.tomorrow")
-        : new Intl.DateTimeFormat(getIntlLocale(), {
-            weekday: "short",
-            day: "2-digit",
-            month: "2-digit",
-          }).format(due);
-
-  if (!dueHasTime) return dayLabel;
-
-  const timeLabel = new Intl.DateTimeFormat(getIntlLocale(), {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(due);
-  return `${dayLabel} ${timeLabel}`;
-};
-
 const formatRowTimeLabel = (dueAt: number, dueHasTime?: boolean) => {
   if (!Number.isFinite(dueAt) || dueAt <= 0 || !dueHasTime) return null;
   return new Intl.DateTimeFormat(getIntlLocale(), {
@@ -251,6 +206,40 @@ const formatRowTimeLabel = (dueAt: number, dueHasTime?: boolean) => {
     minute: "2-digit",
     hour12: false,
   }).format(new Date(dueAt));
+};
+
+const formatRowDateLabel = (dueAt: number) => {
+  if (!Number.isFinite(dueAt) || dueAt <= 0) return null;
+  return new Intl.DateTimeFormat(getIntlLocale(), {
+    day: "2-digit",
+    month: "2-digit",
+  }).format(new Date(dueAt));
+};
+
+const isTaskOverdue = (
+  section: Task["section"],
+  dueAt: number,
+  dueHasTime: boolean | undefined,
+  nowMs: number,
+): boolean => {
+  if (section === "completed") return false;
+  if (!Number.isFinite(dueAt) || dueAt <= 0) return false;
+
+  if (dueHasTime === false) {
+    const due = new Date(dueAt);
+    const startOfNextDay = new Date(
+      due.getFullYear(),
+      due.getMonth(),
+      due.getDate() + 1,
+      0,
+      0,
+      0,
+      0,
+    ).getTime();
+    return nowMs >= startOfNextDay;
+  }
+
+  return dueAt < nowMs;
 };
 
 const getRoutineChipLabel = (
@@ -353,6 +342,7 @@ export type SwipeTaskRowProps = {
   onPopInAnimationEnd?: (taskId: string) => void;
   /** When set, datetime tags matching this day are suppressed (avoids redundant "Heute" chips). */
   selectedDateStart?: number;
+  showOverdueDatePrefix?: boolean;
   itemSpacerStyle?: StyleProp<ViewStyle>;
   swipeClipStyle?: StyleProp<ViewStyle>;
   rowStyle?: StyleProp<ViewStyle>;
@@ -400,7 +390,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   onTouchInteractionChange,
   shouldPopIn = false,
   onPopInAnimationEnd,
-  selectedDateStart,
+  showOverdueDatePrefix = false,
   itemSpacerStyle,
   swipeClipStyle,
   rowStyle,
@@ -1183,124 +1173,40 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
         : null,
     [shouldApplySwipeCommitState, swipeCommitOpacity],
   );
+  const isOverdue = React.useMemo(
+    () => isTaskOverdue(task.section, task.dueAt, task.dueHasTime, Date.now()),
+    [task.dueAt, task.dueHasTime, task.section],
+  );
+  const routineType = React.useMemo(
+    () => task.routineType ?? task.routineInterval,
+    [task.routineInterval, task.routineType],
+  );
+  const routineLabel = React.useMemo(
+    () => getRoutineChipLabel(routineType),
+    [routineType],
+  );
 
   const tagChips = React.useMemo<TagChipModel[]>(() => {
-    if (enabledTags.size === 0) return [];
-
     const chips: TagChipModel[] = [];
-    const now = Date.now();
+    if (project) {
+      chips.push({
+        key: `proj-${project.id}`,
+        label: project.name,
+      });
+    }
 
-    const isOverdue = (() => {
-      if (task.section === "completed") return false;
-      if (!Number.isFinite(task.dueAt) || task.dueAt <= 0) return false;
-
-      if (task.dueHasTime === false) {
-        const due = new Date(task.dueAt);
-        const startOfNextDay = new Date(
-          due.getFullYear(),
-          due.getMonth(),
-          due.getDate() + 1,
-          0,
-          0,
-          0,
-          0,
-        ).getTime();
-        return now >= startOfNextDay;
-      }
-
-      return task.dueAt < now;
-    })();
-
-    const hashtags = extractHashtags(
-      [task.title, task.subtitle, task.notes].filter(Boolean).join(" "),
-    );
-
-    for (const tagId of TAG_ORDER) {
-      if (!enabledTags.has(tagId)) continue;
-
-      if (tagId === "overdue") {
-        if (!isOverdue) continue;
-        chips.push({
-          key: "overdue",
-          tagId,
-          label: getTagTitle("overdue"),
-          tone: "danger",
-        });
-        continue;
-      }
-
-      if (tagId === "datetime") {
-        if (!Number.isFinite(task.dueAt) || task.dueAt <= 0) continue;
-        if (selectedDateStart != null && selectedDateStart > 0) {
-          const dueDay = new Date(task.dueAt);
-          const selDay = new Date(selectedDateStart);
-          if (
-            dueDay.getFullYear() === selDay.getFullYear() &&
-            dueDay.getMonth() === selDay.getMonth() &&
-            dueDay.getDate() === selDay.getDate()
-          ) {
-            continue;
-          }
-        }
-        chips.push({
-          key: `dt-${task.dueAt}`,
-          tagId,
-          label: formatDueLabel(task.dueAt, task.dueHasTime),
-        });
-        continue;
-      }
-
-      if (tagId === "location") {
-        if (!task.location) continue;
-        chips.push({
-          key: `loc-${task.location}`,
-          tagId,
-          label: task.location,
-        });
-        continue;
-      }
-
-      if (tagId === "project") {
-        if (!project) continue;
-        chips.push({ key: `proj-${project.id}`, tagId, label: project.name });
-        continue;
-      }
-
-      if (tagId === "routine") {
-        const routineType = task.routineType ?? task.routineInterval;
-        const routineLabel = getRoutineChipLabel(routineType);
-        if (!routineLabel) continue;
-        chips.push({
-          key: `routine-${task.id}-${routineType ?? "default"}`,
-          tagId,
-          label: routineLabel,
-        });
-        continue;
-      }
-
-      if (tagId === "keywords") {
-        if (hashtags.length === 0) continue;
-        for (const h of hashtags.slice(0, 3)) {
-          chips.push({ key: `kw-${h}`, tagId, label: h });
-        }
-      }
+    if (enabledTags.has("location") && task.location) {
+      chips.push({
+        key: `loc-${task.location}`,
+        label: task.location,
+      });
     }
 
     return chips;
   }, [
     enabledTags,
     project,
-    selectedDateStart,
-    task.dueAt,
-    task.dueHasTime,
-    task.id,
     task.location,
-    task.notes,
-    task.routineInterval,
-    task.routineType,
-    task.section,
-    task.subtitle,
-    task.title,
   ]);
 
   const tagsView = tagChips.length ? (
@@ -1308,10 +1214,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       {tagChips.map((chip) => (
         <View
           key={chip.key}
-          style={[
-            styles.tagChip,
-            chip.tone === "danger" ? styles.tagChipDanger : undefined,
-          ]}
+          style={styles.tagChip}
         >
           <Text style={styles.tagChipText} numberOfLines={1}>
             {chip.label}
@@ -1383,6 +1286,60 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     () => formatRowTimeLabel(task.dueAt, task.dueHasTime),
     [task.dueAt, task.dueHasTime],
   );
+  const overdueDateLabel = React.useMemo(
+    () =>
+      showOverdueDatePrefix && timeLabel && isOverdue
+        ? formatRowDateLabel(task.dueAt)
+        : null,
+    [isOverdue, showOverdueDatePrefix, task.dueAt, timeLabel],
+  );
+  const overdueTimeStyle = React.useMemo(
+    () =>
+      timeLabel && isOverdue && !isCompletedTask
+        ? ({
+            color: isDark ? "rgba(255,107,107,0.96)" : "rgba(196,42,28,0.96)",
+            fontWeight: "700",
+          } as const)
+        : null,
+    [isCompletedTask, isDark, isOverdue, timeLabel],
+  );
+  const routineMetaColor = React.useMemo(
+    () => (isDark ? "rgba(191,122,240,0.96)" : "rgba(175,82,222,0.96)"),
+    [isDark],
+  );
+  const hasRightMeta = Boolean(timeLabel || routineLabel);
+  const rightMetaView = hasRightMeta ? (
+    <View
+      style={{
+        alignItems: "flex-end",
+        justifyContent: "center",
+        gap: timeLabel && routineLabel ? 2 : 0,
+        flexShrink: 1,
+        maxWidth: Math.min(160, viewportWidth * 0.42),
+      }}
+    >
+      {timeLabel ? (
+        <Text
+          style={[styles.rowMeta, completedMetaStyle]}
+          numberOfLines={1}
+        >
+          {overdueDateLabel ? `${overdueDateLabel} ` : null}
+          <Text style={overdueTimeStyle}>{timeLabel}</Text>
+        </Text>
+      ) : null}
+      {routineLabel ? (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+          <MaterialIcons name="repeat" size={11} color={routineMetaColor} />
+          <Text
+            style={[styles.rowMeta, completedMetaStyle, { color: routineMetaColor }]}
+            numberOfLines={1}
+          >
+            {routineLabel}
+          </Text>
+        </View>
+      ) : null}
+    </View>
+  ) : null;
 
   const hasSubtitle = React.useMemo(
     () => !!task.subtitle?.trim(),
@@ -1586,14 +1543,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
                           >
                             {task.title}
                           </Text>
-                          {timeLabel ? (
-                            <Text
-                              style={[styles.rowMeta, completedMetaStyle]}
-                              numberOfLines={1}
-                            >
-                              {timeLabel}
-                            </Text>
-                          ) : null}
+                          {rightMetaView}
                         </View>
                         {task.subtitle ? (
                           <Text

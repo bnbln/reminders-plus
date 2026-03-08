@@ -7,29 +7,12 @@ import { requireOptionalNativeModule } from "expo-modules-core";
 import { t } from "@/i18n";
 
 export type TagId =
-  | "overdue"
-  | "datetime"
-  | "location"
-  | "project"
-  | "routine"
-  | "keywords";
+  | "location";
 
-export const TAG_ORDER: TagId[] = [
-  "overdue",
-  "datetime",
-  "location",
-  "project",
-  "routine",
-  "keywords",
-];
+export const TAG_ORDER: TagId[] = ["location"];
 
 export const TAG_DEFS: Record<TagId, { titleKey: string; iosSymbol: string }> = {
-  overdue: { titleKey: "tags.overdue", iosSymbol: "exclamationmark.triangle.fill" },
-  datetime: { titleKey: "tags.datetime", iosSymbol: "calendar.badge.clock" },
   location: { titleKey: "tags.location", iosSymbol: "location.fill" },
-  project: { titleKey: "tags.project", iosSymbol: "folder.fill" },
-  routine: { titleKey: "taskDetail.property.routine", iosSymbol: "repeat" },
-  keywords: { titleKey: "tags.keywords", iosSymbol: "tag.fill" },
 };
 
 export function getTagTitle(tagId: TagId): string {
@@ -41,6 +24,8 @@ const STORAGE_KEYS = {
   tagIcons: "reminds.homeFilters.tagIcons",
   compactSubtasks: "reminds.homeFilters.compactSubtasks",
   completedTasks: "reminds.homeFilters.completedTasks",
+  projectTasks: "reminds.homeFilters.projectTasks",
+  routineTasks: "reminds.homeFilters.routineTasks",
 } as const;
 
 type KeyValueBackend = {
@@ -221,6 +206,10 @@ type HomeFiltersContextValue = {
   setShowCompactSubtasks: React.Dispatch<React.SetStateAction<boolean>>;
   showCompletedTasks: boolean;
   setShowCompletedTasks: React.Dispatch<React.SetStateAction<boolean>>;
+  showProjectTasks: boolean;
+  setShowProjectTasks: React.Dispatch<React.SetStateAction<boolean>>;
+  showRoutineTasks: boolean;
+  setShowRoutineTasks: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
 const HomeFiltersContext = React.createContext<HomeFiltersContextValue | null>(
@@ -241,6 +230,10 @@ export function HomeFiltersProvider({
     React.useState<boolean>(false);
   const [showCompletedTasks, setShowCompletedTasks] =
     React.useState<boolean>(true);
+  const [showProjectTasks, setShowProjectTasks] =
+    React.useState<boolean>(true);
+  const [showRoutineTasks, setShowRoutineTasks] =
+    React.useState<boolean>(true);
 
   const hydratedRef = React.useRef(false);
 
@@ -255,12 +248,16 @@ export function HomeFiltersProvider({
           storedIcons,
           storedCompactSubtasks,
           storedCompletedTasks,
+          storedProjectTasks,
+          storedRoutineTasks,
         ] =
           await Promise.all([
             getStoredItem(STORAGE_KEYS.tags),
             getStoredItem(STORAGE_KEYS.tagIcons),
             getStoredItem(STORAGE_KEYS.compactSubtasks),
             getStoredItem(STORAGE_KEYS.completedTasks),
+            getStoredItem(STORAGE_KEYS.projectTasks),
+            getStoredItem(STORAGE_KEYS.routineTasks),
           ]);
 
         if (cancelled) return;
@@ -298,6 +295,20 @@ export function HomeFiltersProvider({
             prev === nextCompletedTasks ? prev : nextCompletedTasks,
           );
         }
+
+        if (storedProjectTasks != null) {
+          const nextProjectTasks = parseShowProjectTasksParam(storedProjectTasks);
+          setShowProjectTasks((prev) =>
+            prev === nextProjectTasks ? prev : nextProjectTasks,
+          );
+        }
+
+        if (storedRoutineTasks != null) {
+          const nextRoutineTasks = parseShowRoutineTasksParam(storedRoutineTasks);
+          setShowRoutineTasks((prev) =>
+            prev === nextRoutineTasks ? prev : nextRoutineTasks,
+          );
+        }
       } finally {
         if (!cancelled) hydratedRef.current = true;
       }
@@ -327,10 +338,19 @@ export function HomeFiltersProvider({
         STORAGE_KEYS.completedTasks,
         showCompletedTasks ? "1" : "0",
       );
+      await setStoredItem(STORAGE_KEYS.projectTasks, showProjectTasks ? "1" : "0");
+      await setStoredItem(STORAGE_KEYS.routineTasks, showRoutineTasks ? "1" : "0");
     };
 
     void run();
-  }, [enabledTags, showCompactSubtasks, showCompletedTasks, showTagIcons]);
+  }, [
+    enabledTags,
+    showCompactSubtasks,
+    showCompletedTasks,
+    showProjectTasks,
+    showRoutineTasks,
+    showTagIcons,
+  ]);
 
   const value = React.useMemo(
     () => ({
@@ -342,8 +362,19 @@ export function HomeFiltersProvider({
       setShowCompactSubtasks,
       showCompletedTasks,
       setShowCompletedTasks,
+      showProjectTasks,
+      setShowProjectTasks,
+      showRoutineTasks,
+      setShowRoutineTasks,
     }),
-    [enabledTags, showCompactSubtasks, showCompletedTasks, showTagIcons],
+    [
+      enabledTags,
+      showCompactSubtasks,
+      showCompletedTasks,
+      showProjectTasks,
+      showRoutineTasks,
+      showTagIcons,
+    ],
   );
 
   return (
@@ -373,15 +404,7 @@ export function parseTagsParam(value: unknown): Set<TagId> {
 
   const enabled = new Set<TagId>();
   for (const p of parts) {
-    if (
-      p === "overdue" ||
-      p === "datetime" ||
-      p === "location" ||
-      p === "project" ||
-      p === "routine" ||
-      p === "keywords"
-    )
-      enabled.add(p);
+    if (p === "location") enabled.add(p);
   }
   return enabled;
 }
@@ -406,6 +429,18 @@ export function parseCompactSubtasksParam(value: unknown): boolean {
 }
 
 export function parseShowCompletedTasksParam(value: unknown): boolean {
+  if (value === "0") return false;
+  if (value === "1") return true;
+  return true;
+}
+
+export function parseShowProjectTasksParam(value: unknown): boolean {
+  if (value === "0") return false;
+  if (value === "1") return true;
+  return true;
+}
+
+export function parseShowRoutineTasksParam(value: unknown): boolean {
   if (value === "0") return false;
   if (value === "1") return true;
   return true;
