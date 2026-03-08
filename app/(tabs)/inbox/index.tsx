@@ -20,8 +20,8 @@ import { StreakAccentBackground } from "@/components/ui/streak-accent-background
 import { Colors } from "@/constants/theme";
 import { useHomeFilters } from "@/context/home-filters-store";
 import {
+  createRoutineCompletionTransition,
   getDueAtForSection,
-  getNextRoutineDate,
   type Task,
   useTasksStore,
 } from "@/context/tasks-store";
@@ -286,7 +286,18 @@ export default function InboxScreen() {
 
         const fromSection = task.section;
         const now = Date.now();
-        const nowReference = new Date(now).getTime();
+
+        const routineTransition = createRoutineCompletionTransition(
+          task,
+          now,
+          new Set(prev.map((candidate) => candidate.id)),
+        );
+        if (routineTransition && fromSection !== "completed") {
+          const next = prev.map((candidate): Task =>
+            candidate.id === taskId ? routineTransition.nextTask : candidate,
+          );
+          return [...next, routineTransition.completedTask];
+        }
 
         return prev.map((candidate): Task => {
           if (candidate.id !== taskId) return candidate;
@@ -306,29 +317,6 @@ export default function InboxScreen() {
                     dueAt: getDueAtForSection("today"),
                     dueHasTime: true,
                   }),
-            };
-          }
-
-          const routineType = candidate.isRoutine
-            ? (candidate.routineType ?? candidate.routineInterval)
-            : undefined;
-
-          if (routineType) {
-            const nextDue = getNextRoutineDate(candidate.dueAt, routineType, {
-              weekday: candidate.routineWeekday,
-              nthWeek: candidate.routineNthWeek,
-              monthDay: candidate.routineMonthDay,
-              month: candidate.routineMonth,
-            });
-            return {
-              ...candidate,
-              dueAt: nextDue,
-              section: deriveActiveSectionFromDueAt(nextDue, nowReference),
-              completedAt: undefined,
-              subtasks: candidate.subtasks?.map((subtask) => ({
-                ...subtask,
-                done: false,
-              })),
             };
           }
 

@@ -1,7 +1,13 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
-import { Dimensions, Platform, StyleSheet, Text, View } from "react-native";
+import {
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import {
   GestureHandlerRootView,
   ScrollView as GHScrollView,
@@ -22,6 +28,7 @@ import { HeaderIconButton } from "@/components/ui/header-icon-button";
 import { Colors } from "@/constants/theme";
 import { useHomeFilters, type TagId } from "@/context/home-filters-store";
 import {
+  createRoutineCompletionTransition,
   getDueAtForSection,
   Project,
   SectionId,
@@ -38,9 +45,9 @@ import {
   hasValidDueAt,
 } from "@/utils/task-dates";
 
-const SCREEN_WIDTH = Dimensions.get("window").width;
-const COLUMN_WIDTH = SCREEN_WIDTH * 0.78; // Narrower to show peers
+const PHONE_COLUMN_WIDTH_RATIO = 0.78; // Narrower to show peers
 const COLUMN_GAP = 12; // Slightly smaller gap
+const TABLET_LAYOUT_MIN_WIDTH = 768;
 const IOS_LIGHT_BASE_BACKGROUND = "#F2F2F7";
 const IOS_LIGHT_ELEVATED_SURFACE = "#FFFFFF";
 const HOME_TASK_ROW_SURFACE_LIGHT = IOS_LIGHT_ELEVATED_SURFACE;
@@ -50,25 +57,12 @@ const EDGE_AUTO_SCROLL_ZONE = 112;
 const EDGE_AUTO_SCROLL_MAX_STEP = 20;
 const EDGE_AUTO_SCROLL_MIN_STEP = 2;
 const DRAG_ACCENT = "#F4512C";
-const PROJECT_ROW_SWIPE_ACTIVATION_THRESHOLD = 22;
+const PROJECT_ROW_SWIPE_ACTIVATION_THRESHOLD = 10;
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 
 const AnimatedBoardScrollView = Animated.createAnimatedComponent(GHScrollView);
-
-const SNAP_OFFSETS = [
-  0,
-  BOARD_SIDE_PADDING +
-    COLUMN_WIDTH +
-    COLUMN_GAP +
-    COLUMN_WIDTH / 2 -
-    SCREEN_WIDTH / 2,
-  BOARD_SIDE_PADDING +
-    2 * (COLUMN_WIDTH + COLUMN_GAP) +
-    COLUMN_WIDTH -
-    (SCREEN_WIDTH - BOARD_SIDE_PADDING),
-];
 
 // Updated Order: Upcoming -> Today -> Completed
 const SECTIONS: SectionId[] = ["upcoming", "today", "completed"];
@@ -80,11 +74,56 @@ const SECTION_TITLES: Record<SectionId, string> = {
 
 type ThemeName = keyof typeof Colors;
 
+const getBoardLayoutMetrics = ({
+  viewportWidth,
+  isTabletLayout,
+}: {
+  viewportWidth: number;
+  isTabletLayout: boolean;
+}) => {
+  const safeViewportWidth =
+    Number.isFinite(viewportWidth) && viewportWidth > 0 ? viewportWidth : 1;
+  const columnWidth = isTabletLayout
+    ? (safeViewportWidth -
+        BOARD_SIDE_PADDING * 2 -
+        COLUMN_GAP * (SECTIONS.length - 1)) /
+      SECTIONS.length
+    : safeViewportWidth * PHONE_COLUMN_WIDTH_RATIO;
+  const maxOffset = Math.max(
+    0,
+    BOARD_SIDE_PADDING * 2 +
+      columnWidth * SECTIONS.length +
+      COLUMN_GAP * (SECTIONS.length - 1) -
+      safeViewportWidth,
+  );
+  const snapOffsets = isTabletLayout
+    ? [0, 0, 0]
+    : [
+        0,
+        BOARD_SIDE_PADDING +
+          columnWidth +
+          COLUMN_GAP +
+          columnWidth / 2 -
+          safeViewportWidth / 2,
+        BOARD_SIDE_PADDING +
+          2 * (columnWidth + COLUMN_GAP) +
+          columnWidth -
+          (safeViewportWidth - BOARD_SIDE_PADDING),
+      ].map((offset) => clamp(offset, 0, maxOffset));
+
+  return {
+    columnWidth,
+    maxOffset,
+    snapOffsets,
+  };
+};
+
 // --- Components ---
 
 function KanbanColumn({
   section,
   tasks,
+  columnWidth,
   isDragSource,
   isDropTarget,
   columnBackgroundColor,
@@ -106,10 +145,11 @@ function KanbanColumn({
   onDragStateChange,
   onDragGestureUpdate,
   onSwipeStateChange,
-  onRowTouchStateChange,
+  shrinkToContentWhenShort,
 }: {
   section: SectionId;
   tasks: Task[];
+  columnWidth: number;
   isDragSource: boolean;
   isDropTarget: boolean;
   columnBackgroundColor: string;
@@ -131,7 +171,7 @@ function KanbanColumn({
   onDragStateChange: (isDragging: boolean) => void;
   onDragGestureUpdate: (params: TaskDragGestureUpdateParams) => void;
   onSwipeStateChange: (isSwiping: boolean) => void;
-  onRowTouchStateChange: (isTouching: boolean) => void;
+  shrinkToContentWhenShort: boolean;
 }) {
   const enabledTagsSeed = React.useMemo(
     () => Array.from(enabledTags).sort().join(","),
@@ -160,6 +200,7 @@ function KanbanColumn({
         styles.column,
         isDropTarget ? styles.columnDropTarget : null,
         {
+          width: columnWidth,
           backgroundColor: columnBackgroundColor,
           zIndex: isDragSource ? 60 : 1,
           elevation: isDragSource ? 60 : 0,
@@ -195,6 +236,7 @@ function KanbanColumn({
         followHorizontalDrag
         dragTranslateXCompensation={dragTranslateXCompensation}
         rowSwipeActivationThreshold={PROJECT_ROW_SWIPE_ACTIVATION_THRESHOLD}
+        shrinkToContentWhenShort={shrinkToContentWhenShort}
         contentContainerStyle={[
           styles.columnContent,
           { paddingBottom: columnBottomPadding },
@@ -216,7 +258,6 @@ function KanbanColumn({
         onDragStateChange={onDragStateChange}
         onDragGestureUpdate={onDragGestureUpdate}
         onSwipeStateChange={onSwipeStateChange}
-        onRowTouchStateChange={onRowTouchStateChange}
       />
     </View>
   );
@@ -227,6 +268,19 @@ export default function ProjectDetailScreen() {
   const router = useRouter();
   const theme = (useColorScheme() ?? "light") as ThemeName;
   const isDark = theme === "dark";
+  const { width: viewportWidth } = useWindowDimensions();
+  const isTabletLayout =
+    Platform.OS === "ios" && viewportWidth >= TABLET_LAYOUT_MIN_WIDTH;
+  const { columnWidth, maxOffset: maxBoardOffset, snapOffsets } =
+    React.useMemo(
+      () =>
+        getBoardLayoutMetrics({
+          viewportWidth,
+          isTabletLayout,
+        }),
+      [isTabletLayout, viewportWidth],
+    );
+  const todaySnapOffset = isTabletLayout ? 0 : (snapOffsets[1] ?? 0);
   const isIOS26Plus = Platform.OS === "ios" && isIOS26OrNewer();
   const showFloatingAddButton = Platform.OS === "ios" && !isIOS26Plus;
   const styles = React.useMemo(() => createStyles(theme), [theme]);
@@ -234,14 +288,14 @@ export default function ProjectDetailScreen() {
   const { enabledTags, showTagIcons, showCompactSubtasks } = useHomeFilters();
   const { projects, tasks, setTasks } = useTasksStore();
   const boardScrollRef = React.useRef<GHScrollView | null>(null);
-  const boardOffsetXRef = React.useRef<number>(SNAP_OFFSETS[1] ?? 0);
-  const boardOffsetXShared = useSharedValue<number>(SNAP_OFFSETS[1] ?? 0);
+  const boardOffsetXRef = React.useRef<number>(todaySnapOffset);
+  const boardOffsetXShared = useSharedValue<number>(todaySnapOffset);
   const boardPageXRef = React.useRef<number>(0);
   const dragPointerXRef = React.useRef<number | null>(null);
   const dragTranslationXRef = React.useRef(0);
   const dragHoverSectionRef = React.useRef<SectionId | null>(null);
   const dragDropSectionRef = React.useRef<SectionId | null>(null);
-  const dragBoardOffsetStartRef = React.useRef<number>(SNAP_OFFSETS[1] ?? 0);
+  const dragBoardOffsetStartRef = React.useRef<number>(todaySnapOffset);
   const isBoardDraggingRef = React.useRef(false);
   const autoScrollVelocityRef = React.useRef(0);
   const autoScrollFrameRef = React.useRef<number | null>(null);
@@ -253,7 +307,6 @@ export default function ProjectDetailScreen() {
     sourceSection: SectionId;
   } | null>(null);
   const swipingSectionsRef = React.useRef(new Set<SectionId>());
-  const touchingSectionsRef = React.useRef(new Set<SectionId>());
   const boardScrollLockedRef = React.useRef(false);
   const [isBoardScrollLocked, setIsBoardScrollLocked] = React.useState(false);
   const [activeDragSourceSection, setActiveDragSourceSection] =
@@ -327,20 +380,20 @@ export default function ProjectDetailScreen() {
 
   const resolveSectionFromBoardContentX = React.useCallback(
     (boardContentX: number): SectionId => {
-      const span = COLUMN_WIDTH + COLUMN_GAP;
-      const start = BOARD_SIDE_PADDING + COLUMN_WIDTH / 2;
+      const span = columnWidth + COLUMN_GAP;
+      const start = BOARD_SIDE_PADDING + columnWidth / 2;
       const relative = boardContentX - start;
       const index = clamp(Math.round(relative / span), 0, SECTIONS.length - 1);
       return SECTIONS[index] ?? "today";
     },
-    [],
+    [columnWidth],
   );
   const resolveSectionFromTranslationX = React.useCallback(
     (sourceSection: SectionId, translationX: number): SectionId => {
       if (!Number.isFinite(translationX)) return sourceSection;
       const sourceIndex = SECTIONS.indexOf(sourceSection);
       if (sourceIndex < 0) return sourceSection;
-      const span = COLUMN_WIDTH + COLUMN_GAP;
+      const span = columnWidth + COLUMN_GAP;
       // Keep horizontal switching intentional and one column per drag step.
       const stepThreshold = Math.max(96, span * 0.42);
       const indexShift =
@@ -356,7 +409,7 @@ export default function ProjectDetailScreen() {
       );
       return SECTIONS[shiftedIndex] ?? sourceSection;
     },
-    [],
+    [columnWidth],
   );
 
   const stopAutoScroll = React.useCallback(() => {
@@ -419,27 +472,17 @@ export default function ProjectDetailScreen() {
   );
 
   const syncBoardScrollLock = React.useCallback(() => {
-    const shouldLock = isBoardDraggingRef.current;
+    const shouldLock =
+      isTabletLayout ||
+      isBoardDraggingRef.current ||
+      swipingSectionsRef.current.size > 0;
     applyBoardScrollLock(shouldLock);
-  }, [applyBoardScrollLock]);
+  }, [applyBoardScrollLock, isTabletLayout]);
 
   const handleSectionSwipeStateChange = React.useCallback(
     (section: SectionId, isSwiping: boolean) => {
       const set = swipingSectionsRef.current;
       if (isSwiping) {
-        set.add(section);
-      } else {
-        set.delete(section);
-      }
-      syncBoardScrollLock();
-    },
-    [syncBoardScrollLock],
-  );
-
-  const handleSectionRowTouchStateChange = React.useCallback(
-    (section: SectionId, isTouching: boolean) => {
-      const set = touchingSectionsRef.current;
-      if (isTouching) {
         set.add(section);
       } else {
         set.delete(section);
@@ -462,9 +505,8 @@ export default function ProjectDetailScreen() {
         return;
       }
 
-      const maxOffset = SNAP_OFFSETS[SNAP_OFFSETS.length - 1] ?? 0;
       const currentOffset = boardOffsetXRef.current;
-      const nextOffset = clamp(currentOffset + velocity, 0, maxOffset);
+      const nextOffset = clamp(currentOffset + velocity, 0, maxBoardOffset);
       if (nextOffset !== currentOffset) {
         boardOffsetXRef.current = nextOffset;
         boardOffsetXShared.value = nextOffset;
@@ -483,6 +525,7 @@ export default function ProjectDetailScreen() {
     autoScrollFrameRef.current = requestAnimationFrame(tick);
   }, [
     boardOffsetXShared,
+    maxBoardOffset,
     resolveSectionFromBoardContentX,
     updateDragTranslateXCompensation,
     updateHoverSection,
@@ -507,9 +550,9 @@ export default function ProjectDetailScreen() {
           EDGE_AUTO_SCROLL_MIN_STEP +
           strength * (EDGE_AUTO_SCROLL_MAX_STEP - EDGE_AUTO_SCROLL_MIN_STEP)
         );
-      } else if (pointerX >= SCREEN_WIDTH - EDGE_AUTO_SCROLL_ZONE) {
+      } else if (pointerX >= viewportWidth - EDGE_AUTO_SCROLL_ZONE) {
         const strength = clamp(
-          (pointerX - (SCREEN_WIDTH - EDGE_AUTO_SCROLL_ZONE)) /
+          (pointerX - (viewportWidth - EDGE_AUTO_SCROLL_ZONE)) /
             EDGE_AUTO_SCROLL_ZONE,
           0,
           1,
@@ -519,6 +562,10 @@ export default function ProjectDetailScreen() {
           strength * (EDGE_AUTO_SCROLL_MAX_STEP - EDGE_AUTO_SCROLL_MIN_STEP);
       }
 
+      if (isTabletLayout) {
+        stopAutoScroll();
+        return;
+      }
       autoScrollVelocityRef.current = velocity;
       if (Math.abs(velocity) < 0.01) {
         stopAutoScroll();
@@ -529,10 +576,12 @@ export default function ProjectDetailScreen() {
       }
     },
     [
+      isTabletLayout,
       resolveSectionFromBoardContentX,
       startAutoScroll,
       stopAutoScroll,
       updateHoverSection,
+      viewportWidth,
     ],
   );
   const handleBoardDragGestureUpdate = React.useCallback(
@@ -551,7 +600,7 @@ export default function ProjectDetailScreen() {
       const pointerX = clamp(
         params.absoluteX - boardPageXRef.current,
         0,
-        SCREEN_WIDTH,
+        viewportWidth,
       );
       if (params.phase === "end") {
         dragPointerXRef.current = pointerX;
@@ -572,6 +621,7 @@ export default function ProjectDetailScreen() {
       resolveSectionFromBoardContentX,
       stopAutoScroll,
       updateHoverSection,
+      viewportWidth,
     ],
   );
 
@@ -664,11 +714,28 @@ export default function ProjectDetailScreen() {
         );
         const completionTimestamp = Date.now();
         const targetDayStartMs = getStartOfLocalDayMs();
+        let completedRoutineEntry: Task | null = null;
+        const existingTaskIds = new Set(prev.map((candidate) => candidate.id));
 
-        return prev.map((task) => {
+        const next: Task[] = prev.map((task): Task => {
           if (task.id === draggedTaskId) {
             const nextOrderRank = ((targetOrderIndex.get(task.id) ?? 0) + 1) * 1000;
             if (dropSection === "completed") {
+              const routineTransition = createRoutineCompletionTransition(
+                task,
+                completionTimestamp,
+                existingTaskIds,
+              );
+              if (routineTransition) {
+                completedRoutineEntry = {
+                  ...routineTransition.completedTask,
+                  orderRank: nextOrderRank,
+                };
+                return {
+                  ...routineTransition.nextTask,
+                  orderRank: completionTimestamp,
+                };
+              }
               return {
                 ...task,
                 section: "completed",
@@ -723,6 +790,8 @@ export default function ProjectDetailScreen() {
 
           return task;
         });
+
+        return completedRoutineEntry ? [...next, completedRoutineEntry] : next;
       });
       dragContextRef.current = null;
       dragDropSectionRef.current = null;
@@ -757,11 +826,22 @@ export default function ProjectDetailScreen() {
           fromSection === "completed" ? "today" : "completed";
 
         const now = Date.now();
+        let completedRoutineEntry: Task | null = null;
 
         const next: Task[] = prev.map((t) => {
           if (t.id !== taskId) return t;
 
           if (toSection === "completed") {
+            const routineTransition = createRoutineCompletionTransition(
+              t,
+              now,
+              new Set(prev.map((candidate) => candidate.id)),
+            );
+            if (routineTransition) {
+              toSection = routineTransition.nextTask.section;
+              completedRoutineEntry = routineTransition.completedTask;
+              return routineTransition.nextTask;
+            }
             const updated: Task = {
               ...t,
               section: "completed",
@@ -788,11 +868,15 @@ export default function ProjectDetailScreen() {
           return updated;
         });
 
-        // Keep ordering tidy within the destination section by putting moved task at the top.
-        const moved = next.find((t) => t.id === taskId);
-        if (!moved) return next;
+        const nextWithCompletionEntry = completedRoutineEntry
+          ? [...next, completedRoutineEntry]
+          : next;
 
-        const others = next.filter((t) => t.id !== taskId);
+        // Keep ordering tidy within the destination section by putting moved task at the top.
+        const moved = nextWithCompletionEntry.find((t) => t.id === taskId);
+        if (!moved) return nextWithCompletionEntry;
+
+        const others = nextWithCompletionEntry.filter((t) => t.id !== taskId);
         const dest = others
           .filter((t) => t.section === toSection)
           .sort((a, b) => (a.orderRank ?? 0) - (b.orderRank ?? 0));
@@ -816,6 +900,9 @@ export default function ProjectDetailScreen() {
 
         const reseededFrom = reseed(withInserted, fromSection);
         const reseededBoth = reseed(reseededFrom, toSection);
+        if (completedRoutineEntry && toSection !== "completed") {
+          return reseed(reseededBoth, "completed");
+        }
         return reseededBoth;
       });
     },
@@ -850,10 +937,10 @@ export default function ProjectDetailScreen() {
           ? pageX - boardPageXRef.current
           : null;
       if (typeof pointerX === "number" && Number.isFinite(pointerX)) {
-        applyDragPointerX(clamp(pointerX, 0, SCREEN_WIDTH));
+        applyDragPointerX(clamp(pointerX, 0, viewportWidth));
       }
     },
-    [applyDragPointerX],
+    [applyDragPointerX, viewportWidth],
   );
 
   const handleAddTask = React.useCallback(() => {
@@ -862,19 +949,26 @@ export default function ProjectDetailScreen() {
   }, [id, router]);
 
   React.useEffect(() => {
+    boardOffsetXRef.current = todaySnapOffset;
+    boardOffsetXShared.value = todaySnapOffset;
+    dragBoardOffsetStartRef.current = todaySnapOffset;
+    requestAnimationFrame(() => {
+      boardScrollRef.current?.scrollTo({ x: todaySnapOffset, animated: false });
+    });
+  }, [boardOffsetXShared, todaySnapOffset]);
+
+  React.useEffect(() => {
     const rafId = requestAnimationFrame(updateBoardPageX);
     return () => cancelAnimationFrame(rafId);
   }, [updateBoardPageX]);
 
   React.useEffect(() => {
     const swipingSections = swipingSectionsRef.current;
-    const touchingSections = touchingSectionsRef.current;
     const boardRef = boardScrollRef.current;
     return () => {
       stopAutoScroll();
       isBoardDraggingRef.current = false;
       swipingSections.clear();
-      touchingSections.clear();
       boardScrollLockedRef.current = false;
       setDragTranslateXCompensation(0);
       const scrollNode =
@@ -927,11 +1021,11 @@ export default function ProjectDetailScreen() {
     if (sectionIndex < 0) {
       return;
     }
-    const targetOffsetX = SNAP_OFFSETS[sectionIndex] ?? 0;
+    const targetOffsetX = snapOffsets[sectionIndex] ?? 0;
     requestAnimationFrame(() => {
       boardScrollRef.current?.scrollTo({ x: targetOffsetX, animated: true });
     });
-  }, [id, projectTasks, tasks]);
+  }, [id, projectTasks, snapOffsets, tasks]);
 
   React.useEffect(() => {
     if (project) return;
@@ -993,9 +1087,9 @@ export default function ProjectDetailScreen() {
           ref={boardScrollRef}
           style={styles.boardScroll}
           horizontal
-          scrollEnabled={!isBoardScrollLocked}
+          scrollEnabled={!isBoardScrollLocked && !isTabletLayout}
           pagingEnabled={false}
-          snapToOffsets={SNAP_OFFSETS}
+          snapToOffsets={isTabletLayout ? undefined : snapOffsets}
           decelerationRate="fast"
           contentContainerStyle={[
             styles.boardContent,
@@ -1003,7 +1097,7 @@ export default function ProjectDetailScreen() {
           ]}
           showsHorizontalScrollIndicator={false}
           contentInsetAdjustmentBehavior="never"
-          contentOffset={{ x: SNAP_OFFSETS[1], y: 0 }} // Start focused on Today
+          contentOffset={{ x: todaySnapOffset, y: 0 }} // Start focused on Today
           onScroll={onBoardScroll}
           onScrollEndDrag={syncBoardOffsetFromScrollEvent}
           onMomentumScrollEnd={syncBoardOffsetFromScrollEvent}
@@ -1024,6 +1118,7 @@ export default function ProjectDetailScreen() {
               key={section}
               section={section}
               tasks={tasksBySection[section]}
+              columnWidth={columnWidth}
               isDragSource={activeDragSourceSection === section}
               isDropTarget={
                 activeDragSourceSection !== null &&
@@ -1080,9 +1175,7 @@ export default function ProjectDetailScreen() {
               onSwipeStateChange={(isSwiping) =>
                 handleSectionSwipeStateChange(section, isSwiping)
               }
-              onRowTouchStateChange={(isTouching) =>
-                handleSectionRowTouchStateChange(section, isTouching)
-              }
+              shrinkToContentWhenShort={!isTabletLayout}
             />
           ))}
         </AnimatedBoardScrollView>
@@ -1122,7 +1215,6 @@ const createStyles = (theme: ThemeName) => {
       overflow: "visible",
     },
     column: {
-      width: COLUMN_WIDTH,
       borderRadius: 16,
       padding: 12,
       height: "100%",

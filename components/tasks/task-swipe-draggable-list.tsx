@@ -204,6 +204,11 @@ export type TaskSwipeDraggableListProps = {
   revealPhase?: 'enter' | 'exit';
   revealStaggerStep?: number;
   revealTranslateX?: number;
+  /**
+   * When true, the list shrinks to content height when short.
+   * This keeps the area below rows free for parent gestures.
+   */
+  shrinkToContentWhenShort?: boolean;
 };
 
 export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHandle, TaskSwipeDraggableListProps>(function TaskSwipeDraggableList(
@@ -258,6 +263,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     revealPhase = 'enter',
     revealStaggerStep = 0.055,
     revealTranslateX = 72,
+    shrinkToContentWhenShort = false,
   },
   ref
 ) {
@@ -616,12 +622,40 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     [scrollRef]
   );
   const resolvedContainerStyle: StyleProp<ViewStyle> = React.useMemo(() => {
-    return [{ flex: 1, backgroundColor: Colors[theme].background, overflow: 'visible' }, containerStyle];
-  }, [containerStyle, theme]);
+    return [
+      {
+        flex: shrinkToContentWhenShort ? undefined : 1,
+        flexShrink: shrinkToContentWhenShort ? 1 : undefined,
+        minHeight: shrinkToContentWhenShort ? 0 : undefined,
+        backgroundColor: Colors[theme].background,
+        overflow: "visible",
+      },
+      containerStyle,
+    ];
+  }, [containerStyle, shrinkToContentWhenShort, theme]);
+  const resolvedListStyle: StyleProp<ViewStyle> = React.useMemo(
+    () =>
+      shrinkToContentWhenShort
+        ? {
+            alignSelf: "stretch",
+            flexGrow: 0,
+            flexShrink: 1,
+            minHeight: 0,
+            overflow: "visible",
+          }
+        : { flex: 1, overflow: "visible" },
+    [shrinkToContentWhenShort]
+  );
 
   const renderItem = React.useCallback(
     ({ item, drag, isActive, getIndex }: RenderItemParams<TaskSwipeDraggableListItem>) => {
-      const index = flatListIndexByKey.get(item.key) ?? getIndex() ?? -1;
+      const liveIndex = getIndex();
+      const index =
+        typeof liveIndex === "number" &&
+        Number.isFinite(liveIndex) &&
+        liveIndex >= 0
+          ? liveIndex
+          : (flatListIndexByKey.get(item.key) ?? -1);
       if (item.kind === 'header') {
         return renderHeaderRow ? renderHeaderRow(item.sectionId) : null;
       }
@@ -968,7 +1002,6 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     data: flatListData,
     keyExtractor: (item: TaskSwipeDraggableListItem) => item.key,
     renderItem,
-    style: { overflow: 'visible' as const },
     ListHeaderComponent: header ?? null,
     ListFooterComponent: footer ?? null,
     ListEmptyComponent: empty ?? null,
@@ -997,7 +1030,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   return (
     <DraggableFlatList
       {...dragListProps}
-      style={{ flex: 1, overflow: "visible" }}
+      style={resolvedListStyle}
       containerStyle={resolvedContainerStyle}
       contentContainerStyle={contentContainerStyle}
       removeClippedSubviews={false}

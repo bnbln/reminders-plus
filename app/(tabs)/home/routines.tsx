@@ -13,6 +13,7 @@ import { Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { countLabel, getIntlLocale, t } from '@/i18n';
 import { isIOS26OrNewer } from '@/utils/ios-version';
+import { hasValidDueAt } from '@/utils/task-dates';
 
 type ThemeName = keyof typeof Colors;
 type RoutineStatsBucket = 'daily' | 'weekly' | 'monthlyPlus';
@@ -360,7 +361,11 @@ export default function RoutinesScreen() {
   const routineTasks = useMemo(() => {
     return tasks.filter(
       (t): t is Task & { isRoutine: true } =>
-        t.isRoutine === true && (!!t.routineType || !!t.routineInterval) && !t.deletedAt
+        t.isRoutine === true &&
+        (!!t.routineType || !!t.routineInterval) &&
+        !t.deletedAt &&
+        t.section !== 'completed' &&
+        !hasValidDueAt(t.completedAt)
     );
   }, [tasks]);
 

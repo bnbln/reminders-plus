@@ -51,6 +51,7 @@ import {
 import { getAccentColorValue, useAppSettings } from "@/context/settings-store";
 import { useTaskCreateContext } from "@/context/task-create-context";
 import {
+  createRoutineCompletionTransition,
   getDueAtForSection,
   getNextRoutineDate,
   SectionId,
@@ -236,6 +237,9 @@ const adjustDueAtOnSectionChange = (
   targetDayStart: number,
 ): Task => {
   if (nextSection === "completed") {
+    if (task.section === "completed") {
+      return task;
+    }
     return {
       ...task,
       section: "completed",
@@ -3519,7 +3523,10 @@ export default function HomeScreen() {
           finalOrder.forEach((id, index) => {
             const existing = nextById.get(id);
             if (!existing) return;
-            const moved = reorderedVisibleSet.has(id)
+            const shouldAdjustSectionData =
+              reorderedVisibleSet.has(id) &&
+              deriveHomeDisplaySection(existing, listDateStart) !== sectionId;
+            const moved = shouldAdjustSectionData
               ? adjustDueAtOnSectionChange(existing, sectionId, listDateStart)
               : existing;
             nextById.set(id, { ...moved, orderRank: (index + 1) * 1000 });
@@ -3727,7 +3734,8 @@ export default function HomeScreen() {
 
         const fromSection = task.section;
         let toSection: SectionId = fromSection;
-        const nowDate = new Date(now);
+        let completedRoutineEntry: Task | null = null;
+        const existingIds = new Set(prev.map((candidate) => candidate.id));
 
         const next = prev.map((t): Task => {
           if (t.id !== taskId) return t;
@@ -3746,36 +3754,19 @@ export default function HomeScreen() {
                 : {
                     dueAt: getDueAtForSection("today"),
                     dueHasTime: true,
-                  }),
+              }),
             };
           }
 
-          const routineType = t.isRoutine
-            ? (t.routineType ?? t.routineInterval)
-            : undefined;
-
-          if (routineType) {
-            const nextDue = getNextRoutineDate(t.dueAt, routineType, {
-              weekday: t.routineWeekday,
-              nthWeek: t.routineNthWeek,
-              monthDay: t.routineMonthDay,
-              month: t.routineMonth,
-            });
-            toSection = deriveActiveSectionFromDueAt(
-              nextDue,
-              nowDate.getTime(),
-            );
-            return {
-              ...t,
-              dueAt: nextDue,
-              section: toSection,
-              completedAt: undefined,
-              // Start fresh for the next routine occurrence.
-              subtasks: t.subtasks?.map((subtask) => ({
-                ...subtask,
-                done: false,
-              })),
-            };
+          const routineTransition = createRoutineCompletionTransition(
+            t,
+            now,
+            existingIds,
+          );
+          if (routineTransition) {
+            toSection = routineTransition.nextTask.section;
+            completedRoutineEntry = routineTransition.completedTask;
+            return routineTransition.nextTask;
           }
 
           toSection = "completed";
@@ -3786,12 +3777,19 @@ export default function HomeScreen() {
           };
         });
 
-        if (toSection === fromSection) return next;
+        const nextWithCompletionEntry = completedRoutineEntry
+          ? [...next, completedRoutineEntry]
+          : next;
 
-        const moved = next.find((t) => t.id === taskId);
-        if (!moved) return next;
+        if (toSection === fromSection) {
+          if (!completedRoutineEntry) return nextWithCompletionEntry;
+          return reseedSection(nextWithCompletionEntry, "completed");
+        }
 
-        const other = next.filter((t) => t.id !== taskId);
+        const moved = nextWithCompletionEntry.find((t) => t.id === taskId);
+        if (!moved) return nextWithCompletionEntry;
+
+        const other = nextWithCompletionEntry.filter((t) => t.id !== taskId);
         const dest = other
           .filter((t) => t.section === toSection)
           .sort((a, b) => a.orderRank - b.orderRank);
@@ -3801,6 +3799,9 @@ export default function HomeScreen() {
 
         const reseededFrom = reseedSection(withInserted, fromSection);
         const reseededBoth = reseedSection(reseededFrom, toSection);
+        if (completedRoutineEntry && toSection !== "completed") {
+          return reseedSection(reseededBoth, "completed");
+        }
         return reseededBoth;
       });
     },
@@ -4608,6 +4609,7 @@ export default function HomeScreen() {
         onSwipeStateChange={handleSwipeStateChange}
         onRowTouchStateChange={handleRowTouchStateChange}
         renderMode="auto"
+        syncDataDuringDrag={false}
         animateDataLayoutChanges={false}
         revealProgress={homeTaskListRevealProgress}
         revealPhase={homeTaskListRevealPhase}

@@ -448,6 +448,75 @@ function resolveRoutineTypeForTask(task: Task): RoutineType | undefined {
   return normalizeRoutineType(task.routineType ?? task.routineInterval);
 }
 
+function createRoutineCompletionEntryId(
+  taskId: string,
+  completedAtMs: number,
+  existingIds?: ReadonlySet<string>,
+): string {
+  const safeBaseId = taskId.trim().length > 0 ? taskId : "task";
+  const baseId = `${safeBaseId}-done-${Math.floor(completedAtMs).toString(36)}`;
+  if (!existingIds || !existingIds.has(baseId)) return baseId;
+
+  for (let index = 1; index < 10_000; index += 1) {
+    const candidate = `${baseId}-${index}`;
+    if (!existingIds.has(candidate)) return candidate;
+  }
+
+  return `${baseId}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export type RoutineCompletionTransition = {
+  nextTask: Task;
+  completedTask: Task;
+};
+
+export function createRoutineCompletionTransition(
+  task: Task,
+  completedAtMs: number = Date.now(),
+  existingIds?: ReadonlySet<string>,
+): RoutineCompletionTransition | null {
+  const routineType = resolveRoutineTypeForTask(task);
+  if (!routineType) return null;
+
+  const completionTimestamp = Number.isFinite(completedAtMs)
+    ? completedAtMs
+    : Date.now();
+  const routineOptions = {
+    weekday: task.routineWeekday,
+    nthWeek: task.routineNthWeek,
+    monthDay: task.routineMonthDay,
+    month: task.routineMonth,
+  };
+  const nextDueAt = getNextRoutineDate(
+    task.dueAt,
+    routineType,
+    routineOptions,
+    completionTimestamp,
+  );
+  const nextTask: Task = {
+    ...task,
+    dueAt: nextDueAt,
+    section: deriveActiveSectionFromDueAt(nextDueAt, completionTimestamp),
+    completedAt: undefined,
+    // Start fresh for the next routine occurrence.
+    subtasks: task.subtasks?.map((subtask) => ({
+      ...subtask,
+      done: false,
+    })),
+  };
+  const completedTask: Task = {
+    ...task,
+    id: createRoutineCompletionEntryId(task.id, completionTimestamp, existingIds),
+    section: "completed",
+    completedAt: completionTimestamp,
+    dueAt: hasValidDueAt(task.dueAt) ? task.dueAt : completionTimestamp,
+    // Historical entries should not behave like live routines when restored.
+    isRoutine: false,
+  };
+
+  return { nextTask, completedTask };
+}
+
 function getDefaultRoutineDueAt(referenceMs: number, dueHasTime?: boolean): number {
   const next = new Date(referenceMs);
 

@@ -33,7 +33,7 @@
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = reminds/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* reminds-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "reminds-Bridging-Header.h"; path = "reminds/reminds-Bridging-Header.h"; sourceTree = "<group>"; };
-		F45E905FFA679E56B278FA31 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = reminds/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		F45E905FFA679E56B278FA31 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = reminds/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -126,7 +126,6 @@
 				4FB1D35A320B4126CFF83087 /* Pods-reminds.debug.xcconfig */,
 				3138CF7B98F7506EDA9CCC6C /* Pods-reminds.release.xcconfig */,
 			);
-			name = Pods;
 			path = Pods;
 			sourceTree = "<group>";
 		};
@@ -184,7 +183,37 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
-				Base,
+				de,
+				ar,
+				ru,
+				uk,
+				ko,
+				vi,
+				id,
+				el,
+				ro,
+				hu,
+				cs,
+				tr,
+				nl,
+				pl,
+				fi,
+				da,
+				sv,
+				it,
+				ja,
+				"zh-Hans",
+				hi,
+				"pt-BR",
+				"pt-PT",
+				fr,
+				"fr-CA",
+				"en-AU",
+				"en-GB",
+				"en-IN",
+				es,
+				"es-US",
+				"es-419",
 			);
 			mainGroup = 83CBB9F61A601CBA00E9B192;
 			productRefGroup = 83CBBA001A601CBA00E9B192 /* Products */;

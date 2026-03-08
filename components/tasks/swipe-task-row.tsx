@@ -1107,8 +1107,8 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     return "rgba(255,255,255,0.82)";
   }, [isDark, rowSurfaceColor]);
   const completedContentStyle = React.useMemo(
-    () => (isCompletedTask ? { opacity: isActive ? 0.86 : 0.72 } : null),
-    [isActive, isCompletedTask],
+    () => (isCompletedTask ? { opacity: 0.72 } : null),
+    [isCompletedTask],
   );
   const completedTitleStyle = React.useMemo(
     () =>
@@ -1120,8 +1120,8 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     [isCompletedTask],
   );
   const completedMetaStyle = React.useMemo(
-    () => (isCompletedTask ? { opacity: isActive ? 0.9 : 0.82 } : null),
-    [isActive, isCompletedTask],
+    () => (isCompletedTask ? { opacity: 0.82 } : null),
+    [isCompletedTask],
   );
   const contentMotionStyle = React.useMemo(
     () => {

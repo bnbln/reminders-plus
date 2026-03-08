@@ -14,7 +14,11 @@ import { StreakAccentBackground } from '@/components/ui/streak-accent-background
 import { Colors } from '@/constants/theme';
 import { useHomeFilters } from '@/context/home-filters-store';
 import { useTaskCreateContext } from '@/context/task-create-context';
-import { type Task, useTasksStore } from '@/context/tasks-store';
+import {
+  createRoutineCompletionTransition,
+  type Task,
+  useTasksStore,
+} from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
 import { isIOS26OrNewer } from '@/utils/ios-version';
@@ -114,17 +118,33 @@ export default function TodayScreen() {
 
   const toggleComplete = React.useCallback(
     (taskId: string) => {
-      setTasks((prev) =>
-        prev.map((t) =>
+      const now = Date.now();
+      setTasks((prev) => {
+        const task = prev.find((candidate) => candidate.id === taskId);
+        if (!task) return prev;
+
+        const routineTransition = createRoutineCompletionTransition(
+          task,
+          now,
+          new Set(prev.map((candidate) => candidate.id)),
+        );
+        if (routineTransition && task.section !== 'completed') {
+          const next = prev.map((candidate) =>
+            candidate.id === taskId ? routineTransition.nextTask : candidate,
+          );
+          return [...next, routineTransition.completedTask];
+        }
+
+        return prev.map((t) =>
           t.id === taskId
             ? {
                 ...t,
                 section: 'completed',
-                completedAt: Date.now(),
+                completedAt: now,
               }
             : t
-        )
-      );
+        );
+      });
     },
     [setTasks]
   );
