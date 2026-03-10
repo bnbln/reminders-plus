@@ -1,7 +1,7 @@
 import { Asset } from "expo-asset";
 import { Image } from "expo-image";
 import React from "react";
-import { Animated, Easing, StyleSheet } from "react-native";
+import { Animated, Easing, StyleSheet, useWindowDimensions } from "react-native";
 
 import {
   Colors,
@@ -61,6 +61,7 @@ function StreakAccentBackgroundComponent({
   isDark,
   enabled = true,
 }: StreakAccentBackgroundProps) {
+  const { width, height } = useWindowDimensions();
   const { accentColor, reduceMotionEnabled } = useAppSettings();
   // Temporarily keep the accent background always visible when mounted.
   const isVisible = enabled;
@@ -90,6 +91,10 @@ function StreakAccentBackgroundComponent({
         outputRange: [1, 0],
       }),
     [sourceFade],
+  );
+  const viewportKey = React.useMemo(
+    () => `${Math.round(width)}x${Math.round(height)}`,
+    [height, width],
   );
 
   React.useEffect(() => {
@@ -183,11 +188,13 @@ function StreakAccentBackgroundComponent({
             style={[styles.imageLayer, { opacity: previousSourceOpacity }]}
           >
             <Image
+              key={`streak-bg-prev-${previousSource}-${viewportKey}`}
               source={previousSource}
               style={styles.image}
               contentFit="cover"
               contentPosition="bottom center"
               transition={0}
+              recyclingKey={`streak-bg-prev-${viewportKey}`}
               cachePolicy="memory-disk"
             />
           </Animated.View>
@@ -197,11 +204,13 @@ function StreakAccentBackgroundComponent({
           style={[styles.imageLayer, { opacity: sourceFade }]}
         >
           <Image
+            key={`streak-bg-current-${displaySource}-${viewportKey}`}
             source={displaySource}
             style={styles.image}
             contentFit="cover"
             contentPosition="bottom center"
             transition={0}
+            recyclingKey={`streak-bg-current-${viewportKey}`}
             cachePolicy="memory-disk"
           />
         </Animated.View>

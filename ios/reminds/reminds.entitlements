@@ -16,5 +16,7 @@
     <array>
       <string>iCloud.com.anonymous.reminds</string>
     </array>
+    <key>com.apple.developer.usernotifications.time-sensitive</key>
+    <true/>
   </dict>
 </plist>

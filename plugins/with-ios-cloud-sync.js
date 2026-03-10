@@ -27,6 +27,8 @@ function withIosCloudSync(config) {
       ...(entitlements["com.apple.developer.ubiquity-container-identifiers"] || []),
       containerIdentifier,
     ]);
+    // Required for iOS "Time Sensitive" local/push notifications.
+    entitlements["com.apple.developer.usernotifications.time-sensitive"] = true;
     return config;
   });
 

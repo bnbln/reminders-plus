@@ -288,12 +288,14 @@ export async function syncTaskDueNotifications(args: {
     const bodyParts = [projectName, task.subtitle].filter(
       (x): x is string => !!x && x.trim().length > 0,
     );
+    const interruptionLevel = task.dueHasTime ? "timeSensitive" : undefined;
 
     const notificationId = await Notifications.scheduleNotificationAsync({
       content: {
         title: task.title,
         body: bodyParts.length ? bodyParts.join(" · ") : t("notification.due"),
         sound: true,
+        interruptionLevel,
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DATE,
