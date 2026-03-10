@@ -146,6 +146,7 @@
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
 				27622AC8842ED27E00ADD125 /* [Expo] Configure project */,
+				B1A4C9E22F8B4D7E91C5A123 /* Add Supported Localizations */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
@@ -303,6 +304,21 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-reminds/expo-configure-project.sh\"\n";
+		};
+		B1A4C9E22F8B4D7E91C5A123 /* Add Supported Localizations */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Add Supported Localizations";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\nLANGS=\"de en es fr pt hi zh-Hans ja it sv da fi pl nl tr cs hu ro el id vi ko uk ru ar\"\nDEST_ROOT=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\nfor lang in $LANGS; do\n  dir=\"${DEST_ROOT}/${lang}.lproj\"\n  mkdir -p \"$dir\"\n  printf '\"CFBundleDisplayName\" = \"Reminders+\";\\n' > \"$dir/InfoPlist.strings\"\ndone\n";
 		};
 		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;

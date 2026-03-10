@@ -200,12 +200,16 @@ export default function PlusScreen() {
     : (sourceParam ?? "");
   const {
     isSupported,
+    isStoreConnected,
+    isReady,
+    isRefreshing,
     isRestoring,
     plan,
     errorMessage,
     purchaseInFlightProductId,
     monthlyProduct,
     lifetimeProduct,
+    refresh,
     purchaseMonthly,
     purchaseLifetime,
     restorePurchases,
@@ -225,9 +229,6 @@ export default function PlusScreen() {
     : IOS_LIGHT_BASE_BACKGROUND;
   const borderColor = isDark ? IOS_DARK_BORDER : IOS_LIGHT_BORDER;
   const headerTextColor = Colors[theme].text;
-  const closeButtonBackground = isDark
-    ? IOS_DARK_ELEVATED_SURFACE
-    : IOS_LIGHT_ELEVATED_SURFACE;
   const supportTextColor = isDark ? "#8E8E93" : "#6B7280";
   const restoreTextColor = isDark ? "#8E8E93" : "#6B7280";
   const errorBackground = isDark
@@ -315,18 +316,36 @@ export default function PlusScreen() {
     }
   }, [clearError, restorePurchases]);
 
+  const onRefreshProducts = React.useCallback(async () => {
+    clearError();
+    await refresh();
+  }, [clearError, refresh]);
+
   const selectedProductId =
     selectedOption === "monthly"
       ? REMINDS_PLUS_MONTHLY_PRODUCT_ID
       : REMINDS_PLUS_LIFETIME_PRODUCT_ID;
+  const isSelectedProductLoaded =
+    selectedOption === "monthly" ? Boolean(monthlyProduct) : Boolean(lifetimeProduct);
   const isPurchaseInFlight = purchaseInFlightProductId === selectedProductId;
   const isSelectedAlreadyActive =
     (selectedOption === "monthly" && plan === "monthly") ||
     (selectedOption === "lifetime" && plan === "lifetime");
   const isCheckoutDisabled =
-    !isSupported || isPurchaseInFlight || isSelectedAlreadyActive;
+    !isSupported ||
+    !isStoreConnected ||
+    !isReady ||
+    !isSelectedProductLoaded ||
+    isPurchaseInFlight ||
+    isSelectedAlreadyActive;
   const checkoutLabel = !isSupported
     ? "Nur auf iOS verfuegbar"
+    : !isStoreConnected
+      ? "Kein App Store Zugriff"
+    : !isReady
+      ? "App Store verbindet..."
+      : !isSelectedProductLoaded
+        ? "Produkt nicht verfuegbar"
     : isSelectedAlreadyActive
       ? selectedOption === "lifetime"
         ? "Bereits freigeschaltet"
@@ -480,6 +499,24 @@ export default function PlusScreen() {
             )}
           </Pressable>
 
+          {isSupported && !isStoreConnected ? (
+            <Text style={[styles.supportText, { color: supportTextColor }]}>
+              Keine Verbindung zum App Store. Bitte auf einem echten iPhone mit
+              TestFlight/App-Store-Build testen (nicht im iOS-Simulator).
+            </Text>
+          ) : null}
+
+          {isSupported &&
+          isStoreConnected &&
+          isReady &&
+          !isSelectedProductLoaded &&
+          !errorMessage ? (
+            <Text style={[styles.supportText, { color: supportTextColor }]}>
+              Dieses Produkt wurde vom App Store nicht geladen. Pruefe Produkt-ID,
+              Verfuegbarkeit und den Status in App Store Connect.
+            </Text>
+          ) : null}
+
           {Platform.OS !== "ios" || !isSupported ? (
             <Text style={[styles.supportText, { color: supportTextColor }]}>
               In-App-Kaeufe sind aktuell nur auf iOS verfuegbar.
@@ -507,6 +544,31 @@ export default function PlusScreen() {
               </Text>
             )}
           </Pressable>
+
+          {isSupported ? (
+            <Pressable
+              accessibilityRole="button"
+              disabled={isRefreshing}
+              onPress={() => {
+                void onRefreshProducts();
+              }}
+              style={({ pressed }) => [
+                styles.restoreLink,
+                pressed && !isRefreshing && styles.restoreLinkPressed,
+              ]}
+            >
+              {isRefreshing ? (
+                <ActivityIndicator color={restoreTextColor} />
+              ) : (
+                <Text
+                  style={[styles.restoreLinkText, { color: restoreTextColor }]}
+                >
+                  Produkte neu laden
+                </Text>
+              )}
+            </Pressable>
+          ) : null}
+
         </View>
       </ScrollView>
     </View>

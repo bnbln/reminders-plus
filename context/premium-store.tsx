@@ -13,7 +13,6 @@ import {
 import {
   REMINDS_PLUS_LIFETIME_PRODUCT_ID,
   REMINDS_PLUS_MONTHLY_PRODUCT_ID,
-  REMINDS_PLUS_PRODUCT_IDS,
   REMINDS_PLUS_SUBSCRIPTION_IDS,
   type PremiumPlan,
 } from "@/constants/premium";
@@ -26,6 +25,7 @@ export type PurchaseAttemptResult =
 
 type PremiumContextValue = {
   isSupported: boolean;
+  isStoreConnected: boolean;
   isReady: boolean;
   isRefreshing: boolean;
   isRestoring: boolean;
@@ -50,6 +50,7 @@ const DEBUG_PREMIUM_OVERRIDE_STORAGE_KEY =
 
 const unsupportedValue: PremiumContextValue = {
   isSupported: false,
+  isStoreConnected: false,
   isReady: true,
   isRefreshing: false,
   isRestoring: false,
@@ -194,7 +195,7 @@ function PremiumProviderIOS({ children }: { children: React.ReactNode }) {
     subscriptions,
     availablePurchases,
     activeSubscriptions,
-    fetchProducts,
+    fetchProducts: fetchProductsFromHook,
     getAvailablePurchases,
     getActiveSubscriptions,
     requestPurchase,
@@ -261,15 +262,23 @@ function PremiumProviderIOS({ children }: { children: React.ReactNode }) {
     () =>
       subscriptions.find(
         (product) => product.id === REMINDS_PLUS_MONTHLY_PRODUCT_ID,
-      ) ?? null,
-    [subscriptions],
+      ) ??
+      ((products.find(
+        (product) => product.id === REMINDS_PLUS_MONTHLY_PRODUCT_ID,
+      ) as unknown as ProductSubscription | undefined) ??
+        null),
+    [products, subscriptions],
   );
   const lifetimeProduct = React.useMemo(
     () =>
       products.find(
         (product) => product.id === REMINDS_PLUS_LIFETIME_PRODUCT_ID,
-      ) ?? null,
-    [products],
+      ) ??
+      ((subscriptions.find(
+        (product) => product.id === REMINDS_PLUS_LIFETIME_PRODUCT_ID,
+      ) as unknown as Product | undefined) ??
+        null),
+    [products, subscriptions],
   );
 
   const storePlan = React.useMemo(
@@ -309,10 +318,16 @@ function PremiumProviderIOS({ children }: { children: React.ReactNode }) {
     setIsRefreshing(true);
 
     try {
-      await fetchProducts({
-        skus: [...REMINDS_PLUS_PRODUCT_IDS],
-        type: "all",
-      });
+      await Promise.all([
+        fetchProductsFromHook({
+          skus: [REMINDS_PLUS_LIFETIME_PRODUCT_ID],
+          type: "in-app",
+        }),
+        fetchProductsFromHook({
+          skus: [REMINDS_PLUS_MONTHLY_PRODUCT_ID],
+          type: "subs",
+        }),
+      ]);
       await Promise.all([
         getAvailablePurchases(),
         getActiveSubscriptions([...REMINDS_PLUS_SUBSCRIPTION_IDS]),
@@ -327,7 +342,7 @@ function PremiumProviderIOS({ children }: { children: React.ReactNode }) {
     }
   }, [
     connected,
-    fetchProducts,
+    fetchProductsFromHook,
     getActiveSubscriptions,
     getAvailablePurchases,
   ]);
@@ -453,6 +468,7 @@ function PremiumProviderIOS({ children }: { children: React.ReactNode }) {
   const value = React.useMemo<PremiumContextValue>(
     () => ({
       isSupported: true,
+      isStoreConnected: connected,
       isReady: resolvedIsReady,
       isRefreshing,
       isRestoring,
@@ -471,6 +487,7 @@ function PremiumProviderIOS({ children }: { children: React.ReactNode }) {
     [
       errorMessage,
       hasPremiumAccess,
+      connected,
       isRefreshing,
       isRestoring,
       lifetimeProduct,
