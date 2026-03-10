@@ -5,6 +5,8 @@ import {
   Animated,
   LayoutAnimation,
   LayoutChangeEvent,
+  View,
+  useWindowDimensions,
   type GestureResponderEvent,
   type StyleProp,
   type ViewStyle
@@ -24,12 +26,20 @@ import { triggerImpactHaptic } from '@/utils/haptics';
 type ThemeName = keyof typeof Colors;
 const LIST_ACTIVATION_DISTANCE_DEFAULT = 0;
 const LIST_AUTOSCROLL_SPEED = 58;
+const TASK_LIST_WIDE_LAYOUT_BREAKPOINT = 900;
+const TASK_LIST_MAX_CONTENT_WIDTH = 760;
 const LIST_ANIMATION_CONFIG = {
   damping: 26,
   stiffness: 300,
   mass: 0.28,
   overshootClamping: true,
 } as const;
+
+type TaskRowStyleOverrides = {
+  itemSpacerStyle?: StyleProp<ViewStyle>;
+  swipeClipStyle?: StyleProp<ViewStyle>;
+  rowStyle?: StyleProp<ViewStyle>;
+};
 
 export type TaskSwipeDraggableListItem =
   | { kind: 'task'; key: string; taskId: string }
@@ -186,11 +196,7 @@ export type TaskSwipeDraggableListProps = {
     sectionId: string | null;
     isSectionFirstTask: boolean;
     isSectionLastTask: boolean;
-  }) => {
-    itemSpacerStyle?: StyleProp<ViewStyle>;
-    swipeClipStyle?: StyleProp<ViewStyle>;
-    rowStyle?: StyleProp<ViewStyle>;
-  } | null;
+  }) => TaskRowStyleOverrides | null;
 
   keyForTask?: (task: Task) => string;
   sortByOrderRank?: boolean;
@@ -272,6 +278,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
 ) {
   const { reduceMotionEnabled } = useAppSettings();
   const isFocused = useIsFocused();
+  const { width: viewportWidth } = useWindowDimensions();
   const { popInTaskIds, consumeTaskPopIn } = useTaskCreateContext();
   const emojiTint = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.12 : 0.22), [isDark, theme]);
   const emojiFallback = React.useMemo(
@@ -649,6 +656,52 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
         : { flex: 1, overflow: "visible" },
     [shrinkToContentWhenShort]
   );
+  const constrainedRowMaxWidth = React.useMemo(() => {
+    if (viewportWidth < TASK_LIST_WIDE_LAYOUT_BREAKPOINT) return 0;
+    return Math.min(TASK_LIST_MAX_CONTENT_WIDTH, viewportWidth - 32);
+  }, [viewportWidth]);
+  const autoTaskRowStyleOverrides = React.useMemo<TaskRowStyleOverrides | null>(
+    () => {
+      if (constrainedRowMaxWidth <= 0) return null;
+      return {
+        itemSpacerStyle: { alignItems: "center" as const },
+        swipeClipStyle: {
+          width: "100%" as const,
+          maxWidth: constrainedRowMaxWidth,
+          alignSelf: "center" as const,
+        },
+        rowStyle: { width: "100%" as const },
+      };
+    },
+    [constrainedRowMaxWidth]
+  );
+  const constrainedHeaderContainerStyle = React.useMemo<
+    StyleProp<ViewStyle> | null
+  >(() => {
+    if (constrainedRowMaxWidth <= 0) return null;
+    return {
+      width: "100%",
+      maxWidth: constrainedRowMaxWidth,
+      alignSelf: "center",
+    };
+  }, [constrainedRowMaxWidth]);
+  const mergeTaskRowStyleOverrides = React.useCallback(
+    (nextOverrides: TaskRowStyleOverrides | null | undefined) => {
+      if (!autoTaskRowStyleOverrides) return nextOverrides ?? null;
+      return {
+        itemSpacerStyle: [
+          autoTaskRowStyleOverrides.itemSpacerStyle,
+          nextOverrides?.itemSpacerStyle,
+        ],
+        swipeClipStyle: [
+          autoTaskRowStyleOverrides.swipeClipStyle,
+          nextOverrides?.swipeClipStyle,
+        ],
+        rowStyle: [autoTaskRowStyleOverrides.rowStyle, nextOverrides?.rowStyle],
+      } satisfies TaskRowStyleOverrides;
+    },
+    [autoTaskRowStyleOverrides]
+  );
 
   const renderItem = React.useCallback(
     ({ item, drag, isActive, getIndex }: RenderItemParams<TaskSwipeDraggableListItem>) => {
@@ -660,7 +713,10 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           ? liveIndex
           : (flatListIndexByKey.get(item.key) ?? -1);
       if (item.kind === 'header') {
-        return renderHeaderRow ? renderHeaderRow(item.sectionId) : null;
+        const headerRow = renderHeaderRow ? renderHeaderRow(item.sectionId) : null;
+        if (!headerRow) return null;
+        if (!constrainedHeaderContainerStyle) return headerRow;
+        return <View style={constrainedHeaderContainerStyle}>{headerRow}</View>;
       }
 
       const task = tasksById.get(item.taskId);
@@ -670,12 +726,14 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
         isSectionFirstTask: false,
         isSectionLastTask: false,
       };
-      const rowStyleOverrides = getTaskRowStyleOverrides?.({
-        task,
-        sectionId: sectionMeta.sectionId,
-        isSectionFirstTask: sectionMeta.isSectionFirstTask,
-        isSectionLastTask: sectionMeta.isSectionLastTask,
-      });
+      const rowStyleOverrides = mergeTaskRowStyleOverrides(
+        getTaskRowStyleOverrides?.({
+          task,
+          sectionId: sectionMeta.sectionId,
+          isSectionFirstTask: sectionMeta.isSectionFirstTask,
+          isSectionLastTask: sectionMeta.isSectionLastTask,
+        }),
+      );
       const shouldAnimatePopIn =
         isFocused &&
         (popInTaskIdSet.has(task.id) || dynamicPopInTaskIdSet.has(task.id));
@@ -733,9 +791,11 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       emojiTint,
       endSwipe,
       getTaskRowStyleOverrides,
+      mergeTaskRowStyleOverrides,
       getRevealTranslateX,
       handlePressTask,
       handlePopInAnimationEnd,
+      constrainedHeaderContainerStyle,
       dynamicPopInTaskIdSet,
       isFocused,
       isDark,
@@ -770,7 +830,10 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   const renderCompatItem = React.useCallback(
     (item: TaskSwipeDraggableListItem, index: number) => {
       if (item.kind === 'header') {
-        return renderHeaderRow ? renderHeaderRow(item.sectionId) : null;
+        const headerRow = renderHeaderRow ? renderHeaderRow(item.sectionId) : null;
+        if (!headerRow) return null;
+        if (!constrainedHeaderContainerStyle) return headerRow;
+        return <View style={constrainedHeaderContainerStyle}>{headerRow}</View>;
       }
 
       const task = tasksById.get(item.taskId);
@@ -780,12 +843,14 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
         isSectionFirstTask: false,
         isSectionLastTask: false,
       };
-      const rowStyleOverrides = getTaskRowStyleOverrides?.({
-        task,
-        sectionId: sectionMeta.sectionId,
-        isSectionFirstTask: sectionMeta.isSectionFirstTask,
-        isSectionLastTask: sectionMeta.isSectionLastTask,
-      });
+      const rowStyleOverrides = mergeTaskRowStyleOverrides(
+        getTaskRowStyleOverrides?.({
+          task,
+          sectionId: sectionMeta.sectionId,
+          isSectionFirstTask: sectionMeta.isSectionFirstTask,
+          isSectionLastTask: sectionMeta.isSectionLastTask,
+        }),
+      );
       const shouldAnimatePopIn =
         isFocused &&
         (popInTaskIdSet.has(task.id) || dynamicPopInTaskIdSet.has(task.id));
@@ -843,9 +908,11 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       emojiTint,
       endSwipe,
       getTaskRowStyleOverrides,
+      mergeTaskRowStyleOverrides,
       getRevealTranslateX,
       handlePressTask,
       handlePopInAnimationEnd,
+      constrainedHeaderContainerStyle,
       dynamicPopInTaskIdSet,
       isFocused,
       isDark,

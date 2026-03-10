@@ -26,6 +26,14 @@ type DailySummaryScheduleState = {
   minutesOfDay: number;
 };
 
+type StreakMotivationScheduleState = {
+  dayKey: string;
+  firstScheduledAt: number;
+  secondScheduledAt: number;
+  firstNotificationId?: string;
+  secondNotificationId?: string;
+};
+
 type TaskCounters = {
   dueToday: number;
   overdue: number;
@@ -36,6 +44,7 @@ type TaskCounters = {
 const STORAGE_KEYS = {
   map: "reminds.tasks.notificationMap.v1",
   dailySummary: "reminds.notifications.dailySummary.v1",
+  streakMotivation: "reminds.notifications.streakMotivation.v1",
 } as const;
 
 async function readMap(): Promise<TaskNotificationMap> {
@@ -62,6 +71,50 @@ function normalizeMinutesOfDay(value: number): number {
   if (!Number.isFinite(value)) return 20 * 60;
   const rounded = Math.round(value);
   return ((rounded % 1440) + 1440) % 1440;
+}
+
+const STREAK_PRIMARY_START_MINUTES = 17 * 60 + 30; // 17:30
+const STREAK_PRIMARY_END_MINUTES = 18 * 60 + 30; // 18:30
+const STREAK_FOLLOWUP_START_MINUTES = 20 * 60 + 30; // 20:30
+const STREAK_FOLLOWUP_END_MINUTES = 21 * 60 + 30; // 21:30
+
+function getLocalDayKey(timestampMs: number): string {
+  const date = new Date(timestampMs);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getTodayReminderTimestamp(
+  minutesOfDay: number,
+  referenceMs: number,
+): number {
+  const normalized = normalizeMinutesOfDay(minutesOfDay);
+  const hour = Math.floor(normalized / 60);
+  const minute = normalized % 60;
+  const now = new Date(referenceMs);
+  return new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    hour,
+    minute,
+    0,
+    0,
+  ).getTime();
+}
+
+function getRandomReminderTimestampInWindow(
+  referenceMs: number,
+  startMinutes: number,
+  endMinutes: number,
+): number {
+  const startAt = getTodayReminderTimestamp(startMinutes, referenceMs);
+  const endAt = getTodayReminderTimestamp(endMinutes, referenceMs);
+  const minuteSpan = Math.max(0, Math.floor((endAt - startAt) / 60_000));
+  const randomMinuteOffset = Math.floor(Math.random() * (minuteSpan + 1));
+  return startAt + randomMinuteOffset * 60_000;
 }
 
 async function readDailySummaryState(): Promise<DailySummaryScheduleState | null> {
@@ -97,8 +150,111 @@ async function writeDailySummaryState(
   }
 }
 
+async function readStreakMotivationState(): Promise<StreakMotivationScheduleState | null> {
+  try {
+    const raw = await AsyncStorage.getItem(STORAGE_KEYS.streakMotivation);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+
+    // Current shape
+    if (
+      typeof parsed.dayKey === "string" &&
+      typeof parsed.firstScheduledAt === "number" &&
+      typeof parsed.secondScheduledAt === "number"
+    ) {
+      return {
+        dayKey: parsed.dayKey,
+        firstScheduledAt: parsed.firstScheduledAt,
+        secondScheduledAt: parsed.secondScheduledAt,
+        firstNotificationId:
+          typeof parsed.firstNotificationId === "string"
+            ? parsed.firstNotificationId
+            : undefined,
+        secondNotificationId:
+          typeof parsed.secondNotificationId === "string"
+            ? parsed.secondNotificationId
+            : undefined,
+      };
+    }
+
+    // Legacy shape migration (single reminder)
+    if (
+      typeof parsed.notificationId === "string" &&
+      typeof parsed.scheduledAt === "number"
+    ) {
+      return {
+        dayKey: getLocalDayKey(parsed.scheduledAt),
+        firstScheduledAt: parsed.scheduledAt,
+        secondScheduledAt: 0,
+        firstNotificationId: parsed.notificationId,
+      };
+    }
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function writeStreakMotivationState(
+  value: StreakMotivationScheduleState | null,
+): Promise<void> {
+  try {
+    if (!value) {
+      await AsyncStorage.removeItem(STORAGE_KEYS.streakMotivation);
+      return;
+    }
+    await AsyncStorage.setItem(
+      STORAGE_KEYS.streakMotivation,
+      JSON.stringify(value),
+    );
+  } catch {
+    // ignore
+  }
+}
+
 function isCompletedTask(task: Task): boolean {
   return task.section === "completed" || hasValidDueAt(task.completedAt);
+}
+
+function getActiveTaskCount(tasks: Task[]): number {
+  let count = 0;
+  for (const task of tasks) {
+    if (task.deletedAt) continue;
+    if (isCompletedTask(task)) continue;
+    count += 1;
+  }
+  return count;
+}
+
+function getActiveRoutineTaskCount(tasks: Task[]): number {
+  let count = 0;
+  for (const task of tasks) {
+    if (task.deletedAt) continue;
+    if (isCompletedTask(task)) continue;
+    if (task.isRoutine) count += 1;
+  }
+  return count;
+}
+
+async function cancelScheduledNotificationIfPresent(
+  notificationId?: string,
+): Promise<void> {
+  if (!notificationId) return;
+  await Notifications.cancelScheduledNotificationAsync(notificationId).catch(
+    () => undefined,
+  );
+}
+
+async function clearStreakMotivationState(
+  state: StreakMotivationScheduleState | null,
+): Promise<void> {
+  if (state) {
+    await cancelScheduledNotificationIfPresent(state.firstNotificationId);
+    await cancelScheduledNotificationIfPresent(state.secondNotificationId);
+  }
+  await writeStreakMotivationState(null);
 }
 
 function getTaskCounters(tasks: Task[]): TaskCounters {
@@ -414,5 +570,139 @@ export async function syncDailySummaryNotification(args: {
     notificationId,
     signature,
     minutesOfDay: normalizedMinutes,
+  });
+}
+
+export async function syncStreakMotivationNotification(args: {
+  tasks: Task[];
+  enabled?: boolean;
+}): Promise<void> {
+  if (Platform.OS !== "ios") return;
+
+  const enabled = args.enabled ?? true;
+  const existingState = await readStreakMotivationState();
+
+  if (!enabled) {
+    await clearStreakMotivationState(existingState);
+    return;
+  }
+
+  const counters = getTaskCounters(args.tasks);
+  if (counters.completedToday > 0) {
+    await clearStreakMotivationState(existingState);
+    return;
+  }
+
+  const activeTaskCount = getActiveTaskCount(args.tasks);
+  if (activeTaskCount <= 0) {
+    await clearStreakMotivationState(existingState);
+    return;
+  }
+
+  const now = Date.now();
+  const dayKey = getLocalDayKey(now);
+  const secondWindowEndAt = getTodayReminderTimestamp(
+    STREAK_FOLLOWUP_END_MINUTES,
+    now,
+  );
+  if (now > secondWindowEndAt + 5_000) {
+    await clearStreakMotivationState(existingState);
+    return;
+  }
+
+  const sameDayState =
+    existingState && existingState.dayKey === dayKey ? existingState : null;
+
+  if (!sameDayState && existingState) {
+    await clearStreakMotivationState(existingState);
+  }
+
+  const firstScheduledAt =
+    sameDayState?.firstScheduledAt && sameDayState.firstScheduledAt > 0
+      ? sameDayState.firstScheduledAt
+      : getRandomReminderTimestampInWindow(
+          now,
+          STREAK_PRIMARY_START_MINUTES,
+          STREAK_PRIMARY_END_MINUTES,
+        );
+  const secondScheduledAt =
+    sameDayState?.secondScheduledAt && sameDayState.secondScheduledAt > 0
+      ? sameDayState.secondScheduledAt
+      : getRandomReminderTimestampInWindow(
+          now,
+          STREAK_FOLLOWUP_START_MINUTES,
+          STREAK_FOLLOWUP_END_MINUTES,
+        );
+
+  const shouldHaveFirst = firstScheduledAt > now + 5_000;
+  const shouldHaveSecond = secondScheduledAt > now + 5_000;
+
+  if (!shouldHaveFirst && !shouldHaveSecond) {
+    await clearStreakMotivationState(sameDayState);
+    return;
+  }
+
+  const hasPermission = await ensureNotificationPermission();
+  if (!hasPermission) return;
+
+  const routineCount = getActiveRoutineTaskCount(args.tasks);
+  const includeRoutines = routineCount > 0;
+
+  let firstNotificationId = sameDayState?.firstNotificationId;
+  let secondNotificationId = sameDayState?.secondNotificationId;
+
+  if (!shouldHaveFirst) {
+    await cancelScheduledNotificationIfPresent(firstNotificationId);
+    firstNotificationId = undefined;
+  } else if (!firstNotificationId) {
+    firstNotificationId = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: t("notification.streakNudge.primary.title"),
+        body: includeRoutines
+          ? t("notification.streakNudge.primary.bodyWithRoutines", {
+              routineCount,
+            })
+          : t("notification.streakNudge.primary.body"),
+        sound: true,
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: new Date(firstScheduledAt),
+      },
+    });
+  }
+
+  if (!shouldHaveSecond) {
+    await cancelScheduledNotificationIfPresent(secondNotificationId);
+    secondNotificationId = undefined;
+  } else if (!secondNotificationId) {
+    secondNotificationId = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: t("notification.streakNudge.followUp.title"),
+        body: includeRoutines
+          ? t("notification.streakNudge.followUp.bodyWithRoutines", {
+              routineCount,
+            })
+          : t("notification.streakNudge.followUp.body"),
+        sound: true,
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: new Date(secondScheduledAt),
+      },
+    });
+  }
+
+  if (!firstNotificationId && !secondNotificationId) {
+    await writeStreakMotivationState(null);
+    return;
+  }
+
+  await writeStreakMotivationState({
+    dayKey,
+    firstScheduledAt,
+    secondScheduledAt,
+    firstNotificationId,
+    secondNotificationId,
   });
 }

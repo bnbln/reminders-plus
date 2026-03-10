@@ -2603,16 +2603,22 @@ export default function HomeScreen() {
   const dateRailLastCenterIndexRef = React.useRef(dateRailInitialIndex);
   const dateRailSelectionLockTargetIndexRef = React.useRef<number | null>(null);
   const dateRailSelectionLockUntilRef = React.useRef(0);
+  const getDateRailIndexForDateStart = React.useCallback(
+    (targetDateStart: number) => {
+      const targetIndex = dateRailDays.findIndex((day) =>
+        isSameLocalDay(day.timestamp, targetDateStart),
+      );
+      return targetIndex >= 0 ? targetIndex : dateRailInitialIndex;
+    },
+    [dateRailDays, dateRailInitialIndex],
+  );
   const scrollDateRailToDateStart = React.useCallback(
     (
       targetDateStart: number,
       animated = false,
       lockSelectionDuringScroll = false,
     ) => {
-      const targetIndex = dateRailDays.findIndex((day) =>
-        isSameLocalDay(day.timestamp, targetDateStart),
-      );
-      if (targetIndex < 0) return false;
+      const targetIndex = getDateRailIndexForDateStart(targetDateStart);
 
       const shouldLockSelection =
         lockSelectionDuringScroll &&
@@ -2635,7 +2641,7 @@ export default function HomeScreen() {
       });
       return true;
     },
-    [dateRailDays, dateRailSnapInterval],
+    [dateRailSnapInterval, getDateRailIndexForDateStart],
   );
   const handleJumpToToday = React.useCallback(
     (source: DateSelectionSource = "programmatic") => {
@@ -2645,15 +2651,38 @@ export default function HomeScreen() {
     },
     [handleSelectDate, scrollDateRailToDateStart],
   );
+  const syncDateRailToSelectedDate = React.useCallback(() => {
+    const targetIndex = getDateRailIndexForDateStart(selectedDateStartRef.current);
+    const targetOffset = targetIndex * dateRailSnapInterval;
+    dateRailSelectionLockTargetIndexRef.current = null;
+    dateRailSelectionLockUntilRef.current = 0;
+    dateRailLastCenterIndexRef.current = targetIndex;
+    dateRailScrollOffsetRef.current = targetOffset;
+    dateRailScrollX.stopAnimation();
+    dateRailScrollX.setValue(targetOffset);
+    dateRailRef.current?.scrollToIndex({
+      index: targetIndex,
+      animated: false,
+      viewPosition: 0.5,
+    });
+  }, [dateRailScrollX, dateRailSnapInterval, getDateRailIndexForDateStart]);
   const handleDateRailScrollToIndexFailed = React.useCallback(() => {
     requestAnimationFrame(() => {
+      const targetIndex = getDateRailIndexForDateStart(
+        selectedDateStartRef.current,
+      );
+      const targetOffset = targetIndex * dateRailSnapInterval;
+      dateRailLastCenterIndexRef.current = targetIndex;
+      dateRailScrollOffsetRef.current = targetOffset;
+      dateRailScrollX.stopAnimation();
+      dateRailScrollX.setValue(targetOffset);
       dateRailRef.current?.scrollToIndex({
-        index: dateRailInitialIndex,
+        index: targetIndex,
         animated: false,
         viewPosition: 0.5,
       });
     });
-  }, [dateRailInitialIndex]);
+  }, [dateRailScrollX, dateRailSnapInterval, getDateRailIndexForDateStart]);
   const measureDateRailBounds = React.useCallback(() => {
     const node =
       // @ts-ignore - some refs expose getNode
@@ -2713,8 +2742,13 @@ export default function HomeScreen() {
             dateRailScrollOffsetRef.current = nextOffset;
             const centerIndex = Math.round(nextOffset / dateRailSnapInterval);
             const nextIndex = clamp(centerIndex, 0, dateRailDays.length - 1);
+            const isUserDrivenScroll =
+              dateRailDraggedRef.current || dateRailMomentumActiveRef.current;
             const lockedTargetIndex =
               dateRailSelectionLockTargetIndexRef.current;
+            if (!isUserDrivenScroll && lockedTargetIndex == null) {
+              return;
+            }
             if (lockedTargetIndex != null) {
               const lockActive =
                 Date.now() <= dateRailSelectionLockUntilRef.current;
@@ -2777,6 +2811,7 @@ export default function HomeScreen() {
     const rafId = requestAnimationFrame(() => {
       measureDateRailBounds();
       measureDateRailListBounds();
+      syncDateRailToSelectedDate();
     });
     return () => {
       cancelAnimationFrame(rafId);
@@ -2785,7 +2820,12 @@ export default function HomeScreen() {
         railBoundsMeasureFrameRef.current = null;
       }
     };
-  }, [measureDateRailBounds, measureDateRailListBounds, viewportWidth]);
+  }, [
+    measureDateRailBounds,
+    measureDateRailListBounds,
+    syncDateRailToSelectedDate,
+    viewportWidth,
+  ]);
 
   const [collapsedSections, setCollapsedSections] = React.useState<
     Record<"today" | "upcoming", boolean>
@@ -4374,11 +4414,7 @@ export default function HomeScreen() {
                 { paddingHorizontal: dateRailSidePadding },
               ]}
               onLayout={() => {
-                dateRailRef.current?.scrollToIndex({
-                  index: dateRailInitialIndex,
-                  animated: false,
-                  viewPosition: 0.5,
-                });
+                syncDateRailToSelectedDate();
               }}
               getItemLayout={getDateRailItemLayout}
               onScrollToIndexFailed={handleDateRailScrollToIndexFailed}
@@ -4508,7 +4544,7 @@ export default function HomeScreen() {
     styles,
     theme,
     dateRailContainerWidth,
-    dateRailInitialIndex,
+    syncDateRailToSelectedDate,
   ]);
 
   const listHeader = React.useMemo(() => {

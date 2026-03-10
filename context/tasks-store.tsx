@@ -6,6 +6,7 @@ import { useAppSettings } from "@/context/settings-store";
 import {
   syncAppBadgeCount,
   syncDailySummaryNotification,
+  syncStreakMotivationNotification,
   syncTaskDueNotifications,
 } from "@/notifications/tasks-notifications";
 import {
@@ -1104,7 +1105,7 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     };
   }, [projects, tasks]);
 
-  // Keep iOS app badge and daily summary in sync with tasks + settings.
+  // Keep iOS app badge, summary and streak motivation in sync with tasks + settings.
   React.useEffect(() => {
     if (!hydratedRef.current) return;
     if (!persistEnabledRef.current) return;
@@ -1116,6 +1117,9 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
         tasks,
         enabled: dailySummaryEnabled,
         minutesOfDay: dailySummaryMinutes,
+      });
+      void syncStreakMotivationNotification({
+        tasks,
       });
     }, 750);
 
@@ -1130,7 +1134,7 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     tasks,
   ]);
 
-  // Re-apply badge + summary when the app becomes active again.
+  // Re-apply badge, summary and streak motivation when the app becomes active again.
   React.useEffect(() => {
     if (!hydratedRef.current) return;
     if (!persistEnabledRef.current) return;
@@ -1142,6 +1146,9 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
         tasks,
         enabled: dailySummaryEnabled,
         minutesOfDay: dailySummaryMinutes,
+      });
+      void syncStreakMotivationNotification({
+        tasks,
       });
     };
 
