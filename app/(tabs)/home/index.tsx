@@ -348,12 +348,15 @@ function HomeMetricsGrid({
   styles: ReturnType<typeof createStyles>;
   theme: HomeMetricsTheme;
 }) {
+  const statusLabel = t("screen.status");
+  const streakLabel = t("home.quick.streaks");
+
   return (
     <View style={styles.metricsGridWrap}>
       <View style={styles.metricsGrid}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`status: ${metrics.completionPercentage}%`}
+          accessibilityLabel={`${statusLabel}: ${metrics.completionPercentage}%`}
           onPress={metrics.onPressStatus}
           hitSlop={8}
           style={({ pressed }) => [
@@ -383,7 +386,7 @@ function HomeMetricsGrid({
                     { color: theme.mutedText },
                   ]}
                 >
-                  STATUS
+                  {statusLabel}
                 </Text>
               </View>
               <AnimatedNumber
@@ -402,7 +405,7 @@ function HomeMetricsGrid({
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`streak: ${metrics.currentStreak}`}
+          accessibilityLabel={`${streakLabel}: ${metrics.currentStreak}`}
           onPress={metrics.onPressStreak}
           hitSlop={8}
           style={({ pressed }) => [
@@ -427,7 +430,7 @@ function HomeMetricsGrid({
                     { color: theme.mutedText },
                   ]}
                 >
-                  STREAK
+                  {streakLabel}
                 </Text>
               </View>
               <AnimatedNumber

@@ -21,6 +21,7 @@ import { Colors } from "@/constants/theme";
 import { usePremium } from "@/context/premium-store";
 import { Project, useTasksStore } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { t } from "@/i18n";
 import {
   triggerImpactHaptic,
   triggerSelectionHaptic,
@@ -196,7 +197,10 @@ function ProjectTileCard({
   isDragging: boolean;
 }) {
   const iconColor = project.color;
-  const tasksLabel = `${taskCount} ${taskCount === 1 ? "AUFGABE" : "AUFGABEN"}`;
+  const tasksLabel = t(
+    taskCount === 1 ? "explore.taskCount.one" : "explore.taskCount.other",
+    { count: taskCount },
+  );
 
   return (
     <GlassSurface
@@ -276,7 +280,10 @@ function ProjectTile({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${project.name}: ${taskCount} tasks`}
+      accessibilityLabel={t("explore.tileAccessibility", {
+        project: project.name,
+        count: taskCount,
+      })}
       delayLongPress={220}
       onLongPress={handleLongPress}
       onPress={handlePress}

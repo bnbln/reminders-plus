@@ -288,6 +288,7 @@ export const EN_TRANSLATIONS: TranslationDict = {
     'screen.assist': 'Assist',
 
     'common.active': 'Active',
+    'common.off': 'Off',
     'common.cancel': 'Cancel',
     'common.close': 'Close',
     'common.delete': 'Delete',

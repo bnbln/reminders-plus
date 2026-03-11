@@ -301,6 +301,7 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "screen.assist": "Assist",
 
   "common.active": "Aktiv",
+  "common.off": "Aus",
   "common.cancel": "Abbrechen",
   "common.close": "Schließen",
   "common.delete": "Löschen",

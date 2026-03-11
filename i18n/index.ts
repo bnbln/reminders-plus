@@ -148,6 +148,38 @@ for (const locale of Object.keys(SUBTASK_TRANSLATIONS) as AppLocale[]) {
   dict['filters.withSubtasksOnly'] = values.withSubtasksOnly;
 }
 
+const OFF_TRANSLATIONS: Record<AppLocale, string> = {
+  de: 'Aus',
+  en: 'Off',
+  es: 'Desactivado',
+  fr: 'Désactivé',
+  pt: 'Desativado',
+  hi: 'बंद',
+  zh: '关闭',
+  ja: 'オフ',
+  it: 'Disattivato',
+  sv: 'Av',
+  da: 'Fra',
+  fi: 'Pois',
+  pl: 'Wył.',
+  nl: 'Uit',
+  tr: 'Kapalı',
+  cs: 'Vypnuto',
+  hu: 'Ki',
+  ro: 'Dezactivat',
+  el: 'Ανενεργό',
+  id: 'Nonaktif',
+  vi: 'Tắt',
+  ko: '끔',
+  uk: 'Вимкнено',
+  ru: 'Выкл',
+  ar: 'إيقاف',
+};
+
+for (const locale of Object.keys(OFF_TRANSLATIONS) as AppLocale[]) {
+  TRANSLATIONS[locale]['common.off'] = OFF_TRANSLATIONS[locale];
+}
+
 let localeOverride: AppLocale | null = null;
 
 function normalizeLocaleTag(value: unknown): string | null {
@@ -363,4 +395,3 @@ export function formatDate(value: number | Date, options?: Intl.DateTimeFormatOp
 export function countLabel(count: number, oneKey: string, otherKey: string): string {
   return t(count === 1 ? oneKey : otherKey, { count });
 }
-
