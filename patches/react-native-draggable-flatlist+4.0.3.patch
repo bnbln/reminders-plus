@@ -173,10 +173,37 @@ index e4e861a..b0f4792 100644
  
    const onCellLayout = useStableCallback((e?: LayoutChangeEvent) => {
 diff --git a/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx b/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx
-index 7c88afc..25e8784 100644
+index 7c88afc..f111b36 100644
 --- a/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx
 +++ b/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx
-@@ -237,6 +237,17 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+@@ -10,7 +10,6 @@ import {
+   ListRenderItem,
+   FlatListProps,
+   LayoutChangeEvent,
+-  InteractionManager,
+ } from "react-native";
+ import {
+   FlatList,
+@@ -119,9 +118,15 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+   if (dataHasChanged) {
+     // When data changes make sure `activeKey` is nulled out in the same render pass
+     activeKey = null;
+-    InteractionManager.runAfterInteractions(() => {
+-      reset();
+-    });
++    if (typeof globalThis.requestIdleCallback === "function") {
++      globalThis.requestIdleCallback(() => {
++        reset();
++      });
++    } else {
++      setTimeout(() => {
++        reset();
++      }, 0);
++    }
+   }
+ 
+   useEffect(() => {
+@@ -237,6 +242,17 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
    const onPlaceholderIndexChange = useStableCallback((index: number) => {
      props.onPlaceholderIndexChange?.(index);
    });
@@ -194,7 +221,7 @@ index 7c88afc..25e8784 100644
  
    // Handle case where user ends drag without moving their finger.
    useAnimatedReaction(
-@@ -277,6 +288,13 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+@@ -277,6 +293,13 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
        gestureDisabled.value = disabled.value;
        if (gestureDisabled.value) return;
        panGestureState.value = evt.state;
@@ -208,7 +235,7 @@ index 7c88afc..25e8784 100644
      })
      .onUpdate((evt) => {
        if (gestureDisabled.value) return;
-@@ -285,6 +303,13 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+@@ -285,6 +308,13 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
          ? evt.translationX
          : evt.translationY;
        touchTranslate.value = translation;
@@ -222,7 +249,7 @@ index 7c88afc..25e8784 100644
      })
      .onEnd((evt) => {
        if (gestureDisabled.value) return;
-@@ -296,6 +321,13 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+@@ -296,6 +326,13 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
  
        touchTranslate.value = translation + autoScrollDistance.value;
        panGestureState.value = evt.state;

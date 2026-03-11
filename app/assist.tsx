@@ -6,7 +6,6 @@ import React from "react";
 import {
   ActivityIndicator,
   Alert,
-  InteractionManager,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -2196,13 +2195,33 @@ function AssistUnlockedScreen() {
 
   React.useEffect(() => {
     if (!pendingRestoreScrollRef.current || messages.length === 0) return;
-    const task = InteractionManager.runAfterInteractions(() => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let idleCallbackId: number | null = null;
+    const completePendingRestore = () => {
       scrollToBottom(false);
       pendingRestoreScrollRef.current = false;
-    });
+    };
+
+    if (typeof globalThis.requestIdleCallback === "function") {
+      idleCallbackId = globalThis.requestIdleCallback(() => {
+        completePendingRestore();
+      });
+    } else {
+      timeoutId = setTimeout(() => {
+        completePendingRestore();
+      }, 0);
+    }
 
     return () => {
-      task.cancel();
+      if (
+        idleCallbackId !== null &&
+        typeof globalThis.cancelIdleCallback === "function"
+      ) {
+        globalThis.cancelIdleCallback(idleCallbackId);
+      }
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+      }
     };
   }, [messages.length, scrollToBottom]);
 
