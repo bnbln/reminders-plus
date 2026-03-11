@@ -207,14 +207,14 @@ export default function RootLayout() {
                     name="profile"
                     options={{
                       ...tabLikeHeaderOptions,
-                      title: "Profil",
+                      title: t("screen.profile"),
                     }}
                   />
                   <Stack.Screen
                     name="status"
                     options={{
                       ...tabLikeHeaderOptions,
-                      title: "Status",
+                      title: t("screen.status"),
                     }}
                   />
                   <Stack.Screen
@@ -222,7 +222,7 @@ export default function RootLayout() {
                     options={{
                       ...tabLikeHeaderOptions,
                       contentStyle: { backgroundColor: "transparent" },
-                      title: "Einstellungen",
+                      title: t("screen.settings"),
                     }}
                   />
                   <Stack.Screen
@@ -230,14 +230,14 @@ export default function RootLayout() {
                     options={{
                       ...tabLikeHeaderOptions,
                       contentStyle: { backgroundColor: "transparent" },
-                      title: "CloudSync",
+                      title: t("screen.cloudSync"),
                     }}
                   />
                   <Stack.Screen
                     name="assist"
                     options={{
                       ...tabLikeHeaderOptions,
-                      title: "Assist",
+                      title: t("screen.assist"),
                       headerLargeTitle: false,
                     }}
                   />

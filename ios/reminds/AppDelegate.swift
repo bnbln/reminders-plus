@@ -1079,7 +1079,7 @@ private struct LocalCloudSnapshot {
 }
 
 private struct RemoteCloudSnapshot {
-  let record: CKRecord
+  let record: CKRecord?
   let data: Data
   let savedAt: Int64
   let signature: String
@@ -1099,6 +1099,7 @@ final class CloudSyncCoordinator: NSObject {
 
   private enum DefaultsKey {
     static let enabled = "reminds.cloudSync.enabled.v1"
+    static let backend = "reminds.cloudSync.backend.v1"
     static let deviceId = "reminds.cloudSync.deviceId.v1"
     static let lastSyncAt = "reminds.cloudSync.lastSyncAt.v1"
     static let lastPushAt = "reminds.cloudSync.lastPushAt.v1"
@@ -1121,6 +1122,20 @@ final class CloudSyncCoordinator: NSObject {
     static let deviceId = "deviceId"
   }
 
+  private enum UbiquitousConfig {
+    static let payloadData = "reminds.cloudSync.payload.v1"
+    static let savedAt = "reminds.cloudSync.savedAt.v1"
+    static let schemaVersion = "reminds.cloudSync.schemaVersion.v1"
+    static let signature = "reminds.cloudSync.signature.v1"
+    static let deviceId = "reminds.cloudSync.deviceId.v1"
+    static let maxPayloadBytes = 950_000
+  }
+
+  private enum SyncBackend: String {
+    case cloudKit
+    case iCloudKeyValue
+  }
+
   private enum FileConfig {
     static let localSnapshotName = "reminds.tasks.v1.json"
   }
@@ -1128,6 +1143,7 @@ final class CloudSyncCoordinator: NSObject {
   static let shared = CloudSyncCoordinator()
 
   private let defaults = UserDefaults.standard
+  private let ubiquitousStore = NSUbiquitousKeyValueStore.default
   private weak var emitter: CloudSyncBridge?
   private var hasListeners = false
   private var hasStarted = false
@@ -1137,8 +1153,27 @@ final class CloudSyncCoordinator: NSObject {
     super.init()
   }
 
+  deinit {
+    NotificationCenter.default.removeObserver(self)
+  }
+
   private var isEnabled: Bool {
     defaults.bool(forKey: DefaultsKey.enabled)
+  }
+
+  private var syncBackend: SyncBackend {
+    get {
+      guard
+        let rawValue = defaults.string(forKey: DefaultsKey.backend),
+        let backend = SyncBackend(rawValue: rawValue)
+      else {
+        return .cloudKit
+      }
+      return backend
+    }
+    set {
+      defaults.set(newValue.rawValue, forKey: DefaultsKey.backend)
+    }
   }
 
   private var cloudContainerIdentifier: String {
@@ -1192,10 +1227,18 @@ final class CloudSyncCoordinator: NSObject {
       name: UIApplication.didEnterBackgroundNotification,
       object: nil
     )
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(handleUbiquitousStoreDidChange(_:)),
+      name: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
+      object: ubiquitousStore
+    )
 
     defaults.register(defaults: [
       DefaultsKey.lastAccountStatus: "unknown",
+      DefaultsKey.backend: SyncBackend.cloudKit.rawValue,
     ])
+    ubiquitousStore.synchronize()
 
     if isEnabled {
       enqueueSync(reason: .launch)
@@ -1222,6 +1265,7 @@ final class CloudSyncCoordinator: NSObject {
       return await syncNow(reason: .enable)
     }
 
+    syncBackend = .cloudKit
     clearLastError()
     emitStatusChanged()
     return await statusDictionary()
@@ -1236,6 +1280,9 @@ final class CloudSyncCoordinator: NSObject {
   }
 
   func canHandleRemoteNotification(userInfo: [AnyHashable: Any]) -> Bool {
+    guard syncBackend == .cloudKit else {
+      return false
+    }
     guard let notification = CKNotification(fromRemoteNotificationDictionary: userInfo) else {
       return false
     }
@@ -1272,6 +1319,7 @@ final class CloudSyncCoordinator: NSObject {
       "lastKnownRemoteSavedAt": boxedNumber(for: DefaultsKey.lastKnownRemoteSavedAt),
       "lastError": defaults.string(forKey: DefaultsKey.lastError) ?? NSNull(),
       "containerIdentifier": cloudContainerIdentifier,
+      "syncBackend": syncBackend.rawValue,
     ]
   }
 
@@ -1296,6 +1344,36 @@ final class CloudSyncCoordinator: NSObject {
       UIApplication.shared.endBackgroundTask(backgroundTaskId)
       backgroundTaskId = .invalid
     }
+  }
+
+  @objc private func handleUbiquitousStoreDidChange(_ notification: Notification) {
+    guard isEnabled, syncBackend == .iCloudKeyValue else { return }
+
+    let userInfo = notification.userInfo ?? [:]
+    let rawReason = userInfo[NSUbiquitousKeyValueStoreChangeReasonKey] as? NSNumber
+    let reason = rawReason?.intValue ?? NSUbiquitousKeyValueStoreServerChange
+    switch reason {
+    case NSUbiquitousKeyValueStoreServerChange, NSUbiquitousKeyValueStoreInitialSyncChange:
+      break
+    default:
+      return
+    }
+
+    guard let changedKeys = userInfo[NSUbiquitousKeyValueStoreChangedKeysKey] as? [String] else {
+      enqueueSync(reason: .remotePush)
+      return
+    }
+
+    let relevantKeys = Set([
+      UbiquitousConfig.payloadData,
+      UbiquitousConfig.savedAt,
+      UbiquitousConfig.signature,
+    ])
+    guard changedKeys.contains(where: { relevantKeys.contains($0) }) else {
+      return
+    }
+
+    enqueueSync(reason: .remotePush)
   }
 
   private func enqueueSync(reason: CloudSyncReason) {
@@ -1330,19 +1408,41 @@ final class CloudSyncCoordinator: NSObject {
       return CloudSyncOutcome(didPullRemote: false, didPushLocal: false)
     }
 
+    let initialBackend = syncBackend
+
     do {
-      let outcome = try await syncLocalAndRemote()
+      let outcome = try await syncLocalAndRemote(backend: initialBackend)
       defaults.set(currentTimestampMs(), forKey: DefaultsKey.lastSyncAt)
 
-      do {
-        try await ensureSubscriptionIfPossible()
+      if syncBackend == .cloudKit {
+        do {
+          try await ensureSubscriptionIfPossible()
+          clearLastError()
+        } catch {
+          rememberError(error)
+        }
+      } else {
         clearLastError()
-      } catch {
-        rememberError(error)
       }
 
       return outcome
     } catch {
+      if initialBackend == .cloudKit, isMissingProductionSchemaError(error) {
+        syncBackend = .iCloudKeyValue
+        do {
+          let outcome = try await syncLocalAndRemote(backend: .iCloudKeyValue)
+          defaults.set(currentTimestampMs(), forKey: DefaultsKey.lastSyncAt)
+          clearLastError()
+          return outcome
+        } catch {
+          rememberError(error)
+          if reason == .manual || reason == .enable {
+            emitStatusChanged()
+          }
+          return CloudSyncOutcome(didPullRemote: false, didPushLocal: false)
+        }
+      }
+
       rememberError(error)
       if reason == .manual || reason == .enable {
         emitStatusChanged()
@@ -1351,16 +1451,27 @@ final class CloudSyncCoordinator: NSObject {
     }
   }
 
-  private func syncLocalAndRemote() async throws -> CloudSyncOutcome {
+  private func syncLocalAndRemote(backend: SyncBackend) async throws -> CloudSyncOutcome {
     let localSnapshot = readLocalSnapshot()
-    let remoteSnapshot = try await fetchRemoteSnapshot()
+    var effectiveBackend = backend
+    var remoteSnapshot = try await fetchRemoteSnapshot(backend: effectiveBackend)
+
+    // If CloudKit has no record but another device already switched to the
+    // iCloud key-value fallback, follow that source to keep multi-device sync working.
+    if effectiveBackend == .cloudKit, remoteSnapshot == nil,
+      let ubiquitousRemote = fetchRemoteSnapshotFromUbiquitousStore()
+    {
+      effectiveBackend = .iCloudKeyValue
+      syncBackend = .iCloudKeyValue
+      remoteSnapshot = ubiquitousRemote
+    }
 
     switch (localSnapshot, remoteSnapshot) {
     case (nil, nil):
       return CloudSyncOutcome(didPullRemote: false, didPushLocal: false)
 
     case let (local?, nil):
-      try await uploadLocalSnapshot(local, existingRecord: nil)
+      try await uploadLocalSnapshot(local, existingRecord: nil, backend: effectiveBackend)
       return CloudSyncOutcome(didPullRemote: false, didPushLocal: true)
 
     case let (nil, remote?):
@@ -1374,7 +1485,11 @@ final class CloudSyncCoordinator: NSObject {
       }
 
       if local.savedAt > remote.savedAt {
-        try await uploadLocalSnapshot(local, existingRecord: remote.record)
+        try await uploadLocalSnapshot(
+          local,
+          existingRecord: remote.record,
+          backend: effectiveBackend
+        )
         return CloudSyncOutcome(didPullRemote: false, didPushLocal: true)
       }
 
@@ -1403,12 +1518,16 @@ final class CloudSyncCoordinator: NSObject {
   }
 
   private func ensureSubscriptionIfPossible() async throws {
+    guard syncBackend == .cloudKit else {
+      return
+    }
+
     if readLocalSnapshot() != nil {
       try await ensureSubscription()
       return
     }
 
-    guard try await fetchRemoteSnapshot() != nil else {
+    guard try await fetchRemoteSnapshotFromCloudKit() != nil else {
       return
     }
 
@@ -1441,7 +1560,16 @@ final class CloudSyncCoordinator: NSObject {
     }
   }
 
-  private func fetchRemoteSnapshot() async throws -> RemoteCloudSnapshot? {
+  private func fetchRemoteSnapshot(backend: SyncBackend) async throws -> RemoteCloudSnapshot? {
+    switch backend {
+    case .cloudKit:
+      return try await fetchRemoteSnapshotFromCloudKit()
+    case .iCloudKeyValue:
+      return fetchRemoteSnapshotFromUbiquitousStore()
+    }
+  }
+
+  private func fetchRemoteSnapshotFromCloudKit() async throws -> RemoteCloudSnapshot? {
     guard let record = try await fetchRecord(recordID) else {
       return nil
     }
@@ -1467,6 +1595,19 @@ final class CloudSyncCoordinator: NSObject {
 
   private func uploadLocalSnapshot(
     _ snapshot: LocalCloudSnapshot,
+    existingRecord: CKRecord?,
+    backend: SyncBackend
+  ) async throws {
+    switch backend {
+    case .cloudKit:
+      try await uploadLocalSnapshotToCloudKit(snapshot, existingRecord: existingRecord)
+    case .iCloudKeyValue:
+      try uploadLocalSnapshotToUbiquitousStore(snapshot)
+    }
+  }
+
+  private func uploadLocalSnapshotToCloudKit(
+    _ snapshot: LocalCloudSnapshot,
     existingRecord: CKRecord?
   ) async throws {
     let assetURL = FileManager.default.temporaryDirectory
@@ -1485,6 +1626,55 @@ final class CloudSyncCoordinator: NSObject {
     }
 
     _ = try await saveRecord(record)
+    defaults.set(currentTimestampMs(), forKey: DefaultsKey.lastPushAt)
+    defaults.set(snapshot.savedAt, forKey: DefaultsKey.lastKnownLocalSavedAt)
+    defaults.set(snapshot.savedAt, forKey: DefaultsKey.lastKnownRemoteSavedAt)
+  }
+
+  private func fetchRemoteSnapshotFromUbiquitousStore() -> RemoteCloudSnapshot? {
+    _ = ubiquitousStore.synchronize()
+
+    guard let data = ubiquitousStore.data(forKey: UbiquitousConfig.payloadData), !data.isEmpty else {
+      return nil
+    }
+
+    let savedAt = (ubiquitousStore.object(forKey: UbiquitousConfig.savedAt) as? NSNumber)?.int64Value ?? 0
+    let signature = (ubiquitousStore.string(forKey: UbiquitousConfig.signature) ?? "").trimmingCharacters(
+      in: .whitespacesAndNewlines
+    )
+
+    return RemoteCloudSnapshot(
+      record: nil,
+      data: data,
+      savedAt: savedAt,
+      signature: signature.isEmpty ? sha256Hex(for: data) : signature
+    )
+  }
+
+  private func uploadLocalSnapshotToUbiquitousStore(_ snapshot: LocalCloudSnapshot) throws {
+    if snapshot.data.count > UbiquitousConfig.maxPayloadBytes {
+      let message = "Die Sync-Daten sind aktuell zu gross fuer den iCloud Key-Value Fallback. Bitte CloudKit-Schema in Production deployen."
+      throw NSError(
+        domain: "CloudSyncCoordinator",
+        code: 3,
+        userInfo: [NSLocalizedDescriptionKey: message]
+      )
+    }
+
+    ubiquitousStore.set(snapshot.data, forKey: UbiquitousConfig.payloadData)
+    ubiquitousStore.set(NSNumber(value: snapshot.savedAt), forKey: UbiquitousConfig.savedAt)
+    ubiquitousStore.set(NSNumber(value: snapshot.schemaVersion), forKey: UbiquitousConfig.schemaVersion)
+    ubiquitousStore.set(snapshot.signature, forKey: UbiquitousConfig.signature)
+    ubiquitousStore.set(deviceId, forKey: UbiquitousConfig.deviceId)
+
+    guard ubiquitousStore.synchronize() else {
+      throw NSError(
+        domain: "CloudSyncCoordinator",
+        code: 4,
+        userInfo: [NSLocalizedDescriptionKey: "iCloud Key-Value Sync konnte nicht abgeschlossen werden."]
+      )
+    }
+
     defaults.set(currentTimestampMs(), forKey: DefaultsKey.lastPushAt)
     defaults.set(snapshot.savedAt, forKey: DefaultsKey.lastKnownLocalSavedAt)
     defaults.set(snapshot.savedAt, forKey: DefaultsKey.lastKnownRemoteSavedAt)
@@ -1655,6 +1845,45 @@ final class CloudSyncCoordinator: NSObject {
     default:
       return false
     }
+  }
+
+  private func isMissingProductionSchemaError(_ error: Error) -> Bool {
+    if let ckError = error as? CKError {
+      return isMissingProductionSchemaError(ckError)
+    }
+
+    let loweredDescription = error.localizedDescription.lowercased()
+    return loweredDescription.contains("cannot create new type")
+      && loweredDescription.contains(RecordConfig.type.lowercased())
+      && loweredDescription.contains("production schema")
+  }
+
+  private func isMissingProductionSchemaError(_ error: CKError) -> Bool {
+    let detailCandidates: [String] = [
+      cloudKitFailureDetail(for: error) ?? "",
+      error.localizedDescription,
+    ]
+
+    let details = detailCandidates.joined(separator: " ").lowercased()
+    if details.contains("cannot create new type")
+      && details.contains(RecordConfig.type.lowercased())
+      && details.contains("production schema")
+    {
+      return true
+    }
+
+    if let partialErrors = error.userInfo[CKPartialErrorsByItemIDKey] as? [AnyHashable: Any] {
+      for partial in partialErrors.values {
+        if let partialError = partial as? CKError, isMissingProductionSchemaError(partialError) {
+          return true
+        }
+        if let partialError = partial as? Error, isMissingProductionSchemaError(partialError) {
+          return true
+        }
+      }
+    }
+
+    return false
   }
 
   private func errorMessage(for error: Error) -> String {

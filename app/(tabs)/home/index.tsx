@@ -62,7 +62,7 @@ import {
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useStreaks } from "@/hooks/use-streaks";
-import { getIntlLocale, t } from "@/i18n";
+import { t } from "@/i18n";
 import { triggerSelectionHaptic } from "@/utils/haptics";
 import { isIOS26OrNewer } from "@/utils/ios-version";
 import {
@@ -1291,7 +1291,7 @@ export default function HomeScreen() {
   const { setMode, setPresetDateStart, queueTaskPopIn } =
     useTaskCreateContext();
   const { accentColor, reduceMotionEnabled } = useAppSettings();
-  const { width: viewportWidth } = useWindowDimensions();
+  const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
   const isScreenFocusedRef = React.useRef(false);
 
   const [isCalendarPickerOpen, setIsCalendarPickerOpen] = React.useState(false);
@@ -1341,8 +1341,6 @@ export default function HomeScreen() {
     showProjectTasks,
     showRoutineTasks,
   } = useHomeFilters();
-  const locale = React.useMemo(() => getIntlLocale().toLowerCase(), []);
-  const isGermanLocale = locale.startsWith("de");
   const withSubtasksEnabled =
     params.withSubtasks === undefined
       ? showCompactSubtasks
@@ -1369,25 +1367,15 @@ export default function HomeScreen() {
   const gesturesHintSeenRef = React.useRef(true);
   const dragDropTargetsHintSeenRef = React.useRef(true);
   const gestureHintCopy = React.useMemo(
-    () =>
-      isGermanLocale
-        ? {
-            title: "Gesten-Tipp",
-            body: "Wische horizontal über die Liste für den Tagwechsel. Halte eine Aufgabe zum Verschieben.",
-            dismissLabel: "Schließen",
-            dragToDate: "Auf Datum ziehen",
-            dragToUndated: "Oder in Ohne Datum ablegen",
-            monthPickerLabel: "Monat wählen",
-          }
-        : {
-            title: "Gesture tip",
-            body: "Swipe horizontally over the list to change day. Long-press a task to drag it.",
-            dismissLabel: "Dismiss",
-            dragToDate: "Drag to a day",
-            dragToUndated: "Or drop into Without date",
-            monthPickerLabel: "Pick month",
-          },
-    [isGermanLocale],
+    () => ({
+      title: t("home.gestureHint.title"),
+      body: t("home.gestureHint.body"),
+      dismissLabel: t("home.gestureHint.dismiss"),
+      dragToDate: t("home.gestureHint.dragToDate"),
+      dragToUndated: t("home.gestureHint.dragToUndated"),
+      monthPickerLabel: t("home.gestureHint.monthPicker"),
+    }),
+    [],
   );
   const markGesturesHintSeen = React.useCallback(() => {
     if (gesturesHintSeenRef.current) return;
@@ -2603,6 +2591,11 @@ export default function HomeScreen() {
   const dateRailLastCenterIndexRef = React.useRef(dateRailInitialIndex);
   const dateRailSelectionLockTargetIndexRef = React.useRef<number | null>(null);
   const dateRailSelectionLockUntilRef = React.useRef(0);
+  const dateRailSyncPrimaryRafRef = React.useRef<number | null>(null);
+  const dateRailSyncSecondaryRafRef = React.useRef<number | null>(null);
+  const dateRailSyncTimeoutRef = React.useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
   const getDateRailIndexForDateStart = React.useCallback(
     (targetDateStart: number) => {
       const targetIndex = dateRailDays.findIndex((day) =>
@@ -2633,11 +2626,11 @@ export default function HomeScreen() {
       }
 
       dateRailLastCenterIndexRef.current = targetIndex;
-      dateRailScrollOffsetRef.current = targetIndex * dateRailSnapInterval;
-      dateRailRef.current?.scrollToIndex({
-        index: targetIndex,
+      const targetOffset = targetIndex * dateRailSnapInterval;
+      dateRailScrollOffsetRef.current = targetOffset;
+      dateRailRef.current?.scrollToOffset?.({
+        offset: targetOffset,
         animated,
-        viewPosition: 0.5,
       });
       return true;
     },
@@ -2660,29 +2653,46 @@ export default function HomeScreen() {
     dateRailScrollOffsetRef.current = targetOffset;
     dateRailScrollX.stopAnimation();
     dateRailScrollX.setValue(targetOffset);
-    dateRailRef.current?.scrollToIndex({
-      index: targetIndex,
+    dateRailRef.current?.scrollToOffset?.({
+      offset: targetOffset,
       animated: false,
-      viewPosition: 0.5,
     });
   }, [dateRailScrollX, dateRailSnapInterval, getDateRailIndexForDateStart]);
-  const handleDateRailScrollToIndexFailed = React.useCallback(() => {
-    requestAnimationFrame(() => {
-      const targetIndex = getDateRailIndexForDateStart(
-        selectedDateStartRef.current,
-      );
-      const targetOffset = targetIndex * dateRailSnapInterval;
-      dateRailLastCenterIndexRef.current = targetIndex;
-      dateRailScrollOffsetRef.current = targetOffset;
-      dateRailScrollX.stopAnimation();
-      dateRailScrollX.setValue(targetOffset);
-      dateRailRef.current?.scrollToIndex({
-        index: targetIndex,
-        animated: false,
-        viewPosition: 0.5,
+  const clearScheduledDateRailSync = React.useCallback(() => {
+    if (dateRailSyncPrimaryRafRef.current != null) {
+      cancelAnimationFrame(dateRailSyncPrimaryRafRef.current);
+      dateRailSyncPrimaryRafRef.current = null;
+    }
+    if (dateRailSyncSecondaryRafRef.current != null) {
+      cancelAnimationFrame(dateRailSyncSecondaryRafRef.current);
+      dateRailSyncSecondaryRafRef.current = null;
+    }
+    if (dateRailSyncTimeoutRef.current != null) {
+      clearTimeout(dateRailSyncTimeoutRef.current);
+      dateRailSyncTimeoutRef.current = null;
+    }
+  }, []);
+  const scheduleDateRailSyncToSelectedDate = React.useCallback(() => {
+    clearScheduledDateRailSync();
+    syncDateRailToSelectedDate();
+    dateRailSyncPrimaryRafRef.current = requestAnimationFrame(() => {
+      dateRailSyncPrimaryRafRef.current = null;
+      syncDateRailToSelectedDate();
+      dateRailSyncSecondaryRafRef.current = requestAnimationFrame(() => {
+        dateRailSyncSecondaryRafRef.current = null;
+        syncDateRailToSelectedDate();
       });
     });
-  }, [dateRailScrollX, dateRailSnapInterval, getDateRailIndexForDateStart]);
+    dateRailSyncTimeoutRef.current = setTimeout(() => {
+      dateRailSyncTimeoutRef.current = null;
+      syncDateRailToSelectedDate();
+    }, 140);
+  }, [clearScheduledDateRailSync, syncDateRailToSelectedDate]);
+  const handleDateRailScrollToIndexFailed = React.useCallback(() => {
+    requestAnimationFrame(() => {
+      scheduleDateRailSyncToSelectedDate();
+    });
+  }, [scheduleDateRailSyncToSelectedDate]);
   const measureDateRailBounds = React.useCallback(() => {
     const node =
       // @ts-ignore - some refs expose getNode
@@ -2811,19 +2821,24 @@ export default function HomeScreen() {
     const rafId = requestAnimationFrame(() => {
       measureDateRailBounds();
       measureDateRailListBounds();
-      syncDateRailToSelectedDate();
+      scheduleDateRailSyncToSelectedDate();
     });
     return () => {
       cancelAnimationFrame(rafId);
+      clearScheduledDateRailSync();
       if (railBoundsMeasureFrameRef.current != null) {
         cancelAnimationFrame(railBoundsMeasureFrameRef.current);
         railBoundsMeasureFrameRef.current = null;
       }
     };
   }, [
+    clearScheduledDateRailSync,
+    dateRailContainerWidth,
+    dateRailSidePadding,
     measureDateRailBounds,
     measureDateRailListBounds,
-    syncDateRailToSelectedDate,
+    scheduleDateRailSyncToSelectedDate,
+    viewportHeight,
     viewportWidth,
   ]);
 
@@ -4175,11 +4190,7 @@ export default function HomeScreen() {
                 >
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={
-                      isGermanLocale
-                        ? "Zum heutigen Datum springen"
-                        : "Jump to today"
-                    }
+                    accessibilityLabel={t("home.jumpToToday")}
                     hitSlop={16}
                     style={StyleSheet.absoluteFillObject}
                     onPress={() => {
@@ -4276,7 +4287,7 @@ export default function HomeScreen() {
                     }}
                   >
                     <Text style={styles.calendarQuickActionButtonText}>
-                      {isGermanLocale ? "Heute" : "Today"}
+                      {t("common.today")}
                     </Text>
                   </Pressable>
                   <Pressable
@@ -4289,7 +4300,7 @@ export default function HomeScreen() {
                     }}
                   >
                     <Text style={styles.calendarQuickActionButtonText}>
-                      {isGermanLocale ? "Morgen" : "Tomorrow"}
+                      {t("taskDetail.relative.tomorrow")}
                     </Text>
                   </Pressable>
                 </View>
@@ -4341,6 +4352,7 @@ export default function HomeScreen() {
                 setDateRailContainerWidth(w);
               }
               measureDateRailListBounds();
+              scheduleDateRailSyncToSelectedDate();
             }}
             onTouchMove={handleGlobalDragTouchMove}
             onTouchEnd={handleGlobalDragTouchEnd}
@@ -4414,7 +4426,7 @@ export default function HomeScreen() {
                 { paddingHorizontal: dateRailSidePadding },
               ]}
               onLayout={() => {
-                syncDateRailToSelectedDate();
+                scheduleDateRailSyncToSelectedDate();
               }}
               getItemLayout={getDateRailItemLayout}
               onScrollToIndexFailed={handleDateRailScrollToIndexFailed}
@@ -4533,7 +4545,6 @@ export default function HomeScreen() {
     handleJumpToToday,
     handleSelectDate,
     isExpoUISwiftPickerAvailable,
-    isGermanLocale,
     scrollDateRailToDateStart,
     isCalendarPickerOpen,
     isDark,
@@ -4541,10 +4552,10 @@ export default function HomeScreen() {
     measureDateRailListBounds,
     screenBackground,
     selectedDateStart,
+    scheduleDateRailSyncToSelectedDate,
     styles,
     theme,
     dateRailContainerWidth,
-    syncDateRailToSelectedDate,
   ]);
 
   const listHeader = React.useMemo(() => {

@@ -285,10 +285,6 @@ export function AnimatedNumber({
     () => StyleSheet.flatten(textStyle),
     [textStyle],
   );
-  const resolvedFontSize =
-    typeof resolvedTextStyle?.fontSize === "number"
-      ? resolvedTextStyle.fontSize
-      : undefined;
   const numberHeight =
     typeof resolvedTextStyle?.lineHeight === "number"
       ? resolvedTextStyle.lineHeight
@@ -319,8 +315,11 @@ export function AnimatedNumber({
             <Text
               style={[
                 textStyle,
+                styles.glyph,
                 styles.staticGlyph,
-                resolvedFontSize ? { lineHeight: resolvedFontSize } : null,
+                {
+                  lineHeight: numberHeight,
+                },
               ]}
             >
               {token.value}

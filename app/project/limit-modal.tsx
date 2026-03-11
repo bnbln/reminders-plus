@@ -90,18 +90,16 @@ export default function ProjectLimitModal() {
             <View style={styles.lockLoadingState}>
               <ActivityIndicator color={Colors[theme].text} />
               <Text style={styles.lockBody}>
-                Pruefe gerade deinen Reminders+ Status...
+                {t("projectLimit.loading")}
               </Text>
             </View>
           ) : (
             <>
               <Text style={styles.lockTitle}>
-                Mehr als 4 Projekte brauchen Reminders+.
+                {t("projectLimit.title", { count: FREE_PROJECT_LIMIT })}
               </Text>
               <Text style={styles.lockBody}>
-                Dein Free-Plan enthaelt bis zu {FREE_PROJECT_LIMIT} aktive
-                Projekte. Mit Reminders+ bekommst du unbegrenzte Projekte,
-                AI-Assist und die Cloud-Sync-Freischaltung.
+                {t("projectLimit.body", { count: FREE_PROJECT_LIMIT })}
               </Text>
 
               <View style={styles.lockButtonRow}>
@@ -113,7 +111,9 @@ export default function ProjectLimitModal() {
                     pressed && styles.buttonPressed,
                   ]}
                 >
-                  <Text style={styles.secondaryActionText}>Spaeter</Text>
+                  <Text style={styles.secondaryActionText}>
+                    {t("projectLimit.action.later")}
+                  </Text>
                 </Pressable>
 
                 <Pressable
@@ -130,7 +130,7 @@ export default function ProjectLimitModal() {
                   ]}
                 >
                   <Text style={styles.primaryActionText}>
-                    Reminders+ ansehen
+                    {t("projectLimit.action.openPlus")}
                   </Text>
                 </Pressable>
               </View>

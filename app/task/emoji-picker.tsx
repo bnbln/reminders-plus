@@ -137,7 +137,7 @@ export default function EmojiPickerScreen() {
                                 <TextInput
                                     value={query}
                                     onChangeText={setQuery}
-                                    placeholder="Emoji suchen"
+                                    placeholder={t('emojiPicker.searchPlaceholder')}
                                     placeholderTextColor={withAlpha(textColorForTheme(theme), 0.42)}
                                     autoCapitalize="none"
                                     autoCorrect={false}
@@ -148,7 +148,7 @@ export default function EmojiPickerScreen() {
                         </View>
                     )}
                     ListEmptyComponent={(
-                        <Text style={styles.emptyState}>Keine Emojis fuer diese Suche gefunden.</Text>
+                        <Text style={styles.emptyState}>{t('emojiPicker.empty')}</Text>
                     )}
                     columnWrapperStyle={styles.emojiRow}
                     keyboardShouldPersistTaps="handled"

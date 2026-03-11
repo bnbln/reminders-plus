@@ -22,9 +22,16 @@ import {
 import { Colors } from "@/constants/theme";
 import { usePremium } from "@/context/premium-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { t } from "@/i18n";
 
 type ThemeName = keyof typeof Colors;
 type PurchaseOption = "monthly" | "lifetime";
+type PlusScreenProps = {
+  sourceOverride?: string;
+  closeFallbackHref?: string;
+  headerTitle?: string;
+  showsCloseButton?: boolean;
+};
 
 const IOS_LIGHT_BASE_BACKGROUND = "#F2F2F7";
 const IOS_LIGHT_ELEVATED_SURFACE = "#FFFFFF";
@@ -37,32 +44,32 @@ const BENEFITS = [
     id: "assist",
     icon: "auto-awesome",
     tint: "#34C759",
-    title: "AI-Assist",
+    titleKey: "plus.benefit.assist",
   },
   {
     id: "projects",
     icon: "folder-open",
     tint: "#3B82F6",
-    title: "Mehr als 4 Projekte",
+    titleKey: "plus.benefit.projects",
   },
   {
     id: "sync",
     icon: "cloud-done",
     tint: "#F59E0B",
-    title: "Cloud Sync auf Apple-Geraeten",
+    titleKey: "plus.benefit.sync",
   },
 ] as const;
 
 function resolveSourceCopy(source: string) {
   switch (source) {
     case "assist":
-      return "Freischaltung fuer deinen AI-Assist und alle Pro-Features.";
+      return t("plus.source.assist");
     case "projects":
-      return "Mehr Projekte, AI-Assist und Sync in einem Schritt freischalten.";
+      return t("plus.source.projects");
     case "sync":
-      return "Cloud Sync und alle Pro-Features direkt ueber Apple aktivieren.";
+      return t("plus.source.sync");
     default:
-      return "AI-Assist, mehr Projekte und Cloud Sync direkt ueber Apple aktivieren.";
+      return t("plus.source.default");
   }
 }
 
@@ -187,7 +194,12 @@ function OfferCard({
   );
 }
 
-export default function PlusScreen() {
+export default function PlusScreen({
+  sourceOverride,
+  closeFallbackHref = "/settings",
+  headerTitle = "",
+  showsCloseButton = true,
+}: PlusScreenProps = {}) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = (useColorScheme() ?? "light") as ThemeName;
@@ -195,9 +207,10 @@ export default function PlusScreen() {
   const { source: sourceParam } = useLocalSearchParams<{
     source?: string | string[];
   }>();
-  const source = Array.isArray(sourceParam)
+  const sourceFromRoute = Array.isArray(sourceParam)
     ? (sourceParam[0] ?? "")
     : (sourceParam ?? "");
+  const source = sourceOverride ?? sourceFromRoute;
   const {
     isSupported,
     isStoreConnected,
@@ -247,8 +260,8 @@ export default function PlusScreen() {
 
   const onClose = React.useCallback(() => {
     if (router.canGoBack()) router.back();
-    else router.replace("/settings");
-  }, [router]);
+    else router.replace(closeFallbackHref as any);
+  }, [closeFallbackHref, router]);
 
   const onPurchaseMonthly = React.useCallback(async () => {
     clearError();
@@ -261,9 +274,9 @@ export default function PlusScreen() {
 
     if (result === "debug_unlocked") {
       Alert.alert(
-        "Debug-Freischaltung aktiv",
-        "Reminders+ wurde lokal fuer diesen Debug-Build freigeschaltet, weil kein gueltiges Store-Produkt verfuegbar war.",
-        [{ text: "OK", onPress: onClose }],
+        t("plus.alert.debugUnlock.title"),
+        t("plus.alert.debugUnlock.bodyMonthly"),
+        [{ text: t("common.ok"), onPress: onClose }],
       );
     }
   }, [clearError, onClose, purchaseMonthly]);
@@ -274,11 +287,11 @@ export default function PlusScreen() {
 
     if (result === "purchased") {
       Alert.alert(
-        "Lifetime aktiviert",
-        "Dein Lifetime Pass ist aktiv. Falls noch ein Monatsabo laeuft, musst du es in deinen Apple-Abos selbst kuendigen.",
+        t("plus.alert.lifetimeActivated.title"),
+        t("plus.alert.lifetimeActivated.body"),
         [
           {
-            text: "Apple-Abos oeffnen",
+            text: t("plus.alert.openAppleSubscriptions"),
             onPress: () => {
               void Linking.openURL(
                 "https://apps.apple.com/account/subscriptions",
@@ -287,7 +300,7 @@ export default function PlusScreen() {
             },
           },
           {
-            text: "OK",
+            text: t("common.ok"),
             style: "cancel",
             onPress: onClose,
           },
@@ -298,9 +311,9 @@ export default function PlusScreen() {
 
     if (result === "debug_unlocked") {
       Alert.alert(
-        "Debug-Freischaltung aktiv",
-        "Der Lifetime Pass wurde lokal fuer diesen Debug-Build freigeschaltet, weil kein gueltiges Store-Produkt verfuegbar war.",
-        [{ text: "OK", onPress: onClose }],
+        t("plus.alert.debugUnlock.title"),
+        t("plus.alert.debugUnlock.bodyLifetime"),
+        [{ text: t("common.ok"), onPress: onClose }],
       );
     }
   }, [clearError, onClose, purchaseLifetime]);
@@ -310,8 +323,8 @@ export default function PlusScreen() {
     const restored = await restorePurchases();
     if (restored) {
       Alert.alert(
-        "Wiederhergestellt",
-        "Vorhandene Kaeufe wurden mit deinem Apple-Account abgeglichen.",
+        t("plus.alert.restored.title"),
+        t("plus.alert.restored.body"),
       );
     }
   }, [clearError, restorePurchases]);
@@ -339,18 +352,18 @@ export default function PlusScreen() {
     isPurchaseInFlight ||
     isSelectedAlreadyActive;
   const checkoutLabel = !isSupported
-    ? "Nur auf iOS verfuegbar"
+    ? t("plus.checkout.onlyIos")
     : !isStoreConnected
-      ? "Kein App Store Zugriff"
+      ? t("plus.checkout.noStoreAccess")
     : !isReady
-      ? "App Store verbindet..."
+      ? t("plus.checkout.connecting")
       : !isSelectedProductLoaded
-        ? "Produkt nicht verfuegbar"
+        ? t("plus.checkout.productUnavailable")
     : isSelectedAlreadyActive
       ? selectedOption === "lifetime"
-        ? "Bereits freigeschaltet"
-        : "Bereits aktiv"
-      : "Abschliessen";
+        ? t("plus.checkout.alreadyUnlocked")
+        : t("plus.checkout.alreadyActive")
+      : t("plus.checkout.complete");
 
   const onCheckout = React.useCallback(async () => {
     if (selectedOption === "monthly") {
@@ -367,19 +380,21 @@ export default function PlusScreen() {
         options={{
           headerShown: true,
           presentation: "modal",
-          headerTitle: "",
+          headerTitle,
           headerShadowVisible: false,
           headerTransparent: true,
           headerTintColor: headerTextColor,
-          headerRight: () => (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Schliessen"
-              onPress={onClose}
-            >
-              <MaterialIcons name="close" size={22} color={headerTextColor} />
-            </Pressable>
-          ),
+          headerRight: showsCloseButton
+            ? () => (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t("common.close")}
+                  onPress={onClose}
+                >
+                  <MaterialIcons name="close" size={22} color={headerTextColor} />
+                </Pressable>
+              )
+            : undefined,
         }}
       />
 
@@ -398,7 +413,7 @@ export default function PlusScreen() {
           end={{ x: 1, y: 1 }}
           style={[styles.heroCard, { borderColor }]}
         >
-          <Text style={styles.heroTitle}>Mehr Fokus, weniger Limits.</Text>
+          <Text style={styles.heroTitle}>{t("plus.hero.title")}</Text>
           <Text style={styles.heroSubtitle}>{sourceCopy}</Text>
 
           <View style={styles.benefitsCard}>
@@ -417,7 +432,7 @@ export default function PlusScreen() {
                       color={benefit.tint}
                     />
                   </View>
-                  <Text style={styles.benefitText}>{benefit.title}</Text>
+                  <Text style={styles.benefitText}>{t(benefit.titleKey)}</Text>
                 </View>
                 {index < BENEFITS.length - 1 ? (
                   <View style={styles.benefitDivider} />
@@ -431,21 +446,21 @@ export default function PlusScreen() {
           <View style={styles.offerGrid}>
             <OfferCard
               variant="lifetime"
-              title="Lifetime"
+              title={t("plus.offer.lifetime.title")}
               price={lifetimePrice}
-              meta="einmalig"
+              meta={t("plus.offer.lifetime.meta")}
               selected={selectedOption === "lifetime"}
-              activeLabel={plan === "lifetime" ? "Aktiv" : undefined}
+              activeLabel={plan === "lifetime" ? t("common.active") : undefined}
               isDark={isDark}
               onPress={() => setSelectedOption("lifetime")}
             />
             <OfferCard
               variant="monthly"
-              title="Monatsabo"
+              title={t("plus.offer.monthly.title")}
               price={monthlyPrice}
-              meta="pro Monat"
+              meta={t("plus.offer.monthly.meta")}
               selected={selectedOption === "monthly"}
-              activeLabel={plan === "monthly" ? "Aktiv" : undefined}
+              activeLabel={plan === "monthly" ? t("common.active") : undefined}
               disabled={plan === "lifetime"}
               isDark={isDark}
               onPress={() => setSelectedOption("monthly")}
@@ -501,8 +516,7 @@ export default function PlusScreen() {
 
           {isSupported && !isStoreConnected ? (
             <Text style={[styles.supportText, { color: supportTextColor }]}>
-              Keine Verbindung zum App Store. Bitte auf einem echten iPhone mit
-              TestFlight/App-Store-Build testen (nicht im iOS-Simulator).
+              {t("plus.support.noStoreConnection")}
             </Text>
           ) : null}
 
@@ -512,14 +526,13 @@ export default function PlusScreen() {
           !isSelectedProductLoaded &&
           !errorMessage ? (
             <Text style={[styles.supportText, { color: supportTextColor }]}>
-              Dieses Produkt wurde vom App Store nicht geladen. Pruefe Produkt-ID,
-              Verfuegbarkeit und den Status in App Store Connect.
+              {t("plus.support.productNotLoaded")}
             </Text>
           ) : null}
 
           {Platform.OS !== "ios" || !isSupported ? (
             <Text style={[styles.supportText, { color: supportTextColor }]}>
-              In-App-Kaeufe sind aktuell nur auf iOS verfuegbar.
+              {t("plus.support.iapOnlyIos")}
             </Text>
           ) : null}
 
@@ -540,7 +553,7 @@ export default function PlusScreen() {
               <Text
                 style={[styles.restoreLinkText, { color: restoreTextColor }]}
               >
-                Kaeufe wiederherstellen
+                {t("plus.action.restorePurchases")}
               </Text>
             )}
           </Pressable>
@@ -563,7 +576,7 @@ export default function PlusScreen() {
                 <Text
                   style={[styles.restoreLinkText, { color: restoreTextColor }]}
                 >
-                  Produkte neu laden
+                  {t("plus.action.reloadProducts")}
                 </Text>
               )}
             </Pressable>

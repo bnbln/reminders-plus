@@ -41,6 +41,7 @@ import {
   subscribeToCloudSyncStatus,
   syncCloudNow,
 } from "@/services/cloud-sync";
+import { t } from "@/i18n";
 
 export type ThemeName = keyof typeof Colors;
 
@@ -127,7 +128,7 @@ function sanitizeTagIds(value: unknown): TagId[] {
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   if (typeof error === "string") return error;
-  return "Unbekannter Fehler";
+  return t("common.unknownError");
 }
 
 function formatStatusDateTime(value: number | null): string | null {
@@ -146,17 +147,17 @@ function getCloudSyncAccountMessage(
 ): string {
   switch (accountStatus) {
     case "available":
-      return "Aufgaben und Projekte werden über iCloud zwischen deinen Apple-Geraeten abgeglichen.";
+      return t("cloudSync.account.available");
     case "noAccount":
-      return "Bitte melde dich in den iOS Einstellungen mit einer Apple-ID bei iCloud an.";
+      return t("cloudSync.account.noAccount");
     case "restricted":
-      return "iCloud ist auf diesem Geraet aktuell eingeschraenkt.";
+      return t("cloudSync.account.restricted");
     case "couldNotDetermine":
-      return "Der iCloud-Status konnte gerade nicht bestimmt werden.";
+      return t("cloudSync.account.couldNotDetermine");
     case "temporarilyUnavailable":
-      return "iCloud ist gerade nicht erreichbar. Der Sync versucht es spaeter erneut.";
+      return t("cloudSync.account.temporarilyUnavailable");
     default:
-      return "Der iCloud-Status ist aktuell unbekannt.";
+      return t("cloudSync.account.unknown");
   }
 }
 
@@ -220,7 +221,7 @@ async function saveJsonBackupWithShare(
 
   if (Platform.OS === "web") {
     if (typeof document === "undefined") {
-      throw new Error("Datei-Export ist auf dieser Plattform nicht verfügbar.");
+      throw new Error(t("backup.error.exportUnavailable"));
     }
     const blob = new Blob([json], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -236,7 +237,7 @@ async function saveJsonBackupWithShare(
 
   const baseDir = FileSystem.documentDirectory ?? FileSystem.cacheDirectory;
   if (!baseDir) {
-    throw new Error("Kein lokaler Speicher für den Export verfügbar.");
+    throw new Error(t("backup.error.noLocalStorage"));
   }
 
   const normalizedBaseDir = baseDir.endsWith("/") ? baseDir : `${baseDir}/`;
@@ -247,8 +248,8 @@ async function saveJsonBackupWithShare(
 
   await Share.share({
     url: fileUri,
-    title: "Reminds Sicherung",
-    message: "Reminds Datensicherung (JSON)",
+    title: t("backup.share.title"),
+    message: t("backup.share.message"),
   });
 }
 
@@ -282,11 +283,11 @@ async function pickBackupJsonText(): Promise<string | null> {
 function parseBackupPayload(rawJson: string): AppBackupPayload {
   const parsed: unknown = JSON.parse(rawJson);
   if (!isRecord(parsed)) {
-    throw new Error("Ungültige Sicherungsdatei.");
+    throw new Error(t("backup.error.invalidFile"));
   }
 
   if (parsed.schemaVersion !== BACKUP_SCHEMA_VERSION) {
-    throw new Error("Nicht unterstützte Sicherungsversion.");
+    throw new Error(t("backup.error.unsupportedVersion"));
   }
 
   const tasks = Array.isArray(parsed.tasks) ? (parsed.tasks as Task[]) : [];
@@ -440,8 +441,8 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
       if (Platform.OS !== "ios") return;
       if (!hasPremiumAccess) {
         Alert.alert(
-          "Reminders+ erforderlich",
-          "Cloud Sync ist Teil von Reminders+ und wird erst nach der Freischaltung aktiviert.",
+          t("cloudSync.alert.premiumRequiredTitle"),
+          t("cloudSync.alert.premiumRequiredEnableBody"),
         );
         openPremiumOffer();
         return;
@@ -455,14 +456,14 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
 
         if (enabled && status.accountStatus !== "available") {
           Alert.alert(
-            "iCloud erforderlich",
+            t("cloudSync.alert.icloudRequiredTitle"),
             getCloudSyncAccountMessage(status.accountStatus),
           );
         } else if (enabled && status.lastError) {
-          Alert.alert("Cloud Sync", status.lastError);
+          Alert.alert(t("screen.cloudSync"), status.lastError);
         }
       } catch (error) {
-        Alert.alert("Cloud Sync fehlgeschlagen", toErrorMessage(error));
+        Alert.alert(t("cloudSync.alert.failedTitle"), toErrorMessage(error));
         await refreshCloudSyncStatus();
       } finally {
         setIsCloudSyncBusy(false);
@@ -480,8 +481,8 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
     if (Platform.OS !== "ios") return;
     if (!hasPremiumAccess) {
       Alert.alert(
-        "Reminders+ erforderlich",
-        "Cloud Sync ist Teil von Reminders+ und steht nach der Freischaltung bereit.",
+        t("cloudSync.alert.premiumRequiredTitle"),
+        t("cloudSync.alert.premiumRequiredNowBody"),
       );
       openPremiumOffer();
       return;
@@ -498,25 +499,25 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
 
       if (result.accountStatus !== "available") {
         Alert.alert(
-          "iCloud erforderlich",
+          t("cloudSync.alert.icloudRequiredTitle"),
           getCloudSyncAccountMessage(result.accountStatus),
         );
         return;
       }
 
       if (result.lastError) {
-        Alert.alert("Cloud Sync", result.lastError);
+        Alert.alert(t("screen.cloudSync"), result.lastError);
         return;
       }
 
       const summary = result.didPullRemote
-        ? "Die neuesten Aenderungen wurden aus iCloud geladen."
+        ? t("cloudSync.syncSummary.pulled")
         : result.didPushLocal
-          ? "Deine lokalen Aenderungen wurden nach iCloud geladen."
-          : "Alle Geraete sind bereits auf dem aktuellen Stand.";
-      Alert.alert("Synchronisierung abgeschlossen", summary);
+          ? t("cloudSync.syncSummary.pushed")
+          : t("cloudSync.syncSummary.upToDate");
+      Alert.alert(t("cloudSync.alert.syncDoneTitle"), summary);
     } catch (error) {
-      Alert.alert("Synchronisierung fehlgeschlagen", toErrorMessage(error));
+      Alert.alert(t("cloudSync.alert.syncFailedTitle"), toErrorMessage(error));
       await refreshCloudSyncStatus();
     } finally {
       setIsCloudSyncBusy(false);
@@ -531,17 +532,17 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
 
   const cloudSyncStatusText = React.useMemo(() => {
     if (Platform.OS !== "ios") {
-      return "Cloud Sync ist nur auf iPhone und iPad verfuegbar.";
+      return t("cloudSync.status.onlyMobileApple");
     }
 
     if (!hasPremiumAccess) {
       return cloudSyncEnabled
-        ? "Cloud Sync ist vorgemerkt, bleibt aber ohne Reminders+ pausiert."
-        : "Cloud Sync teilt Aufgaben und Projekte zwischen deinen Apple-Geraeten und ist Teil von Reminders+.";
+        ? t("cloudSync.status.queuedWithoutPremium")
+        : t("cloudSync.status.premiumRequired");
     }
 
     if (!cloudSyncEnabled) {
-      return "Nach dem Einschalten werden Aufgaben und Projekte bei App-Start, Rueckkehr in die App und im Hintergrund synchronisiert.";
+      return t("cloudSync.status.enableHint");
     }
 
     const lastSync = formatStatusDateTime(cloudSyncStatus?.lastSyncAt ?? null);
@@ -550,11 +551,17 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
     );
 
     if (cloudSyncStatus?.lastError) {
-      return `${accountMessage} Letzter Fehler: ${cloudSyncStatus.lastError}`;
+      return t("cloudSync.status.lastError", {
+        account: accountMessage,
+        error: cloudSyncStatus.lastError,
+      });
     }
 
     if (lastSync) {
-      return `${accountMessage} Letzter erfolgreicher Sync: ${lastSync}.`;
+      return t("cloudSync.status.lastSuccess", {
+        account: accountMessage,
+        time: lastSync,
+      });
     }
 
     return accountMessage;
@@ -564,8 +571,8 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
     if (isExportingBackup || isRestoringBackup) return;
     if (!hasPremiumAccess) {
       Alert.alert(
-        "Reminders+ erforderlich",
-        "Datensicherung und Wiederherstellung werden mit Reminders+ freigeschaltet.",
+        t("backup.alert.premiumRequiredTitle"),
+        t("backup.alert.premiumRequiredBody"),
       );
       openPremiumOffer();
       return;
@@ -599,9 +606,9 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
       };
 
       await saveJsonBackupWithShare(payload);
-      Alert.alert("Export abgeschlossen", "Die JSON-Sicherung wurde erstellt.");
+      Alert.alert(t("backup.alert.exportDoneTitle"), t("backup.alert.exportDoneBody"));
     } catch (error) {
-      Alert.alert("Export fehlgeschlagen", toErrorMessage(error));
+      Alert.alert(t("backup.alert.exportFailedTitle"), toErrorMessage(error));
     } finally {
       setIsExportingBackup(false);
     }
@@ -629,8 +636,8 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
     if (isExportingBackup || isRestoringBackup) return;
     if (!hasPremiumAccess) {
       Alert.alert(
-        "Reminders+ erforderlich",
-        "Datensicherung und Wiederherstellung werden mit Reminders+ freigeschaltet.",
+        t("backup.alert.premiumRequiredTitle"),
+        t("backup.alert.premiumRequiredBody"),
       );
       openPremiumOffer();
       return;
@@ -662,11 +669,11 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
       setShowCompactSubtasks(backup.homeFilters.showCompactSubtasks);
 
       Alert.alert(
-        "Wiederherstellung abgeschlossen",
-        "Die Sicherung wurde eingelesen und angewendet.",
+        t("backup.alert.restoreDoneTitle"),
+        t("backup.alert.restoreDoneBody"),
       );
     } catch (error) {
-      Alert.alert("Wiederherstellung fehlgeschlagen", toErrorMessage(error));
+      Alert.alert(t("backup.alert.restoreFailedTitle"), toErrorMessage(error));
     } finally {
       setIsRestoringBackup(false);
     }
@@ -692,12 +699,12 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
 
   const backupStatusText = React.useMemo(() => {
     if (!isPremiumReady) {
-      return "Dein Plan wird gerade geprueft.";
+      return t("common.planChecking");
     }
     if (!hasPremiumAccess) {
-      return "Datensicherung und Wiederherstellung werden mit Reminders+ freigeschaltet.";
+      return t("backup.status.premiumRequired");
     }
-    return "Exportiere eine JSON-Sicherung oder spiele einen vorhandenen Stand wieder ein.";
+    return t("backup.status.ready");
   }, [hasPremiumAccess, isPremiumReady]);
 
   return {
@@ -750,10 +757,10 @@ export function PremiumCloudSyncBlock({
       <View style={styles.switchRow}>
         <View style={styles.switchLabelWrap}>
           <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-            iCloud-Sync
+            {t("cloudSync.toggle.label")}
           </Text>
           <Text style={[styles.helperInlineText, { color: muted }]}>
-            {controller.effectiveCloudSyncEnabled ? "Aktiv" : "Aus"}
+            {controller.effectiveCloudSyncEnabled ? t("common.active") : t("common.off")}
           </Text>
         </View>
         <Switch
@@ -774,12 +781,12 @@ export function PremiumCloudSyncBlock({
         <Button
           title={
             Platform.OS !== "ios"
-              ? "Nur auf iPhone/iPad"
+              ? t("cloudSync.action.onlyMobileApple")
               : controller.isCloudSyncBusy
-                ? "Synchronisiere..."
+                ? t("cloudSync.action.syncing")
                 : controller.cloudSyncEnabled
-                  ? "Jetzt synchronisieren"
-                  : "Sync aktivieren & starten"
+                  ? t("cloudSync.action.syncNow")
+                  : t("cloudSync.action.enableAndStart")
           }
           onPress={controller.onCloudSyncNow}
           disabled={blockDisabled || controller.isCloudSyncBusy}
@@ -816,8 +823,8 @@ export function PremiumBackupBlock({
         <Button
           title={
             controller.isExportingBackup
-              ? "Exportiere Sicherung..."
-              : "Sichern & Exportieren"
+              ? t("backup.action.exporting")
+              : t("backup.action.export")
           }
           onPress={controller.onExportBackup}
           disabled={
@@ -829,8 +836,8 @@ export function PremiumBackupBlock({
         <Button
           title={
             controller.isRestoringBackup
-              ? "Stelle Sicherung wieder her..."
-              : "Aus Sicherung wiederherstellen"
+              ? t("backup.action.restoring")
+              : t("backup.action.restore")
           }
           onPress={controller.onRestoreBackup}
           disabled={

@@ -3,6 +3,7 @@ import React from "react";
 import AssistScreen from "@/app/assist";
 import PlusScreen from "@/app/plus";
 import { usePremium } from "@/context/premium-store";
+import { t } from "@/i18n";
 
 export default function AssistantTabScreen() {
   const { hasPremiumAccess, isReady } = usePremium();
@@ -15,7 +16,7 @@ export default function AssistantTabScreen() {
     <PlusScreen
       sourceOverride="assist"
       closeFallbackHref="/home"
-      headerTitle="Plus"
+      headerTitle={t("plus.title")}
       showsCloseButton={false}
     />
   );

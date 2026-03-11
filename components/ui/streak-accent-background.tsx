@@ -26,6 +26,9 @@ const STREAK_BACKGROUND_MODULES = Object.values(STREAK_BACKGROUND_SOURCES);
 const HIDDEN_TRANSLATE_Y = 240;
 const VISIBLE_LAYER_OPACITY = 0.4;
 const SOURCE_TRANSITION_DURATION_MS = 260;
+const MIN_CONTAINER_DIMENSION = 1;
+
+type Size = { width: number; height: number };
 
 let streakAccentBackgroundPreloadPromise: Promise<void> | null = null;
 
@@ -50,12 +53,67 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   image: {
+    position: "absolute",
+  },
+  imageFill: {
     ...StyleSheet.absoluteFillObject,
   },
   imageLayer: {
     ...StyleSheet.absoluteFillObject,
   },
 });
+
+const toValidDimension = (value: number) =>
+  Number.isFinite(value) && value > 0
+    ? Math.max(MIN_CONTAINER_DIMENSION, Math.round(value))
+    : MIN_CONTAINER_DIMENSION;
+
+const resolveSourceSize = (source: number): Size | null => {
+  try {
+    const asset = Asset.fromModule(source);
+    const sourceWidth = asset.width;
+    const sourceHeight = asset.height;
+    if (
+      typeof sourceWidth !== "number" ||
+      typeof sourceHeight !== "number" ||
+      !Number.isFinite(sourceWidth) ||
+      !Number.isFinite(sourceHeight) ||
+      sourceWidth <= 0 ||
+      sourceHeight <= 0
+    ) {
+      return null;
+    }
+    return {
+      width: sourceWidth,
+      height: sourceHeight,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const resolveBottomCoverFrame = (
+  source: number,
+  containerSize: Size,
+): { width: number; height: number; left: number; top: number } | null => {
+  const sourceSize = resolveSourceSize(source);
+  if (!sourceSize) return null;
+
+  const scale = Math.max(
+    containerSize.width / sourceSize.width,
+    containerSize.height / sourceSize.height,
+  );
+  if (!Number.isFinite(scale) || scale <= 0) return null;
+
+  const width = sourceSize.width * scale;
+  const height = sourceSize.height * scale;
+  return {
+    width,
+    height,
+    left: (containerSize.width - width) / 2,
+    top: containerSize.height - height,
+  };
+};
 
 function StreakAccentBackgroundComponent({
   isDark,
@@ -83,6 +141,10 @@ function StreakAccentBackgroundComponent({
   const [previousSource, setPreviousSource] = React.useState<number | null>(
     null,
   );
+  const [layerSize, setLayerSize] = React.useState<Size>(() => ({
+    width: toValidDimension(width),
+    height: toValidDimension(height),
+  }));
   const sourceFade = React.useRef(new Animated.Value(1)).current;
   const previousSourceOpacity = React.useMemo(
     () =>
@@ -92,14 +154,50 @@ function StreakAccentBackgroundComponent({
       }),
     [sourceFade],
   );
-  const viewportKey = React.useMemo(
-    () => `${Math.round(width)}x${Math.round(height)}`,
-    [height, width],
+  const layerSizeKey = React.useMemo(
+    () => `${Math.round(layerSize.width)}x${Math.round(layerSize.height)}`,
+    [layerSize.height, layerSize.width],
+  );
+  const displaySourceFrame = React.useMemo(
+    () => resolveBottomCoverFrame(displaySource, layerSize),
+    [displaySource, layerSize],
+  );
+  const previousSourceFrame = React.useMemo(
+    () =>
+      previousSource != null
+        ? resolveBottomCoverFrame(previousSource, layerSize)
+        : null,
+    [layerSize, previousSource],
+  );
+
+  const handleLayerLayout = React.useCallback(
+    (event: {
+      nativeEvent: { layout: { width: number; height: number } };
+    }) => {
+      const nextWidth = toValidDimension(event.nativeEvent.layout.width);
+      const nextHeight = toValidDimension(event.nativeEvent.layout.height);
+      setLayerSize((current) =>
+        current.width === nextWidth && current.height === nextHeight
+          ? current
+          : { width: nextWidth, height: nextHeight },
+      );
+    },
+    [],
   );
 
   React.useEffect(() => {
     void preloadStreakAccentBackgroundAssets();
   }, []);
+
+  React.useEffect(() => {
+    const nextWidth = toValidDimension(width);
+    const nextHeight = toValidDimension(height);
+    setLayerSize((current) =>
+      current.width === nextWidth && current.height === nextHeight
+        ? current
+        : { width: nextWidth, height: nextHeight },
+    );
+  }, [height, width]);
 
   React.useEffect(() => {
     if (imageSource === displaySource) {
@@ -174,6 +272,7 @@ function StreakAccentBackgroundComponent({
       ) : null}
       <Animated.View
         pointerEvents="none"
+        onLayout={handleLayerLayout}
         style={[
           styles.layer,
           {
@@ -188,13 +287,13 @@ function StreakAccentBackgroundComponent({
             style={[styles.imageLayer, { opacity: previousSourceOpacity }]}
           >
             <Image
-              key={`streak-bg-prev-${previousSource}-${viewportKey}`}
+              key={`streak-bg-prev-${previousSource}-${layerSizeKey}`}
               source={previousSource}
-              style={styles.image}
-              contentFit="cover"
-              contentPosition="bottom center"
+              style={[styles.image, previousSourceFrame ?? styles.imageFill]}
+              contentFit={previousSourceFrame ? "fill" : "cover"}
+              contentPosition={previousSourceFrame ? undefined : "bottom center"}
               transition={0}
-              recyclingKey={`streak-bg-prev-${viewportKey}`}
+              recyclingKey={`streak-bg-prev-${layerSizeKey}`}
               cachePolicy="memory-disk"
             />
           </Animated.View>
@@ -204,13 +303,13 @@ function StreakAccentBackgroundComponent({
           style={[styles.imageLayer, { opacity: sourceFade }]}
         >
           <Image
-            key={`streak-bg-current-${displaySource}-${viewportKey}`}
+            key={`streak-bg-current-${displaySource}-${layerSizeKey}`}
             source={displaySource}
-            style={styles.image}
-            contentFit="cover"
-            contentPosition="bottom center"
+            style={[styles.image, displaySourceFrame ?? styles.imageFill]}
+            contentFit={displaySourceFrame ? "fill" : "cover"}
+            contentPosition={displaySourceFrame ? undefined : "bottom center"}
             transition={0}
-            recyclingKey={`streak-bg-current-${viewportKey}`}
+            recyclingKey={`streak-bg-current-${layerSizeKey}`}
             cachePolicy="memory-disk"
           />
         </Animated.View>

@@ -45,16 +45,21 @@ import {
   useTasksStore,
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { t } from "@/i18n";
 import { deriveActiveSectionFromDueAt } from "@/utils/task-dates";
 
-const APPEARANCE_LABELS = ["Adaptive", "Always light", "Always dark"] as const;
+const APPEARANCE_LABEL_KEYS = [
+  "settings.appearance.option.adaptive",
+  "settings.appearance.option.alwaysLight",
+  "settings.appearance.option.alwaysDark",
+] as const;
 
-const APP_BADGE_LABELS: Record<AppBadgeMode, string> = {
-  dueToday: "Due Today",
-  overdueOnly: "Overdue Only",
-  allOpenTasks: "All Open Tasks",
-  completedToday: "Completed Today",
-  hidden: "Hidden",
+const APP_BADGE_LABEL_KEYS: Record<AppBadgeMode, string> = {
+  dueToday: "settings.badge.mode.dueToday",
+  overdueOnly: "settings.badge.mode.overdueOnly",
+  allOpenTasks: "settings.badge.mode.allOpenTasks",
+  completedToday: "settings.badge.mode.completedToday",
+  hidden: "settings.badge.mode.hidden",
 };
 
 const SHOW_APPLE_IMPORT_SECTION = false;
@@ -91,7 +96,7 @@ function parseDateToTimestamp(value: unknown): number {
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   if (typeof error === "string") return error;
-  return "Unbekannter Fehler";
+  return t("common.unknownError");
 }
 
 function formatTime(value: Date) {
@@ -169,7 +174,7 @@ export default function SettingsScreen() {
   const appBadgeActions = React.useMemo<MenuAction[]>(() => {
     return APP_BADGE_MODES.map((option) => ({
       id: option,
-      title: APP_BADGE_LABELS[option],
+      title: t(APP_BADGE_LABEL_KEYS[option]),
       state:
         Platform.OS === "ios"
           ? appBadgeMode === option
@@ -178,6 +183,10 @@ export default function SettingsScreen() {
           : undefined,
     }));
   }, [appBadgeMode]);
+  const appearanceLabels = React.useMemo(
+    () => APPEARANCE_LABEL_KEYS.map((key) => t(key)),
+    [],
+  );
 
   const onPressBadgeAction = React.useCallback(
     ({ nativeEvent: { event } }: any) => {
@@ -220,8 +229,8 @@ export default function SettingsScreen() {
     if (isImportingAppleData) return;
     if (Platform.OS !== "ios") {
       Alert.alert(
-        "Nicht verfügbar",
-        "Apple Kalender/Erinnerungen sind nur auf iOS verfügbar.",
+        t("settings.import.unavailableTitle"),
+        t("settings.import.unavailableBody"),
       );
       return;
     }
@@ -232,8 +241,8 @@ export default function SettingsScreen() {
         await Calendar.requestCalendarPermissionsAsync();
       if (calendarPermission.status !== "granted") {
         Alert.alert(
-          "Keine Berechtigung",
-          "Bitte erlaube den Zugriff auf Kalender in den iOS Einstellungen.",
+          t("settings.import.permissionTitle"),
+          t("settings.import.permissionBody"),
         );
         return;
       }
@@ -288,8 +297,12 @@ export default function SettingsScreen() {
           id: projectId,
           name:
             source === "event"
-              ? `Kalender · ${calendar.title}`
-              : `Erinnerungen · ${calendar.title}`,
+              ? t("settings.import.project.calendar", {
+                  title: calendar.title,
+                })
+              : t("settings.import.project.reminders", {
+                  title: calendar.title,
+                }),
           color:
             normalizedColor ?? (source === "event" ? "#007AFF" : "#34C759"),
           emoji: source === "event" ? "📅" : "✅",
@@ -412,7 +425,7 @@ export default function SettingsScreen() {
         const projectId = ensureImportedProject(
           eventCalendars.find((entry) => entry.id === event.calendarId) ?? {
             id: event.calendarId,
-            title: "Kalender",
+            title: t("settings.import.defaultCalendar"),
             color: "#007AFF",
             source: { id: "", name: "", type: "local" },
             allowsModifications: false,
@@ -428,7 +441,7 @@ export default function SettingsScreen() {
         const importedTaskId = `apple-event-${eventUniqueId}`;
 
         upsertImportedTask(importedTaskId, {
-          title: event.title?.trim() || "Kalender-Eintrag",
+          title: event.title?.trim() || t("settings.import.defaultEvent"),
           subtitle: event.location?.trim() || undefined,
           notes: event.notes?.trim() || undefined,
           location: event.location?.trim() || undefined,
@@ -447,7 +460,7 @@ export default function SettingsScreen() {
         const projectId = ensureImportedProject(
           reminderCalendars.find((entry) => entry.id === calendarId) ?? {
             id: calendarId || "default",
-            title: "Erinnerungen",
+            title: t("settings.import.defaultReminderList"),
             color: "#34C759",
             source: { id: "", name: "", type: "local" },
             allowsModifications: false,
@@ -468,7 +481,7 @@ export default function SettingsScreen() {
             : "upcoming";
 
         upsertImportedTask(`apple-reminder-${reminder.id}`, {
-          title: reminder.title?.trim() || "Erinnerung",
+          title: reminder.title?.trim() || t("settings.import.defaultReminder"),
           subtitle: reminder.location?.trim() || undefined,
           notes: reminder.notes?.trim() || undefined,
           location: reminder.location?.trim() || undefined,
@@ -489,11 +502,14 @@ export default function SettingsScreen() {
       setTasks(Array.from(nextTasksById.values()));
 
       Alert.alert(
-        "Import abgeschlossen",
-        `${createdCount} neue und ${updatedCount} bestehende Einträge wurden aus Apple Kalender/Erinnerungen übernommen.`,
+        t("settings.import.completedTitle"),
+        t("settings.import.completedBody", {
+          created: createdCount,
+          updated: updatedCount,
+        }),
       );
     } catch (error) {
-      Alert.alert("Import fehlgeschlagen", toErrorMessage(error));
+      Alert.alert(t("settings.import.failedTitle"), toErrorMessage(error));
     } finally {
       setIsImportingAppleData(false);
     }
@@ -515,14 +531,14 @@ export default function SettingsScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Section title="Reminders+" cardStyle={sectionCardStyle}>
+        <Section title={t("settings.section.remindsPlus")} cardStyle={sectionCardStyle}>
           <View style={styles.rowBlock}>
             <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-              Plan
+              {t("profile.field.plan")}
             </Text>
             <Text style={[styles.rowValue, { color: Colors[theme].text }]}>
               {!premiumController.isPremiumReady
-                ? "Wird geprueft..."
+                ? t("common.planChecking")
                 : getPremiumPlanLabel(premiumController.plan)}
             </Text>
           </View>
@@ -530,8 +546,7 @@ export default function SettingsScreen() {
           <View style={[styles.separator, { backgroundColor: borderColor }]} />
 
           <Text style={[styles.helperText, { color: muted }]}>
-            AI-Assist, mehr als 4 Projekte und die Cloud-Sync-Freischaltung fuer
-            Apple-Geraete.
+            {t("settings.remindsPlus.helper")}
           </Text>
 
           <View style={[styles.separator, { backgroundColor: borderColor }]} />
@@ -550,7 +565,7 @@ export default function SettingsScreen() {
             controller={premiumController}
             theme={theme}
             muted={muted}
-            title="Datensicherung"
+            title={t("cloudSync.section.backup")}
             disabled={remindersPlusDisabled}
           />
 
@@ -560,8 +575,8 @@ export default function SettingsScreen() {
             <Button
               title={
                 premiumController.hasPremiumAccess
-                  ? "Kaufoptionen anzeigen"
-                  : "Angebot oeffnen"
+                  ? t("settings.remindsPlus.action.showOptions")
+                  : t("settings.remindsPlus.action.openOffer")
               }
               onPress={() => {
                 if (premiumController.hasPremiumAccess) {
@@ -575,10 +590,10 @@ export default function SettingsScreen() {
           </View>
         </Section>
 
-        <Section title="Darstellung" cardStyle={sectionCardStyle}>
+        <Section title={t("settings.section.appearance")} cardStyle={sectionCardStyle}>
           <View style={styles.rowBlock}>
             <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-              Farbe
+              {t("projectEdit.color")}
             </Text>
             <View style={styles.colorRow}>
               {ACCENT_COLORS.map((color) => {
@@ -615,10 +630,10 @@ export default function SettingsScreen() {
 
           <View style={styles.rowBlock}>
             <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-              Farbmodus
+              {t("settings.appearance.mode")}
             </Text>
             <SegmentedControl
-              values={[...APPEARANCE_LABELS]}
+              values={appearanceLabels}
               selectedIndex={APPEARANCE_MODES.indexOf(appearanceMode)}
               onChange={(event) =>
                 onChangeAppearance(event.nativeEvent.selectedSegmentIndex)
@@ -628,13 +643,13 @@ export default function SettingsScreen() {
         </Section>
 
         {SHOW_APPLE_IMPORT_SECTION ? (
-          <Section title="Import" cardStyle={sectionCardStyle}>
+          <Section title={t("settings.section.import")} cardStyle={sectionCardStyle}>
             <View style={styles.buttonRow}>
               <Button
                 title={
                   isImportingAppleData
-                    ? "Importiere Apple Daten..."
-                    : "Apple Erinnerungen & Kalender importieren"
+                    ? t("settings.import.action.loading")
+                    : t("settings.import.action.start")
                 }
                 onPress={onImportAppleData}
                 disabled={isImportingAppleData}
@@ -643,10 +658,10 @@ export default function SettingsScreen() {
           </Section>
         ) : null}
 
-        <Section title="Mitteilungen" cardStyle={sectionCardStyle}>
+        <Section title={t("settings.section.notifications")} cardStyle={sectionCardStyle}>
           <View style={styles.rowBlock}>
             <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-              App-Badge
+              {t("settings.badge.title")}
             </Text>
 
             <MenuView
@@ -661,14 +676,14 @@ export default function SettingsScreen() {
               {Platform.OS === "android" ? (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="App-Badge auswählen"
+                  accessibilityLabel={t("settings.badge.select")}
                   onPress={() => menuRef.current?.show?.()}
                   style={styles.badgeMenuTrigger}
                 >
                   <Text
                     style={[styles.badgeValue, { color: Colors[theme].text }]}
                   >
-                    {APP_BADGE_LABELS[appBadgeMode]}
+                    {t(APP_BADGE_LABEL_KEYS[appBadgeMode])}
                   </Text>
                   <MaterialIcons
                     name="keyboard-arrow-down"
@@ -681,7 +696,7 @@ export default function SettingsScreen() {
                   <Text
                     style={[styles.badgeValue, { color: Colors[theme].text }]}
                   >
-                    {APP_BADGE_LABELS[appBadgeMode]}
+                    {t(APP_BADGE_LABEL_KEYS[appBadgeMode])}
                   </Text>
                   <MaterialIcons
                     name="keyboard-arrow-down"
@@ -697,7 +712,7 @@ export default function SettingsScreen() {
 
           <View style={styles.switchRow}>
             <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-              Tägliche Zusammenfassung
+              {t("settings.notifications.dailySummary")}
             </Text>
             <Switch
               value={dailySummaryEnabled}
@@ -718,7 +733,7 @@ export default function SettingsScreen() {
                 { color: dailySummaryEnabled ? Colors[theme].text : muted },
               ]}
             >
-              Uhrzeit
+              {t("common.time")}
             </Text>
             <Pressable
               disabled={!dailySummaryEnabled}
@@ -757,10 +772,10 @@ export default function SettingsScreen() {
           ) : null}
         </Section>
 
-        <Section title="Interaktionen" cardStyle={sectionCardStyle}>
+        <Section title={t("settings.section.interactions")} cardStyle={sectionCardStyle}>
           <View style={styles.switchRow}>
             <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-              Haptik aktivieren
+              {t("settings.interactions.haptics")}
             </Text>
             <Switch
               value={hapticsEnabled}
@@ -773,7 +788,7 @@ export default function SettingsScreen() {
 
           <View style={styles.switchRow}>
             <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-              Bewegung reduzieren
+              {t("settings.interactions.reduceMotion")}
             </Text>
             <Switch
               value={reduceMotionEnabled}

@@ -15,6 +15,7 @@ import {
   usePremiumSyncBackupController,
 } from "@/components/settings/premium-sync-backup";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { t } from "@/i18n";
 
 function Section({
   title,
@@ -63,7 +64,7 @@ export default function CloudSyncScreen() {
         alwaysBounceVertical
         showsVerticalScrollIndicator={false}
       >
-        <Section title="CloudSync" cardStyle={sectionCardStyle}>
+        <Section title={t("cloudSync.section.sync")} cardStyle={sectionCardStyle}>
           <PremiumCloudSyncBlock
             controller={controller}
             theme={theme}
@@ -73,7 +74,7 @@ export default function CloudSyncScreen() {
           />
         </Section>
 
-        <Section title="Datensicherung" cardStyle={sectionCardStyle}>
+        <Section title={t("cloudSync.section.backup")} cardStyle={sectionCardStyle}>
           <PremiumBackupBlock
             controller={controller}
             theme={theme}

@@ -12,6 +12,7 @@ import { Platform, Pressable } from "react-native";
 import { Colors } from "@/constants/theme";
 import { usePremium } from "@/context/premium-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { t } from "@/i18n";
 
 type ProfileMenuActionId =
   | "profile"
@@ -54,25 +55,25 @@ export function ProfileHeaderMenuButton() {
       subactions: [
         {
           id: "status",
-          title: "Status",
+          title: t("screen.status"),
           image: Platform.OS === "ios" ? "arrow.up.right" : undefined,
           imageColor: Platform.OS === "ios" ? "#22C55E" : undefined,
         },
         {
           id: "streaks",
-          title: "Streaks",
+          title: t("home.quick.streaks"),
           image: Platform.OS === "ios" ? "flame.fill" : undefined,
           imageColor: Platform.OS === "ios" ? "#F97316" : undefined,
         },
         {
           id: "routines",
-          title: "Routinen",
+          title: t("home.quick.routines"),
           image: Platform.OS === "ios" ? "repeat" : undefined,
           imageColor: Platform.OS === "ios" ? "#0A84FF" : undefined,
         },
         {
           id: "archive",
-          title: "Archiv",
+          title: t("common.archive"),
           image: Platform.OS === "ios" ? "archivebox.fill" : undefined,
           imageColor: Platform.OS === "ios" ? "grey" : undefined,
         },
@@ -85,14 +86,14 @@ export function ProfileHeaderMenuButton() {
       subactions: [
         {
           id: "assist",
-          title: "Assist",
+          title: t("screen.assist"),
           image:
             Platform.OS === "ios" ? "message.badge.waveform.fill" : undefined,
           imageColor: Platform.OS === "ios" ? "#0A84FF" : undefined,
         },
         {
           id: "cloudSync",
-          title: "CloudSync",
+          title: t("screen.cloudSync"),
           image: Platform.OS === "ios" ? "icloud.fill" : undefined,
           imageColor: Platform.OS === "ios" ? "#0A84FF" : undefined,
         },
@@ -105,7 +106,7 @@ export function ProfileHeaderMenuButton() {
       subactions: [
         {
           id: "settings",
-          title: "Einstellungen",
+          title: t("screen.settings"),
           image: Platform.OS === "ios" ? "gearshape" : undefined,
           imageColor: Platform.OS === "ios" ? imageColor : undefined,
         },
@@ -190,7 +191,7 @@ export function ProfileHeaderMenuButton() {
       {Platform.OS === "android" ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Profil-Menü"
+          accessibilityLabel={t("profile.menu.accessibility")}
           style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
           onPress={() => menuRef.current?.show?.()}
         >

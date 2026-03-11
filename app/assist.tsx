@@ -45,6 +45,13 @@ import {
   inferProjectEmojiFromName,
   inferTaskEmojiFromTitle,
 } from "@/utils/assist-task-tools";
+import {
+  countLabel,
+  getIntlLocale,
+  getLocale,
+  t,
+  type AppLocale,
+} from "@/i18n";
 import { isIOS26OrNewer } from "@/utils/ios-version";
 import { deriveActiveSectionFromDueAt } from "@/utils/task-dates";
 
@@ -144,54 +151,97 @@ type CollectedToolCandidates = {
   createdTask?: AssistTaskCandidate;
   movedTask?: AssistTaskCandidate;
   createdProject?: AssistProjectCandidate;
-  messages: string[];
 };
 
 const ASSIST_STORAGE_KEY = "@reminds/assist_messages";
 const MAX_ASSIST_TOOL_CALLS = 10;
+const ASSIST_RESPONSE_INTENTS = [
+  "create_task",
+  "find_task",
+  "move_task",
+  "create_project",
+  "find_project",
+  "general",
+  "clarify",
+] as const;
+const ASSIST_RESPONSE_INTENT_LIST = ASSIST_RESPONSE_INTENTS.map(
+  (intent) => `"${intent}"`,
+).join(" | ");
 
-function buildSystemPrompt(): string {
-  return `Du bist ein Assistenzsystem fuer die App "Reminds". Antworte auf Deutsch.
+const ASSIST_LANGUAGE_NAME_BY_LOCALE: Record<AppLocale, string> = {
+  de: "German",
+  en: "English",
+  es: "Spanish",
+  fr: "French",
+  pt: "Portuguese",
+  hi: "Hindi",
+  zh: "Chinese",
+  ja: "Japanese",
+  it: "Italian",
+  sv: "Swedish",
+  da: "Danish",
+  fi: "Finnish",
+  pl: "Polish",
+  nl: "Dutch",
+  tr: "Turkish",
+  cs: "Czech",
+  hu: "Hungarian",
+  ro: "Romanian",
+  el: "Greek",
+  id: "Indonesian",
+  vi: "Vietnamese",
+  ko: "Korean",
+  uk: "Ukrainian",
+  ru: "Russian",
+  ar: "Arabic",
+};
 
-WICHTIG:
-- Nutze fuer Task- und Projekt-Operationen IMMER die verfuegbaren Tools.
-- Rate niemals IDs. Wenn unklar, setze intent="clarify" und liefere Vorschlags-IDs.
-- intent="create_task": Ein Task wurde erstellt oder soll erstellt werden.
-- intent="find_task": Ein Task wurde gefunden oder soll gefunden werden.
-- intent="move_task": Ein Task wurde in Sektion/Projekt verschoben oder aktualisiert.
-- intent="create_project": Ein Projekt wurde erstellt oder soll erstellt werden.
-- intent="find_project": Ein Projekt wurde gefunden oder soll gefunden werden.
-- intent="general": Normale Antwort ohne konkrete Toolaktion.
-- Bei "create_task" und "create_project" MUSS zuerst das passende Tool ausgefuehrt werden.
-- Gib NIE Markdown-Listen, Feld-Dumps oder Beispiel-Daten aus.
-- Erfinde keine IDs und keine Beispielwerte.
-- answer muss IMMER genau ein kurzer nutzerfreundlicher Satz sein, niemals JSON/ID.
-
-TASK-DATENMODELL (beruecksichtige alle Felder):
-- id, title, subtitle, emoji, projectId, dueAt, dueHasTime, completedAt
-- location, notes, subtasks[{id,title,done}], section, orderRank, color, deletedAt
-- isRoutine, routineType, routineInterval, routineWeekday, routineNthWeek, routineMonthDay, routineMonth
-
-PROJEKT-DATENMODELL (beruecksichtige alle Felder):
-- id, name, color, emoji, icon, description, completed, deletedAt
-
-Wenn ein Nutzer eine konkrete Task-/Projekt-Aktion will (finden/erstellen/verschieben), fuehre zuerst passende Tools aus und antworte danach kurz mit Ergebnis.`;
+function supportsRuleBasedAssistantParsing(locale: AppLocale): boolean {
+  return locale === "de" || locale === "en";
 }
 
-function buildCompactSystemPrompt(): string {
-  return `Du bist der Task-/Projekt-Assistent fuer "Reminds". Antworte auf Deutsch.
+function buildSystemPrompt(locale: AppLocale): string {
+  const outputLanguage = ASSIST_LANGUAGE_NAME_BY_LOCALE[locale] ?? "English";
+  const intlLocale = getIntlLocale(locale);
+  return `You are the task and project assistant for the app "Reminds".
+User locale: ${locale} (${intlLocale}).
 
-Regeln:
-- Nutze bei konkreten Task-/Projekt-Aktionen die verfuegbaren Tools.
-- Rate niemals IDs.
-- Gib keine Markdown-Listen/Feldtabellen aus.
-- Antworte am Ende in genau einem kurzen Satz.
+Return exactly one valid JSON object with this shape:
+{
+  "intent": "${ASSIST_RESPONSE_INTENTS[0]}" | "${ASSIST_RESPONSE_INTENTS[1]}" | "${ASSIST_RESPONSE_INTENTS[2]}" | "${ASSIST_RESPONSE_INTENTS[3]}" | "${ASSIST_RESPONSE_INTENTS[4]}" | "${ASSIST_RESPONSE_INTENTS[5]}" | "${ASSIST_RESPONSE_INTENTS[6]}",
+  "answer": "<one short user-facing sentence in ${outputLanguage}>",
+  "openTaskId": "<task id or null>",
+  "openProjectId": "<project id or null>",
+  "suggestTaskIds": ["<task ids>"],
+  "suggestProjectIds": ["<project ids>"]
+}
 
-Task-Felder:
-id, title, subtitle, emoji, projectId, dueAt, dueHasTime, completedAt, location, notes, subtasks, section, orderRank, color, deletedAt, isRoutine, routineType, routineInterval, routineWeekday, routineNthWeek, routineMonthDay, routineMonth
+Strict JSON rules:
+- Output must start with "{" and end with "}".
+- Output must be valid JSON (double quotes, no trailing commas, no comments).
+- Output must contain only the JSON object (no markdown, no code fences, no preface, no list).
+- If unsure, missing data, or tool result is ambiguous, return intent="clarify" with one short follow-up sentence in ${outputLanguage}.
+- If no concrete task/project operation is needed, return intent="general".
+- Use tools for all concrete task/project operations.
+- Never invent IDs or values. Unknown IDs must be null, unknown suggestions must be [].
 
-Projekt-Felder:
+Task model fields:
+id, title, subtitle, emoji, projectId, dueAt, dueHasTime, completedAt, location, notes, subtasks[{id,title,done}], section, orderRank, color, deletedAt, isRoutine, routineType, routineInterval, routineWeekday, routineNthWeek, routineMonthDay, routineMonth
+
+Project model fields:
 id, name, color, emoji, icon, description, completed, deletedAt`;
+}
+
+function buildCompactSystemPrompt(locale: AppLocale): string {
+  const outputLanguage = ASSIST_LANGUAGE_NAME_BY_LOCALE[locale] ?? "English";
+  const intlLocale = getIntlLocale(locale);
+  return `You are the task/project assistant for "Reminds". User locale: ${locale} (${intlLocale}).
+Return exactly one valid JSON object only.
+Keys: intent, answer, openTaskId, openProjectId, suggestTaskIds, suggestProjectIds.
+intent must be one of: ${ASSIST_RESPONSE_INTENT_LIST}.
+answer must be one short sentence in ${outputLanguage}.
+Never invent IDs. Use null for unknown open IDs and [] for unknown suggestion lists.
+If data is ambiguous or missing, return intent="clarify".`;
 }
 
 function normalizeSearchText(value: string): string {
@@ -700,15 +750,16 @@ function isLikelyCreateProjectPrompt(input: string): boolean {
 function formatDraftDue(draft: AssistTaskDraft): string | undefined {
   if (!draft.dueAt || draft.dueAt <= 0) return undefined;
   const date = new Date(draft.dueAt);
+  const locale = getIntlLocale();
   if (draft.dueHasTime) {
-    return date.toLocaleString("de-DE", {
+    return date.toLocaleString(locale, {
       day: "2-digit",
       month: "2-digit",
       hour: "2-digit",
       minute: "2-digit",
     });
   }
-  return date.toLocaleDateString("de-DE", {
+  return date.toLocaleDateString(locale, {
     day: "2-digit",
     month: "2-digit",
   });
@@ -716,7 +767,7 @@ function formatDraftDue(draft: AssistTaskDraft): string | undefined {
 
 function taskCandidateFromDraft(draft: AssistTaskDraft): AssistCandidate {
   const subtitleParts = [
-    draft.projectName ? `Projekt ${draft.projectName}` : undefined,
+    draft.projectName ? `${t("common.project")}: ${draft.projectName}` : undefined,
     formatDraftDue(draft),
     draft.location,
   ]
@@ -859,16 +910,16 @@ function resolveDirectKnowledgeRequest({
 
     if (matches.length === 0) {
       if (section === "today") {
-        return { content: "Heute stehen keine Aufgaben an." };
+        return { content: t("assist.direct.todayNone") };
       }
-      return { content: "Ich habe keine passenden Aufgaben gefunden." };
+      return { content: t("assist.direct.noTaskMatches") };
     }
 
     if (asksSingleTask) {
       const ranked = sortTasksByDeadlineRelevance(matches);
       const primary = ranked[0];
       if (!primary) {
-        return { content: "Ich habe keine passende Aufgabe gefunden." };
+        return { content: t("assist.direct.noSingleTask") };
       }
 
       const remainingTaskIds = ranked
@@ -887,8 +938,10 @@ function resolveDirectKnowledgeRequest({
           candidate: {
             kind: "task",
             id: `show-more-tasks:${Date.now()}`,
-            title: "Weitere passende Aufgaben",
-            subtitle: `${remainingTaskIds.length} weitere`,
+            title: t("assist.direct.moreTasksTitle"),
+            subtitle: t("assist.direct.moreTasksSubtitle", {
+              count: remainingTaskIds.length,
+            }),
           },
           taskIdsToShow: remainingTaskIds,
         });
@@ -900,8 +953,8 @@ function resolveDirectKnowledgeRequest({
 
       return {
         content: hasPrimaryDueAt
-          ? "Ich habe den relevantesten Task mit der naechsten Deadline fuer dich ausgewaehlt."
-          : "Ich habe den relevantesten Task fuer dich ausgewaehlt.",
+          ? t("assist.direct.selectedWithDeadline")
+          : t("assist.direct.selected"),
         actions,
       };
     }
@@ -913,8 +966,16 @@ function resolveDirectKnowledgeRequest({
 
     const content =
       section === "today"
-        ? `Heute stehen ${matches.length} Aufgabe${matches.length === 1 ? "" : "n"} an.`
-        : `Ich habe ${matches.length} passende Aufgabe${matches.length === 1 ? "" : "n"} gefunden.`;
+        ? countLabel(
+            matches.length,
+            "assist.direct.todayCount.one",
+            "assist.direct.todayCount.other",
+          )
+        : countLabel(
+            matches.length,
+            "assist.direct.taskMatches.one",
+            "assist.direct.taskMatches.other",
+          );
 
     return {
       content,
@@ -928,14 +989,18 @@ function resolveDirectKnowledgeRequest({
       limit: 20,
     });
     if (matches.length === 0) {
-      return { content: "Ich habe keine Projekte gefunden." };
+      return { content: t("assist.direct.noProjects") };
     }
     const actions: AssistAction[] = matches.map((match) => ({
       type: "suggest-project",
       candidate: projectCandidateFromToolCandidate(match),
     }));
     return {
-      content: `Ich habe ${matches.length} Projekt${matches.length === 1 ? "" : "e"} gefunden.`,
+      content: countLabel(
+        matches.length,
+        "assist.direct.projectMatches.one",
+        "assist.direct.projectMatches.other",
+      ),
       actions,
     };
   }
@@ -944,15 +1009,63 @@ function resolveDirectKnowledgeRequest({
 }
 
 function isAssistIntent(value: string): value is AssistIntent {
-  return (
-    value === "create_task" ||
-    value === "find_task" ||
-    value === "move_task" ||
-    value === "create_project" ||
-    value === "find_project" ||
-    value === "general" ||
-    value === "clarify"
-  );
+  return ASSIST_RESPONSE_INTENTS.includes(value as AssistIntent);
+}
+
+function extractJsonObjectCandidate(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fencedMatch?.[1]) {
+    const fenced = fencedMatch[1].trim();
+    if (fenced.startsWith("{") && fenced.endsWith("}")) return fenced;
+  }
+
+  const firstBrace = trimmed.indexOf("{");
+  if (firstBrace < 0) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaping = false;
+
+  for (let index = firstBrace; index < trimmed.length; index += 1) {
+    const char = trimmed[index] as string;
+
+    if (inString) {
+      if (escaping) {
+        escaping = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaping = true;
+        continue;
+      }
+      if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (char === "{") {
+      depth += 1;
+      continue;
+    }
+
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return trimmed.slice(firstBrace, index + 1);
+      }
+    }
+  }
+
+  return null;
 }
 
 function parseAssistModelResponse(value: unknown): AssistModelResponse | null {
@@ -962,7 +1075,13 @@ function parseAssistModelResponse(value: unknown): AssistModelResponse | null {
     try {
       return parseAssistModelResponse(JSON.parse(trimmed));
     } catch {
-      return null;
+      const candidate = extractJsonObjectCandidate(trimmed);
+      if (!candidate || candidate === trimmed) return null;
+      try {
+        return parseAssistModelResponse(JSON.parse(candidate));
+      } catch {
+        return null;
+      }
     }
   }
 
@@ -1199,7 +1318,6 @@ function collectToolCandidates(
   let createdTask: AssistTaskCandidate | undefined;
   let movedTask: AssistTaskCandidate | undefined;
   let createdProject: AssistProjectCandidate | undefined;
-  const messages: string[] = [];
 
   for (const entry of entries) {
     const payload = entry.output ?? entry.result;
@@ -1210,7 +1328,6 @@ function collectToolCandidates(
       if (!parsed) continue;
       if (parsed.query) taskQuery = parsed.query;
       tasks.push(...parsed.results);
-      if (parsed.message) messages.push(parsed.message);
       continue;
     }
 
@@ -1220,7 +1337,6 @@ function collectToolCandidates(
       if (!parsed) continue;
       if (parsed.query) projectQuery = parsed.query;
       projects.push(...parsed.results);
-      if (parsed.message) messages.push(parsed.message);
       continue;
     }
 
@@ -1234,7 +1350,6 @@ function collectToolCandidates(
       }
       if (parsed.project) projects.push(parsed.project);
       if (parsed.projectCandidates) projects.push(...parsed.projectCandidates);
-      if (parsed.message) messages.push(parsed.message);
       continue;
     }
 
@@ -1249,7 +1364,6 @@ function collectToolCandidates(
       if (parsed.taskCandidates) tasks.push(...parsed.taskCandidates);
       if (parsed.project) projects.push(parsed.project);
       if (parsed.projectCandidates) projects.push(...parsed.projectCandidates);
-      if (parsed.message) messages.push(parsed.message);
       continue;
     }
 
@@ -1262,7 +1376,6 @@ function collectToolCandidates(
         projects.push(parsed.project);
       }
       if (parsed.similarProjects) projects.push(...parsed.similarProjects);
-      if (parsed.message) messages.push(parsed.message);
     }
   }
 
@@ -1296,7 +1409,6 @@ function collectToolCandidates(
     createdTask,
     movedTask,
     createdProject,
-    messages,
   };
 }
 
@@ -1313,6 +1425,40 @@ function formatTaskSubtitle(
   task: Task | AssistTaskCandidate,
   projectName?: string,
 ): string {
+  const sectionLabel = (() => {
+    if (task.section === "today") return t("common.today");
+    if (task.section === "upcoming") return t("common.upcoming");
+    if (task.section === "completed") return t("common.completed");
+    return task.section;
+  })();
+  const routineLabel = (() => {
+    switch (task.routineType) {
+      case "hourly":
+        return t("taskDetail.routine.hourly");
+      case "daily":
+        return t("taskDetail.routine.daily");
+      case "weekdays":
+        return t("taskDetail.routine.weekdays");
+      case "weekends":
+        return t("taskDetail.routine.weekends");
+      case "weekly":
+        return t("taskDetail.routine.weekly");
+      case "biweekly":
+        return t("taskDetail.routine.biweekly");
+      case "monthly":
+        return t("taskDetail.routine.monthly");
+      case "quarterly":
+        return t("taskDetail.routine.quarterly");
+      case "biannually":
+        return t("taskDetail.routine.biannually");
+      case "yearly":
+        return t("taskDetail.routine.yearly");
+      case "custom":
+        return t("taskDetail.routine.custom");
+      default:
+        return t("taskDetail.routine.default");
+    }
+  })();
   const parts: string[] = [];
 
   if (projectName) parts.push(projectName);
@@ -1321,24 +1467,25 @@ function formatTaskSubtitle(
   if (typeof dueAt === "number" && dueAt > 0) {
     const date = new Date(dueAt);
     const hasTime = Boolean(task.dueHasTime);
+    const locale = getIntlLocale();
     parts.push(
       hasTime
-        ? date.toLocaleString("de-DE", {
+        ? date.toLocaleString(locale, {
             day: "2-digit",
             month: "2-digit",
             hour: "2-digit",
             minute: "2-digit",
           })
-        : date.toLocaleDateString("de-DE", {
+        : date.toLocaleDateString(locale, {
             day: "2-digit",
             month: "2-digit",
           }),
     );
   }
 
-  parts.push(task.section);
+  parts.push(sectionLabel);
   if (task.location) parts.push(task.location);
-  if (task.isRoutine) parts.push(task.routineType ?? "routine");
+  if (task.isRoutine) parts.push(routineLabel);
 
   return parts.join(" · ");
 }
@@ -1452,44 +1599,55 @@ function buildDefaultAssistantMessage({
   ).length;
 
   if (toolCandidates.createdTask) {
-    return "Ich habe den Task erstellt.";
+    return t("assist.default.createdTask");
   }
   if (toolCandidates.movedTask) {
-    return "Ich habe den Task aktualisiert.";
+    return t("assist.default.updatedTask");
   }
   if (toolCandidates.createdProject) {
-    return "Ich habe das Projekt erstellt.";
+    return t("assist.default.createdProject");
   }
   if (hasCreateTask) {
-    return 'Ich habe einen Task-Entwurf vorbereitet. Tippe auf "Task erstellen".';
+    return t("assist.default.preparedTaskDraft");
   }
   if (hasCreateProject) {
-    return 'Ich habe einen Projekt-Entwurf vorbereitet. Tippe auf "Projekt erstellen".';
+    return t("assist.default.preparedProjectDraft");
   }
 
   if (hasOpenTask && hasOpenProject) {
-    return "Ich habe einen passenden Task und ein passendes Projekt gefunden.";
+    return t("assist.default.foundTaskAndProject");
   }
   if (hasOpenTask) {
-    return "Ich habe einen passenden Task gefunden.";
+    return t("assist.default.foundTask");
   }
   if (hasOpenProject) {
-    return "Ich habe ein passendes Projekt gefunden.";
+    return t("assist.default.foundProject");
   }
   if (hasSuggestTask && hasSuggestProject) {
-    return `Ich habe ${taskSuggestionCount} passende Aufgabe${taskSuggestionCount === 1 ? "" : "n"} und ${projectSuggestionCount} passende Projekt${projectSuggestionCount === 1 ? "" : "e"} gefunden.`;
+    return t("assist.default.foundTaskAndProjectSuggestions", {
+      taskCount: taskSuggestionCount,
+      projectCount: projectSuggestionCount,
+    });
   }
   if (hasSuggestTask) {
-    return `Ich habe ${taskSuggestionCount} passende Aufgabe${taskSuggestionCount === 1 ? "" : "n"} gefunden.`;
+    return countLabel(
+      taskSuggestionCount,
+      "assist.default.foundTaskSuggestions.one",
+      "assist.default.foundTaskSuggestions.other",
+    );
   }
   if (hasSuggestProject) {
-    return `Ich habe ${projectSuggestionCount} passende Projekt${projectSuggestionCount === 1 ? "" : "e"} gefunden.`;
+    return countLabel(
+      projectSuggestionCount,
+      "assist.default.foundProjectSuggestions.one",
+      "assist.default.foundProjectSuggestions.other",
+    );
   }
 
   if (toolCandidates.taskToolWasCalled && toolCandidates.tasks.length === 0) {
     return toolCandidates.taskQuery
-      ? `Ich habe keinen passenden Task fuer "${toolCandidates.taskQuery}" gefunden.`
-      : "Ich habe keinen passenden Task gefunden.";
+      ? t("assist.default.noTaskForQuery", { query: toolCandidates.taskQuery })
+      : t("assist.default.noTask");
   }
 
   if (
@@ -1497,18 +1655,14 @@ function buildDefaultAssistantMessage({
     toolCandidates.projects.length === 0
   ) {
     return toolCandidates.projectQuery
-      ? `Ich habe kein passendes Projekt fuer "${toolCandidates.projectQuery}" gefunden.`
-      : "Ich habe kein passendes Projekt gefunden.";
-  }
-
-  if (toolCandidates.messages.length > 0) {
-    return toolCandidates.messages[
-      toolCandidates.messages.length - 1
-    ] as string;
+      ? t("assist.default.noProjectForQuery", {
+          query: toolCandidates.projectQuery,
+        })
+      : t("assist.default.noProject");
   }
 
   if (intent === "clarify") {
-    return "Ich brauche noch eine kurze Praezisierung, um den richtigen Task oder das richtige Projekt auszuwaehlen.";
+    return t("assist.default.clarify");
   }
 
   if (
@@ -1519,7 +1673,7 @@ function buildDefaultAssistantMessage({
     return cleanAnswer;
   }
 
-  return "Wie kann ich dir bei Tasks oder Projekten helfen?";
+  return t("assist.default.help");
 }
 
 function resolveTaskCandidateById({
@@ -1871,18 +2025,18 @@ function AssistEntityActionButton({
 
   const verb =
     action.type === "create-task"
-      ? "Task erstellen"
+      ? t("assist.action.createTask")
       : action.type === "create-project"
-        ? "Projekt erstellen"
+        ? t("assist.action.createProject")
         : action.type === "show-more-tasks"
-          ? "Weitere anzeigen"
+          ? t("assist.action.showMore")
           : action.type === "open-task"
-            ? "Task oeffnen"
+            ? t("assist.action.openTask")
             : action.type === "open-project"
-              ? "Projekt oeffnen"
+              ? t("assist.action.openProject")
               : action.type === "suggest-task"
-                ? "Task anzeigen"
-                : "Projekt anzeigen";
+                ? t("assist.action.showTask")
+                : t("assist.action.showProject");
 
   const handlePress = () => {
     if (action.type === "create-task" && action.taskDraft) {
@@ -2059,11 +2213,11 @@ function AssistUnlockedScreen() {
 
   const handleClearHistory = React.useCallback(() => {
     Alert.alert(
-      "Verlauf loeschen",
-      "Moechtest du den gesamten Chat-Verlauf wirklich loeschen?",
+      t("assist.clearHistory.title"),
+      t("assist.clearHistory.body"),
       [
         {
-          text: "Loeschen",
+          text: t("common.delete"),
           style: "destructive",
           onPress: async () => {
             await AsyncStorage.removeItem(ASSIST_STORAGE_KEY);
@@ -2071,7 +2225,7 @@ function AssistUnlockedScreen() {
             setMessages([]);
           },
         },
-        { text: "Abbrechen", style: "cancel" },
+        { text: t("common.cancel"), style: "cancel" },
       ],
     );
   }, []);
@@ -2276,7 +2430,7 @@ function AssistUnlockedScreen() {
             {
               id: `${Date.now() + 1}`,
               role: "assistant",
-              content: "Ich habe keine weiteren passenden Aufgaben gefunden.",
+              content: t("assist.showMore.none"),
             },
           ];
         }
@@ -2286,7 +2440,11 @@ function AssistUnlockedScreen() {
           {
             id: `${Date.now() + 1}`,
             role: "assistant",
-            content: `Ich zeige dir ${nextActions.length} weitere passende Aufgabe${nextActions.length === 1 ? "" : "n"}.`,
+            content: countLabel(
+              nextActions.length,
+              "assist.showMore.more.one",
+              "assist.showMore.more.other",
+            ),
             actions: nextActions,
           },
         ];
@@ -2314,6 +2472,9 @@ function AssistUnlockedScreen() {
 
     try {
       const assistantMessageId = `${Date.now() + 1}`;
+      const currentLocale = getLocale();
+      const canUseRuleBasedFallback =
+        supportsRuleBasedAssistantParsing(currentLocale);
 
       if (!isAIAvailable) {
         setMessages((prev) => [
@@ -2321,8 +2482,7 @@ function AssistUnlockedScreen() {
           {
             id: assistantMessageId,
             role: "assistant",
-            content:
-              "Apple Foundation Models sind auf diesem Geraet nicht verfuegbar.",
+            content: t("assist.error.foundationUnavailableDevice"),
           },
         ]);
         return;
@@ -2346,17 +2506,16 @@ function AssistUnlockedScreen() {
         return;
       }
 
-      const quickProjectDraft = parseProjectDraftFromCommand(
-        userMessage.content,
-      );
+      const quickProjectDraft = canUseRuleBasedFallback
+        ? parseProjectDraftFromCommand(userMessage.content)
+        : null;
       if (quickProjectDraft) {
         setMessages((prev) => [
           ...prev,
           {
             id: assistantMessageId,
             role: "assistant",
-            content:
-              'Ich habe einen Projekt-Entwurf vorbereitet. Tippe auf "Projekt erstellen".',
+            content: t("assist.default.preparedProjectDraft"),
             actions: [
               {
                 type: "create-project",
@@ -2369,14 +2528,15 @@ function AssistUnlockedScreen() {
         return;
       }
 
-      const quickTaskDraft = parseTaskDraftFromCommand(
-        userMessage.content,
-        projectsRef.current,
-      );
+      const quickTaskDraft = canUseRuleBasedFallback
+        ? parseTaskDraftFromCommand(userMessage.content, projectsRef.current)
+        : null;
       if (quickTaskDraft) {
         const projectWarning =
           quickTaskDraft.projectName && !quickTaskDraft.projectId
-            ? ` Projekt "${quickTaskDraft.projectName}" konnte ich nicht sicher zuordnen.`
+            ? t("assist.warning.projectNotMatched", {
+                name: quickTaskDraft.projectName,
+              })
             : "";
 
         setMessages((prev) => [
@@ -2384,7 +2544,13 @@ function AssistUnlockedScreen() {
           {
             id: assistantMessageId,
             role: "assistant",
-            content: `Ich habe einen Task-Entwurf vorbereitet.${projectWarning} Tippe auf "Task erstellen".`,
+            content: [
+              t("assist.default.preparedTaskDraftPrefix"),
+              projectWarning,
+              t("assist.default.preparedTaskDraftSuffix"),
+            ]
+              .filter(Boolean)
+              .join(" "),
             actions: [
               {
                 type: "create-task",
@@ -2431,7 +2597,7 @@ function AssistUnlockedScreen() {
 
       try {
         result = await runGeneration({
-          systemPrompt: buildSystemPrompt(),
+          systemPrompt: buildSystemPrompt(currentLocale),
           withTools: true,
           maxOutputTokens: 420,
         });
@@ -2446,7 +2612,7 @@ function AssistUnlockedScreen() {
 
         try {
           result = await runGeneration({
-            systemPrompt: buildCompactSystemPrompt(),
+            systemPrompt: buildCompactSystemPrompt(currentLocale),
             withTools: true,
             maxOutputTokens: 320,
           });
@@ -2460,7 +2626,7 @@ function AssistUnlockedScreen() {
           );
 
           result = await runGeneration({
-            systemPrompt: buildCompactSystemPrompt(),
+            systemPrompt: buildCompactSystemPrompt(currentLocale),
             withTools: false,
             maxOutputTokens: 220,
           });
@@ -2473,6 +2639,7 @@ function AssistUnlockedScreen() {
       const toolCandidates = collectToolCandidates(toolEntries);
 
       if (
+        canUseRuleBasedFallback &&
         !structuredResponse &&
         !toolCandidates.createdTask &&
         !toolCandidates.movedTask &&
@@ -2488,7 +2655,9 @@ function AssistUnlockedScreen() {
         const emitTaskDraft = (draftFromAssistant: AssistTaskDraft) => {
           const projectWarning =
             draftFromAssistant.projectName && !draftFromAssistant.projectId
-              ? ` Projekt "${draftFromAssistant.projectName}" konnte ich nicht sicher zuordnen.`
+              ? t("assist.warning.projectNotMatched", {
+                  name: draftFromAssistant.projectName,
+                })
               : "";
 
           setMessages((prev) => [
@@ -2496,7 +2665,13 @@ function AssistUnlockedScreen() {
             {
               id: assistantMessageId,
               role: "assistant",
-              content: `Ich habe einen Task-Entwurf vorbereitet.${projectWarning} Tippe auf "Task erstellen".`,
+              content: [
+                t("assist.default.preparedTaskDraftPrefix"),
+                projectWarning,
+                t("assist.default.preparedTaskDraftSuffix"),
+              ]
+                .filter(Boolean)
+                .join(" "),
               actions: [
                 {
                   type: "create-task",
@@ -2516,8 +2691,7 @@ function AssistUnlockedScreen() {
             {
               id: assistantMessageId,
               role: "assistant",
-              content:
-                'Ich habe einen Projekt-Entwurf vorbereitet. Tippe auf "Projekt erstellen".',
+              content: t("assist.default.preparedProjectDraft"),
               actions: [
                 {
                   type: "create-project",
@@ -2602,15 +2776,15 @@ function AssistUnlockedScreen() {
       const errorMessage = getErrorMessage(error);
       console.error("[assist] handleSend failed:", error);
       const content = isToolCallLimitError(error)
-        ? "Ich habe zu viele Tool-Aufrufe gebraucht. Formuliere bitte etwas konkreter."
+        ? t("assist.error.toolCallLimit")
         : isAppleGenerationError(error)
-          ? "Apple Foundation Models konnten die Anfrage gerade nicht verarbeiten. Versuche es bitte erneut oder formuliere die Anfrage kuerzer."
+          ? t("assist.error.appleGeneration")
           : errorMessage &&
               /not available|availability|foundation models/i.test(errorMessage)
-            ? "Apple Foundation Models sind aktuell nicht verfuegbar."
+            ? t("assist.error.foundationUnavailable")
             : __DEV__ && errorMessage
-              ? `Entschuldigung, es gab einen Fehler bei der Verarbeitung deiner Anfrage. (${errorMessage})`
-              : "Entschuldigung, es gab einen Fehler bei der Verarbeitung deiner Anfrage.";
+              ? t("assist.error.requestWithMessage", { message: errorMessage })
+              : t("assist.error.request");
 
       setMessages((prev) => [
         ...prev,
@@ -2645,7 +2819,7 @@ function AssistUnlockedScreen() {
     <ThemedView style={styles.container}>
       <Stack.Screen
         options={{
-          title: "Assist",
+          title: t("screen.assist"),
           headerLargeTitle: false,
           headerBackButtonDisplayMode: "minimal",
           headerTitleAlign: Platform.OS === "ios" ? "left" : "center",
@@ -2654,7 +2828,7 @@ function AssistUnlockedScreen() {
           headerRight: () => (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Verlauf loeschen"
+              accessibilityLabel={t("assist.clearHistory.title")}
               onPress={handleClearHistory}
               style={({ pressed }) => [
                 styles.headerClearButton,
@@ -2664,7 +2838,7 @@ function AssistUnlockedScreen() {
               <Text
                 style={[styles.headerClearButtonText, { color: colors.text }]}
               >
-                Leeren
+                {t("assist.clearHistory.action")}
               </Text>
             </Pressable>
           ),
@@ -2674,15 +2848,14 @@ function AssistUnlockedScreen() {
       {!isAIAvailable ? (
         <View style={styles.centeredMessage}>
           <Text style={[styles.errorTitle, { color: colors.text }]}>
-            Apple Intelligence nicht verfuegbar
+            {t("assist.unavailable.title")}
           </Text>
           <Text style={[styles.errorMessage, { color: colors.text }]}>
-            Assist benoetigt ein iOS 26+ Geraet mit aktivierter Apple
-            Intelligence.
+            {t("assist.unavailable.body")}
           </Text>
           {!isIOS26OrNewer() ? (
             <Text style={[styles.errorHint, { color: colors.icon }]}>
-              Aktuelles iOS ist aelter als 26.
+              {t("assist.unavailable.hint")}
             </Text>
           ) : null}
         </View>
@@ -2704,12 +2877,10 @@ function AssistUnlockedScreen() {
             {messages.length === 0 && (
               <View style={styles.emptyState}>
                 <Text style={[styles.emptyTitle, { color: colors.text }]}>
-                  Willkommen bei Assist
+                  {t("assist.empty.title")}
                 </Text>
                 <Text style={[styles.emptySubtitle, { color: colors.icon }]}>
-                  Beispiele: Finde alle Routinen mit Standort. Erstelle Task
-                  morgen 14:00 im Projekt Arbeit. Verschiebe Einkauf nach
-                  Privat.
+                  {t("assist.empty.subtitle")}
                 </Text>
               </View>
             )}
@@ -2807,7 +2978,7 @@ function AssistUnlockedScreen() {
                 style={[styles.input, { color: colors.text }]}
                 value={input}
                 onChangeText={setInput}
-                placeholder="z.B. Erstelle Task heute 18:00 mit Standort Supermarkt"
+                placeholder={t("assist.input.placeholder")}
                 placeholderTextColor={
                   resolvedColorScheme === "dark"
                     ? "rgba(255,255,255,0.4)"
@@ -2880,7 +3051,7 @@ export default function AssistScreen() {
             color: withAlpha(colors.text, 0.72),
           }}
         >
-          Pruefe deinen Reminders+ Status im App Store...
+          {t("projectLimit.loading")}
         </Text>
       </ThemedView>
     );
@@ -2918,7 +3089,7 @@ export default function AssistScreen() {
               color: colors.text,
             }}
           >
-            AI-Assist braucht Reminders+.
+            {t("plus.source.assist")}
           </Text>
           <Text
             style={{
@@ -2927,8 +3098,7 @@ export default function AssistScreen() {
               color: withAlpha(colors.text, 0.74),
             }}
           >
-            Mit Reminders+ schaltest du unseren Assist View, mehr als vier
-            Projekte und die Cloud-Sync-Freischaltung fuer Apple-Geraete frei.
+            {t("projectLimit.body", { count: 4 })}
           </Text>
 
           <Pressable
@@ -2957,7 +3127,7 @@ export default function AssistScreen() {
                 fontWeight: "700",
               }}
             >
-              Reminders+ ansehen
+              {t("projectLimit.action.openPlus")}
             </Text>
           </Pressable>
         </View>

@@ -6,6 +6,7 @@ import { getPremiumPlanLabel } from "@/constants/premium";
 import { Colors } from "@/constants/theme";
 import { usePremium } from "@/context/premium-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { t } from "@/i18n";
 
 type ThemeName = keyof typeof Colors;
 
@@ -91,26 +92,25 @@ export default function ProfileScreen() {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.card}>
-        <Text style={styles.title}>Profil</Text>
+        <Text style={styles.title}>{t("profile.title")}</Text>
         <Text style={styles.subtitle}>
-          Accountdaten laufen aktuell lokal. Deinen Kaufstatus fuer Reminders+
-          kannst du hier direkt einsehen.
+          {t("profile.subtitle")}
         </Text>
       </View>
 
       <View style={styles.card}>
         <View style={styles.row}>
-          <Text style={styles.rowLabel}>Name</Text>
-          <Text style={styles.rowValue}>Benedikt</Text>
+          <Text style={styles.rowLabel}>{t("profile.field.name")}</Text>
+          <Text style={styles.rowValue}>{t("profile.value.name")}</Text>
         </View>
         <View style={styles.row}>
-          <Text style={styles.rowLabel}>E-Mail</Text>
-          <Text style={styles.rowValue}>benedikt@example.com</Text>
+          <Text style={styles.rowLabel}>{t("profile.field.email")}</Text>
+          <Text style={styles.rowValue}>{t("profile.value.email")}</Text>
         </View>
         <View style={styles.row}>
-          <Text style={styles.rowLabel}>Plan</Text>
+          <Text style={styles.rowLabel}>{t("profile.field.plan")}</Text>
           <Text style={styles.rowValue}>
-            {isReady ? getPremiumPlanLabel(plan) : "Wird geprueft..."}
+            {isReady ? getPremiumPlanLabel(plan) : t("common.planChecking")}
           </Text>
         </View>
         <Pressable
@@ -122,7 +122,9 @@ export default function ProfileScreen() {
           ]}
         >
           <Text style={styles.ctaButtonText}>
-            {hasPremiumAccess ? "Reminders+ verwalten" : "Reminders+ ansehen"}
+            {hasPremiumAccess
+              ? t("profile.cta.manage")
+              : t("profile.cta.view")}
           </Text>
         </Pressable>
       </View>

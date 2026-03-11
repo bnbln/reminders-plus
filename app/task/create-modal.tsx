@@ -1633,7 +1633,9 @@ export default function CreateTaskModal() {
                       {tag.removable ? (
                         <Pressable
                           accessibilityRole="button"
-                          accessibilityLabel={`${tag.label} entfernen`}
+                          accessibilityLabel={t("common.removeTag", {
+                            tag: tag.label,
+                          })}
                           onPress={(event) => {
                             event.stopPropagation();
                             onTagRemove(tag.actionId);
@@ -1679,7 +1681,9 @@ export default function CreateTaskModal() {
                       {tag.removable ? (
                         <Pressable
                           accessibilityRole="button"
-                          accessibilityLabel={`${tag.label} entfernen`}
+                          accessibilityLabel={t("common.removeTag", {
+                            tag: tag.label,
+                          })}
                           onPress={(event) => {
                             event.stopPropagation();
                             onTagRemove(tag.actionId);
