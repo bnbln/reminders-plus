@@ -12,6 +12,7 @@ function withIosCloudSync(config) {
   }
 
   const containerIdentifier = `iCloud.${bundleIdentifier}`;
+  const kvStoreIdentifier = "$(TeamIdentifierPrefix)$(CFBundleIdentifier)";
 
   config = withEntitlementsPlist(config, (config) => {
     const entitlements = config.modResults;
@@ -27,6 +28,9 @@ function withIosCloudSync(config) {
       ...(entitlements["com.apple.developer.ubiquity-container-identifiers"] || []),
       containerIdentifier,
     ]);
+    // Needed for NSUbiquitousKeyValueStore (iCloud key-value storage fallback).
+    entitlements["com.apple.developer.ubiquity-kvstore-identifier"] =
+      kvStoreIdentifier;
     // Required for iOS "Time Sensitive" local/push notifications.
     entitlements["com.apple.developer.usernotifications.time-sensitive"] = true;
     return config;

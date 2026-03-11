@@ -129,6 +129,13 @@ export const getDueAtForSection = (section: SectionId) => {
 };
 
 const SNAPSHOT_VERSION = 2 as const;
+const DEFAULT_PROJECT_ICON = "folder.fill";
+
+function normalizeProjectIcon(value: unknown): string {
+  if (typeof value !== "string") return DEFAULT_PROJECT_ICON;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : DEFAULT_PROJECT_ICON;
+}
 
 function toLocalISODate(timestamp: number): string {
   const date = new Date(timestamp);
@@ -693,7 +700,7 @@ function normalizeSnapshot(raw: any): TasksStoreData {
           typeof p.emoji === "string" && p.emoji.trim().length > 0
             ? p.emoji
             : undefined,
-        icon: typeof p.icon === "string" ? p.icon : "folder.fill",
+        icon: normalizeProjectIcon(p.icon),
         description:
           typeof p.description === "string" ? p.description : undefined,
         completed: typeof p.completed === "boolean" ? p.completed : undefined,

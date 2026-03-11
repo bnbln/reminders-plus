@@ -73,6 +73,19 @@ function resolveSourceCopy(source: string) {
   }
 }
 
+function resolveStoreProductTitle(
+  product: { displayName?: string | null; title?: string | null } | null,
+  fallback: string,
+): string {
+  const displayName = product?.displayName?.trim();
+  if (displayName) return displayName;
+
+  const title = product?.title?.trim();
+  if (title) return title;
+
+  return fallback;
+}
+
 function OfferCard({
   title,
   price,
@@ -230,6 +243,7 @@ export default function PlusScreen({
   } = usePremium();
   const [selectedOption, setSelectedOption] =
     React.useState<PurchaseOption>("lifetime");
+  const [showsLegalDisclosure, setShowsLegalDisclosure] = React.useState(false);
 
   React.useEffect(() => {
     if (plan === "lifetime") {
@@ -244,6 +258,7 @@ export default function PlusScreen({
   const headerTextColor = Colors[theme].text;
   const supportTextColor = isDark ? "#8E8E93" : "#6B7280";
   const restoreTextColor = isDark ? "#8E8E93" : "#6B7280";
+  const legalTextColor = isDark ? "#8E8E93" : "#6B7280";
   const errorBackground = isDark
     ? "rgba(127,29,29,0.24)"
     : "rgba(254,242,242,0.94)";
@@ -255,8 +270,16 @@ export default function PlusScreen({
   const checkoutTextColor = isDark ? "#0F1115" : "#FFFFFF";
   const disabledCheckoutBackground = isDark ? "#4B5563" : "#A1A1AA";
   const sourceCopy = resolveSourceCopy(source);
-  const monthlyPrice = monthlyProduct?.displayPrice ?? "1,99 €";
-  const lifetimePrice = lifetimeProduct?.displayPrice ?? "14,99 €";
+  const monthlyTitle = resolveStoreProductTitle(
+    monthlyProduct,
+    t("plus.offer.monthly.title"),
+  );
+  const lifetimeTitle = resolveStoreProductTitle(
+    lifetimeProduct,
+    t("plus.offer.lifetime.title"),
+  );
+  const monthlyPrice = monthlyProduct?.displayPrice ?? "…";
+  const lifetimePrice = lifetimeProduct?.displayPrice ?? "…";
 
   const onClose = React.useCallback(() => {
     if (router.canGoBack()) router.back();
@@ -446,7 +469,7 @@ export default function PlusScreen({
           <View style={styles.offerGrid}>
             <OfferCard
               variant="lifetime"
-              title={t("plus.offer.lifetime.title")}
+              title={lifetimeTitle}
               price={lifetimePrice}
               meta={t("plus.offer.lifetime.meta")}
               selected={selectedOption === "lifetime"}
@@ -456,7 +479,7 @@ export default function PlusScreen({
             />
             <OfferCard
               variant="monthly"
-              title={t("plus.offer.monthly.title")}
+              title={monthlyTitle}
               price={monthlyPrice}
               meta={t("plus.offer.monthly.meta")}
               selected={selectedOption === "monthly"}
@@ -580,6 +603,36 @@ export default function PlusScreen({
                 </Text>
               )}
             </Pressable>
+          ) : null}
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setShowsLegalDisclosure((current) => !current)}
+            style={({ pressed }) => [
+              styles.legalDisclosureToggle,
+              pressed && styles.restoreLinkPressed,
+            ]}
+          >
+            <View style={styles.legalDisclosureToggleRow}>
+              <Text
+                style={[styles.legalDisclosureToggleText, { color: legalTextColor }]}
+              >
+                {showsLegalDisclosure
+                  ? t("plus.legal.hide")
+                  : t("plus.legal.show")}
+              </Text>
+              <MaterialIcons
+                name={showsLegalDisclosure ? "expand-less" : "expand-more"}
+                size={16}
+                color={legalTextColor}
+              />
+            </View>
+          </Pressable>
+
+          {showsLegalDisclosure ? (
+            <Text style={[styles.legalDisclosureText, { color: legalTextColor }]}>
+              {t("plus.legal.disclaimer")}
+            </Text>
           ) : null}
 
         </View>
@@ -754,6 +807,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 18,
     textDecorationLine: "underline",
+  },
+  legalDisclosureToggle: {
+    alignSelf: "center",
+    minHeight: 30,
+    justifyContent: "center",
+    paddingHorizontal: 8,
+  },
+  legalDisclosureToggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  legalDisclosureToggleText: {
+    fontSize: 12,
+    lineHeight: 16,
+    textDecorationLine: "underline",
+  },
+  legalDisclosureText: {
+    fontSize: 11,
+    lineHeight: 16,
+    textAlign: "center",
+    paddingHorizontal: 8,
   },
   errorCard: {
     borderRadius: 18,

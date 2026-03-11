@@ -3,6 +3,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState, Platform } from "react-native";
 import {
   ErrorCode,
+  getActiveSubscriptions as queryActiveSubscriptions,
+  getAvailablePurchases as queryAvailablePurchases,
   type Product,
   type ProductSubscription,
   type Purchase,
@@ -168,6 +170,12 @@ function normalizePurchaseResult(
   return Array.isArray(value) ? value : [value];
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 function derivePlan(args: {
   availablePurchases: Purchase[];
   activeSubscriptionProductIds: string[];
@@ -210,6 +218,8 @@ function PremiumProviderIOS({ children }: { children: React.ReactNode }) {
   const [purchaseInFlightProductId, setPurchaseInFlightProductId] =
     React.useState<string | null>(null);
   const [debugOverridePlan, setDebugOverridePlan] =
+    React.useState<PremiumPlan | null>(null);
+  const [storePlanOverride, setStorePlanOverride] =
     React.useState<PremiumPlan | null>(null);
   const [isDebugOverrideLoaded, setIsDebugOverrideLoaded] = React.useState(!__DEV__);
 
@@ -281,7 +291,24 @@ function PremiumProviderIOS({ children }: { children: React.ReactNode }) {
     [products, subscriptions],
   );
 
-  const storePlan = React.useMemo(
+  const resolveStorePlan = React.useCallback(async (): Promise<PremiumPlan> => {
+    const [purchases, active] = await Promise.all([
+      queryAvailablePurchases({
+        alsoPublishToEventListenerIOS: false,
+        onlyIncludeActiveItemsIOS: true,
+      }),
+      queryActiveSubscriptions([...REMINDS_PLUS_SUBSCRIPTION_IDS]),
+    ]);
+
+    return derivePlan({
+      availablePurchases: normalizePurchaseResult(purchases),
+      activeSubscriptionProductIds: active
+        .filter((entry) => entry.isActive)
+        .map((entry) => entry.productId),
+    });
+  }, []);
+
+  const hookStorePlan = React.useMemo(
     () =>
       derivePlan({
         availablePurchases,
@@ -292,6 +319,14 @@ function PremiumProviderIOS({ children }: { children: React.ReactNode }) {
     [activeSubscriptions, availablePurchases],
   );
 
+  React.useEffect(() => {
+    setStorePlanOverride((prev) => {
+      if (prev === null) return prev;
+      return prev === hookStorePlan ? null : prev;
+    });
+  }, [hookStorePlan]);
+
+  const storePlan = storePlanOverride ?? hookStorePlan;
   const plan = debugOverridePlan ?? storePlan;
   const hasPremiumAccess = plan !== "free";
   const resolvedIsReady = isReady && isDebugOverrideLoaded;
@@ -332,6 +367,12 @@ function PremiumProviderIOS({ children }: { children: React.ReactNode }) {
         getAvailablePurchases(),
         getActiveSubscriptions([...REMINDS_PLUS_SUBSCRIPTION_IDS]),
       ]);
+      try {
+        const resolvedPlan = await resolveStorePlan();
+        setStorePlanOverride(resolvedPlan);
+      } catch {
+        // Keep the existing plan on transient App Store query errors.
+      }
       setErrorMessage(null);
     } catch (error) {
       const message = toErrorMessage(error);
@@ -345,6 +386,7 @@ function PremiumProviderIOS({ children }: { children: React.ReactNode }) {
     fetchProductsFromHook,
     getActiveSubscriptions,
     getAvailablePurchases,
+    resolveStorePlan,
   ]);
 
   React.useEffect(() => {
@@ -453,8 +495,24 @@ function PremiumProviderIOS({ children }: { children: React.ReactNode }) {
 
     try {
       await restoreIapPurchases();
-      await refresh();
-      return true;
+      const maxAttempts = 4;
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        await refresh();
+        try {
+          const resolvedPlan = await resolveStorePlan();
+          setStorePlanOverride(resolvedPlan);
+          if (resolvedPlan !== "free") {
+            return true;
+          }
+        } catch {
+          // Retry shortly; StoreKit propagation can lag on second devices.
+        }
+        if (attempt < maxAttempts - 1) {
+          await sleep(700);
+        }
+      }
+
+      return false;
     } catch (error) {
       if (!isUserCancelled(error)) {
         setErrorMessage(toErrorMessage(error));
@@ -463,7 +521,7 @@ function PremiumProviderIOS({ children }: { children: React.ReactNode }) {
     } finally {
       setIsRestoring(false);
     }
-  }, [connected, refresh, restoreIapPurchases]);
+  }, [connected, refresh, resolveStorePlan, restoreIapPurchases]);
 
   const value = React.useMemo<PremiumContextValue>(
     () => ({

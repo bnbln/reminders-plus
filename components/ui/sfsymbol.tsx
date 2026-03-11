@@ -15,10 +15,13 @@ export function SFSymbol({
     style?: StyleProp<any>;
     weight?: SymbolViewProps['weight'];
 }) {
+    const resolvedName =
+        typeof name === 'string' && name.trim().length > 0 ? name.trim() : 'folder.fill';
+
     if (Platform.OS === 'ios') {
         return (
             <SymbolView
-                name={name as any}
+                name={resolvedName as any}
                 size={size}
                 tintColor={color}
                 style={style as any}

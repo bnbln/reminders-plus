@@ -465,6 +465,9 @@ export const EN_TRANSLATIONS: TranslationDict = {
     'plus.support.noStoreConnection': 'No connection to the App Store. Please test on a real iPhone with a TestFlight/App Store build (not in iOS Simulator).',
     'plus.support.productNotLoaded': 'This product was not loaded from the App Store. Check product ID, availability, and App Store Connect status.',
     'plus.support.iapOnlyIos': 'In-app purchases are currently only available on iOS.',
+    'plus.legal.show': 'Availability notes',
+    'plus.legal.hide': 'Hide availability notes',
+    'plus.legal.disclaimer': 'Cloud Sync only works between Apple devices signed in to iCloud with the same Apple ID. AI Assist is only available on devices supported by Apple for Apple Intelligence.',
     'plus.action.restorePurchases': 'Restore purchases',
     'plus.action.reloadProducts': 'Reload products',
 

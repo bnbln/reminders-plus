@@ -671,20 +671,41 @@ private final class AddReminderAccessoryButton: UIControl {
 
     addSubview(tintOverlayView)
     addSubview(contentStack)
-    leadingConstraint = contentStack.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: expandedHorizontalInset)
-    trailingConstraint = contentStack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -expandedHorizontalInset)
+    let minLeadingInsetConstraint = contentStack.leadingAnchor.constraint(
+      greaterThanOrEqualTo: leadingAnchor,
+      constant: expandedHorizontalInset
+    )
+    minLeadingInsetConstraint.priority = .defaultHigh
+    leadingConstraint = minLeadingInsetConstraint
+
+    let minTrailingInsetConstraint = contentStack.trailingAnchor.constraint(
+      lessThanOrEqualTo: trailingAnchor,
+      constant: -expandedHorizontalInset
+    )
+    minTrailingInsetConstraint.priority = .defaultHigh
+    trailingConstraint = minTrailingInsetConstraint
+
+    let minTopInsetConstraint = contentStack.topAnchor.constraint(greaterThanOrEqualTo: topAnchor, constant: 6)
+    minTopInsetConstraint.priority = .defaultHigh
+
+    let minBottomInsetConstraint = contentStack.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -6)
+    minBottomInsetConstraint.priority = .defaultHigh
+
+    let minimumHeightConstraint = heightAnchor.constraint(greaterThanOrEqualToConstant: 36)
+    minimumHeightConstraint.priority = .defaultHigh
+
     NSLayoutConstraint.activate([
       tintOverlayView.topAnchor.constraint(equalTo: topAnchor),
       tintOverlayView.leadingAnchor.constraint(equalTo: leadingAnchor),
       tintOverlayView.trailingAnchor.constraint(equalTo: trailingAnchor),
       tintOverlayView.bottomAnchor.constraint(equalTo: bottomAnchor),
-      leadingConstraint!,
-      trailingConstraint!,
+      minLeadingInsetConstraint,
+      minTrailingInsetConstraint,
       contentStack.centerXAnchor.constraint(equalTo: centerXAnchor),
       contentStack.centerYAnchor.constraint(equalTo: centerYAnchor),
-      contentStack.topAnchor.constraint(greaterThanOrEqualTo: topAnchor, constant: 6),
-      contentStack.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -6),
-      heightAnchor.constraint(greaterThanOrEqualToConstant: 36),
+      minTopInsetConstraint,
+      minBottomInsetConstraint,
+      minimumHeightConstraint,
       iconView.widthAnchor.constraint(equalToConstant: iconSize),
       iconView.heightAnchor.constraint(equalToConstant: iconSize),
     ])
@@ -1667,13 +1688,10 @@ final class CloudSyncCoordinator: NSObject {
     ubiquitousStore.set(snapshot.signature, forKey: UbiquitousConfig.signature)
     ubiquitousStore.set(deviceId, forKey: UbiquitousConfig.deviceId)
 
-    guard ubiquitousStore.synchronize() else {
-      throw NSError(
-        domain: "CloudSyncCoordinator",
-        code: 4,
-        userInfo: [NSLocalizedDescriptionKey: "iCloud Key-Value Sync konnte nicht abgeschlossen werden."]
-      )
-    }
+    // synchronize() can report false while iCloud still stages writes in the
+    // background (especially when another device already initialized data).
+    // Do not fail activation on this transient state.
+    _ = ubiquitousStore.synchronize()
 
     defaults.set(currentTimestampMs(), forKey: DefaultsKey.lastPushAt)
     defaults.set(snapshot.savedAt, forKey: DefaultsKey.lastKnownLocalSavedAt)

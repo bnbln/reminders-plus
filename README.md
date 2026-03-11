@@ -35,6 +35,8 @@ CloudKit custom record types must exist in the **Production** schema for TestFli
 
 If Production schema is missing, the app now falls back to iCloud key-value sync so devices can still exchange snapshots. This fallback has a stricter payload limit than CloudKit and should be treated as temporary until the schema is deployed.
 
+Important: iCloud entitlements are managed via `plugins/with-ios-cloud-sync.js` (CloudKit container + iCloud key-value store identifier). Do not rely on manual Xcode capability toggles only, because they can be reset by `expo prebuild`.
+
 ## Get a fresh project
 
 When you're ready, run:

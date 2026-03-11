@@ -516,6 +516,10 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "plus.support.productNotLoaded":
     "Dieses Produkt wurde vom App Store nicht geladen. Prüfe Produkt-ID, Verfügbarkeit und den Status in App Store Connect.",
   "plus.support.iapOnlyIos": "In-App-Käufe sind aktuell nur auf iOS verfügbar.",
+  "plus.legal.show": "Verfügbarkeitshinweise",
+  "plus.legal.hide": "Verfügbarkeitshinweise ausblenden",
+  "plus.legal.disclaimer":
+    "Cloud Sync funktioniert nur zwischen Apple-Geräten, die mit derselben Apple-ID in iCloud angemeldet sind. AI-Assist ist nur auf Geräten verfügbar, die Apple für Apple Intelligence unterstützt.",
   "plus.action.restorePurchases": "Käufe wiederherstellen",
   "plus.action.reloadProducts": "Produkte neu laden",
 
