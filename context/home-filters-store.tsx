@@ -23,6 +23,7 @@ const STORAGE_KEYS = {
   tags: "reminds.homeFilters.tags",
   tagIcons: "reminds.homeFilters.tagIcons",
   compactSubtasks: "reminds.homeFilters.compactSubtasks",
+  projectNames: "reminds.homeFilters.projectNames",
   completedTasks: "reminds.homeFilters.completedTasks",
   projectTasks: "reminds.homeFilters.projectTasks",
   routineTasks: "reminds.homeFilters.routineTasks",
@@ -204,6 +205,8 @@ type HomeFiltersContextValue = {
   setShowTagIcons: React.Dispatch<React.SetStateAction<boolean>>;
   showCompactSubtasks: boolean;
   setShowCompactSubtasks: React.Dispatch<React.SetStateAction<boolean>>;
+  showProjectNames: boolean;
+  setShowProjectNames: React.Dispatch<React.SetStateAction<boolean>>;
   showCompletedTasks: boolean;
   setShowCompletedTasks: React.Dispatch<React.SetStateAction<boolean>>;
   showProjectTasks: boolean;
@@ -221,12 +224,14 @@ export function HomeFiltersProvider({
 }: {
   children: React.ReactNode;
 }) {
-  // Default: all tags hidden, task-icons visible
+  // Default: all tags and project chips hidden, task-icons visible.
   const [enabledTags, setEnabledTags] = React.useState<Set<TagId>>(
     () => new Set(),
   );
   const [showTagIcons, setShowTagIcons] = React.useState<boolean>(true);
   const [showCompactSubtasks, setShowCompactSubtasks] =
+    React.useState<boolean>(false);
+  const [showProjectNames, setShowProjectNames] =
     React.useState<boolean>(false);
   const [showCompletedTasks, setShowCompletedTasks] =
     React.useState<boolean>(true);
@@ -247,6 +252,7 @@ export function HomeFiltersProvider({
           storedTags,
           storedIcons,
           storedCompactSubtasks,
+          storedProjectNames,
           storedCompletedTasks,
           storedProjectTasks,
           storedRoutineTasks,
@@ -255,6 +261,7 @@ export function HomeFiltersProvider({
             getStoredItem(STORAGE_KEYS.tags),
             getStoredItem(STORAGE_KEYS.tagIcons),
             getStoredItem(STORAGE_KEYS.compactSubtasks),
+            getStoredItem(STORAGE_KEYS.projectNames),
             getStoredItem(STORAGE_KEYS.completedTasks),
             getStoredItem(STORAGE_KEYS.projectTasks),
             getStoredItem(STORAGE_KEYS.routineTasks),
@@ -285,6 +292,13 @@ export function HomeFiltersProvider({
             parseCompactSubtasksParam(storedCompactSubtasks);
           setShowCompactSubtasks((prev) =>
             prev === nextCompactSubtasks ? prev : nextCompactSubtasks,
+          );
+        }
+
+        if (storedProjectNames != null) {
+          const nextProjectNames = parseShowProjectNamesParam(storedProjectNames);
+          setShowProjectNames((prev) =>
+            prev === nextProjectNames ? prev : nextProjectNames,
           );
         }
 
@@ -334,6 +348,7 @@ export function HomeFiltersProvider({
         STORAGE_KEYS.compactSubtasks,
         showCompactSubtasks ? "1" : "0",
       );
+      await setStoredItem(STORAGE_KEYS.projectNames, showProjectNames ? "1" : "0");
       await setStoredItem(
         STORAGE_KEYS.completedTasks,
         showCompletedTasks ? "1" : "0",
@@ -346,6 +361,7 @@ export function HomeFiltersProvider({
   }, [
     enabledTags,
     showCompactSubtasks,
+    showProjectNames,
     showCompletedTasks,
     showProjectTasks,
     showRoutineTasks,
@@ -360,6 +376,8 @@ export function HomeFiltersProvider({
       setShowTagIcons,
       showCompactSubtasks,
       setShowCompactSubtasks,
+      showProjectNames,
+      setShowProjectNames,
       showCompletedTasks,
       setShowCompletedTasks,
       showProjectTasks,
@@ -370,6 +388,7 @@ export function HomeFiltersProvider({
     [
       enabledTags,
       showCompactSubtasks,
+      showProjectNames,
       showCompletedTasks,
       showProjectTasks,
       showRoutineTasks,
@@ -423,6 +442,12 @@ export function parseTagIconsParam(value: unknown): boolean {
 }
 
 export function parseCompactSubtasksParam(value: unknown): boolean {
+  if (value === "0") return false;
+  if (value === "1") return true;
+  return false;
+}
+
+export function parseShowProjectNamesParam(value: unknown): boolean {
   if (value === "0") return false;
   if (value === "1") return true;
   return false;

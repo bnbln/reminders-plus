@@ -45,7 +45,8 @@ import {
   useTasksStore,
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { t } from "@/i18n";
+import { type AppLocale, t } from "@/i18n";
+import { localizeExistingOnboardingSeedData } from "@/storage/tasks-onboarding-seed";
 import { deriveActiveSectionFromDueAt } from "@/utils/task-dates";
 
 const APPEARANCE_LABEL_KEYS = [
@@ -63,6 +64,39 @@ const APP_BADGE_LABEL_KEYS: Record<AppBadgeMode, string> = {
 };
 
 const SHOW_APPLE_IMPORT_SECTION = false;
+
+const DEV_LANGUAGE_OPTIONS: readonly {
+  id: "system" | AppLocale;
+  locale: AppLocale | null;
+  label: string;
+}[] = [
+  { id: "system", locale: null, label: "System" },
+  { id: "de", locale: "de", label: "Deutsch" },
+  { id: "en", locale: "en", label: "English" },
+  { id: "es", locale: "es", label: "Espanol" },
+  { id: "fr", locale: "fr", label: "Francais" },
+  { id: "pt", locale: "pt", label: "Portugues" },
+  { id: "hi", locale: "hi", label: "Hindi" },
+  { id: "zh", locale: "zh", label: "Chinese" },
+  { id: "ja", locale: "ja", label: "Japanese" },
+  { id: "it", locale: "it", label: "Italian" },
+  { id: "sv", locale: "sv", label: "Swedish" },
+  { id: "da", locale: "da", label: "Danish" },
+  { id: "fi", locale: "fi", label: "Finnish" },
+  { id: "pl", locale: "pl", label: "Polish" },
+  { id: "nl", locale: "nl", label: "Dutch" },
+  { id: "tr", locale: "tr", label: "Turkish" },
+  { id: "cs", locale: "cs", label: "Czech" },
+  { id: "hu", locale: "hu", label: "Hungarian" },
+  { id: "ro", locale: "ro", label: "Romanian" },
+  { id: "el", locale: "el", label: "Greek" },
+  { id: "id", locale: "id", label: "Indonesian" },
+  { id: "vi", locale: "vi", label: "Vietnamese" },
+  { id: "ko", locale: "ko", label: "Korean" },
+  { id: "uk", locale: "uk", label: "Ukrainian" },
+  { id: "ru", locale: "ru", label: "Russian" },
+  { id: "ar", locale: "ar", label: "Arabic" },
+] as const;
 
 function isAppBadgeMode(value: unknown): value is AppBadgeMode {
   return APP_BADGE_MODES.some((mode) => mode === value);
@@ -128,22 +162,27 @@ export default function SettingsScreen() {
   const theme = (useColorScheme() ?? "light") as ThemeName;
   const isDark = theme === "dark";
   const menuRef = React.useRef<MenuComponentRef>(null);
+  const devLanguageMenuRef = React.useRef<MenuComponentRef>(null);
   const { tasks, setTasks, projects, setProjects } = useTasksStore();
   const {
     accentColor,
     appearanceMode,
     hapticsEnabled,
     reduceMotionEnabled,
+    localeOverride,
     appBadgeMode,
     dailySummaryEnabled,
     dailySummaryMinutes,
+    fakeStatsEnabled,
     setAccentColor,
     setAppearanceMode,
     setHapticsEnabled,
     setReduceMotionEnabled,
+    setLocaleOverride,
     setAppBadgeMode,
     setDailySummaryEnabled,
     setDailySummaryMinutes,
+    setFakeStatsEnabled,
   } = useAppSettings();
   const premiumController = usePremiumSyncBackupController();
   const remindersPlusDisabled =
@@ -187,6 +226,24 @@ export default function SettingsScreen() {
     () => APPEARANCE_LABEL_KEYS.map((key) => t(key)),
     [],
   );
+  const devLanguageActions = React.useMemo<MenuAction[]>(() => {
+    return DEV_LANGUAGE_OPTIONS.map((option) => ({
+      id: option.id,
+      title: option.label,
+      state:
+        Platform.OS === "ios"
+          ? localeOverride === option.locale
+            ? "on"
+            : "off"
+          : undefined,
+    }));
+  }, [localeOverride]);
+  const selectedDevLanguageLabel = React.useMemo(() => {
+    return (
+      DEV_LANGUAGE_OPTIONS.find((option) => option.locale === localeOverride)
+        ?.label ?? "System"
+    );
+  }, [localeOverride]);
 
   const onPressBadgeAction = React.useCallback(
     ({ nativeEvent: { event } }: any) => {
@@ -203,6 +260,29 @@ export default function SettingsScreen() {
       setAppearanceMode(next);
     },
     [setAppearanceMode],
+  );
+
+  const onPressDevLanguageAction = React.useCallback(
+    ({ nativeEvent: { event } }: any) => {
+      const nextOption =
+        DEV_LANGUAGE_OPTIONS.find((option) => option.id === event) ?? null;
+      if (!nextOption || localeOverride === nextOption.locale) return;
+
+      setLocaleOverride(nextOption.locale);
+      const localized = localizeExistingOnboardingSeedData(tasks, projects);
+      if (localized.changed) {
+        setProjects(localized.projects);
+        setTasks(localized.tasks);
+      }
+    },
+    [
+      localeOverride,
+      projects,
+      setLocaleOverride,
+      setProjects,
+      setTasks,
+      tasks,
+    ],
   );
 
   const onChangeSummaryTime = React.useCallback(
@@ -797,6 +877,77 @@ export default function SettingsScreen() {
             />
           </View>
         </Section>
+
+        {__DEV__ ? (
+          <Section title="Developer" cardStyle={sectionCardStyle}>
+            <View style={styles.rowBlock}>
+              <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
+                App Language
+              </Text>
+
+              <MenuView
+                ref={devLanguageMenuRef}
+                actions={devLanguageActions}
+                onPressAction={onPressDevLanguageAction}
+                shouldOpenOnLongPress={false}
+                themeVariant={Platform.OS === "ios" ? theme : undefined}
+                isAnchoredToRight={Platform.OS === "android" ? true : undefined}
+                style={styles.badgeMenuAnchor}
+              >
+                {Platform.OS === "android" ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Select app language"
+                    onPress={() => devLanguageMenuRef.current?.show?.()}
+                    style={styles.badgeMenuTrigger}
+                  >
+                    <Text
+                      style={[styles.badgeValue, { color: Colors[theme].text }]}
+                    >
+                      {selectedDevLanguageLabel}
+                    </Text>
+                    <MaterialIcons
+                      name="keyboard-arrow-down"
+                      size={18}
+                      color={muted}
+                    />
+                  </Pressable>
+                ) : (
+                  <View style={styles.badgeMenuTrigger}>
+                    <Text
+                      style={[styles.badgeValue, { color: Colors[theme].text }]}
+                    >
+                      {selectedDevLanguageLabel}
+                    </Text>
+                    <MaterialIcons
+                      name="keyboard-arrow-down"
+                      size={18}
+                      color={muted}
+                    />
+                  </View>
+                )}
+              </MenuView>
+            </View>
+
+            <View style={[styles.separator, { backgroundColor: borderColor }]} />
+
+            <View style={styles.switchRow}>
+              <View style={styles.switchLabelWrap}>
+                <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
+                  Fake Stats (Screenshots)
+                </Text>
+                <Text style={[styles.helperInlineText, { color: muted }]}>
+                  Uses simulated streak and status history for App Store screenshots.
+                </Text>
+              </View>
+              <Switch
+                value={fakeStatsEnabled}
+                onValueChange={setFakeStatsEnabled}
+                trackColor={{ false: "#7A7A7A", true: "#34C759" }}
+              />
+            </View>
+          </Section>
+        ) : null}
 
         {/* <View
         style={[

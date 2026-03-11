@@ -50,7 +50,8 @@ export default function ArchiveScreen() {
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const shouldUseNativeExpoSegmentedPicker = Platform.OS === "ios";
 
-  const { enabledTags, showTagIcons, showCompactSubtasks } = useHomeFilters();
+  const { enabledTags, showTagIcons, showProjectNames, showCompactSubtasks } =
+    useHomeFilters();
   const { tasks, setTasks, projects } = useTasksStore();
 
   const projectsById = React.useMemo(
@@ -168,8 +169,8 @@ export default function ArchiveScreen() {
   );
   const rowLayoutSeed = React.useMemo(
     () =>
-      `${enabledTagsSeed}|icons:${showTagIcons ? 1 : 0}|subtasks:${showCompactSubtasks ? 1 : 0}`,
-    [enabledTagsSeed, showCompactSubtasks, showTagIcons],
+      `${enabledTagsSeed}|icons:${showTagIcons ? 1 : 0}|projects:${showProjectNames ? 1 : 0}|subtasks:${showCompactSubtasks ? 1 : 0}`,
+    [enabledTagsSeed, showCompactSubtasks, showProjectNames, showTagIcons],
   );
   const keyForTask = React.useCallback(
     (task: Task) =>
@@ -302,6 +303,7 @@ export default function ArchiveScreen() {
           }
           enabledTags={enabledTags}
           showTaskIcons={showTagIcons}
+          showProjectNames={showProjectNames}
           showCompactSubtasks={showCompactSubtasks}
           onPressTask={onPressTask}
           toggleComplete={

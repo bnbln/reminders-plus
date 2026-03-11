@@ -62,7 +62,7 @@ import {
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useStreaks } from "@/hooks/use-streaks";
-import { t } from "@/i18n";
+import { getIntlLocale, t } from "@/i18n";
 import { triggerSelectionHaptic } from "@/utils/haptics";
 import { isIOS26OrNewer } from "@/utils/ios-version";
 import {
@@ -350,6 +350,9 @@ function HomeMetricsGrid({
 }) {
   const statusLabel = t("screen.status");
   const streakLabel = t("home.quick.streaks");
+  const upperLocale = getIntlLocale();
+  const statusLabelUpper = statusLabel.toLocaleUpperCase(upperLocale);
+  const streakLabelUpper = streakLabel.toLocaleUpperCase(upperLocale);
 
   return (
     <View style={styles.metricsGridWrap}>
@@ -386,7 +389,7 @@ function HomeMetricsGrid({
                     { color: theme.mutedText },
                   ]}
                 >
-                  {statusLabel}
+                  {statusLabelUpper}
                 </Text>
               </View>
               <AnimatedNumber
@@ -430,7 +433,7 @@ function HomeMetricsGrid({
                     { color: theme.mutedText },
                   ]}
                 >
-                  {streakLabel}
+                  {streakLabelUpper}
                 </Text>
               </View>
               <AnimatedNumber
@@ -1340,6 +1343,7 @@ export default function HomeScreen() {
     enabledTags,
     showTagIcons,
     showCompactSubtasks,
+    showProjectNames,
     showCompletedTasks,
     showProjectTasks,
     showRoutineTasks,
@@ -4673,6 +4677,7 @@ export default function HomeScreen() {
         itemSpacing={HOME_TASK_ITEM_SPACING}
         enabledTags={enabledTags}
         showTaskIcons={showTagIcons}
+        showProjectNames={showProjectNames}
         showCompactSubtasks={withSubtasksEnabled}
         dragCompactPreview={isDragOverCalendarHeader}
         followHorizontalDrag={isDragOverCalendarHeader}

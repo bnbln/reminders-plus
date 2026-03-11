@@ -136,6 +136,7 @@ function KanbanColumn({
   dragTranslateXCompensation,
   enabledTags,
   showTagIcons,
+  showProjectNames,
   showCompactSubtasks,
   projectsById,
   toggleComplete,
@@ -163,6 +164,7 @@ function KanbanColumn({
   dragTranslateXCompensation: number;
   enabledTags: Set<TagId>;
   showTagIcons: boolean;
+  showProjectNames: boolean;
   showCompactSubtasks: boolean;
   projectsById: Map<string, Project>;
   toggleComplete: (taskId: string) => void;
@@ -180,8 +182,8 @@ function KanbanColumn({
   );
   const rowLayoutSeed = React.useMemo(
     () =>
-      `${enabledTagsSeed}|icons:${showTagIcons ? 1 : 0}|subtasks:${showCompactSubtasks ? 1 : 0}`,
-    [enabledTagsSeed, showCompactSubtasks, showTagIcons],
+      `${enabledTagsSeed}|icons:${showTagIcons ? 1 : 0}|projects:${showProjectNames ? 1 : 0}|subtasks:${showCompactSubtasks ? 1 : 0}`,
+    [enabledTagsSeed, showCompactSubtasks, showProjectNames, showTagIcons],
   );
   const keyForTask = React.useCallback(
     (task: Task) =>
@@ -243,6 +245,7 @@ function KanbanColumn({
         scrollRef={boardScrollRef}
         enabledTags={enabledTags}
         showTaskIcons={showTagIcons}
+        showProjectNames={showProjectNames}
         showCompactSubtasks={showCompactSubtasks}
         followHorizontalDrag
         dragTranslateXCompensation={dragTranslateXCompensation}
@@ -296,7 +299,8 @@ export default function ProjectDetailScreen() {
   const showFloatingAddButton = Platform.OS === "ios" && !isIOS26Plus;
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const rowStyles = React.useMemo(() => createRowStyles(theme), [theme]);
-  const { enabledTags, showTagIcons, showCompactSubtasks } = useHomeFilters();
+  const { enabledTags, showTagIcons, showProjectNames, showCompactSubtasks } =
+    useHomeFilters();
   const { projects, tasks, setTasks } = useTasksStore();
   const boardScrollRef = React.useRef<GHScrollView | null>(null);
   const boardOffsetXRef = React.useRef<number>(todaySnapOffset);
@@ -1150,6 +1154,7 @@ export default function ProjectDetailScreen() {
               }
               enabledTags={enabledTags}
               showTagIcons={showTagIcons}
+              showProjectNames={showProjectNames}
               showCompactSubtasks={showCompactSubtasks}
               projectsById={projectsById}
               toggleComplete={toggleComplete}

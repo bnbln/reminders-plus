@@ -2,6 +2,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import React from "react";
 import { Appearance, Platform, type ColorSchemeName } from "react-native";
 
+import { type AppLocale, setLocale } from "@/i18n";
+
 export type AppearanceMode = "adaptive" | "alwaysLight" | "alwaysDark";
 
 export const APPEARANCE_MODES: readonly AppearanceMode[] = [
@@ -44,10 +46,12 @@ type PersistedSettings = {
   accentColor: AccentColorId;
   hapticsEnabled: boolean;
   reduceMotionEnabled: boolean;
+  localeOverride: AppLocale | null;
   appBadgeMode: AppBadgeMode;
   dailySummaryEnabled: boolean;
   dailySummaryMinutes: number;
   cloudSyncEnabled: boolean;
+  fakeStatsEnabled: boolean;
 };
 
 type SettingsSnapshot = PersistedSettings & {
@@ -61,10 +65,12 @@ const DEFAULT_SETTINGS: PersistedSettings = {
   accentColor: "blue",
   hapticsEnabled: true,
   reduceMotionEnabled: false,
+  localeOverride: null,
   appBadgeMode: DEFAULT_APP_BADGE_MODE,
   dailySummaryEnabled: false,
   dailySummaryMinutes: DEFAULT_DAILY_SUMMARY_MINUTES,
   cloudSyncEnabled: false,
+  fakeStatsEnabled: false,
 };
 
 const ACCENT_COLOR_VALUE_BY_ID = ACCENT_COLORS.reduce(
@@ -101,6 +107,38 @@ function isAppBadgeMode(value: unknown): value is AppBadgeMode {
   return APP_BADGE_MODES.some((mode) => mode === value);
 }
 
+const APP_LOCALES: readonly AppLocale[] = [
+  "de",
+  "en",
+  "es",
+  "fr",
+  "pt",
+  "hi",
+  "zh",
+  "ja",
+  "it",
+  "sv",
+  "da",
+  "fi",
+  "pl",
+  "nl",
+  "tr",
+  "cs",
+  "hu",
+  "ro",
+  "el",
+  "id",
+  "vi",
+  "ko",
+  "uk",
+  "ru",
+  "ar",
+] as const;
+
+function isAppLocale(value: unknown): value is AppLocale {
+  return typeof value === "string" && APP_LOCALES.includes(value as AppLocale);
+}
+
 function normalizeDailySummaryMinutes(value: unknown): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return DEFAULT_DAILY_SUMMARY_MINUTES;
@@ -117,6 +155,7 @@ function sanitizeStoredSettings(value: unknown): PersistedSettings | null {
   const hapticsEnabled = (value as { hapticsEnabled?: unknown }).hapticsEnabled;
   const reduceMotionEnabled = (value as { reduceMotionEnabled?: unknown })
     .reduceMotionEnabled;
+  const localeOverride = (value as { localeOverride?: unknown }).localeOverride;
   const appBadgeMode = (value as { appBadgeMode?: unknown }).appBadgeMode;
   const dailySummaryEnabled = (value as { dailySummaryEnabled?: unknown })
     .dailySummaryEnabled;
@@ -124,6 +163,8 @@ function sanitizeStoredSettings(value: unknown): PersistedSettings | null {
     .dailySummaryMinutes;
   const cloudSyncEnabled = (value as { cloudSyncEnabled?: unknown })
     .cloudSyncEnabled;
+  const fakeStatsEnabled = (value as { fakeStatsEnabled?: unknown })
+    .fakeStatsEnabled;
   return {
     appearanceMode: isAppearanceMode(appearanceMode)
       ? appearanceMode
@@ -139,6 +180,12 @@ function sanitizeStoredSettings(value: unknown): PersistedSettings | null {
       typeof reduceMotionEnabled === "boolean"
         ? reduceMotionEnabled
         : DEFAULT_SETTINGS.reduceMotionEnabled,
+    localeOverride:
+      localeOverride === null
+        ? null
+        : isAppLocale(localeOverride)
+          ? localeOverride
+          : DEFAULT_SETTINGS.localeOverride,
     appBadgeMode: isAppBadgeMode(appBadgeMode)
       ? appBadgeMode
       : DEFAULT_SETTINGS.appBadgeMode,
@@ -151,6 +198,10 @@ function sanitizeStoredSettings(value: unknown): PersistedSettings | null {
       typeof cloudSyncEnabled === "boolean"
         ? cloudSyncEnabled
         : DEFAULT_SETTINGS.cloudSyncEnabled,
+    fakeStatsEnabled:
+      __DEV__ && typeof fakeStatsEnabled === "boolean"
+        ? fakeStatsEnabled
+        : false,
   };
 }
 
@@ -211,6 +262,10 @@ function applyAppearanceMode(mode: AppearanceMode) {
   }
 }
 
+function applyLocaleOverride(localeOverride: AppLocale | null) {
+  setLocale(localeOverride);
+}
+
 async function hydrateSettings() {
   if (snapshot.hasHydrated) return;
   if (!hydrationPromise) {
@@ -236,6 +291,7 @@ async function hydrateSettings() {
       if (snapshot.appearanceMode !== "adaptive") {
         applyAppearanceMode(snapshot.appearanceMode);
       }
+      applyLocaleOverride(snapshot.localeOverride);
       notifyListeners();
     })();
   }
@@ -249,15 +305,18 @@ function updateSettings(next: PersistedSettings) {
     snapshot.accentColor !== next.accentColor ||
     snapshot.hapticsEnabled !== next.hapticsEnabled ||
     snapshot.reduceMotionEnabled !== next.reduceMotionEnabled ||
+    snapshot.localeOverride !== next.localeOverride ||
     snapshot.appBadgeMode !== next.appBadgeMode ||
     snapshot.dailySummaryEnabled !== next.dailySummaryEnabled ||
     snapshot.dailySummaryMinutes !== next.dailySummaryMinutes ||
     snapshot.cloudSyncEnabled !== next.cloudSyncEnabled ||
+    snapshot.fakeStatsEnabled !== next.fakeStatsEnabled ||
     !snapshot.hasHydrated;
   if (!hasChanged) return;
 
   localMutationRevision += 1;
   const previousAppearanceMode = snapshot.appearanceMode;
+  const previousLocaleOverride = snapshot.localeOverride;
   snapshot = {
     ...snapshot,
     ...next,
@@ -266,6 +325,9 @@ function updateSettings(next: PersistedSettings) {
 
   if (previousAppearanceMode !== next.appearanceMode) {
     applyAppearanceMode(next.appearanceMode);
+  }
+  if (previousLocaleOverride !== next.localeOverride) {
+    applyLocaleOverride(next.localeOverride);
   }
 
   notifyListeners();
@@ -281,6 +343,10 @@ function patchSettings(partial: Partial<PersistedSettings>) {
     hapticsEnabled: partial.hapticsEnabled ?? snapshot.hapticsEnabled,
     reduceMotionEnabled:
       partial.reduceMotionEnabled ?? snapshot.reduceMotionEnabled,
+    localeOverride:
+      partial.localeOverride !== undefined
+        ? partial.localeOverride
+        : snapshot.localeOverride,
     appBadgeMode: partial.appBadgeMode ?? snapshot.appBadgeMode,
     dailySummaryEnabled:
       partial.dailySummaryEnabled ?? snapshot.dailySummaryEnabled,
@@ -289,6 +355,9 @@ function patchSettings(partial: Partial<PersistedSettings>) {
         ? normalizeDailySummaryMinutes(partial.dailySummaryMinutes)
         : snapshot.dailySummaryMinutes,
     cloudSyncEnabled: partial.cloudSyncEnabled ?? snapshot.cloudSyncEnabled,
+    fakeStatsEnabled: __DEV__
+      ? partial.fakeStatsEnabled ?? snapshot.fakeStatsEnabled
+      : false,
   });
 }
 
@@ -350,6 +419,13 @@ export function useAppSettings() {
     [],
   );
 
+  const setLocaleOverride = React.useCallback(
+    (localeOverride: AppLocale | null) => {
+      patchSettings({ localeOverride });
+    },
+    [],
+  );
+
   const setAppBadgeMode = React.useCallback((appBadgeMode: AppBadgeMode) => {
     patchSettings({ appBadgeMode });
   }, []);
@@ -372,15 +448,28 @@ export function useAppSettings() {
     patchSettings({ cloudSyncEnabled });
   }, []);
 
+  const setFakeStatsEnabled = React.useCallback(
+    (fakeStatsEnabled: boolean) => {
+      if (!__DEV__) {
+        patchSettings({ fakeStatsEnabled: false });
+        return;
+      }
+      patchSettings({ fakeStatsEnabled });
+    },
+    [],
+  );
+
   return {
     ...state,
     setAppearanceMode,
     setAccentColor,
     setHapticsEnabled,
     setReduceMotionEnabled,
+    setLocaleOverride,
     setAppBadgeMode,
     setDailySummaryEnabled,
     setDailySummaryMinutes,
     setCloudSyncEnabled,
+    setFakeStatsEnabled,
   };
 }

@@ -326,6 +326,7 @@ export type SwipeTaskRowProps = {
   };
   enabledTags: Set<TagId>;
   showTaskIcons: boolean;
+  showProjectNames?: boolean;
   showCompactSubtasks?: boolean;
   beginSwipe: (taskId: string) => void;
   endSwipe: (taskId: string) => void;
@@ -377,6 +378,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   rightAction,
   enabledTags,
   showTaskIcons,
+  showProjectNames = false,
   showCompactSubtasks = false,
   beginSwipe,
   endSwipe,
@@ -1188,7 +1190,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
 
   const tagChips = React.useMemo<TagChipModel[]>(() => {
     const chips: TagChipModel[] = [];
-    if (project) {
+    if (showProjectNames && project) {
       chips.push({
         key: `proj-${project.id}`,
         label: project.name,
@@ -1206,6 +1208,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   }, [
     enabledTags,
     project,
+    showProjectNames,
     task.location,
   ]);
 

@@ -115,7 +115,8 @@ export default function InboxScreen() {
   const showFloatingAddButton = Platform.OS === "ios" && !isIOS26OrNewer();
   const params = useLocalSearchParams<{ withSubtasks?: string }>();
 
-  const { enabledTags, showTagIcons, showCompactSubtasks } = useHomeFilters();
+  const { enabledTags, showTagIcons, showProjectNames, showCompactSubtasks } =
+    useHomeFilters();
   const withSubtasksEnabled =
     params.withSubtasks === undefined
       ? showCompactSubtasks
@@ -158,8 +159,8 @@ export default function InboxScreen() {
   );
   const rowLayoutSeed = React.useMemo(
     () =>
-      `${enabledTagsSeed}|icons:${showTagIcons ? 1 : 0}|subtasks:${withSubtasksEnabled ? 1 : 0}`,
-    [enabledTagsSeed, showTagIcons, withSubtasksEnabled],
+      `${enabledTagsSeed}|icons:${showTagIcons ? 1 : 0}|projects:${showProjectNames ? 1 : 0}|subtasks:${withSubtasksEnabled ? 1 : 0}`,
+    [enabledTagsSeed, showProjectNames, showTagIcons, withSubtasksEnabled],
   );
   const getRowDataKey = React.useCallback(
     (task: Task) =>
@@ -505,6 +506,7 @@ export default function InboxScreen() {
         }
         enabledTags={enabledTags}
         showTaskIcons={showTagIcons}
+        showProjectNames={showProjectNames}
         showCompactSubtasks={withSubtasksEnabled}
         showOverdueDatePrefix={true}
         onPressTask={onPressTask}

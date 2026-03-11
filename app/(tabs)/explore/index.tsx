@@ -21,7 +21,7 @@ import { Colors } from "@/constants/theme";
 import { usePremium } from "@/context/premium-store";
 import { Project, useTasksStore } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { t } from "@/i18n";
+import { getIntlLocale, t } from "@/i18n";
 import {
   triggerImpactHaptic,
   triggerSelectionHaptic,
@@ -200,7 +200,7 @@ function ProjectTileCard({
   const tasksLabel = t(
     taskCount === 1 ? "explore.taskCount.one" : "explore.taskCount.other",
     { count: taskCount },
-  );
+  ).toLocaleUpperCase(getIntlLocale());
 
   return (
     <GlassSurface

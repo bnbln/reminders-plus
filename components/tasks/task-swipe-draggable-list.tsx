@@ -164,6 +164,7 @@ export type TaskSwipeDraggableListProps = {
 
   enabledTags?: Set<TagId>;
   showTaskIcons?: boolean;
+  showProjectNames?: boolean;
   showCompactSubtasks?: boolean;
   /** While dragging, switches the active drag preview into compact icon mode. */
   dragCompactPreview?: boolean;
@@ -248,6 +249,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     empty,
     enabledTags,
     showTaskIcons,
+    showProjectNames = false,
     showCompactSubtasks = false,
     dragCompactPreview = false,
     followHorizontalDrag = false,
@@ -754,6 +756,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           swipeDeleteBg={swipeDeleteBg}
           enabledTags={enabledTagsResolved}
           showTaskIcons={showTaskIconsResolved}
+          showProjectNames={showProjectNames}
           showCompactSubtasks={showCompactSubtasks}
           dragCompactPreview={dragCompactPreview}
           activeDragTranslateX={resolvedActiveDragTranslateX}
@@ -808,6 +811,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       selectedDateStart,
       showOverdueDatePrefix,
       showTaskIconsResolved,
+      showProjectNames,
       showCompactSubtasks,
       dragCompactPreview,
       followHorizontalDrag,
@@ -871,6 +875,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           swipeDeleteBg={swipeDeleteBg}
           enabledTags={enabledTagsResolved}
           showTaskIcons={showTaskIconsResolved}
+          showProjectNames={showProjectNames}
           showCompactSubtasks={showCompactSubtasks}
           dragCompactPreview={dragCompactPreview}
           activeDragTranslateX={null}
@@ -925,6 +930,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       selectedDateStart,
       showOverdueDatePrefix,
       showTaskIconsResolved,
+      showProjectNames,
       showCompactSubtasks,
       dragCompactPreview,
       followHorizontalDrag,

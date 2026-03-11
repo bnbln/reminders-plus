@@ -34,7 +34,8 @@ export default function SearchIndex() {
   const styles = React.useMemo(() => createStyles(theme), [theme]);
 
   const { tasks, setTasks, projects } = useTasksStore();
-  const { enabledTags, showTagIcons, showCompactSubtasks } = useHomeFilters();
+  const { enabledTags, showTagIcons, showProjectNames, showCompactSubtasks } =
+    useHomeFilters();
   const withSubtasksEnabled =
     withSubtasks === undefined ? showCompactSubtasks : withSubtasks === "1";
 
@@ -62,8 +63,8 @@ export default function SearchIndex() {
   );
   const rowLayoutSeed = React.useMemo(
     () =>
-      `${enabledTagsSeed}|icons:${showTagIcons ? 1 : 0}|subtasks:${withSubtasksEnabled ? 1 : 0}`,
-    [enabledTagsSeed, showTagIcons, withSubtasksEnabled],
+      `${enabledTagsSeed}|icons:${showTagIcons ? 1 : 0}|projects:${showProjectNames ? 1 : 0}|subtasks:${withSubtasksEnabled ? 1 : 0}`,
+    [enabledTagsSeed, showProjectNames, showTagIcons, withSubtasksEnabled],
   );
   const keyForTask = React.useCallback(
     (task: Task) =>
@@ -200,6 +201,7 @@ export default function SearchIndex() {
           }
           enabledTags={enabledTags}
           showTaskIcons={showTagIcons}
+          showProjectNames={showProjectNames}
           showCompactSubtasks={withSubtasksEnabled}
           onPressTask={onPressTask}
           toggleComplete={toggleComplete}

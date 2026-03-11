@@ -100,6 +100,7 @@ export function FilterMenuButton({
     setShowTagIcons,
     showCompactSubtasks,
     setShowCompactSubtasks,
+    setShowProjectNames,
     showCompletedTasks,
     setShowCompletedTasks,
     showProjectTasks,
@@ -345,6 +346,7 @@ export function FilterMenuButton({
           return setsEqual(prev, next) ? prev : next;
         });
         setShowCompactSubtasks(true);
+        setShowProjectNames(true);
         router.setParams({
           tags: serializeTagsParam(nextScoped),
           withSubtasks: "1",
@@ -360,6 +362,7 @@ export function FilterMenuButton({
           return setsEqual(prev, next) ? prev : next;
         });
         setShowCompactSubtasks(false);
+        setShowProjectNames(false);
         router.setParams({ tags: undefined, withSubtasks: "0" });
         scheduleReopen();
         return;
@@ -426,6 +429,7 @@ export function FilterMenuButton({
       setEnabledTags,
       setShowCompactSubtasks,
       setShowCompletedTasks,
+      setShowProjectNames,
       setShowProjectTasks,
       setShowRoutineTasks,
       setShowTagIcons,

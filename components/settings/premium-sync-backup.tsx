@@ -66,6 +66,7 @@ type AppBackupPayload = {
   homeFilters: {
     enabledTags: TagId[];
     showTagIcons: boolean;
+    showProjectNames: boolean;
     showCompactSubtasks: boolean;
   };
   persistedValues: Record<string, string>;
@@ -77,6 +78,7 @@ const BACKUP_PERSISTED_KEYS = [
   "reminds.settings.v1",
   "reminds.homeFilters.tags",
   "reminds.homeFilters.tagIcons",
+  "reminds.homeFilters.projectNames",
   "reminds.homeFilters.compactSubtasks",
   "reminds.tasks.onboardingSeeded.v1",
   "reminds.home.onboarding.gestures.v1",
@@ -345,6 +347,10 @@ function parseBackupPayload(rawJson: string): AppBackupPayload {
         typeof homeFilters.showTagIcons === "boolean"
           ? homeFilters.showTagIcons
           : true,
+      showProjectNames:
+        typeof homeFilters.showProjectNames === "boolean"
+          ? homeFilters.showProjectNames
+          : false,
       showCompactSubtasks:
         typeof homeFilters.showCompactSubtasks === "boolean"
           ? homeFilters.showCompactSubtasks
@@ -384,6 +390,8 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
     setEnabledTags,
     showTagIcons,
     setShowTagIcons,
+    showProjectNames,
+    setShowProjectNames,
     showCompactSubtasks,
     setShowCompactSubtasks,
   } = useHomeFilters();
@@ -600,6 +608,7 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
         homeFilters: {
           enabledTags: TAG_ORDER.filter((tagId) => enabledTags.has(tagId)),
           showTagIcons,
+          showProjectNames,
           showCompactSubtasks,
         },
         persistedValues,
@@ -628,6 +637,7 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
     projects,
     reduceMotionEnabled,
     showCompactSubtasks,
+    showProjectNames,
     showTagIcons,
     tasks,
   ]);
@@ -666,6 +676,7 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
       const nextEnabledTags = new Set<TagId>(backup.homeFilters.enabledTags);
       setEnabledTags(() => nextEnabledTags);
       setShowTagIcons(backup.homeFilters.showTagIcons);
+      setShowProjectNames(backup.homeFilters.showProjectNames);
       setShowCompactSubtasks(backup.homeFilters.showCompactSubtasks);
 
       Alert.alert(
@@ -693,6 +704,7 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
     setProjects,
     setReduceMotionEnabled,
     setShowCompactSubtasks,
+    setShowProjectNames,
     setShowTagIcons,
     setTasks,
   ]);

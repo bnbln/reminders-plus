@@ -17,6 +17,7 @@ import {
 import { Colors } from "@/constants/theme";
 import { HomeFiltersProvider } from "@/context/home-filters-store";
 import { PremiumProvider } from "@/context/premium-store";
+import { useAppSettings } from "@/context/settings-store";
 import { TaskCreateProvider } from "@/context/task-create-context";
 import { TasksProvider } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -29,6 +30,7 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const { localeOverride } = useAppSettings();
   const theme = colorScheme ?? "light";
   const segments = useSegments();
   const showSettingsAccentBackground =
@@ -76,7 +78,7 @@ export default function RootLayout() {
         console.info("RTL wurde aktualisiert. Bitte die App neu starten.");
       }
     }
-  }, []);
+  }, [localeOverride]);
 
   React.useEffect(() => {
     void preloadStreakAccentBackgroundAssets();

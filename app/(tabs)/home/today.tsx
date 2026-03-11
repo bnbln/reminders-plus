@@ -53,7 +53,7 @@ export default function TodayScreen() {
   const params = useLocalSearchParams<{ withNotes?: string; withSubtasks?: string }>();
   const withNotesEnabled = params.withNotes === '1';
 
-  const { enabledTags, showTagIcons, showCompactSubtasks } = useHomeFilters();
+  const { enabledTags, showTagIcons, showProjectNames, showCompactSubtasks } = useHomeFilters();
   const withSubtasksEnabled =
     params.withSubtasks === undefined
       ? showCompactSubtasks
@@ -217,6 +217,7 @@ export default function TodayScreen() {
         }
         enabledTags={enabledTags}
         showTaskIcons={showTagIcons}
+        showProjectNames={showProjectNames}
         showCompactSubtasks={withSubtasksEnabled}
         onPressTask={onPressTask}
         toggleComplete={toggleComplete}
