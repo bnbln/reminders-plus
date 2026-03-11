@@ -48,6 +48,9 @@ export const VI_TRANSLATIONS: TranslationDict = {
   'tags.project': "Dự án",
   'tags.keywords': "Từ khóa",
   'notification.due': "Đến hạn",
+  'plus.legal.show': "Ghi chú về tính khả dụng",
+  'plus.legal.hide': "Ẩn ghi chú về tính khả dụng",
+  'plus.legal.disclaimer': "Cloud Sync chỉ hoạt động giữa các thiết bị Apple đăng nhập iCloud bằng cùng một Apple ID. AI Assist chỉ khả dụng trên các thiết bị được Apple hỗ trợ cho Apple Intelligence.",
 };
 
 export default VI_TRANSLATIONS;

@@ -121,6 +121,9 @@ export const ZH_TRANSLATIONS: TranslationDict = {
   'seed.task.drag.subtitle': "长按并拖动我",
   'seed.task.details.title': "点按查看详情",
   'seed.task.details.subtitle': "打开详情视图",
+  'plus.legal.show': "可用性说明",
+  'plus.legal.hide': "隐藏可用性说明",
+  'plus.legal.disclaimer': "Cloud Sync 仅在使用同一 Apple ID 登录 iCloud 的 Apple 设备之间可用。AI Assist 仅在 Apple 标注支持 Apple Intelligence 的设备上可用。",
 };
 
 export default ZH_TRANSLATIONS;

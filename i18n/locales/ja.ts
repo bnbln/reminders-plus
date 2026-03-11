@@ -121,6 +121,9 @@ export const JA_TRANSLATIONS: TranslationDict = {
   'seed.task.drag.subtitle': "長押ししてドラッグ",
   'seed.task.details.title': "タップして詳細",
   'seed.task.details.subtitle': "詳細画面を開く",
+  'plus.legal.show': "利用可能状況の注記",
+  'plus.legal.hide': "利用可能状況の注記を非表示",
+  'plus.legal.disclaimer': "Cloud Sync は、同じ Apple ID で iCloud にサインインしている Apple デバイス間でのみ動作します。AI Assist は、Apple が Apple Intelligence に対応しているとするデバイスでのみ利用できます。",
 };
 
 export default JA_TRANSLATIONS;

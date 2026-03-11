@@ -69,6 +69,9 @@ export const FI_TRANSLATIONS: TranslationDict = {
   'tags.project': "Projekti",
   'tags.keywords': "Avainsanat",
   'notification.due': "Erääntyy",
+  'plus.legal.show': "Saatavuushuomiot",
+  'plus.legal.hide': "Piilota saatavuushuomiot",
+  'plus.legal.disclaimer': "Cloud Sync toimii vain Apple-laitteiden välillä, jotka on kirjautettu iCloudiin samalla Apple ID:llä. AI Assist on saatavilla vain laitteilla, joita Apple tukee Apple Intelligencea varten.",
 };
 
 export default FI_TRANSLATIONS;

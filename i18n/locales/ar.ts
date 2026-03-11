@@ -216,6 +216,9 @@ export const AR_TRANSLATIONS: TranslationDict = {
   'seed.task.drag.subtitle': "اضغط مطولًا واسحبني",
   'seed.task.details.title': "انقر للتفاصيل",
   'seed.task.details.subtitle': "يفتح عرض التفاصيل",
+  'plus.legal.show': "ملاحظات التوفر",
+  'plus.legal.hide': "إخفاء ملاحظات التوفر",
+  'plus.legal.disclaimer': "تعمل Cloud Sync فقط بين أجهزة Apple المسجّلة في iCloud باستخدام Apple ID نفسه. يتوفر AI Assist فقط على الأجهزة التي تدعمها Apple لـ Apple Intelligence.",
 };
 
 export default AR_TRANSLATIONS;

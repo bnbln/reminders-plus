@@ -69,6 +69,9 @@ export const IT_TRANSLATIONS: TranslationDict = {
   'tags.project': "Progetto",
   'tags.keywords': "Parole chiave",
   'notification.due': "Scade",
+  'plus.legal.show': "Note sulla disponibilità",
+  'plus.legal.hide': "Nascondi note sulla disponibilità",
+  'plus.legal.disclaimer': "Cloud Sync funziona solo tra dispositivi Apple con accesso a iCloud effettuato con lo stesso ID Apple. AI Assist è disponibile solo sui dispositivi supportati da Apple per Apple Intelligence.",
 };
 
 export default IT_TRANSLATIONS;

@@ -48,6 +48,9 @@ export const RO_TRANSLATIONS: TranslationDict = {
   'tags.project': "Proiect",
   'tags.keywords': "Cuvinte cheie",
   'notification.due': "Scadență",
+  'plus.legal.show': "Note privind disponibilitatea",
+  'plus.legal.hide': "Ascunde notele privind disponibilitatea",
+  'plus.legal.disclaimer': "Cloud Sync funcționează doar între dispozitive Apple conectate la iCloud cu același ID Apple. AI Assist este disponibil doar pe dispozitivele suportate de Apple pentru Apple Intelligence.",
 };
 
 export default RO_TRANSLATIONS;

@@ -48,6 +48,9 @@ export const KO_TRANSLATIONS: TranslationDict = {
   'tags.project': "프로젝트",
   'tags.keywords': "키워드",
   'notification.due': "마감",
+  'plus.legal.show': "이용 가능 안내",
+  'plus.legal.hide': "이용 가능 안내 숨기기",
+  'plus.legal.disclaimer': "Cloud Sync는 동일한 Apple ID로 iCloud에 로그인한 Apple 기기 간에서만 작동합니다. AI Assist는 Apple Intelligence를 Apple이 지원하는 기기에서만 사용할 수 있습니다.",
 };
 
 export default KO_TRANSLATIONS;

@@ -69,6 +69,9 @@ export const SV_TRANSLATIONS: TranslationDict = {
   'tags.project': "Projekt",
   'tags.keywords': "Nyckelord",
   'notification.due': "Förfaller",
+  'plus.legal.show': "Tillgänglighetsinformation",
+  'plus.legal.hide': "Dölj tillgänglighetsinformation",
+  'plus.legal.disclaimer': "Cloud Sync fungerar bara mellan Apple-enheter som är inloggade i iCloud med samma Apple-ID. AI Assist är bara tillgängligt på enheter som Apple stöder för Apple Intelligence.",
 };
 
 export default SV_TRANSLATIONS;

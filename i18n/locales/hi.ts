@@ -121,6 +121,9 @@ export const HI_TRANSLATIONS: TranslationDict = {
   'seed.task.drag.subtitle': "मुझे खींचने के लिए दबाकर रखें",
   'seed.task.details.title': "विवरण के लिए टैप करें",
   'seed.task.details.subtitle': "विस्तृत दृश्य खोलता है",
+  'plus.legal.show': "उपलब्धता नोट्स",
+  'plus.legal.hide': "उपलब्धता नोट्स छिपाएँ",
+  'plus.legal.disclaimer': "क्लाउड सिंक केवल उन Apple डिवाइसों के बीच काम करता है जो एक ही Apple ID से iCloud में साइन इन हैं। AI Assist केवल उन डिवाइसों पर उपलब्ध है जिन्हें Apple Apple Intelligence के लिए समर्थित मानता है।",
 };
 
 export default HI_TRANSLATIONS;

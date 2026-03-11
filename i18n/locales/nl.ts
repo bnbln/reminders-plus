@@ -69,6 +69,9 @@ export const NL_TRANSLATIONS: TranslationDict = {
   'tags.project': "Project",
   'tags.keywords': "Trefwoorden",
   'notification.due': "Vervalt",
+  'plus.legal.show': "Beschikbaarheidsnotities",
+  'plus.legal.hide': "Beschikbaarheidsnotities verbergen",
+  'plus.legal.disclaimer': "Cloud Sync werkt alleen tussen Apple-apparaten die met dezelfde Apple ID bij iCloud zijn aangemeld. AI Assist is alleen beschikbaar op apparaten die door Apple worden ondersteund voor Apple Intelligence.",
 };
 
 export default NL_TRANSLATIONS;

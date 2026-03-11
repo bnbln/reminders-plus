@@ -48,6 +48,9 @@ export const TR_TRANSLATIONS: TranslationDict = {
   'tags.project': "Proje",
   'tags.keywords': "Anahtar kelimeler",
   'notification.due': "Son tarih",
+  'plus.legal.show': "Kullanılabilirlik notları",
+  'plus.legal.hide': "Kullanılabilirlik notlarını gizle",
+  'plus.legal.disclaimer': "Cloud Sync yalnızca aynı Apple kimliğiyle iCloud'a giriş yapılmış Apple cihazları arasında çalışır. AI Assist yalnızca Apple Intelligence için Apple'ın desteklediği cihazlarda kullanılabilir.",
 };
 
 export default TR_TRANSLATIONS;

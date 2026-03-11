@@ -48,6 +48,9 @@ export const EL_TRANSLATIONS: TranslationDict = {
   'tags.project': "Έργο",
   'tags.keywords': "Λέξεις-κλειδιά",
   'notification.due': "Λήγει",
+  'plus.legal.show': "Σημειώσεις διαθεσιμότητας",
+  'plus.legal.hide': "Απόκρυψη σημειώσεων διαθεσιμότητας",
+  'plus.legal.disclaimer': "Το Cloud Sync λειτουργεί μόνο μεταξύ συσκευών Apple που είναι συνδεδεμένες στο iCloud με το ίδιο Apple ID. Το AI Assist είναι διαθέσιμο μόνο σε συσκευές που υποστηρίζονται από την Apple για το Apple Intelligence.",
 };
 
 export default EL_TRANSLATIONS;

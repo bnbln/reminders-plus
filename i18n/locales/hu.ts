@@ -48,6 +48,9 @@ export const HU_TRANSLATIONS: TranslationDict = {
   'tags.project': "Projekt",
   'tags.keywords': "Kulcsszavak",
   'notification.due': "Határidő",
+  'plus.legal.show': "Elérhetőségi megjegyzések",
+  'plus.legal.hide': "Elérhetőségi megjegyzések elrejtése",
+  'plus.legal.disclaimer': "A Cloud Sync csak azonos Apple ID-val az iCloudba bejelentkezett Apple eszközök között működik. Az AI Assist csak azokon az eszközökön érhető el, amelyeket az Apple támogat az Apple Intelligence-hez.",
 };
 
 export default HU_TRANSLATIONS;

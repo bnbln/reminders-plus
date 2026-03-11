@@ -48,6 +48,9 @@ export const ID_TRANSLATIONS: TranslationDict = {
   'tags.project': "Proyek",
   'tags.keywords': "Kata kunci",
   'notification.due': "Jatuh tempo",
+  'plus.legal.show': "Catatan ketersediaan",
+  'plus.legal.hide': "Sembunyikan catatan ketersediaan",
+  'plus.legal.disclaimer': "Cloud Sync hanya berfungsi antar perangkat Apple yang masuk ke iCloud dengan Apple ID yang sama. AI Assist hanya tersedia di perangkat yang didukung Apple untuk Apple Intelligence.",
 };
 
 export default ID_TRANSLATIONS;

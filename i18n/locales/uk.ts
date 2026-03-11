@@ -207,6 +207,9 @@ export const UK_TRANSLATIONS: TranslationDict = {
   'seed.task.drag.subtitle': "Натисніть і тримайте, щоб перетягнути",
   'seed.task.details.title': "Торкніться для деталей",
   'seed.task.details.subtitle': "Відкриває деталі завдання",
+  'plus.legal.show': "Примітки щодо доступності",
+  'plus.legal.hide': "Приховати примітки щодо доступності",
+  'plus.legal.disclaimer': "Cloud Sync працює лише між пристроями Apple, увійшовшими в iCloud з однаковим Apple ID. AI Assist доступний лише на пристроях, які Apple підтримує для Apple Intelligence.",
 };
 
 export default UK_TRANSLATIONS;

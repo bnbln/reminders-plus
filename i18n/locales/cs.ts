@@ -48,6 +48,9 @@ export const CS_TRANSLATIONS: TranslationDict = {
   'tags.project': "Projekt",
   'tags.keywords': "Klíčová slova",
   'notification.due': "Termín",
+  'plus.legal.show': "Poznámky k dostupnosti",
+  'plus.legal.hide': "Skrýt poznámky k dostupnosti",
+  'plus.legal.disclaimer': "Cloud Sync funguje pouze mezi zařízeními Apple přihlášenými do iCloudu stejným Apple ID. AI Assist je dostupný pouze na zařízeních, která Apple podporuje pro Apple Intelligence.",
 };
 
 export default CS_TRANSLATIONS;
