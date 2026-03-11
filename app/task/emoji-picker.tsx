@@ -1,70 +1,23 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HeaderCloseButton } from '@/components/ui/header-close-button';
 import { withAlpha } from '@/components/ui/glass-surface';
-import { HeaderIconButton } from '@/components/ui/header-icon-button';
 import { Colors } from '@/constants/theme';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
-
-const COLOR_SWATCHES = [
-    '#34C759',
-    '#0A84FF',
-    '#FF9500',
-    '#FF3B30',
-    '#AF52DE',
-    '#5E5CE6',
-    '#32D74B',
-    '#FFD60A',
-    '#64D2FF',
-    '#FF2D55',
-    '#8E8E93',
-    '#1C1C1E',
-] as const;
-
-const EMOJI_SWATCHES = [
-    '✅',
-    '🧠',
-    '🧹',
-    '🎧',
-    '📞',
-    '🧾',
-    '🗂️',
-    '🧭',
-    '🧪',
-    '🧩',
-    '📝',
-    '📅',
-    '📌',
-    '📦',
-    '📍',
-    '🛒',
-    '🏃‍♂️',
-    '🚶‍♂️',
-    '🧘‍♂️',
-    '🍽️',
-    '☕️',
-    '💡',
-    '✨',
-    '🎯',
-    '🎨',
-    '🖼️',
-    '📚',
-    '🛠️',
-    '🧑‍💻',
-    '🤝',
-    '🧷',
-    '🔒',
-] as const;
+import {
+    filterTaskStyleEmojiOptions,
+    TASK_STYLE_COLOR_SWATCHES,
+} from '@/utils/task-style-emoji';
 
 export default function EmojiPickerScreen() {
     const router = useRouter();
     const { taskId } = useLocalSearchParams<{ taskId: string }>();
+    const { width: windowWidth } = useWindowDimensions();
     const theme = useColorScheme() ?? 'light';
     const isDark = theme === 'dark';
     const styles = React.useMemo(() => createStyles(theme), [theme]);
@@ -72,28 +25,40 @@ export default function EmojiPickerScreen() {
 
     const { tasks, setTasks } = useTasksStore();
     const task = React.useMemo(() => tasks.find((t) => t.id === taskId), [tasks, taskId]);
+    const selectedEmoji = task?.emoji ?? '✅';
+    const selectedColor = task?.color;
+    const [query, setQuery] = React.useState('');
+    const visibleEmojiOptions = React.useMemo(
+        () => filterTaskStyleEmojiOptions(query),
+        [query]
+    );
+    const { emojiColumns, emojiTileSize } = React.useMemo(() => {
+        const horizontalPadding = 32;
+        const gridGap = 12;
+        const minTileSize = 56;
+        const availableWidth = Math.max(0, windowWidth - horizontalPadding);
+        const computedColumns = Math.floor((availableWidth + gridGap) / (minTileSize + gridGap));
+        const columns = Math.max(4, computedColumns);
 
-    // Local state
-    const [emoji, setEmoji] = React.useState(task?.emoji ?? '✅');
-    const [color, setColor] = React.useState<string | undefined>(task?.color);
+        return {
+            emojiColumns: columns,
+            emojiTileSize: Math.floor((availableWidth - gridGap * (columns - 1)) / columns),
+        };
+    }, [windowWidth]);
 
-    // Initialize state
-    React.useEffect(() => {
-        if (task) {
-            setEmoji(task.emoji);
-            setColor(task.color);
+    const applyStyleAndClose = React.useCallback((nextEmoji: string, nextColor: string | undefined) => {
+        if (!taskId) {
+            router.back();
+            return;
         }
-    }, [task]);
 
-    const handleSave = React.useCallback(() => {
-        if (!taskId) return;
         setTasks((prev) => prev.map((t) => (t.id === taskId ? {
             ...t,
-            emoji,
-            color,
+            emoji: nextEmoji,
+            color: nextColor,
         } : t)));
         router.back();
-    }, [taskId, emoji, color, setTasks, router]);
+    }, [router, setTasks, taskId]);
 
     const handleCancel = React.useCallback(() => {
         router.back();
@@ -107,11 +72,6 @@ export default function EmojiPickerScreen() {
                     headerLeft: () => (
                         <HeaderCloseButton onPress={handleCancel} color={Colors[theme].text} />
                     ),
-                    headerRight: () => (
-                        <HeaderIconButton onPress={handleSave}>
-                            <MaterialIcons name="check" size={24} color={Colors[theme].text} />
-                        </HeaderIconButton>
-                    ),
                     headerShown: true,
                     headerStyle: {
                         backgroundColor: isDark ? '#000000' : '#F2F2F7',
@@ -121,60 +81,91 @@ export default function EmojiPickerScreen() {
             />
 
             <View style={styles.sheet}>
-                <ScrollView
-                    style={styles.content}
-                    contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
-                    showsVerticalScrollIndicator={false}
-                >
-                    <Text style={styles.sectionTitle}>{t('emojiPicker.emoji')}</Text>
-                    <View style={styles.grid}>
-                        {EMOJI_SWATCHES.map((e) => (
-                            <Pressable
-                                key={e}
-                                onPress={() => setEmoji(e)}
-                                style={[
-                                    styles.emojiSwatch,
-                                    e === emoji && styles.selectedSwatch
-                                ]}
-                            >
-                                <Text style={styles.emojiText}>{e}</Text>
-                            </Pressable>
-                        ))}
-                    </View>
-
-                    <Text style={[styles.sectionTitle, { marginTop: 24 }]}>{t('emojiPicker.color')}</Text>
-                    <View style={styles.grid}>
-                        {COLOR_SWATCHES.map((c) => (
-                            <Pressable
-                                key={c}
-                                onPress={() => setColor(c)}
-                                style={[
-                                    styles.colorSwatch,
-                                    { backgroundColor: c },
-                                    color === c && styles.selectedSwatch
-                                ]}
-                            />
-                        ))}
-                    </View>
-
-                    {color && (
+                <FlatList
+                    key={`emoji-grid-${emojiColumns}`}
+                    data={visibleEmojiOptions}
+                    numColumns={emojiColumns}
+                    keyExtractor={(item) => item.emoji}
+                    renderItem={({ item }) => (
                         <Pressable
-                            onPress={() => setColor(undefined)}
-                            style={styles.resetButton}
+                            onPress={() => applyStyleAndClose(item.emoji, selectedColor)}
+                            accessibilityLabel={`${item.emoji} ${item.label}`}
+                            style={[
+                                styles.emojiSwatch,
+                                { width: emojiTileSize, height: emojiTileSize },
+                                item.emoji === selectedEmoji && styles.selectedSwatch
+                            ]}
                         >
-                            <Text style={styles.resetText}>{t('emojiPicker.resetColor')}</Text>
+                            <Text style={styles.emojiText}>{item.emoji}</Text>
                         </Pressable>
                     )}
-                </ScrollView>
+                    style={styles.content}
+                    contentInsetAdjustmentBehavior="automatic"
+                    contentContainerStyle={[
+                        styles.contentContainer,
+                        { paddingBottom: insets.bottom + 100 },
+                    ]}
+                    ListHeaderComponentStyle={styles.listHeader}
+                    ListHeaderComponent={(
+                        <View>
+                            <Text style={styles.sectionTitle}>{t('emojiPicker.color')}</Text>
+                            <View style={styles.colorGrid}>
+                                {TASK_STYLE_COLOR_SWATCHES.map((color) => (
+                                    <Pressable
+                                        key={color}
+                                        onPress={() => applyStyleAndClose(selectedEmoji, color)}
+                                        style={[
+                                            styles.colorSwatch,
+                                            { backgroundColor: color },
+                                            selectedColor === color && styles.selectedSwatch
+                                        ]}
+                                    />
+                                ))}
+                            </View>
+
+                            {selectedColor && (
+                                <Pressable
+                                    onPress={() => applyStyleAndClose(selectedEmoji, undefined)}
+                                    style={styles.resetButton}
+                                >
+                                    <Text style={styles.resetText}>{t('emojiPicker.resetColor')}</Text>
+                                </Pressable>
+                            )}
+
+                            <Text style={[styles.sectionTitle, styles.emojiSectionTitle]}>{t('emojiPicker.emoji')}</Text>
+                            <View style={styles.searchShell}>
+                                <TextInput
+                                    value={query}
+                                    onChangeText={setQuery}
+                                    placeholder={t('emojiPicker.searchPlaceholder')}
+                                    placeholderTextColor={withAlpha(textColorForTheme(theme), 0.42)}
+                                    autoCapitalize="none"
+                                    autoCorrect={false}
+                                    clearButtonMode="while-editing"
+                                    style={styles.searchInput}
+                                />
+                            </View>
+                        </View>
+                    )}
+                    ListEmptyComponent={(
+                        <Text style={styles.emptyState}>{t('emojiPicker.empty')}</Text>
+                    )}
+                    columnWrapperStyle={styles.emojiRow}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                />
             </View>
         </View>
     );
 }
 
+function textColorForTheme(theme: keyof typeof Colors) {
+    return Colors[theme].text;
+}
+
 const createStyles = (theme: keyof typeof Colors) => {
     const isDark = theme === 'dark';
-    const text = Colors[theme].text;
-    const hairline = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)';
+    const text = textColorForTheme(theme);
 
     return StyleSheet.create({
         container: {
@@ -187,8 +178,14 @@ const createStyles = (theme: keyof typeof Colors) => {
         },
         content: {
             flex: 1,
-            padding: 16,
             backgroundColor: isDark ? '#000000' : '#F2F2F7',
+        },
+        contentContainer: {
+            paddingTop: 16,
+            paddingHorizontal: 16,
+        },
+        listHeader: {
+            marginBottom: 14,
         },
         sectionTitle: {
             fontSize: 13,
@@ -198,21 +195,41 @@ const createStyles = (theme: keyof typeof Colors) => {
             marginLeft: 4,
             textTransform: 'uppercase',
         },
-        grid: {
+        emojiSectionTitle: {
+            marginTop: 28,
+        },
+        searchShell: {
+            minHeight: 46,
+            borderRadius: 14,
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: withAlpha(text, isDark ? 0.14 : 0.1),
+            backgroundColor: withAlpha(text, isDark ? 0.05 : 0.04),
+            paddingHorizontal: 14,
+            justifyContent: 'center',
+            marginBottom: 14,
+        },
+        searchInput: {
+            fontSize: 16,
+            color: text,
+            paddingVertical: 0,
+        },
+        colorGrid: {
             flexDirection: 'row',
             flexWrap: 'wrap',
             gap: 12,
         },
+        emojiRow: {
+            gap: 12,
+            marginBottom: 12,
+        },
         emojiSwatch: {
-            width: 44,
-            height: 44,
-            borderRadius: 12,
+            borderRadius: 16,
             alignItems: 'center',
             justifyContent: 'center',
             backgroundColor: withAlpha(text, isDark ? 0.05 : 0.04),
         },
         emojiText: {
-            fontSize: 24,
+            fontSize: 28,
         },
         colorSwatch: {
             width: 44,
@@ -232,17 +249,11 @@ const createStyles = (theme: keyof typeof Colors) => {
             fontSize: 15,
             color: withAlpha(text, 0.6),
         },
-        iconButton: {
-            width: 32,
-            height: 32,
-            alignItems: 'center',
-            justifyContent: 'center',
-        },
-        pressableIcon: {
-            width: '100%',
-            height: '100%',
-            alignItems: 'center',
-            justifyContent: 'center',
+        emptyState: {
+            marginTop: 18,
+            fontSize: 14,
+            color: withAlpha(text, 0.58),
+            textAlign: 'center',
         },
     });
 };

@@ -1,102 +1,203 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as Haptics from "expo-haptics";
 import React from "react";
-import { Pressable, Text, type StyleProp, View, type ViewStyle } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, {
+import {
+  Animated,
   Easing,
+  LayoutChangeEvent,
+  Pressable,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
+import SwipeableItem, {
+  OpenDirection,
+  type UnderlayParams,
+  type SwipeableItemImperativeRef,
+} from "react-native-swipeable-item";
+import Reanimated, {
   Extrapolation,
   interpolate,
-  runOnJS,
-  runOnUI,
+  interpolateColor,
   useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withSpring,
-  withTiming,
 } from "react-native-reanimated";
 
+import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import {
-  getTagTitle,
-  TAG_ORDER,
   type TagId,
 } from "@/context/home-filters-store";
 import type { Project, Task } from "@/context/tasks-store";
 import { getIntlLocale, t } from "@/i18n";
+import {
+  triggerImpactHaptic,
+  triggerNotificationHaptic,
+} from "@/utils/haptics";
 
 const SWIPE_STOP = 76;
-const SWIPE_OPEN_THRESHOLD = 22;
-// Trigger should require a deliberate, stronger swipe.
-const SWIPE_TRIGGER = 132;
-const SWIPE_ELASTIC = 0.55;
-const SWIPE_HAPTIC_EARLY_RATIO = 0;
-const SWIPE_TRIGGER_FINGER =
-  SWIPE_STOP + (SWIPE_TRIGGER - SWIPE_STOP) / SWIPE_ELASTIC;
-const SWIPE_HAPTIC_AND_ACTION_RATIO = Math.max(
-  0,
-  Math.min(1, SWIPE_HAPTIC_EARLY_RATIO),
-);
-const SWIPE_HAPTIC_AND_ACTION_FINGER =
-  SWIPE_STOP +
-  (SWIPE_TRIGGER_FINGER - SWIPE_STOP) * SWIPE_HAPTIC_AND_ACTION_RATIO;
-const SWIPE_ACTIVE_OFFSET_X = 10;
-const SWIPE_FAIL_OFFSET_Y = 18;
-const AXIS_LOCK_THRESHOLD = 4;
-const MIN_SWIPE_X = 12;
-const MIN_SCROLL_Y = 10;
+const SWIPE_TRIGGER_SNAP = 152;
+const SWIPE_ACTIVATION_THRESHOLD = 10;
+const SWIPE_DAMPING = 7;
+const SWIPE_OVER_SWIPE = 480;
+const SWIPE_SNAP_PROGRESS = SWIPE_STOP / SWIPE_TRIGGER_SNAP;
 const COMPACT_SUBTASK_ICON_SIZE = 18;
 const COMPACT_SUBTASK_TEXT_SIZE = 14;
-// Small delay to separate horizontal swipe intent from long-press drag.
-const SWIPE_ARM_DELAY_MS = 170;
-const DRAG_LONG_PRESS_DELAY_MS = 420;
+const DRAG_LONG_PRESS_DELAY_MS = 260;
+const DRAG_COMPACT_PREVIEW_SIZE = 65;
+const TASK_POP_IN_DURATION_MS = 196;
+const SWIPE_COMMIT_EXIT_DURATION_MS = 118;
+const SWIPE_COMMIT_EXIT_FADE_DURATION_MS = 96;
+const SWIPE_COMMIT_COLLAPSE_DURATION_MS = 164;
+const TASK_ROW_HEIGHT_CACHE = new Map<string, number>();
+
+/** Convert a hex color to an rgba pastel tint. */
+function hexToPastel(
+  hex: string | undefined,
+  isDark: boolean,
+): string | undefined {
+  if (!hex || hex.length < 4) return undefined;
+  const cleaned = hex.replace("#", "");
+  const r = parseInt(
+    cleaned.length === 3 ? cleaned[0] + cleaned[0] : cleaned.substring(0, 2),
+    16,
+  );
+  const g = parseInt(
+    cleaned.length === 3 ? cleaned[1] + cleaned[1] : cleaned.substring(2, 4),
+    16,
+  );
+  const b = parseInt(
+    cleaned.length === 3 ? cleaned[2] + cleaned[2] : cleaned.substring(4, 6),
+    16,
+  );
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return undefined;
+  const alpha = isDark ? 0.22 : 0.15;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
 
 type TagChipModel = {
   key: string;
-  tagId: TagId;
   label: string;
-  tone?: "neutral" | "danger";
 };
 
-const extractHashtags = (value: string | undefined): string[] => {
-  if (!value) return [];
-  const matches = value.match(/#[\p{L}0-9_]+/gu) ?? [];
-  const unique: string[] = [];
-  for (const m of matches) {
-    const norm = m.toLowerCase();
-    if (!unique.some((x) => x.toLowerCase() === norm)) unique.push(m);
-  }
-  return unique;
+type SwipeActionUnderlayProps = {
+  params: UnderlayParams<Task>;
+  styles: SwipeTaskRowStyles;
+  side: "left" | "right";
+  backgroundColor: string;
+  icon: React.ComponentProps<typeof MaterialIcons>["name"];
+  onPress: () => void;
 };
 
-const formatDueLabel = (dueAt: number, dueHasTime?: boolean) => {
-  if (!Number.isFinite(dueAt) || dueAt <= 0) return t("taskDetail.due.none");
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+function SwipeActionUnderlay({
+  params,
+  styles,
+  side,
+  backgroundColor,
+  icon,
+  onPress,
+}: SwipeActionUnderlayProps) {
+  const underlayColorStops = React.useMemo(
+    () => ({
+      soft: withAlpha(backgroundColor, 0.18),
+      medium: withAlpha(backgroundColor, 0.58),
+    }),
+    [backgroundColor],
+  );
 
-  const due = new Date(dueAt);
-  const dueDay = new Date(due.getFullYear(), due.getMonth(), due.getDate());
+  const fillAnimatedStyle = useAnimatedStyle(() => {
+    const progress = Math.max(0, Math.min(1.08, params.percentOpen.value));
+    return {
+      backgroundColor: interpolateColor(
+        progress,
+        [0, 0.12, 0.28, SWIPE_SNAP_PROGRESS],
+        [
+          "rgba(0,0,0,0)",
+          underlayColorStops.soft,
+          underlayColorStops.medium,
+          backgroundColor,
+        ],
+      ),
+    };
+  }, [
+    backgroundColor,
+    params.percentOpen,
+    underlayColorStops.medium,
+    underlayColorStops.soft,
+  ]);
 
-  const dayLabel =
-    dueDay.getTime() === today.getTime()
-      ? t("taskDetail.relative.today")
-      : dueDay.getTime() === tomorrow.getTime()
-        ? t("taskDetail.relative.tomorrow")
-        : new Intl.DateTimeFormat(getIntlLocale(), {
-          weekday: "short",
-          day: "2-digit",
-          month: "2-digit",
-        }).format(due);
+  const actionAnimatedStyle = useAnimatedStyle(() => {
+    const progress = Math.max(0, Math.min(1.12, params.percentOpen.value));
+    const directionOffset = side === "left" ? 14 : -14;
+    return {
+      opacity: interpolate(
+        progress,
+        [0, 0.08, 0.16, SWIPE_SNAP_PROGRESS],
+        [0, 0.22, 0.92, 1],
+        Extrapolation.CLAMP,
+      ),
+      transform: [
+        {
+          translateX: interpolate(
+            progress,
+            [0, 1],
+            [0, directionOffset],
+            Extrapolation.CLAMP,
+          ),
+        },
+      ],
+    };
+  }, [params.percentOpen, side]);
 
-  if (!dueHasTime) return dayLabel;
-
-  const timeLabel = new Intl.DateTimeFormat(getIntlLocale(), {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(due);
-  return `${dayLabel} ${timeLabel}`;
-};
+  return (
+    <View style={styles.underlay} pointerEvents="box-none">
+      <Reanimated.View
+        pointerEvents="none"
+        style={[StyleSheet.absoluteFillObject, fillAnimatedStyle]}
+      />
+      <Pressable
+        style={[
+          styles.actionSlot,
+          {
+            left: 0,
+            right: 0,
+            paddingLeft: side === "left" ? 18 : 0,
+            paddingRight: side === "right" ? 18 : 0,
+            alignItems: side === "left" ? "flex-start" : "flex-end",
+          },
+        ]}
+        onPress={onPress}
+        hitSlop={10}
+      >
+        <Reanimated.View
+          style={[
+            {
+              width: 36,
+              height: 36,
+              alignItems: "center",
+              justifyContent: "center",
+              alignSelf: side === "left" ? "flex-start" : "flex-end",
+            },
+            actionAnimatedStyle,
+          ]}
+        >
+          <MaterialIcons
+            name={icon}
+            size={28}
+            color="#FFFFFF"
+            style={{
+              textShadowColor: "rgba(0,0,0,0.12)",
+              textShadowOffset: { width: 0, height: 1 },
+              textShadowRadius: 4,
+            }}
+          />
+        </Reanimated.View>
+      </Pressable>
+    </View>
+  );
+}
 
 const formatRowTimeLabel = (dueAt: number, dueHasTime?: boolean) => {
   if (!Number.isFinite(dueAt) || dueAt <= 0 || !dueHasTime) return null;
@@ -105,6 +206,73 @@ const formatRowTimeLabel = (dueAt: number, dueHasTime?: boolean) => {
     minute: "2-digit",
     hour12: false,
   }).format(new Date(dueAt));
+};
+
+const formatRowDateLabel = (dueAt: number) => {
+  if (!Number.isFinite(dueAt) || dueAt <= 0) return null;
+  return new Intl.DateTimeFormat(getIntlLocale(), {
+    day: "2-digit",
+    month: "2-digit",
+  }).format(new Date(dueAt));
+};
+
+const isTaskOverdue = (
+  section: Task["section"],
+  dueAt: number,
+  dueHasTime: boolean | undefined,
+  nowMs: number,
+): boolean => {
+  if (section === "completed") return false;
+  if (!Number.isFinite(dueAt) || dueAt <= 0) return false;
+
+  if (dueHasTime === false) {
+    const due = new Date(dueAt);
+    const startOfNextDay = new Date(
+      due.getFullYear(),
+      due.getMonth(),
+      due.getDate() + 1,
+      0,
+      0,
+      0,
+      0,
+    ).getTime();
+    return nowMs >= startOfNextDay;
+  }
+
+  return dueAt < nowMs;
+};
+
+const getRoutineChipLabel = (
+  routineType: Task["routineType"] | Task["routineInterval"],
+): string | null => {
+  if (!routineType) return null;
+
+  switch (routineType) {
+    case "hourly":
+      return t("taskDetail.routine.hourly");
+    case "daily":
+      return t("taskDetail.routine.daily");
+    case "weekdays":
+      return t("taskDetail.routine.weekdays");
+    case "weekends":
+      return t("taskDetail.routine.weekends");
+    case "weekly":
+      return t("taskDetail.routine.weekly");
+    case "biweekly":
+      return t("taskDetail.routine.biweekly");
+    case "monthly":
+      return t("taskDetail.routine.monthly");
+    case "quarterly":
+      return t("taskDetail.routine.quarterly");
+    case "biannually":
+      return t("taskDetail.routine.biannually");
+    case "yearly":
+      return t("taskDetail.routine.yearly");
+    case "custom":
+      return t("taskDetail.routine.custom");
+    default:
+      return t("taskDetail.property.routine");
+  }
 };
 
 export type SwipeTaskRowStyles = {
@@ -137,12 +305,13 @@ export type SwipeTaskRowProps = {
   drag: () => void;
   isActive: boolean;
   styles: SwipeTaskRowStyles;
+  isDark: boolean;
+  isLast?: boolean;
   itemSpacing?: number;
   emojiTint: string;
   emojiFallback: string;
   swipeCompleteBg: string;
   swipeDeleteBg: string;
-  externalScrollRef?: React.RefObject<any>;
   leftAction?: {
     icon?: React.ComponentProps<typeof MaterialIcons>["name"];
     backgroundColor?: string;
@@ -173,9 +342,22 @@ export type SwipeTaskRowProps = {
   onPopInAnimationEnd?: (taskId: string) => void;
   /** When set, datetime tags matching this day are suppressed (avoids redundant "Heute" chips). */
   selectedDateStart?: number;
+  showOverdueDatePrefix?: boolean;
   itemSpacerStyle?: StyleProp<ViewStyle>;
   swipeClipStyle?: StyleProp<ViewStyle>;
   rowStyle?: StyleProp<ViewStyle>;
+  dragCompactPreview?: boolean;
+  activeDragTranslateX?:
+    | Animated.Value
+    | Animated.AnimatedAddition<number>
+    | null;
+  revealTranslateX?:
+    | Animated.Value
+    | Animated.AnimatedAddition<number>
+    | Animated.AnimatedInterpolation<number>
+    | null;
+  followHorizontalDrag?: boolean;
+  swipeActivationThreshold?: number;
 };
 
 export const SwipeTaskRow = React.memo(function SwipeTaskRow({
@@ -184,12 +366,13 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   drag,
   isActive,
   styles,
+  isDark,
+  isLast = false,
   itemSpacing = 0,
   emojiTint,
   emojiFallback,
   swipeCompleteBg,
   swipeDeleteBg,
-  externalScrollRef,
   leftAction,
   rightAction,
   enabledTags,
@@ -199,7 +382,6 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   endSwipe,
   registerClose,
   unregisterClose,
-  closeAnyOpen,
   onPressTask,
   toggleComplete,
   toggleSubtask,
@@ -208,46 +390,231 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   onTouchInteractionChange,
   shouldPopIn = false,
   onPopInAnimationEnd,
-  selectedDateStart,
+  showOverdueDatePrefix = false,
   itemSpacerStyle,
   swipeClipStyle,
   rowStyle,
+  dragCompactPreview = false,
+  activeDragTranslateX = null,
+  revealTranslateX = null,
+  followHorizontalDrag = false,
+  swipeActivationThreshold,
 }: SwipeTaskRowProps) {
-  const translateX = useSharedValue(0);
-  const direction = useSharedValue<-1 | 0 | 1>(0);
-  const startOffsetX = useSharedValue(0);
-  const rowWidth = useSharedValue(0);
-  const rowHeight = useSharedValue(0);
-  const rowOpacity = useSharedValue(1);
-  const rowScale = useSharedValue(1);
-  const entryOpacity = useSharedValue(1);
-  const entryScale = useSharedValue(1);
-  const entryTranslateY = useSharedValue(0);
-  const swipeVisualAlpha = useSharedValue(1);
-  const collapse = useSharedValue(0);
-  const touchStartX = useSharedValue(0);
-  const touchStartY = useSharedValue(0);
-  const touchStartAt = useSharedValue(0);
-  const axisDecision = useSharedValue<0 | 1>(0);
-  const swipeGestureActive = useSharedValue(0);
-  const thresholdHapticSent = useSharedValue(0);
+  const { width: viewportWidth } = useWindowDimensions();
+  const swipeRef = React.useRef<SwipeableItemImperativeRef | null>(null);
+  const longPressTriggeredRef = React.useRef(false);
+  const committedSwipeActionDirectionRef = React.useRef<OpenDirection | null>(
+    null,
+  );
+  const thresholdHapticDirectionRef = React.useRef<OpenDirection | null>(null);
+  const isMountedRef = React.useRef(true);
+  const [isSwipeCommitAnimating, setIsSwipeCommitAnimating] =
+    React.useState(false);
+  const [dragPressInLocalX, setDragPressInLocalX] = React.useState<
+    number | null
+  >(null);
+  const cachedRowHeight = TASK_ROW_HEIGHT_CACHE.get(task.id) ?? 0;
+  const [measuredRowHeight, setMeasuredRowHeight] = React.useState(
+    cachedRowHeight,
+  );
+  const swipeCommitTranslateX = React.useRef(new Animated.Value(0)).current;
+  const swipeCommitOpacity = React.useRef(new Animated.Value(1)).current;
+  const swipeCommitScale = React.useRef(new Animated.Value(1)).current;
+  const swipeCommitCollapseProgress = React.useRef(
+    new Animated.Value(1),
+  ).current;
+  const popInExpandProgress = React.useRef(
+    new Animated.Value(shouldPopIn && cachedRowHeight > 0 ? 0 : 1),
+  ).current;
+  const popInAppearanceKeyRef = React.useRef<string | null>(null);
+  const swipeCommitAppearanceKeyRef = React.useRef<string | null>(null);
+  const swipeCommitExitAnimationRef =
+    React.useRef<Animated.CompositeAnimation | null>(null);
+  const swipeCommitCollapseAnimationRef =
+    React.useRef<Animated.CompositeAnimation | null>(null);
+  const popInAnimationRef =
+    React.useRef<Animated.CompositeAnimation | null>(null);
+  const popInStartFrameRef = React.useRef<number | null>(null);
+  const longPressTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const canUseCompactDragPreview =
+    showTaskIcons && !!task.emoji && task.emoji.trim().length > 0;
+  const shouldUseCompactDragPreview =
+    isActive && dragCompactPreview && canUseCompactDragPreview;
+  const isCompletedTask = task.section === "completed";
+  const taskAppearanceKey = React.useMemo(
+    () =>
+      `${task.id}:${task.section}:${task.completedAt ?? 0}:${task.deletedAt ?? 0}`,
+    [task.completedAt, task.deletedAt, task.id, task.section],
+  );
+  const shouldApplySwipeCommitState =
+    isSwipeCommitAnimating &&
+    swipeCommitAppearanceKeyRef.current === taskAppearanceKey;
 
-  const reportSwipeGestureActive = React.useCallback(
-    (active: boolean) => {
-      onSwipeGestureActiveChange?.(task.id, active);
-    },
-    [onSwipeGestureActiveChange, task.id],
+  const taskBgColor = React.useMemo(
+    () => hexToPastel(task.color, isDark),
+    [isDark, task.color],
+  );
+  const taskEmojiBorderColor = React.useMemo<string | undefined>(
+    () =>
+      task.color ? withAlpha(task.color, isDark ? 0.42 : 0.28) : undefined,
+    [isDark, task.color],
+  );
+  const projectBgColor = React.useMemo(
+    () => hexToPastel(project?.color, isDark),
+    [project?.color, isDark],
+  );
+  const projectEmojiBorderColor = React.useMemo<string | undefined>(
+    () =>
+      project?.color
+        ? withAlpha(project.color, isDark ? 0.42 : 0.28)
+        : undefined,
+    [isDark, project?.color],
   );
 
-  const closeSelf = React.useCallback(() => {
-    translateX.value = withSpring(0, {
-      damping: 34,
-      stiffness: 420,
-      mass: 0.9,
-      overshootClamping: true,
+  React.useEffect(() => {
+    if (!isActive) {
+      longPressTriggeredRef.current = false;
+    }
+  }, [isActive]);
+
+  React.useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      if (popInStartFrameRef.current != null) {
+        cancelAnimationFrame(popInStartFrameRef.current);
+        popInStartFrameRef.current = null;
+      }
+      popInAnimationRef.current?.stop();
+      swipeCommitExitAnimationRef.current?.stop();
+      swipeCommitCollapseAnimationRef.current?.stop();
+    };
+  }, []);
+
+  React.useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  const resetPopInAnimationValues = React.useCallback(() => {
+    if (popInStartFrameRef.current != null) {
+      cancelAnimationFrame(popInStartFrameRef.current);
+      popInStartFrameRef.current = null;
+    }
+    popInAnimationRef.current?.stop();
+    popInAnimationRef.current = null;
+    popInExpandProgress.stopAnimation();
+    popInExpandProgress.setValue(1);
+  }, [popInExpandProgress]);
+
+  React.useEffect(() => {
+    if (!shouldPopIn) return;
+    if (shouldApplySwipeCommitState) return;
+    if (popInAppearanceKeyRef.current === taskAppearanceKey) return;
+    if (measuredRowHeight <= 0) return;
+
+    popInAppearanceKeyRef.current = taskAppearanceKey;
+    popInAnimationRef.current?.stop();
+    popInExpandProgress.setValue(0);
+
+    if (popInStartFrameRef.current != null) {
+      cancelAnimationFrame(popInStartFrameRef.current);
+      popInStartFrameRef.current = null;
+    }
+
+    popInStartFrameRef.current = requestAnimationFrame(() => {
+      popInStartFrameRef.current = null;
+      if (!isMountedRef.current) return;
+      if (popInAppearanceKeyRef.current !== taskAppearanceKey) return;
+
+      popInAnimationRef.current = Animated.timing(popInExpandProgress, {
+        toValue: 1,
+        duration: TASK_POP_IN_DURATION_MS,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      });
+
+      popInAnimationRef.current.start(({ finished }) => {
+        popInAnimationRef.current = null;
+        if (!finished || !isMountedRef.current) return;
+        if (popInAppearanceKeyRef.current === taskAppearanceKey) {
+          popInAppearanceKeyRef.current = null;
+        }
+        onPopInAnimationEnd?.(task.id);
+      });
     });
-    direction.value = 0;
-  }, [direction, translateX]);
+  }, [
+    measuredRowHeight,
+    onPopInAnimationEnd,
+    popInExpandProgress,
+    shouldApplySwipeCommitState,
+    shouldPopIn,
+    task.id,
+    taskAppearanceKey,
+  ]);
+
+  React.useEffect(() => {
+    if (shouldPopIn) return;
+    if (popInAppearanceKeyRef.current && popInAppearanceKeyRef.current !== taskAppearanceKey) {
+      popInAppearanceKeyRef.current = null;
+    }
+    resetPopInAnimationValues();
+  }, [resetPopInAnimationValues, shouldPopIn, taskAppearanceKey]);
+
+  const resetSwipeCommitAnimationValues = React.useCallback(() => {
+    swipeCommitExitAnimationRef.current?.stop();
+    swipeCommitCollapseAnimationRef.current?.stop();
+    swipeCommitExitAnimationRef.current = null;
+    swipeCommitCollapseAnimationRef.current = null;
+    swipeCommitTranslateX.stopAnimation();
+    swipeCommitOpacity.stopAnimation();
+    swipeCommitScale.stopAnimation();
+    swipeCommitCollapseProgress.stopAnimation();
+    swipeCommitTranslateX.setValue(0);
+    swipeCommitOpacity.setValue(1);
+    swipeCommitScale.setValue(1);
+    swipeCommitCollapseProgress.setValue(1);
+  }, [
+    swipeCommitCollapseProgress,
+    swipeCommitOpacity,
+    swipeCommitScale,
+    swipeCommitTranslateX,
+  ]);
+
+  React.useEffect(() => {
+    if (!isSwipeCommitAnimating) {
+      resetSwipeCommitAnimationValues();
+      thresholdHapticDirectionRef.current = null;
+      committedSwipeActionDirectionRef.current = null;
+      swipeCommitAppearanceKeyRef.current = null;
+    }
+  }, [isSwipeCommitAnimating, resetSwipeCommitAnimationValues]);
+
+  React.useEffect(() => {
+    if (!isSwipeCommitAnimating) return;
+    if (swipeCommitAppearanceKeyRef.current === taskAppearanceKey) return;
+    setIsSwipeCommitAnimating(false);
+  }, [isSwipeCommitAnimating, taskAppearanceKey]);
+
+  const handleRowLayout = React.useCallback((event: LayoutChangeEvent) => {
+    const nextHeight = event.nativeEvent.layout.height;
+    if (!Number.isFinite(nextHeight) || nextHeight <= 0) return;
+    TASK_ROW_HEIGHT_CACHE.set(task.id, nextHeight);
+    setMeasuredRowHeight((current) =>
+      Math.abs(current - nextHeight) < 0.5 ? current : nextHeight,
+    );
+  }, [task.id]);
+
+  const closeSelf = React.useCallback(() => {
+    void swipeRef.current?.close({ animated: true }).catch(() => undefined);
+    onSwipeGestureActiveChange?.(task.id, false);
+    endSwipe(task.id);
+  }, [endSwipe, onSwipeGestureActiveChange, task.id]);
 
   React.useEffect(() => {
     registerClose(task.id, closeSelf);
@@ -256,527 +623,590 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     };
   }, [closeSelf, registerClose, task.id, unregisterClose]);
 
-  React.useEffect(() => {
-    if (!shouldPopIn) return;
-
-    entryOpacity.value = 0;
-    entryScale.value = 0.985;
-    entryTranslateY.value = 12;
-
-    entryOpacity.value = withTiming(1, {
-      duration: 180,
-      easing: Easing.out(Easing.quad),
-    });
-
-    entryScale.value = withTiming(1, {
-      duration: 220,
-      easing: Easing.out(Easing.cubic),
-    });
-
-    entryTranslateY.value = withTiming(
-      0,
-      {
-        duration: 220,
-        easing: Easing.out(Easing.cubic),
-      },
-      (finished) => {
-        if (!finished) return;
-        if (onPopInAnimationEnd) runOnJS(onPopInAnimationEnd)(task.id);
-      },
+  const fireLeftConfirmationHaptic = React.useCallback(() => {
+    triggerNotificationHaptic(
+      leftAction?.haptic ?? Haptics.NotificationFeedbackType.Success,
     );
-  }, [
-    entryOpacity,
-    entryScale,
-    entryTranslateY,
-    onPopInAnimationEnd,
-    shouldPopIn,
-    task.id,
-  ]);
+  }, [leftAction?.haptic]);
 
-  const commitLeft = React.useCallback(() => {
+  const fireRightConfirmationHaptic = React.useCallback(() => {
+    triggerNotificationHaptic(
+      rightAction?.haptic ?? Haptics.NotificationFeedbackType.Warning,
+    );
+  }, [rightAction?.haptic]);
+
+  const performLeftAction = React.useCallback(() => {
     if (leftAction) {
       leftAction.onTrigger(task.id);
-      void Haptics.notificationAsync(
-        leftAction.haptic ?? Haptics.NotificationFeedbackType.Success,
-      ).catch(() => undefined);
       return;
     }
     toggleComplete(task.id);
-    void Haptics.notificationAsync(
-      Haptics.NotificationFeedbackType.Success,
-    ).catch(() => undefined);
   }, [leftAction, task.id, toggleComplete]);
 
-  const commitRight = React.useCallback(() => {
+  const performRightAction = React.useCallback(() => {
     if (rightAction) {
       rightAction.onTrigger(task.id);
-      void Haptics.notificationAsync(
-        rightAction.haptic ?? Haptics.NotificationFeedbackType.Warning,
-      ).catch(() => undefined);
       return;
     }
     deleteTask(task.id);
-    void Haptics.notificationAsync(
-      Haptics.NotificationFeedbackType.Warning,
-    ).catch(() => undefined);
   }, [deleteTask, rightAction, task.id]);
 
-  const emitThresholdHaptic = React.useCallback(() => {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(
-      () => undefined,
-    );
+  const handleLongPressDrag = React.useCallback(() => {
+    if (isActive || longPressTriggeredRef.current) return;
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    longPressTriggeredRef.current = true;
+    onTouchInteractionChange?.(task.id, false);
+    drag();
+  }, [drag, isActive, onTouchInteractionChange, task.id]);
+
+  const armLongPressDrag = React.useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+
+    longPressTimerRef.current = setTimeout(() => {
+      longPressTimerRef.current = null;
+      handleLongPressDrag();
+    }, DRAG_LONG_PRESS_DELAY_MS);
+  }, [handleLongPressDrag]);
+
+  const clearLongPressDrag = React.useCallback(() => {
+    if (!longPressTimerRef.current) return;
+    clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = null;
   }, []);
 
-  const dismiss = React.useCallback(
-    (sign: -1 | 1) => {
-      "worklet";
-      const width = rowWidth.value > 0 ? rowWidth.value : 420;
-      const target = (width + 96) * sign;
+  const animateSwipeCommit = React.useCallback(
+    (
+      direction: OpenDirection.LEFT | OpenDirection.RIGHT,
+      performAction: () => void,
+      fireConfirmationHaptic: () => void,
+    ) => {
+      if (isSwipeCommitAnimating) return;
 
-      swipeVisualAlpha.value = withTiming(0, {
-        duration: 140,
-        easing: Easing.out(Easing.cubic),
-      });
-      rowOpacity.value = withTiming(0, {
-        duration: 170,
-        easing: Easing.out(Easing.cubic),
-      });
-      rowScale.value = withTiming(0.985, {
-        duration: 220,
-        easing: Easing.out(Easing.cubic),
-      });
-      translateX.value = withTiming(target, {
-        duration: 240,
-        easing: Easing.out(Easing.cubic),
-      });
-      collapse.value = withDelay(
-        40,
-        withTiming(
-          1,
-          { duration: 220, easing: Easing.out(Easing.cubic) },
-          (finished) => {
-            if (!finished) return;
-            if (sign > 0) {
-              runOnJS(commitLeft)();
-            } else {
-              runOnJS(commitRight)();
-            }
-            runOnJS(endSwipe)(task.id);
+      setIsSwipeCommitAnimating(true);
+      swipeCommitAppearanceKeyRef.current = taskAppearanceKey;
+      committedSwipeActionDirectionRef.current = direction;
+      thresholdHapticDirectionRef.current = null;
+      clearLongPressDrag();
+      onTouchInteractionChange?.(task.id, false);
+      beginSwipe(task.id);
+      onSwipeGestureActiveChange?.(task.id, false);
+      endSwipe(task.id);
+      fireConfirmationHaptic();
+
+      const exitDistance = Math.max(viewportWidth + 56, 260);
+      const translateTarget =
+        direction === OpenDirection.LEFT ? -exitDistance : exitDistance;
+
+      swipeCommitExitAnimationRef.current?.stop();
+      swipeCommitCollapseAnimationRef.current?.stop();
+      swipeCommitExitAnimationRef.current = Animated.parallel([
+        Animated.timing(swipeCommitTranslateX, {
+          toValue: translateTarget,
+          duration: SWIPE_COMMIT_EXIT_DURATION_MS,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(swipeCommitOpacity, {
+          toValue: 0,
+          duration: SWIPE_COMMIT_EXIT_FADE_DURATION_MS,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(swipeCommitScale, {
+          toValue: 0.985,
+          duration: SWIPE_COMMIT_EXIT_DURATION_MS,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]);
+
+      swipeCommitExitAnimationRef.current.start(({ finished }) => {
+        swipeCommitExitAnimationRef.current = null;
+        if (!finished) {
+          if (!isMountedRef.current) return;
+          setIsSwipeCommitAnimating(false);
+          return;
+        }
+
+        if (measuredRowHeight <= 0) {
+          void swipeRef.current?.close({ animated: false }).catch(
+            () => undefined,
+          );
+          performAction();
+
+          if (!isMountedRef.current) return;
+          requestAnimationFrame(() => {
+            if (!isMountedRef.current) return;
+            setIsSwipeCommitAnimating(false);
+          });
+          return;
+        }
+
+        swipeCommitCollapseAnimationRef.current = Animated.timing(
+          swipeCommitCollapseProgress,
+          {
+            toValue: 0,
+            duration: SWIPE_COMMIT_COLLAPSE_DURATION_MS,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: false,
           },
-        ),
-      );
+        );
+        swipeCommitCollapseAnimationRef.current.start(
+          ({ finished: collapseFinished }) => {
+            swipeCommitCollapseAnimationRef.current = null;
+            if (!collapseFinished) {
+              if (!isMountedRef.current) return;
+              setIsSwipeCommitAnimating(false);
+              return;
+            }
+
+            void swipeRef.current?.close({ animated: false }).catch(
+              () => undefined,
+            );
+            performAction();
+
+            if (!isMountedRef.current) return;
+            requestAnimationFrame(() => {
+              if (!isMountedRef.current) return;
+              setIsSwipeCommitAnimating(false);
+            });
+          },
+        );
+      });
     },
     [
-      collapse,
-      commitLeft,
-      commitRight,
+      beginSwipe,
+      clearLongPressDrag,
       endSwipe,
-      rowOpacity,
-      rowScale,
-      rowWidth,
-      swipeVisualAlpha,
+      isSwipeCommitAnimating,
+      measuredRowHeight,
+      onSwipeGestureActiveChange,
+      onTouchInteractionChange,
+      swipeCommitCollapseProgress,
+      swipeCommitOpacity,
+      swipeCommitScale,
+      swipeCommitTranslateX,
+      taskAppearanceKey,
       task.id,
-      translateX,
+      viewportWidth,
     ],
   );
 
   const onPressComplete = React.useCallback(() => {
-    // Close any other open rows before acting.
-    beginSwipe(task.id);
-    runOnUI(dismiss)(1);
-  }, [beginSwipe, dismiss, task.id]);
+    animateSwipeCommit(
+      OpenDirection.RIGHT,
+      performLeftAction,
+      fireLeftConfirmationHaptic,
+    );
+  }, [animateSwipeCommit, fireLeftConfirmationHaptic, performLeftAction]);
 
   const onPressDelete = React.useCallback(() => {
-    beginSwipe(task.id);
-    runOnUI(dismiss)(-1);
-  }, [beginSwipe, dismiss, task.id]);
+    animateSwipeCommit(
+      OpenDirection.LEFT,
+      performRightAction,
+      fireRightConfirmationHaptic,
+    );
+  }, [animateSwipeCommit, fireRightConfirmationHaptic, performRightAction]);
 
-  const gesture = React.useMemo(() => {
-    const nativeScroll = Gesture.Native();
-
-    let pan = Gesture.Pan()
-      .enabled(!isActive)
-      .manualActivation(true)
-      .activeOffsetX([-SWIPE_ACTIVE_OFFSET_X, SWIPE_ACTIVE_OFFSET_X])
-      .failOffsetY([-SWIPE_FAIL_OFFSET_Y, SWIPE_FAIL_OFFSET_Y]);
-
-    pan = pan.onTouchesDown((event) => {
-      "worklet";
-      const touch = event.allTouches[0];
-      if (!touch) return;
-      touchStartX.value = touch.x;
-      touchStartY.value = touch.y;
-      touchStartAt.value = Date.now();
-      axisDecision.value = 0;
-      swipeGestureActive.value = 0;
-      thresholdHapticSent.value = 0;
-    });
-
-    pan = pan.onTouchesMove((event, state) => {
-      "worklet";
-      if (axisDecision.value === 1) return;
-      const touch = event.allTouches[0];
-      if (!touch) return;
-      const dx = touch.x - touchStartX.value;
-      const dy = touch.y - touchStartY.value;
-      const absX = Math.abs(dx);
-      const absY = Math.abs(dy);
-      const touchAgeMs = Date.now() - touchStartAt.value;
-
-      const horizontalIntent =
-        touchAgeMs >= SWIPE_ARM_DELAY_MS &&
-        absX > MIN_SWIPE_X &&
-        absX > absY * 1.15 + AXIS_LOCK_THRESHOLD;
-      const verticalIntent =
-        absY > MIN_SCROLL_Y && absY > absX * 1.1 + AXIS_LOCK_THRESHOLD;
-
-      if (verticalIntent) {
-        axisDecision.value = 1;
-        state.fail();
-        return;
-      }
-
-      if (horizontalIntent) {
-        axisDecision.value = 1;
-        if (swipeGestureActive.value === 0) {
-          swipeGestureActive.value = 1;
-          runOnJS(reportSwipeGestureActive)(true);
+  const handleSwipeChange = React.useCallback(
+    ({
+      openDirection,
+      snapPoint,
+    }: {
+      openDirection: OpenDirection;
+      snapPoint: number;
+    }) => {
+      if (committedSwipeActionDirectionRef.current) {
+        if (openDirection === OpenDirection.NONE || snapPoint <= 0) {
+          committedSwipeActionDirectionRef.current = null;
+          thresholdHapticDirectionRef.current = null;
         }
-        state.activate();
+        return;
       }
-    });
 
-    pan = pan.onStart(() => {
-      "worklet";
-      thresholdHapticSent.value = 0;
-      if (swipeGestureActive.value === 0) {
-        swipeGestureActive.value = 1;
-        runOnJS(reportSwipeGestureActive)(true);
+      const isOpen = openDirection !== OpenDirection.NONE && snapPoint > 0;
+      if (isOpen) {
+        beginSwipe(task.id);
+      } else {
+        endSwipe(task.id);
       }
-      startOffsetX.value = translateX.value;
-      // If we previously dismissed and the key was reused, ensure we're back to a clean state.
-      rowOpacity.value = 1;
-      rowScale.value = 1;
-      swipeVisualAlpha.value = 1;
-      collapse.value = 0;
-      runOnJS(beginSwipe)(task.id);
-    });
+      onSwipeGestureActiveChange?.(task.id, isOpen);
+    },
+    [
+      beginSwipe,
+      endSwipe,
+      onSwipeGestureActiveChange,
+      task.id,
+    ],
+  );
 
-    pan = pan.onUpdate((event) => {
-      "worklet";
-      let raw = startOffsetX.value + event.translationX;
-      // Safety: if we're closing an already-open side, don't allow crossing through
-      // to the opposite side in the same gesture.
-      if (startOffsetX.value > 0) raw = Math.max(0, raw);
-      if (startOffsetX.value < 0) raw = Math.min(0, raw);
-      const sign: -1 | 0 | 1 = raw > 0 ? 1 : raw < 0 ? -1 : 0;
-      direction.value = sign;
-
-      const abs = Math.abs(raw);
-      const beyond = Math.max(0, abs - SWIPE_STOP);
-      // Gentle resistance to avoid wobble.
-      const resisted = SWIPE_STOP + beyond * SWIPE_ELASTIC;
-      const nextAbs = abs <= SWIPE_STOP ? abs : resisted;
-      // Slight smoothing for a softer feel.
-      const target = nextAbs * sign;
-      translateX.value = translateX.value + (target - translateX.value) * 0.55;
-
+  const handleSwipeWillChange = React.useCallback(
+    ({
+      openDirection,
+      snapPoint,
+    }: {
+      openDirection: OpenDirection;
+      snapPoint: number;
+    }) => {
       if (
-        thresholdHapticSent.value === 0 &&
-        sign !== 0 &&
-        Math.abs(raw) >= SWIPE_HAPTIC_AND_ACTION_FINGER
+        openDirection === OpenDirection.NONE ||
+        snapPoint < SWIPE_TRIGGER_SNAP
       ) {
-        thresholdHapticSent.value = 1;
-        runOnJS(emitThresholdHaptic)();
-      }
-    });
-
-    pan = pan.onEnd((event) => {
-      "worklet";
-      let raw = startOffsetX.value + event.translationX;
-      if (startOffsetX.value > 0) raw = Math.max(0, raw);
-      if (startOffsetX.value < 0) raw = Math.min(0, raw);
-
-      const sign: -1 | 0 | 1 = raw > 0 ? 1 : raw < 0 ? -1 : 0;
-      const abs = Math.abs(translateX.value);
-      const absFinger = Math.abs(raw);
-      const v = Math.max(-1200, Math.min(1200, event.velocityX));
-
-      const springCfg = {
-        damping: 34,
-        stiffness: 420,
-        mass: 0.9,
-        overshootClamping: true,
-        velocity: v,
-      };
-
-      // Also allow triggering based on finger travel to make "through the stop" easier,
-      // even with resistance/smoothing.
-      if (abs >= SWIPE_TRIGGER || absFinger >= SWIPE_HAPTIC_AND_ACTION_FINGER) {
-        // Trigger action, animate row off before committing.
-        direction.value = 0;
-        if (sign !== 0) dismiss(sign as -1 | 1);
+        if (openDirection === OpenDirection.NONE || snapPoint <= 0) {
+          committedSwipeActionDirectionRef.current = null;
+          thresholdHapticDirectionRef.current = null;
+        }
         return;
       }
 
-      // Snap logic tuned to make returning to "closed" easy from the stop state.
-      const CLOSE_SNAP = SWIPE_STOP * 0.72;
-      if (abs < CLOSE_SNAP) {
-        translateX.value = withSpring(0, springCfg);
-        direction.value = 0;
+      if (committedSwipeActionDirectionRef.current === openDirection) {
         return;
       }
 
-      if (abs >= SWIPE_OPEN_THRESHOLD) {
-        translateX.value = withSpring(SWIPE_STOP * sign, springCfg);
-        direction.value = sign;
+      if (openDirection === OpenDirection.LEFT) {
+        animateSwipeCommit(
+          OpenDirection.LEFT,
+          performRightAction,
+          fireRightConfirmationHaptic,
+        );
         return;
       }
 
-      translateX.value = withSpring(0, springCfg);
-      direction.value = 0;
-    });
-
-    pan = pan.onFinalize(() => {
-      "worklet";
-      thresholdHapticSent.value = 0;
-      if (swipeGestureActive.value === 1) {
-        swipeGestureActive.value = 0;
-        runOnJS(reportSwipeGestureActive)(false);
+      if (openDirection === OpenDirection.RIGHT) {
+        animateSwipeCommit(
+          OpenDirection.RIGHT,
+          performLeftAction,
+          fireLeftConfirmationHaptic,
+        );
       }
-      runOnJS(endSwipe)(task.id);
-    });
+    },
+    [
+      animateSwipeCommit,
+      fireLeftConfirmationHaptic,
+      fireRightConfirmationHaptic,
+      performLeftAction,
+      performRightAction,
+    ],
+  );
 
-    // Keep native scroll and row pan simultaneous, then let offsets decide intent.
-    if (typeof (pan as any).simultaneousWithExternalGesture === "function") {
-      return externalScrollRef
-        ? (pan as any).simultaneousWithExternalGesture(
-          nativeScroll,
-          externalScrollRef,
-        )
-        : (pan as any).simultaneousWithExternalGesture(nativeScroll);
-    }
-    return Gesture.Simultaneous(nativeScroll, pan);
-  }, [
-    axisDecision,
-    beginSwipe,
-    collapse,
-    dismiss,
-    direction,
-    endSwipe,
-    externalScrollRef,
-    isActive,
-    rowOpacity,
-    rowScale,
-    reportSwipeGestureActive,
-    startOffsetX,
-    swipeGestureActive,
-    swipeVisualAlpha,
-    task.id,
-    thresholdHapticSent,
-    touchStartX,
-    touchStartY,
-    touchStartAt,
-    translateX,
-    emitThresholdHaptic,
-  ]);
+  const handleSwipeTriggerStateChange = React.useCallback(
+    ({
+      openDirection,
+      isTriggerReached,
+    }: {
+      openDirection: OpenDirection;
+      snapPoint: number;
+      isTriggerReached: boolean;
+    }) => {
+      if (shouldApplySwipeCommitState) return;
 
-  const spacerAnimatedStyle = useAnimatedStyle(() => {
-    const p = 1 - collapse.value;
-    if (rowHeight.value <= 0) return {};
-    return {
-      height: rowHeight.value * p,
-      marginBottom: itemSpacing * p,
-      overflow: isActive ? "visible" : "hidden",
-    };
-  }, [isActive, itemSpacing]);
+      if (!isTriggerReached || openDirection === OpenDirection.NONE) {
+        if (
+          thresholdHapticDirectionRef.current === openDirection ||
+          openDirection === OpenDirection.NONE
+        ) {
+          thresholdHapticDirectionRef.current = null;
+        }
+        return;
+      }
+
+      if (thresholdHapticDirectionRef.current === openDirection) {
+        return;
+      }
+
+      thresholdHapticDirectionRef.current = openDirection;
+      triggerImpactHaptic(Haptics.ImpactFeedbackStyle.Medium);
+    },
+    [shouldApplySwipeCommitState],
+  );
 
   const clipStyle = React.useMemo(
     () => [
       styles.swipeClip,
       swipeClipStyle,
+      measuredRowHeight > 0 ? { minHeight: measuredRowHeight } : null,
       isActive ? { overflow: "visible" as const } : null,
     ],
-    [isActive, styles.swipeClip, swipeClipStyle],
+    [isActive, measuredRowHeight, styles.swipeClip, swipeClipStyle],
   );
 
-  const underlayGreenStyle = useAnimatedStyle(() => {
-    const tx = translateX.value;
-    const visible = tx > 0 ? Math.min(1, tx / SWIPE_STOP) : 0;
-    const boost =
-      tx > SWIPE_STOP
-        ? Math.min(1, (tx - SWIPE_STOP) / (SWIPE_TRIGGER - SWIPE_STOP))
-        : 0;
-    return {
-      opacity: visible * swipeVisualAlpha.value,
-      backgroundColor: leftAction?.backgroundColor ?? swipeCompleteBg,
-      transform: [{ scaleX: 1 + boost * 0.03 }],
-    };
-  }, [leftAction?.backgroundColor, swipeCompleteBg]);
-
-  const underlayRedStyle = useAnimatedStyle(() => {
-    const tx = translateX.value;
-    const visible = tx < 0 ? Math.min(1, -tx / SWIPE_STOP) : 0;
-    const boost =
-      tx < -SWIPE_STOP
-        ? Math.min(1, (-tx - SWIPE_STOP) / (SWIPE_TRIGGER - SWIPE_STOP))
-        : 0;
-    return {
-      opacity: visible * swipeVisualAlpha.value,
-      backgroundColor: rightAction?.backgroundColor ?? swipeDeleteBg,
-      transform: [{ scaleX: 1 + boost * 0.03 }],
-    };
-  }, [rightAction?.backgroundColor, swipeDeleteBg]);
-
-  const leftIconStyle = useAnimatedStyle(() => {
-    const tx = translateX.value;
-    if (tx <= 0) return { opacity: 0 };
-    const p = Math.min(1, tx / SWIPE_STOP);
-    const armed =
-      tx >= SWIPE_TRIGGER
-        ? 1
-        : Math.max(0, (tx - SWIPE_STOP) / (SWIPE_TRIGGER - SWIPE_STOP));
-    const scale = interpolate(p, [0, 1], [0.92, 1], Extrapolation.CLAMP);
-    const bump = interpolate(armed, [0, 1], [0, 0.08], Extrapolation.CLAMP);
-    return {
-      opacity:
-        interpolate(p, [0, 0.12, 1], [0, 1, 1], Extrapolation.CLAMP) *
-        swipeVisualAlpha.value,
-      transform: [{ scale: scale + bump }],
-    };
-  });
-
-  const rightIconStyle = useAnimatedStyle(() => {
-    const tx = translateX.value;
-    if (tx >= 0) return { opacity: 0 };
-    const abs = Math.min(1, -tx / SWIPE_STOP);
-    const armed =
-      -tx >= SWIPE_TRIGGER
-        ? 1
-        : Math.max(0, (-tx - SWIPE_STOP) / (SWIPE_TRIGGER - SWIPE_STOP));
-    const scale = interpolate(abs, [0, 1], [0.92, 1], Extrapolation.CLAMP);
-    const bump = interpolate(armed, [0, 1], [0, 0.08], Extrapolation.CLAMP);
-    return {
-      opacity:
-        interpolate(abs, [0, 0.12, 1], [0, 1, 1], Extrapolation.CLAMP) *
-        swipeVisualAlpha.value,
-      transform: [{ scale: scale + bump }],
-    };
-  });
-
-  const rowAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: rowOpacity.value * entryOpacity.value,
-    transform: [
-      { translateX: translateX.value },
-      { translateY: entryTranslateY.value },
-      { scale: rowScale.value * entryScale.value },
+  const spacerStyle = React.useMemo(
+    () => [
+      styles.itemSpacer,
+      itemSpacerStyle,
+      measuredRowHeight > 0 ? { minHeight: measuredRowHeight } : null,
+      {
+        marginBottom: isLast ? 0 : itemSpacing,
+        overflow: "visible" as const,
+      },
     ],
-  }));
+    [isLast, itemSpacing, itemSpacerStyle, measuredRowHeight, styles.itemSpacer],
+  );
+  const swipeCommitSpacerStyle = React.useMemo(() => {
+    if (!shouldApplySwipeCommitState) return null;
+
+    return {
+      minHeight: 0,
+      marginBottom: swipeCommitCollapseProgress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0, isLast ? 0 : itemSpacing],
+      }),
+    };
+  }, [
+    isLast,
+    itemSpacing,
+    shouldApplySwipeCommitState,
+    swipeCommitCollapseProgress,
+  ]);
+  const shouldApplyPopInLayoutState =
+    shouldPopIn && !shouldApplySwipeCommitState && measuredRowHeight > 0;
+  const popInSpacerStyle = React.useMemo(() => {
+    if (!shouldApplyPopInLayoutState) return null;
+
+    if (measuredRowHeight <= 0) {
+      return {
+        minHeight: 0,
+        marginBottom: 0,
+      };
+    }
+
+    return {
+      minHeight: 0,
+      marginBottom: popInExpandProgress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0, isLast ? 0 : itemSpacing],
+      }),
+    };
+  }, [
+    isLast,
+    itemSpacing,
+    measuredRowHeight,
+    popInExpandProgress,
+    shouldApplyPopInLayoutState,
+  ]);
+  const swipeCommitClipStyle = React.useMemo(() => {
+    if (!shouldApplySwipeCommitState || measuredRowHeight <= 0) return null;
+
+    return {
+      minHeight: 0,
+      height: swipeCommitCollapseProgress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0, measuredRowHeight],
+      }),
+      opacity: swipeCommitCollapseProgress.interpolate({
+        inputRange: [0, 0.12, 1],
+        outputRange: [0, 0.86, 1],
+      }),
+    };
+  }, [
+    measuredRowHeight,
+    shouldApplySwipeCommitState,
+    swipeCommitCollapseProgress,
+  ]);
+  const popInClipStyle = React.useMemo(() => {
+    if (!shouldApplyPopInLayoutState) return null;
+
+    if (measuredRowHeight <= 0) {
+      return {
+        minHeight: 0,
+        height: 0,
+        opacity: 0,
+      };
+    }
+
+    return {
+      minHeight: 0,
+      height: popInExpandProgress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0, measuredRowHeight],
+      }),
+    };
+  }, [
+    measuredRowHeight,
+    popInExpandProgress,
+    shouldApplyPopInLayoutState,
+  ]);
+
+  const rowContentStyle = React.useMemo(
+    () => [
+      styles.row,
+      rowStyle,
+      isActive ? styles.dragRow : undefined,
+      shouldUseCompactDragPreview
+        ? {
+            width: DRAG_COMPACT_PREVIEW_SIZE,
+            minHeight: DRAG_COMPACT_PREVIEW_SIZE,
+            maxWidth: DRAG_COMPACT_PREVIEW_SIZE,
+            borderRadius: 14,
+            paddingHorizontal: 4,
+            paddingVertical: 4,
+            alignSelf: "flex-start" as const,
+          }
+        : undefined,
+    ],
+    [
+      isActive,
+      rowStyle,
+      shouldUseCompactDragPreview,
+      styles.dragRow,
+      styles.row,
+    ],
+  );
+  const rowSurfaceColor = React.useMemo(() => {
+    // Keep row tint independent from per-item styles (for example task colors).
+    const flattenedBase = StyleSheet.flatten([
+      styles.row,
+      isActive ? styles.dragRow : undefined,
+    ]);
+    const resolved = flattenedBase?.backgroundColor;
+    if (typeof resolved === "string" && resolved.length > 0) return resolved;
+    return isDark ? "#2C2C2E" : "#FFFFFF";
+  }, [isActive, isDark, styles.dragRow, styles.row]);
+  const rowTintColor = React.useMemo(
+    () => {
+      if (rowSurfaceColor.startsWith("#")) {
+        return withAlpha(rowSurfaceColor, isDark ? 0.88 : 0.28);
+      }
+      if (
+        rowSurfaceColor.startsWith("rgb(") ||
+        rowSurfaceColor.startsWith("rgba(")
+      ) {
+        return isDark ? rowSurfaceColor : "rgba(255,255,255,0.28)";
+      }
+      return isDark ? "rgba(44,44,46,0.92)" : "rgba(255,255,255,0.28)";
+    },
+    [isDark, rowSurfaceColor],
+  );
+  const rowFallbackBackgroundColor = React.useMemo(() => {
+    if (isDark) return rowSurfaceColor;
+    if (rowSurfaceColor.startsWith("#")) {
+      return withAlpha(rowSurfaceColor, 0.82);
+    }
+    if (
+      rowSurfaceColor.startsWith("rgb(") ||
+      rowSurfaceColor.startsWith("rgba(")
+    ) {
+      return "rgba(255,255,255,0.82)";
+    }
+    return "rgba(255,255,255,0.82)";
+  }, [isDark, rowSurfaceColor]);
+  const completedContentStyle = React.useMemo(
+    () => (isCompletedTask ? { opacity: 0.72 } : null),
+    [isCompletedTask],
+  );
+  const completedTitleStyle = React.useMemo(
+    () =>
+      isCompletedTask
+        ? ({
+            textDecorationLine: "line-through",
+          } as const)
+        : null,
+    [isCompletedTask],
+  );
+  const completedMetaStyle = React.useMemo(
+    () => (isCompletedTask ? { opacity: 0.82 } : null),
+    [isCompletedTask],
+  );
+  const contentMotionStyle = React.useMemo(
+    () => {
+      const transforms: (
+        | {
+            translateX:
+              | number
+              | Animated.Value
+              | Animated.AnimatedAddition<number>
+              | Animated.AnimatedInterpolation<number>;
+          }
+        | { scale: Animated.Value }
+      )[] = [];
+
+      if (isActive && followHorizontalDrag && activeDragTranslateX) {
+        transforms.push({ translateX: activeDragTranslateX });
+        if (
+          shouldUseCompactDragPreview &&
+          typeof dragPressInLocalX === "number" &&
+          Number.isFinite(dragPressInLocalX)
+        ) {
+          transforms.push({
+            translateX: dragPressInLocalX - DRAG_COMPACT_PREVIEW_SIZE / 2,
+          });
+        }
+      }
+
+      if (revealTranslateX) {
+        transforms.push({ translateX: revealTranslateX });
+      }
+
+      if (shouldApplySwipeCommitState) {
+        transforms.push({ translateX: swipeCommitTranslateX });
+        transforms.push({ scale: swipeCommitScale });
+      }
+
+      return {
+        transform: transforms,
+      };
+    },
+    [
+      activeDragTranslateX,
+      dragPressInLocalX,
+      followHorizontalDrag,
+      isActive,
+      revealTranslateX,
+      shouldUseCompactDragPreview,
+      shouldApplySwipeCommitState,
+      swipeCommitScale,
+      swipeCommitTranslateX,
+    ],
+  );
+  const surfaceContentMotionStyle = React.useMemo(
+    () =>
+      shouldApplySwipeCommitState
+        ? {
+            opacity: swipeCommitOpacity,
+          }
+        : null,
+    [shouldApplySwipeCommitState, swipeCommitOpacity],
+  );
+  const isOverdue = React.useMemo(
+    () => isTaskOverdue(task.section, task.dueAt, task.dueHasTime, Date.now()),
+    [task.dueAt, task.dueHasTime, task.section],
+  );
+  const routineType = React.useMemo(
+    () => task.routineType ?? task.routineInterval,
+    [task.routineInterval, task.routineType],
+  );
+  const routineLabel = React.useMemo(
+    () => getRoutineChipLabel(routineType),
+    [routineType],
+  );
 
   const tagChips = React.useMemo<TagChipModel[]>(() => {
-    if (enabledTags.size === 0) return [];
-
     const chips: TagChipModel[] = [];
+    if (project) {
+      chips.push({
+        key: `proj-${project.id}`,
+        label: project.name,
+      });
+    }
 
-    const now = Date.now();
-    const isOverdue = (() => {
-      if (task.section === "completed") return false;
-      if (!Number.isFinite(task.dueAt) || task.dueAt <= 0) return false;
-
-      // If the task has no explicit time, treat it as due "by end of day".
-      if (task.dueHasTime === false) {
-        const due = new Date(task.dueAt);
-        const startOfNextDay = new Date(
-          due.getFullYear(),
-          due.getMonth(),
-          due.getDate() + 1,
-          0,
-          0,
-          0,
-          0,
-        ).getTime();
-        return now >= startOfNextDay;
-      }
-
-      // Has time (or unknown): overdue once the timestamp passed.
-      return task.dueAt < now;
-    })();
-    const hashtags = extractHashtags(
-      [task.title, task.subtitle, task.notes].filter(Boolean).join(" "),
-    );
-
-    for (const tagId of TAG_ORDER) {
-      if (!enabledTags.has(tagId)) continue;
-
-      if (tagId === "overdue") {
-        if (!isOverdue) continue;
-        chips.push({
-          key: "overdue",
-          tagId,
-          label: getTagTitle("overdue"),
-          tone: "danger",
-        });
-        continue;
-      }
-
-      if (tagId === "datetime") {
-        if (!Number.isFinite(task.dueAt) || task.dueAt <= 0) continue;
-        // Suppress redundant date chip when it matches the currently viewed day.
-        if (selectedDateStart != null && selectedDateStart > 0) {
-          const dueDay = new Date(task.dueAt);
-          const selDay = new Date(selectedDateStart);
-          if (
-            dueDay.getFullYear() === selDay.getFullYear() &&
-            dueDay.getMonth() === selDay.getMonth() &&
-            dueDay.getDate() === selDay.getDate()
-          ) {
-            continue;
-          }
-        }
-        chips.push({
-          key: `dt-${task.dueAt}`,
-          tagId,
-          label: formatDueLabel(task.dueAt, task.dueHasTime),
-        });
-        continue;
-      }
-
-      if (tagId === "location") {
-        if (!task.location) continue;
-        chips.push({
-          key: `loc-${task.location}`,
-          tagId,
-          label: task.location,
-        });
-        continue;
-      }
-
-      if (tagId === "project") {
-        if (!project) continue;
-        chips.push({ key: `proj-${project.id}`, tagId, label: project.name });
-        continue;
-      }
-
-      if (tagId === "keywords") {
-        if (hashtags.length === 0) continue;
-        for (const h of hashtags.slice(0, 3)) {
-          chips.push({ key: `kw-${h}`, tagId, label: h });
-        }
-      }
+    if (enabledTags.has("location") && task.location) {
+      chips.push({
+        key: `loc-${task.location}`,
+        label: task.location,
+      });
     }
 
     return chips;
   }, [
     enabledTags,
     project,
-    selectedDateStart,
-    task.dueAt,
-    task.dueHasTime,
     task.location,
-    task.notes,
-    task.section,
-    task.subtitle,
-    task.title,
   ]);
 
   const tagsView = tagChips.length ? (
@@ -784,10 +1214,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       {tagChips.map((chip) => (
         <View
           key={chip.key}
-          style={[
-            styles.tagChip,
-            chip.tone === "danger" ? styles.tagChipDanger : undefined,
-          ]}
+          style={styles.tagChip}
         >
           <Text style={styles.tagChipText} numberOfLines={1}>
             {chip.label}
@@ -807,7 +1234,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   }, [showCompactSubtasks, task.subtasks]);
 
   const compactSubtasksView = compactSubtasks.length ? (
-    <View style={{ marginTop: 4, gap: 6 }}>
+    <View style={{ marginTop: 2, gap: 4 }}>
       {compactSubtasks.map((subtask) => (
         <Pressable
           key={subtask.id}
@@ -822,7 +1249,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
             {
               flexDirection: "row",
               alignItems: "center",
-              gap: 8,
+              gap: 6,
               opacity: pressed && toggleSubtask ? 0.75 : 1,
             },
           ]}
@@ -831,9 +1258,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
             name={subtask.done ? "check-box" : "check-box-outline-blank"}
             size={COMPACT_SUBTASK_ICON_SIZE}
             color={
-              subtask.done
-                ? "rgba(52,199,89,0.92)"
-                : "rgba(127,127,127,0.72)"
+              subtask.done ? "rgba(52,199,89,0.92)" : "rgba(127,127,127,0.72)"
             }
           />
           <Text
@@ -843,10 +1268,10 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
               {
                 flex: 1,
                 fontSize: COMPACT_SUBTASK_TEXT_SIZE,
-                lineHeight: 19,
-                fontWeight: "500",
+                lineHeight: 18,
+                fontWeight: "600",
                 textDecorationLine: subtask.done ? "line-through" : "none",
-                opacity: subtask.done ? 0.55 : 0.82,
+                opacity: subtask.done ? 0.5 : 0.74,
               },
             ]}
           >
@@ -861,117 +1286,287 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     () => formatRowTimeLabel(task.dueAt, task.dueHasTime),
     [task.dueAt, task.dueHasTime],
   );
-
-  const emojiTileView = showTaskIcons ? (
+  const overdueDateLabel = React.useMemo(
+    () =>
+      showOverdueDatePrefix && timeLabel && isOverdue
+        ? formatRowDateLabel(task.dueAt)
+        : null,
+    [isOverdue, showOverdueDatePrefix, task.dueAt, timeLabel],
+  );
+  const overdueTimeStyle = React.useMemo(
+    () =>
+      timeLabel && isOverdue && !isCompletedTask
+        ? ({
+            color: isDark ? "rgba(255,107,107,0.96)" : "rgba(196,42,28,0.96)",
+            fontWeight: "700",
+          } as const)
+        : null,
+    [isCompletedTask, isDark, isOverdue, timeLabel],
+  );
+  const routineMetaColor = React.useMemo(
+    () => (isDark ? "rgba(191,122,240,0.96)" : "rgba(175,82,222,0.96)"),
+    [isDark],
+  );
+  const hasRightMeta = Boolean(timeLabel || routineLabel);
+  const rightMetaView = hasRightMeta ? (
     <View
-      style={[
-        styles.emojiTile,
-        {
-          backgroundColor: emojiTint,
-          borderColor: emojiFallback,
-        },
-      ]}
+      style={{
+        alignItems: "flex-end",
+        justifyContent: "center",
+        gap: timeLabel && routineLabel ? 2 : 0,
+        flexShrink: 1,
+        maxWidth: Math.min(160, viewportWidth * 0.42),
+      }}
     >
-      <Text style={styles.emojiText}>{task.emoji}</Text>
+      {timeLabel ? (
+        <Text
+          style={[styles.rowMeta, completedMetaStyle]}
+          numberOfLines={1}
+        >
+          {overdueDateLabel ? `${overdueDateLabel} ` : null}
+          <Text style={overdueTimeStyle}>{timeLabel}</Text>
+        </Text>
+      ) : null}
+      {routineLabel ? (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+          <MaterialIcons name="repeat" size={11} color={routineMetaColor} />
+          <Text
+            style={[styles.rowMeta, completedMetaStyle, { color: routineMetaColor }]}
+            numberOfLines={1}
+          >
+            {routineLabel}
+          </Text>
+        </View>
+      ) : null}
     </View>
   ) : null;
 
+  const hasSubtitle = React.useMemo(
+    () => !!task.subtitle?.trim(),
+    [task.subtitle],
+  );
+
+  const hasExtraInfo =
+    hasSubtitle || tagChips.length > 0 || compactSubtasks.length > 0;
+
+  const emojiTileView = showTaskIcons ? (
+    <View style={{ position: "relative", overflow: "visible" }}>
+      <View
+        style={[
+          styles.emojiTile,
+          shouldUseCompactDragPreview
+            ? { width: 36, height: 36, borderRadius: 10 }
+            : null,
+          {
+            backgroundColor: taskBgColor ?? projectBgColor ?? emojiTint,
+            borderColor:
+              taskEmojiBorderColor ?? projectEmojiBorderColor ?? emojiFallback,
+            borderWidth: StyleSheet.hairlineWidth,
+          },
+        ]}
+      >
+        <Text
+          style={[
+            styles.emojiText,
+            { opacity: taskBgColor || projectBgColor ? 1 : 0.92 },
+          ]}
+        >
+          {task.emoji}
+        </Text>
+      </View>
+      {isCompletedTask ? (
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            top: -4,
+            right: -4,
+            width: 16,
+            height: 16,
+            borderRadius: 8,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: isDark
+              ? "rgba(24,24,26,0.92)"
+              : "rgba(255,255,255,0.92)",
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: isDark
+              ? "rgba(255,255,255,0.16)"
+              : "rgba(0,0,0,0.08)",
+          }}
+        >
+          <MaterialIcons
+            name="check"
+            size={11}
+            color={isDark ? "rgba(255,255,255,0.82)" : "rgba(0,0,0,0.62)"}
+          />
+        </View>
+      ) : null}
+    </View>
+  ) : null;
+
+  const renderUnderlayLeft = React.useCallback(
+    (params: UnderlayParams<Task>) => (
+      <SwipeActionUnderlay
+        params={params}
+        styles={styles}
+        side="right"
+        backgroundColor={rightAction?.backgroundColor ?? swipeDeleteBg}
+        icon={rightAction?.icon ?? "delete"}
+        onPress={onPressDelete}
+      />
+    ),
+    [
+      onPressDelete,
+      rightAction?.backgroundColor,
+      rightAction?.icon,
+      styles,
+      swipeDeleteBg,
+    ],
+  );
+
+  const renderUnderlayRight = React.useCallback(
+    (params: UnderlayParams<Task>) => (
+      <SwipeActionUnderlay
+        params={params}
+        styles={styles}
+        side="left"
+        backgroundColor={leftAction?.backgroundColor ?? swipeCompleteBg}
+        icon={
+          leftAction?.icon ?? (task.section === "completed" ? "undo" : "check")
+        }
+        onPress={onPressComplete}
+      />
+    ),
+    [
+      leftAction?.backgroundColor,
+      leftAction?.icon,
+      onPressComplete,
+      styles,
+      swipeCompleteBg,
+      task.section,
+    ],
+  );
+
   return (
-    <Animated.View style={[styles.itemSpacer, itemSpacerStyle, spacerAnimatedStyle]}>
-      <View style={clipStyle}>
-        <Animated.View style={[styles.underlay, underlayGreenStyle]} />
-        <Animated.View style={[styles.underlay, underlayRedStyle]} />
-
-        <Pressable
-          style={[
-            styles.actionSlot,
-            styles.actionSlotLeft,
-            { width: SWIPE_STOP },
-          ]}
-          onPress={onPressComplete}
-          hitSlop={10}
+    <Animated.View style={[spacerStyle, popInSpacerStyle, swipeCommitSpacerStyle]}>
+      <Animated.View style={[clipStyle, popInClipStyle, swipeCommitClipStyle]}>
+        <SwipeableItem
+          ref={swipeRef}
+          item={task}
+          swipeEnabled={!isActive && !shouldApplySwipeCommitState}
+          activationThreshold={
+            typeof swipeActivationThreshold === "number"
+              ? swipeActivationThreshold
+              : SWIPE_ACTIVATION_THRESHOLD
+          }
+          swipeDamping={SWIPE_DAMPING}
+          overSwipe={SWIPE_OVER_SWIPE}
+          snapPointsLeft={[SWIPE_STOP, SWIPE_TRIGGER_SNAP]}
+          snapPointsRight={[SWIPE_STOP, SWIPE_TRIGGER_SNAP]}
+          onTriggerStateChange={handleSwipeTriggerStateChange}
+          onWillChange={handleSwipeWillChange}
+          onChange={handleSwipeChange}
+          renderUnderlayLeft={renderUnderlayLeft}
+          renderUnderlayRight={renderUnderlayRight}
         >
-          <Animated.View style={[styles.actionSlotInner, leftIconStyle]}>
-            <MaterialIcons
-              name={
-                leftAction?.icon ??
-                (task.section === "completed" ? "undo" : "check")
-              }
-              size={22}
-              color="white"
-            />
-          </Animated.View>
-        </Pressable>
-        <Pressable
-          style={[
-            styles.actionSlot,
-            styles.actionSlotRight,
-            { width: SWIPE_STOP },
-          ]}
-          onPress={onPressDelete}
-          hitSlop={10}
-        >
-          <Animated.View style={[styles.actionSlotInner, rightIconStyle]}>
-            <MaterialIcons
-              name={rightAction?.icon ?? "delete"}
-              size={22}
-              color="white"
-            />
-          </Animated.View>
-        </Pressable>
-
-        <GestureDetector gesture={gesture}>
-          <Animated.View style={rowAnimatedStyle}>
-            <Pressable
-              onLongPress={drag}
+          <Animated.View style={contentMotionStyle}>
+            <TouchableOpacity
+              onLongPress={handleLongPressDrag}
               delayLongPress={DRAG_LONG_PRESS_DELAY_MS}
-              pressRetentionOffset={{ top: 8, bottom: 8, left: 6, right: 6 }}
-              onPressIn={() => {
+              activeOpacity={0.9}
+              disabled={shouldApplySwipeCommitState}
+              onLayout={handleRowLayout}
+              style={
+                shouldUseCompactDragPreview
+                  ? {
+                      width: DRAG_COMPACT_PREVIEW_SIZE,
+                      alignSelf: "flex-start",
+                    }
+                  : { width: "100%", alignSelf: "stretch" }
+              }
+              onPressIn={(event) => {
+                const localX = event.nativeEvent.locationX;
+                setDragPressInLocalX(
+                  Number.isFinite(localX) ? localX : null,
+                );
                 onTouchInteractionChange?.(task.id, true);
+                armLongPressDrag();
               }}
               onPressOut={() => {
+                clearLongPressDrag();
                 onTouchInteractionChange?.(task.id, false);
               }}
-              onLayout={(e) => {
-                rowWidth.value = e.nativeEvent.layout.width;
-                rowHeight.value = e.nativeEvent.layout.height;
-              }}
               onPress={() => {
+                if (longPressTriggeredRef.current) {
+                  longPressTriggeredRef.current = false;
+                  return;
+                }
                 onPressTask(task.id);
               }}
             >
-              <View
-                style={[
-                  styles.row,
-                  rowStyle,
-                  isActive ? styles.dragRow : undefined,
-                ]}
+              <GlassSurface
+                style={rowContentStyle}
+                glassEffectStyle="regular"
+                tintColor={rowTintColor}
+                fallbackBackgroundColor={rowFallbackBackgroundColor}
+                isInteractive
               >
-                <View style={styles.rowInner}>
-                  {emojiTileView}
-                  <View style={styles.textStack}>
-                    <View style={styles.titleRow}>
-                      <Text style={styles.rowTitle} numberOfLines={1}>
-                        {task.title}
-                      </Text>
-                      {timeLabel ? (
-                        <Text style={styles.rowMeta} numberOfLines={1}>
-                          {timeLabel}
-                        </Text>
-                      ) : null}
-                    </View>
-                    {task.subtitle ? (
-                      <Text style={styles.rowSubtitle}>{task.subtitle}</Text>
-                    ) : null}
-                    {tagsView}
-                    {compactSubtasksView}
+                <Animated.View style={surfaceContentMotionStyle}>
+                  <View
+                    style={[
+                      styles.rowInner,
+                      completedContentStyle,
+                      shouldUseCompactDragPreview
+                        ? {
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 0,
+                          }
+                        : !hasExtraInfo
+                          ? { alignItems: "center" }
+                          : null,
+                    ]}
+                  >
+                    {emojiTileView}
+                    {shouldUseCompactDragPreview ? null : (
+                      <View
+                        style={[
+                          styles.textStack,
+                          !hasExtraInfo ? { justifyContent: "center" } : null,
+                        ]}
+                      >
+                        <View style={styles.titleRow}>
+                          <Text
+                            style={[styles.rowTitle, completedTitleStyle]}
+                            numberOfLines={1}
+                          >
+                            {task.title}
+                          </Text>
+                          {rightMetaView}
+                        </View>
+                        {task.subtitle ? (
+                          <Text
+                            style={[
+                              styles.rowSubtitle,
+                              completedTitleStyle,
+                              completedMetaStyle,
+                            ]}
+                          >
+                            {task.subtitle}
+                          </Text>
+                        ) : null}
+                        {tagsView}
+                        {compactSubtasksView}
+                      </View>
+                    )}
                   </View>
-                </View>
-              </View>
-            </Pressable>
+                </Animated.View>
+              </GlassSurface>
+            </TouchableOpacity>
           </Animated.View>
-        </GestureDetector>
-      </View>
+        </SwipeableItem>
+      </Animated.View>
     </Animated.View>
   );
 });

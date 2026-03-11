@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="24093.7" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="EXPO-VIEWCONTROLLER-1">
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="24506" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" launchScreen="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="EXPO-VIEWCONTROLLER-1">
     <device id="retina6_12" orientation="portrait" appearance="light"/>
     <dependencies>
         <deployment identifier="iOS"/>
-        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="24053.1"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="24504"/>
         <capability name="Named colors" minToolsVersion="9.0"/>
         <capability name="Safe area layout guides" minToolsVersion="9.0"/>
-        <capability name="System colors in document resources" minToolsVersion="11.0"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
     <scenes>
@@ -17,16 +16,36 @@
                         <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
                         <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
                         <subviews>
-                            <imageView id="EXPO-SplashScreen" userLabel="SplashScreenLogo" image="SplashScreenLogo" contentMode="scaleAspectFit" clipsSubviews="true" userInteractionEnabled="false" translatesAutoresizingMaskIntoConstraints="false">
-                                <rect key="frame" x="96.5" y="326" width="200" height="200"/>
+                            <imageView alpha="0.6" clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFill" image="SplashScreenGradient" translatesAutoresizingMaskIntoConstraints="NO" id="g3A-kE-A1f" userLabel="SplashScreenGradient">
+                                <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
                             </imageView>
+                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" image="SplashScreenAppIcon" translatesAutoresizingMaskIntoConstraints="NO" id="Icn-vM-J9q" userLabel="SplashScreenAppIcon">
+                                <rect key="frame" x="126.5" y="301" width="100" height="100"/>
+                            </imageView>
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Reminders+" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="Ttl-Qw-7uY">
+                                <rect key="frame" x="119" y="489" width="155" height="35"/>
+                                <fontDescription key="fontDescription" type="system" weight="semibold" pointSize="28"/>
+                                <color key="textColor" name="SplashScreenTextColor"/>
+                                <nil key="highlightedColor"/>
+                            </label>
                         </subviews>
                         <viewLayoutGuide key="safeArea" id="Rmq-lb-GrQ"/>
-                        <constraints>
-                            <constraint firstItem="EXPO-SplashScreen" firstAttribute="centerX" secondItem="EXPO-ContainerView" secondAttribute="centerX" id="cad2ab56f97c5429bf29decf850647a4216861d4"/>
-                            <constraint firstItem="EXPO-SplashScreen" firstAttribute="centerY" secondItem="EXPO-ContainerView" secondAttribute="centerY" id="1a145271b085b6ce89b1405a310f5b1bb7656595"/>
-                        </constraints>
                         <color key="backgroundColor" name="SplashScreenBackground"/>
+                        <constraints>
+                            <constraint firstItem="g3A-kE-A1f" firstAttribute="leading" secondItem="EXPO-ContainerView" secondAttribute="leading" id="4u0-cV-v0T"/>
+                            <constraint firstAttribute="trailing" secondItem="g3A-kE-A1f" secondAttribute="trailing" id="4dQ-5W-UlL"/>
+                            <constraint firstItem="g3A-kE-A1f" firstAttribute="top" secondItem="EXPO-ContainerView" secondAttribute="top" id="2xV-j6-nbk"/>
+                            <constraint firstAttribute="bottom" secondItem="g3A-kE-A1f" secondAttribute="bottom" id="pGw-R0-Dgd"/>
+                            <constraint firstItem="Icn-vM-J9q" firstAttribute="centerX" secondItem="EXPO-ContainerView" secondAttribute="centerX" id="91v-Jt-wqc"/>
+                            <constraint firstItem="Icn-vM-J9q" firstAttribute="centerY" secondItem="EXPO-ContainerView" secondAttribute="centerY" constant="-55" id="cLa-R5-Bp7"/>
+                            <constraint firstItem="Icn-vM-J9q" firstAttribute="width" secondItem="Rmq-lb-GrQ" secondAttribute="width" multiplier="0.22" id="EPB-SG-Muo"/>
+                            <constraint firstItem="Icn-vM-J9q" firstAttribute="height" secondItem="Icn-vM-J9q" secondAttribute="width" multiplier="1:1" id="ghf-hm-q0S"/>
+                            <constraint firstItem="Icn-vM-J9q" firstAttribute="width" relation="lessThanOrEqual" constant="132" id="J6y-7m-DxC"/>
+                            <constraint firstItem="Ttl-Qw-7uY" firstAttribute="top" secondItem="Icn-vM-J9q" secondAttribute="bottom" constant="18" id="n9Q-s8-rXf"/>
+                            <constraint firstItem="Ttl-Qw-7uY" firstAttribute="centerX" secondItem="EXPO-ContainerView" secondAttribute="centerX" id="bHA-xW-s1Z"/>
+                            <constraint firstItem="Ttl-Qw-7uY" firstAttribute="leading" relation="greaterThanOrEqual" secondItem="Rmq-lb-GrQ" secondAttribute="leading" constant="24" id="n4U-MK-eM5"/>
+                            <constraint firstItem="Rmq-lb-GrQ" firstAttribute="trailing" relation="greaterThanOrEqual" secondItem="Ttl-Qw-7uY" secondAttribute="trailing" constant="24" id="8PA-4h-I5r"/>
+                        </constraints>
                     </view>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="EXPO-PLACEHOLDER-1" userLabel="First Responder" sceneMemberID="firstResponder"/>
@@ -35,12 +54,13 @@
         </scene>
     </scenes>
     <resources>
-        <image name="SplashScreenLogo" width="200" height="200"/>
-        <systemColor name="systemBackgroundColor">
-            <color white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
-        </systemColor>
+        <image name="SplashScreenAppIcon" width="132" height="132"/>
+        <image name="SplashScreenGradient" width="720" height="1600"/>
         <namedColor name="SplashScreenBackground">
-            <color alpha="1.000" blue="1.00000000000000" green="1.00000000000000" red="1.00000000000000" customColorSpace="sRGB" colorSpace="custom"/>
+            <color red="1" green="1" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+        </namedColor>
+        <namedColor name="SplashScreenTextColor">
+            <color red="0.11764705926179886" green="0.11764705926179886" blue="0.11764705926179886" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
         </namedColor>
     </resources>
 </document>

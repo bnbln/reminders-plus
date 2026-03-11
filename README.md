@@ -25,6 +25,18 @@ In the output, you'll find options to open the app in a
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
+## iOS Cloud Sync (CloudKit)
+
+CloudKit custom record types must exist in the **Production** schema for TestFlight/App Store builds.
+
+1. Run a dev build on a real device and trigger Cloud Sync once to create the development schema.
+2. Open CloudKit Dashboard for your container (`iCloud.<bundleIdentifier>`).
+3. Deploy record type `RemindsSyncSnapshot` (and its fields) from Development to Production.
+
+If Production schema is missing, the app now falls back to iCloud key-value sync so devices can still exchange snapshots. This fallback has a stricter payload limit than CloudKit and should be treated as temporary until the schema is deployed.
+
+Important: iCloud entitlements are managed via `plugins/with-ios-cloud-sync.js` (CloudKit container + iCloud key-value store identifier). Do not rely on manual Xcode capability toggles only, because they can be reset by `expo prebuild`.
+
 ## Get a fresh project
 
 When you're ready, run:

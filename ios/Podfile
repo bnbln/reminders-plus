@@ -59,34 +59,5 @@ target 'reminds' do
       :mac_catalyst_enabled => false,
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
-
-    # Fix: Xcode "User Script Sandboxing" can block React Native / Expo build phases
-    # (e.g. bundling) from reading project files or writing the JS bundle.
-    # This results in errors like:
-    #   Sandbox: find(...) deny file-read-data <project>/ios/...
-    #   Sandbox: node(...) deny file-write-create <DerivedData>/.../main.jsbundle
-    # Disable sandboxing for all relevant targets.
-    begin
-      installer.pods_project.targets.each do |t|
-        t.build_configurations.each do |c|
-          c.build_settings['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
-        end
-      end
-
-      installer.aggregate_targets.each do |aggregate_target|
-        user_project = aggregate_target.user_project
-        next unless user_project
-
-        user_project.native_targets.each do |t|
-          t.build_configurations.each do |c|
-            c.build_settings['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
-          end
-        end
-
-        user_project.save
-      end
-    rescue => e
-      puts "[Podfile] Failed to set ENABLE_USER_SCRIPT_SANDBOXING=NO: #{e}"
-    end
   end
 end

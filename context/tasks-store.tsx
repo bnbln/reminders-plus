@@ -1,13 +1,25 @@
 import React from "react";
-import { AppState } from "react-native";
+import { AppState, Platform } from "react-native";
 
-import { syncTaskDueNotifications } from "@/notifications/tasks-notifications";
+import { usePremium } from "@/context/premium-store";
+import { useAppSettings } from "@/context/settings-store";
+import {
+  syncAppBadgeCount,
+  syncDailySummaryNotification,
+  syncStreakMotivationNotification,
+  syncTaskDueNotifications,
+} from "@/notifications/tasks-notifications";
 import {
   createOnboardingSeedData,
   hasCompletedOnboardingSeed,
   markCompletedOnboardingSeed,
 } from "@/storage/tasks-onboarding-seed";
 import { loadTasksSnapshot, saveTasksSnapshot } from "@/storage/tasks-storage";
+import {
+  setNativeCloudSyncEnabled,
+  subscribeToCloudSyncRemoteApplies,
+  syncCloudNow,
+} from "@/services/cloud-sync";
 import {
   deriveActiveSectionFromDueAt,
   getStartOfLocalDayMs,
@@ -85,6 +97,8 @@ export type Task = {
   routineMonth?: number;
 };
 
+export type CompletionHistory = Record<string, number>;
+
 export const getDueAtForSection = (section: SectionId) => {
   const now = new Date();
   const startOfToday = new Date(
@@ -114,7 +128,35 @@ export const getDueAtForSection = (section: SectionId) => {
   return completedAt.getTime();
 };
 
-const SNAPSHOT_VERSION = 1 as const;
+const SNAPSHOT_VERSION = 2 as const;
+const DEFAULT_PROJECT_ICON = "folder.fill";
+
+function normalizeProjectIcon(value: unknown): string {
+  if (typeof value !== "string") return DEFAULT_PROJECT_ICON;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : DEFAULT_PROJECT_ICON;
+}
+
+function toLocalISODate(timestamp: number): string {
+  const date = new Date(timestamp);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getTasksContentSignature(
+  tasks: Task[],
+  projects: Project[],
+  completionHistory: CompletionHistory,
+): string {
+  return JSON.stringify({ tasks, projects, completionHistory });
+}
+
+function getSnapshotSavedAt(raw: any): number {
+  const savedAt = raw?.savedAt;
+  return typeof savedAt === "number" && Number.isFinite(savedAt) ? savedAt : 0;
+}
 
 function isSectionId(v: unknown): v is SectionId {
   return v === "today" || v === "upcoming" || v === "completed";
@@ -149,6 +191,87 @@ function normalizeRoutineType(v: unknown): RoutineType | undefined {
     default:
       return undefined;
   }
+}
+
+function normalizeCompletionHistory(raw: unknown): CompletionHistory {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return {};
+  }
+
+  const next: CompletionHistory = {};
+  for (const [dateKey, count] of Object.entries(raw as Record<string, unknown>)) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) continue;
+    if (typeof count !== "number" || !Number.isFinite(count) || count <= 0) {
+      continue;
+    }
+    next[dateKey] = Math.floor(count);
+  }
+  return next;
+}
+
+function buildCompletionHistoryFromTasks(tasks: Task[]): CompletionHistory {
+  const next: CompletionHistory = {};
+  for (const task of tasks) {
+    if (!hasValidDueAt(task.completedAt)) continue;
+    const dateKey = toLocalISODate(task.completedAt);
+    next[dateKey] = (next[dateKey] ?? 0) + 1;
+  }
+  return next;
+}
+
+function ensureCompletionHistoryIncludesTasks(
+  completionHistory: CompletionHistory,
+  tasks: Task[],
+): CompletionHistory {
+  const taskHistory = buildCompletionHistoryFromTasks(tasks);
+  let next = completionHistory;
+
+  for (const [dateKey, count] of Object.entries(taskHistory)) {
+    if ((next[dateKey] ?? 0) >= count) continue;
+    if (next === completionHistory) {
+      next = { ...completionHistory };
+    }
+    next[dateKey] = count;
+  }
+
+  return next;
+}
+
+function collectNewCompletionHistory(
+  previousTasks: Task[],
+  nextTasks: Task[],
+): CompletionHistory {
+  const previouslyCompletedTaskIds = new Set(
+    previousTasks
+      .filter((task) => hasValidDueAt(task.completedAt))
+      .map((task) => task.id),
+  );
+  const delta: CompletionHistory = {};
+
+  for (const task of nextTasks) {
+    if (!hasValidDueAt(task.completedAt)) continue;
+    if (previouslyCompletedTaskIds.has(task.id)) continue;
+    const dateKey = toLocalISODate(task.completedAt);
+    delta[dateKey] = (delta[dateKey] ?? 0) + 1;
+  }
+
+  return delta;
+}
+
+function mergeCompletionHistory(
+  completionHistory: CompletionHistory,
+  delta: CompletionHistory,
+): CompletionHistory {
+  let changed = false;
+  const next = { ...completionHistory };
+
+  for (const [dateKey, count] of Object.entries(delta)) {
+    if (count <= 0) continue;
+    next[dateKey] = (next[dateKey] ?? 0) + count;
+    changed = true;
+  }
+
+  return changed ? next : completionHistory;
 }
 
 /** Get the nth occurrence of a weekday in a given month */
@@ -297,9 +420,12 @@ export function getNextRoutineDate(
     monthDay?: number;
     month?: number;
   } = {},
+  minExclusiveMs: number = Date.now(),
 ): number {
-  const nowMs = Date.now();
-  let next = new Date(currentDueAt > 0 ? currentDueAt : nowMs);
+  const thresholdMs = Number.isFinite(minExclusiveMs)
+    ? minExclusiveMs
+    : Date.now();
+  let next = new Date(currentDueAt > 0 ? currentDueAt : thresholdMs);
   const maxIterations = 4096;
 
   for (let i = 0; i < maxIterations; i += 1) {
@@ -314,18 +440,167 @@ export function getNextRoutineDate(
       next = new Date(beforeMs + 60_000);
     }
 
-    if (next.getTime() > nowMs) {
+    if (next.getTime() > thresholdMs) {
       return next.getTime();
     }
   }
 
   // Last-resort fallback in case we cannot compute a stable progression.
-  const fallback = new Date(nowMs);
+  const fallback = new Date(thresholdMs);
   fallback.setDate(fallback.getDate() + 1);
   return fallback.getTime();
 }
 
-function normalizeSnapshot(raw: any): { tasks: Task[]; projects: Project[] } {
+function resolveRoutineTypeForTask(task: Task): RoutineType | undefined {
+  if (task.isRoutine === false) return undefined;
+  return normalizeRoutineType(task.routineType ?? task.routineInterval);
+}
+
+function createRoutineCompletionEntryId(
+  taskId: string,
+  completedAtMs: number,
+  existingIds?: ReadonlySet<string>,
+): string {
+  const safeBaseId = taskId.trim().length > 0 ? taskId : "task";
+  const baseId = `${safeBaseId}-done-${Math.floor(completedAtMs).toString(36)}`;
+  if (!existingIds || !existingIds.has(baseId)) return baseId;
+
+  for (let index = 1; index < 10_000; index += 1) {
+    const candidate = `${baseId}-${index}`;
+    if (!existingIds.has(candidate)) return candidate;
+  }
+
+  return `${baseId}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export type RoutineCompletionTransition = {
+  nextTask: Task;
+  completedTask: Task;
+};
+
+export function createRoutineCompletionTransition(
+  task: Task,
+  completedAtMs: number = Date.now(),
+  existingIds?: ReadonlySet<string>,
+): RoutineCompletionTransition | null {
+  const routineType = resolveRoutineTypeForTask(task);
+  if (!routineType) return null;
+
+  const completionTimestamp = Number.isFinite(completedAtMs)
+    ? completedAtMs
+    : Date.now();
+  const routineOptions = {
+    weekday: task.routineWeekday,
+    nthWeek: task.routineNthWeek,
+    monthDay: task.routineMonthDay,
+    month: task.routineMonth,
+  };
+  const nextDueAt = getNextRoutineDate(
+    task.dueAt,
+    routineType,
+    routineOptions,
+    completionTimestamp,
+  );
+  const nextTask: Task = {
+    ...task,
+    dueAt: nextDueAt,
+    section: deriveActiveSectionFromDueAt(nextDueAt, completionTimestamp),
+    completedAt: undefined,
+    // Start fresh for the next routine occurrence.
+    subtasks: task.subtasks?.map((subtask) => ({
+      ...subtask,
+      done: false,
+    })),
+  };
+  const completedTask: Task = {
+    ...task,
+    id: createRoutineCompletionEntryId(task.id, completionTimestamp, existingIds),
+    section: "completed",
+    completedAt: completionTimestamp,
+    dueAt: hasValidDueAt(task.dueAt) ? task.dueAt : completionTimestamp,
+    // Historical entries should not behave like live routines when restored.
+    isRoutine: false,
+  };
+
+  return { nextTask, completedTask };
+}
+
+function getDefaultRoutineDueAt(referenceMs: number, dueHasTime?: boolean): number {
+  const next = new Date(referenceMs);
+
+  if (dueHasTime === false) {
+    next.setHours(12, 0, 0, 0);
+    if (next.getTime() <= referenceMs) {
+      next.setDate(next.getDate() + 1);
+    }
+    return next.getTime();
+  }
+
+  next.setHours(Math.min(23, Math.max(8, next.getHours() + 1)), 0, 0, 0);
+  if (next.getTime() <= referenceMs) {
+    next.setDate(next.getDate() + 1);
+    next.setHours(8, 0, 0, 0);
+  }
+  return next.getTime();
+}
+
+function getStartOfLocalHourMs(value: number | Date = Date.now()) {
+  const date = typeof value === "number" ? new Date(value) : new Date(value);
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+    date.getHours(),
+    0,
+    0,
+    0,
+  ).getTime();
+}
+
+function reconcileRoutineDueAt(task: Task, referenceMs: number): Task {
+  if (task.deletedAt) return task;
+  if (task.section === "completed" || hasValidDueAt(task.completedAt)) return task;
+
+  const routineType = resolveRoutineTypeForTask(task);
+  if (!routineType) return task;
+
+  const todayStartMs = getStartOfLocalDayMs(referenceMs);
+  const staleThresholdMs =
+    // Keep the current hourly occurrence visible until the user completes it.
+    routineType === "hourly"
+      ? getStartOfLocalHourMs(referenceMs) - 1
+      : todayStartMs - 1;
+  const routineOptions = {
+    weekday: task.routineWeekday,
+    nthWeek: task.routineNthWeek,
+    monthDay: task.routineMonthDay,
+    month: task.routineMonth,
+  };
+
+  let nextDueAt = hasValidDueAt(task.dueAt)
+    ? task.dueAt
+    : getDefaultRoutineDueAt(referenceMs, task.dueHasTime);
+
+  if (nextDueAt <= staleThresholdMs) {
+    nextDueAt = getNextRoutineDate(
+      nextDueAt,
+      routineType,
+      routineOptions,
+      staleThresholdMs,
+    );
+  }
+
+  if (nextDueAt === task.dueAt) return task;
+  return { ...task, dueAt: nextDueAt };
+}
+
+type TasksStoreData = {
+  tasks: Task[];
+  projects: Project[];
+  completionHistory: CompletionHistory;
+};
+
+function normalizeSnapshot(raw: any): TasksStoreData {
   const rawTasks = Array.isArray(raw?.tasks) ? raw.tasks : [];
   const rawProjects = Array.isArray(raw?.projects) ? raw.projects : [];
 
@@ -425,7 +700,7 @@ function normalizeSnapshot(raw: any): { tasks: Task[]; projects: Project[] } {
           typeof p.emoji === "string" && p.emoji.trim().length > 0
             ? p.emoji
             : undefined,
-        icon: typeof p.icon === "string" ? p.icon : "folder.fill",
+        icon: normalizeProjectIcon(p.icon),
         description:
           typeof p.description === "string" ? p.description : undefined,
         completed: typeof p.completed === "boolean" ? p.completed : undefined,
@@ -437,7 +712,13 @@ function normalizeSnapshot(raw: any): { tasks: Task[]; projects: Project[] } {
     })
     .filter((p: Project | null): p is Project => !!p);
 
-  return { tasks, projects };
+  const normalizedTasks = reconcileTaskSections(tasks, Date.now());
+  const completionHistory = ensureCompletionHistoryIncludesTasks(
+    normalizeCompletionHistory(raw?.completionHistory),
+    normalizedTasks,
+  );
+
+  return { tasks: normalizedTasks, projects, completionHistory };
 }
 
 function reconcileTaskSection(task: Task, referenceMs: number): Task {
@@ -481,7 +762,8 @@ function reconcileTaskSections(
 ): Task[] {
   let changed = false;
   const next = tasks.map((task) => {
-    const normalized = reconcileTaskSection(task, referenceMs);
+    const withRoutineDueAt = reconcileRoutineDueAt(task, referenceMs);
+    const normalized = reconcileTaskSection(withRoutineDueAt, referenceMs);
     if (normalized !== task) changed = true;
     return normalized;
   });
@@ -493,16 +775,169 @@ type TasksContextValue = {
   setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
   projects: Project[];
   setProjects: React.Dispatch<React.SetStateAction<Project[]>>;
+  completionHistory: CompletionHistory;
 };
 
 const TasksContext = React.createContext<TasksContextValue | null>(null);
 
 export function TasksProvider({ children }: { children: React.ReactNode }) {
-  const [tasks, setTasks] = React.useState<Task[]>([]);
-  const [projects, setProjects] = React.useState<Project[]>([]);
+  const {
+    hasHydrated: hasSettingsHydrated,
+    appBadgeMode,
+    dailySummaryEnabled,
+    dailySummaryMinutes,
+    cloudSyncEnabled,
+  } = useAppSettings();
+  const { hasPremiumAccess } = usePremium();
+  const [store, setStore] = React.useState<TasksStoreData>({
+    tasks: [],
+    projects: [],
+    completionHistory: {},
+  });
+  const { tasks, projects, completionHistory } = store;
+  const setTasks = React.useCallback<React.Dispatch<React.SetStateAction<Task[]>>>(
+    (value) => {
+      setStore((prevStore) => {
+        const nextInput =
+          typeof value === "function"
+            ? (value as (prevState: Task[]) => Task[])(prevStore.tasks)
+            : value;
+        const nextTasks = reconcileTaskSections(nextInput, Date.now());
+        const nextCompletionHistory = mergeCompletionHistory(
+          prevStore.completionHistory,
+          collectNewCompletionHistory(prevStore.tasks, nextTasks),
+        );
+
+        if (
+          nextTasks === prevStore.tasks &&
+          nextCompletionHistory === prevStore.completionHistory
+        ) {
+          return prevStore;
+        }
+
+        return {
+          ...prevStore,
+          tasks: nextTasks,
+          completionHistory: nextCompletionHistory,
+        };
+      });
+    },
+    [],
+  );
+  const setProjects = React.useCallback<
+    React.Dispatch<React.SetStateAction<Project[]>>
+  >((value) => {
+    setStore((prevStore) => {
+      const nextProjects =
+        typeof value === "function"
+          ? (value as (prevState: Project[]) => Project[])(prevStore.projects)
+          : value;
+
+      if (nextProjects === prevStore.projects) {
+        return prevStore;
+      }
+
+      return {
+        ...prevStore,
+        projects: nextProjects,
+      };
+    });
+  }, []);
   const hydratedRef = React.useRef(false);
   const persistEnabledRef = React.useRef(false);
   const dayAnchorRef = React.useRef(getStartOfLocalDayMs());
+  const tasksRef = React.useRef<Task[]>([]);
+  const projectsRef = React.useRef<Project[]>([]);
+  const completionHistoryRef = React.useRef<CompletionHistory>({});
+  const lastPersistedContentSignatureRef = React.useRef("");
+  const lastKnownLocalSavedAtRef = React.useRef(0);
+  const effectiveCloudSyncEnabled =
+    Platform.OS === "ios" && cloudSyncEnabled && hasPremiumAccess;
+
+  React.useEffect(() => {
+    tasksRef.current = tasks;
+  }, [tasks]);
+
+  React.useEffect(() => {
+    projectsRef.current = projects;
+  }, [projects]);
+
+  React.useEffect(() => {
+    completionHistoryRef.current = completionHistory;
+  }, [completionHistory]);
+
+  const persistSnapshotIfNeeded = React.useCallback(async (): Promise<boolean> => {
+    if (!hydratedRef.current) return false;
+    if (!persistEnabledRef.current) return false;
+
+    const nextTasks = tasksRef.current;
+    const nextProjects = projectsRef.current;
+    const nextCompletionHistory = completionHistoryRef.current;
+    const nextSignature = getTasksContentSignature(
+      nextTasks,
+      nextProjects,
+      nextCompletionHistory,
+    );
+    if (nextSignature === lastPersistedContentSignatureRef.current) {
+      return false;
+    }
+
+    const savedAt = Date.now();
+    await saveTasksSnapshot({
+      schemaVersion: SNAPSHOT_VERSION,
+      savedAt,
+      tasks: nextTasks,
+      projects: nextProjects,
+      completionHistory: nextCompletionHistory,
+    });
+    lastPersistedContentSignatureRef.current = nextSignature;
+    lastKnownLocalSavedAtRef.current = savedAt;
+    return true;
+  }, []);
+
+  const reloadSnapshotFromDiskIfNeeded = React.useCallback(async () => {
+    if (!hydratedRef.current) return false;
+    if (!persistEnabledRef.current) return false;
+
+    const res = await loadTasksSnapshot();
+    if (res.status !== "ok") return false;
+
+    const next = normalizeSnapshot(res.snapshot);
+    const nextSignature = getTasksContentSignature(
+      next.tasks,
+      next.projects,
+      next.completionHistory,
+    );
+    const nextSavedAt = getSnapshotSavedAt(res.snapshot);
+    const currentSignature = getTasksContentSignature(
+      tasksRef.current,
+      projectsRef.current,
+      completionHistoryRef.current,
+    );
+
+    if (nextSignature === currentSignature) {
+      lastPersistedContentSignatureRef.current = nextSignature;
+      if (nextSavedAt > 0) {
+        lastKnownLocalSavedAtRef.current = nextSavedAt;
+      }
+      return false;
+    }
+
+    if (
+      nextSavedAt > 0 &&
+      lastKnownLocalSavedAtRef.current > 0 &&
+      nextSavedAt < lastKnownLocalSavedAtRef.current
+    ) {
+      return false;
+    }
+
+    lastPersistedContentSignatureRef.current = nextSignature;
+    if (nextSavedAt > 0) {
+      lastKnownLocalSavedAtRef.current = nextSavedAt;
+    }
+    setStore(next);
+    return true;
+  }, []);
 
   // Hydrate from local encrypted snapshot once.
   React.useEffect(() => {
@@ -514,8 +949,13 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
         if (cancelled) return;
         if (res.status === "ok") {
           const next = normalizeSnapshot(res.snapshot);
-          setTasks(next.tasks);
-          setProjects(next.projects);
+          lastPersistedContentSignatureRef.current = getTasksContentSignature(
+            next.tasks,
+            next.projects,
+            next.completionHistory,
+          );
+          lastKnownLocalSavedAtRef.current = getSnapshotSavedAt(res.snapshot);
+          setStore(next);
           persistEnabledRef.current = true;
           return;
         }
@@ -527,8 +967,14 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
 
           if (!alreadySeeded) {
             const seed = createOnboardingSeedData();
-            setTasks(seed.tasks);
-            setProjects(seed.projects);
+            setStore({
+              tasks: seed.tasks,
+              projects: seed.projects,
+              completionHistory: ensureCompletionHistoryIncludesTasks(
+                {},
+                seed.tasks,
+              ),
+            });
             persistEnabledRef.current = true;
             // Mark as seeded (best-effort). Persistence will write the snapshot via effect.
             void markCompletedOnboardingSeed();
@@ -547,7 +993,7 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
           hydratedRef.current = true;
           const nowMs = Date.now();
           dayAnchorRef.current = getStartOfLocalDayMs(nowMs);
-          setTasks((prev) => reconcileTaskSections(prev, nowMs));
+          setTasks((prev) => prev);
         }
       }
     };
@@ -556,30 +1002,57 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [setTasks]);
 
-  // Keep sections stable across day rollovers and app foreground transitions.
+  // Keep time-sensitive fields (section + routine due dates) in sync over time.
   React.useEffect(() => {
-    const reconcileIfDayChanged = () => {
+    const reconcileTimeDependentTasks = () => {
       if (!hydratedRef.current) return;
       const nowMs = Date.now();
       const todayStart = getStartOfLocalDayMs(nowMs);
-      if (todayStart === dayAnchorRef.current) return;
-      dayAnchorRef.current = todayStart;
-      setTasks((prev) => reconcileTaskSections(prev, nowMs));
+      if (todayStart !== dayAnchorRef.current) {
+        dayAnchorRef.current = todayStart;
+      }
+      setTasks((prev) => prev);
     };
 
     const appStateSub = AppState.addEventListener("change", (nextState) => {
-      if (nextState !== "active") return;
-      reconcileIfDayChanged();
+      if (nextState === "active") {
+        reconcileTimeDependentTasks();
+        void (async () => {
+          await reloadSnapshotFromDiskIfNeeded();
+          if (!effectiveCloudSyncEnabled) return;
+          const result = await syncCloudNow();
+          if (result.didPullRemote) {
+            await reloadSnapshotFromDiskIfNeeded();
+          }
+        })();
+      }
+
+      if (nextState === "background") {
+        void (async () => {
+          const didPersist = await persistSnapshotIfNeeded();
+          if (!effectiveCloudSyncEnabled) return;
+          if (!didPersist && !persistEnabledRef.current) return;
+          const result = await syncCloudNow();
+          if (result.didPullRemote) {
+            await reloadSnapshotFromDiskIfNeeded();
+          }
+        })();
+      }
     });
-    const timer = setInterval(reconcileIfDayChanged, 60_000);
+    const timer = setInterval(reconcileTimeDependentTasks, 60_000);
 
     return () => {
       appStateSub.remove();
       clearInterval(timer);
     };
-  }, [setTasks]);
+  }, [
+    effectiveCloudSyncEnabled,
+    persistSnapshotIfNeeded,
+    reloadSnapshotFromDiskIfNeeded,
+    setTasks,
+  ]);
 
   // Persist on change (after hydration). Debounced to avoid excessive writes on drag/reorder.
   React.useEffect(() => {
@@ -587,18 +1060,43 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     if (!persistEnabledRef.current) return;
 
     const handle = setTimeout(() => {
-      void saveTasksSnapshot({
-        schemaVersion: SNAPSHOT_VERSION,
-        savedAt: Date.now(),
-        tasks,
-        projects,
-      });
+      void (async () => {
+        const didPersist = await persistSnapshotIfNeeded();
+        if (!effectiveCloudSyncEnabled || !didPersist) return;
+        const result = await syncCloudNow();
+        if (result.didPullRemote) {
+          await reloadSnapshotFromDiskIfNeeded();
+        }
+      })();
     }, 250);
 
     return () => {
       clearTimeout(handle);
     };
-  }, [projects, tasks]);
+  }, [
+    completionHistory,
+    effectiveCloudSyncEnabled,
+    persistSnapshotIfNeeded,
+    projects,
+    reloadSnapshotFromDiskIfNeeded,
+    tasks,
+  ]);
+
+  React.useEffect(() => {
+    if (!hasSettingsHydrated) return;
+    void setNativeCloudSyncEnabled(effectiveCloudSyncEnabled);
+  }, [effectiveCloudSyncEnabled, hasSettingsHydrated]);
+
+  React.useEffect(() => {
+    if (!effectiveCloudSyncEnabled) return;
+    const subscription = subscribeToCloudSyncRemoteApplies(() => {
+      void reloadSnapshotFromDiskIfNeeded();
+    });
+
+    return () => {
+      subscription?.remove();
+    };
+  }, [effectiveCloudSyncEnabled, reloadSnapshotFromDiskIfNeeded]);
 
   // Keep iOS scheduled notifications in sync with tasks.
   React.useEffect(() => {
@@ -614,9 +1112,72 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     };
   }, [projects, tasks]);
 
+  // Keep iOS app badge, summary and streak motivation in sync with tasks + settings.
+  React.useEffect(() => {
+    if (!hydratedRef.current) return;
+    if (!persistEnabledRef.current) return;
+    if (!hasSettingsHydrated) return;
+
+    const handle = setTimeout(() => {
+      void syncAppBadgeCount({ tasks, appBadgeMode });
+      void syncDailySummaryNotification({
+        tasks,
+        enabled: dailySummaryEnabled,
+        minutesOfDay: dailySummaryMinutes,
+      });
+      void syncStreakMotivationNotification({
+        tasks,
+      });
+    }, 750);
+
+    return () => {
+      clearTimeout(handle);
+    };
+  }, [
+    appBadgeMode,
+    dailySummaryEnabled,
+    dailySummaryMinutes,
+    hasSettingsHydrated,
+    tasks,
+  ]);
+
+  // Re-apply badge, summary and streak motivation when the app becomes active again.
+  React.useEffect(() => {
+    if (!hydratedRef.current) return;
+    if (!persistEnabledRef.current) return;
+    if (!hasSettingsHydrated) return;
+
+    const run = () => {
+      void syncAppBadgeCount({ tasks, appBadgeMode });
+      void syncDailySummaryNotification({
+        tasks,
+        enabled: dailySummaryEnabled,
+        minutesOfDay: dailySummaryMinutes,
+      });
+      void syncStreakMotivationNotification({
+        tasks,
+      });
+    };
+
+    const appStateSub = AppState.addEventListener("change", (nextState) => {
+      if (nextState !== "active") return;
+      run();
+    });
+
+    return () => {
+      appStateSub.remove();
+    };
+  }, [
+    appBadgeMode,
+    dailySummaryEnabled,
+    dailySummaryMinutes,
+    hasSettingsHydrated,
+    tasks,
+  ]);
+
   const value = React.useMemo(
-    () => ({ tasks, setTasks, projects, setProjects }),
-    [projects, tasks],
+    () => ({ tasks, setTasks, projects, setProjects, completionHistory }),
+    [completionHistory, projects, setProjects, setTasks, tasks],
   );
   return (
     <TasksContext.Provider value={value}>{children}</TasksContext.Provider>

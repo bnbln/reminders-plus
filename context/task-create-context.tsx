@@ -1,6 +1,11 @@
 import React from "react";
 
-export type TaskCreateMode = "task" | "routine" | "project" | "inProject";
+export type TaskCreateMode =
+  | "task"
+  | "today"
+  | "routine"
+  | "project"
+  | "inProject";
 
 type TaskCreateContextValue = {
   projectId: string;
@@ -8,6 +13,9 @@ type TaskCreateContextValue = {
   clearProjectId: () => void;
   mode: TaskCreateMode;
   setMode: (mode: TaskCreateMode) => void;
+  presetDateStart: number;
+  setPresetDateStart: (dateStart: number) => void;
+  clearPresetDateStart: () => void;
   popInTaskIds: string[];
   queueTaskPopIn: (taskId: string) => void;
   consumeTaskPopIn: (taskId: string) => void;
@@ -20,6 +28,7 @@ const TaskCreateContext = React.createContext<TaskCreateContextValue | null>(
 export function TaskCreateProvider({ children }: { children: React.ReactNode }) {
   const [projectId, setProjectIdState] = React.useState("");
   const [mode, setModeState] = React.useState<TaskCreateMode>("task");
+  const [presetDateStart, setPresetDateStartState] = React.useState(0);
   const [popInTaskIds, setPopInTaskIds] = React.useState<string[]>([]);
 
   const setProjectId = React.useCallback((nextProjectId: string) => {
@@ -32,6 +41,18 @@ export function TaskCreateProvider({ children }: { children: React.ReactNode }) 
 
   const setMode = React.useCallback((nextMode: TaskCreateMode) => {
     setModeState(nextMode);
+  }, []);
+
+  const setPresetDateStart = React.useCallback((rawDateStart: number) => {
+    if (!Number.isFinite(rawDateStart) || rawDateStart <= 0) {
+      setPresetDateStartState(0);
+      return;
+    }
+    setPresetDateStartState(Math.trunc(rawDateStart));
+  }, []);
+
+  const clearPresetDateStart = React.useCallback(() => {
+    setPresetDateStartState(0);
   }, []);
 
   const queueTaskPopIn = React.useCallback((rawTaskId: string) => {
@@ -57,18 +78,24 @@ export function TaskCreateProvider({ children }: { children: React.ReactNode }) 
       clearProjectId,
       mode,
       setMode,
+      presetDateStart,
+      setPresetDateStart,
+      clearPresetDateStart,
       popInTaskIds,
       queueTaskPopIn,
       consumeTaskPopIn,
     }),
     [
       clearProjectId,
+      clearPresetDateStart,
       consumeTaskPopIn,
       mode,
       popInTaskIds,
+      presetDateStart,
       projectId,
       queueTaskPopIn,
       setMode,
+      setPresetDateStart,
       setProjectId,
     ],
   );

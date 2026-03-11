@@ -1,33 +1,64 @@
-import { useIsFocused } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
+import { useIsFocused } from "@react-navigation/native";
 import React from 'react';
-import type { StyleProp, ViewStyle } from 'react-native';
-import { LayoutAnimation, View } from 'react-native';
-import DraggableFlatList, {
-  NestableDraggableFlatList,
-  NestableScrollContainer,
-  RenderItemParams,
-} from 'react-native-draggable-flatlist';
-import type { SharedValue } from 'react-native-reanimated';
+import {
+  Animated,
+  LayoutAnimation,
+  LayoutChangeEvent,
+  View,
+  useWindowDimensions,
+  type GestureResponderEvent,
+  type StyleProp,
+  type ViewStyle
+} from "react-native";
+import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist';
 
 import type { SwipeTaskRowStyles } from '@/components/tasks/swipe-task-row';
 import { SwipeTaskRow } from '@/components/tasks/swipe-task-row';
 import { withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
 import type { TagId } from '@/context/home-filters-store';
+import { useAppSettings } from '@/context/settings-store';
 import { useTaskCreateContext } from '@/context/task-create-context';
 import type { Project, Task } from '@/context/tasks-store';
-import { isIOS26OrNewer } from '@/utils/ios-version';
+import { triggerImpactHaptic } from '@/utils/haptics';
 
 type ThemeName = keyof typeof Colors;
+const LIST_ACTIVATION_DISTANCE_DEFAULT = 0;
+const LIST_AUTOSCROLL_SPEED = 58;
+const TASK_LIST_WIDE_LAYOUT_BREAKPOINT = 900;
+const TASK_LIST_MAX_CONTENT_WIDTH = 760;
+const LIST_ANIMATION_CONFIG = {
+  damping: 26,
+  stiffness: 300,
+  mass: 0.28,
+  overshootClamping: true,
+} as const;
+
+type TaskRowStyleOverrides = {
+  itemSpacerStyle?: StyleProp<ViewStyle>;
+  swipeClipStyle?: StyleProp<ViewStyle>;
+  rowStyle?: StyleProp<ViewStyle>;
+};
 
 export type TaskSwipeDraggableListItem =
   | { kind: 'task'; key: string; taskId: string }
   | { kind: 'header'; key: string; sectionId: string };
 
+export type TaskDragGestureUpdateParams = {
+  phase: "begin" | "update" | "end";
+  absoluteX: number;
+  absoluteY: number;
+  translationX: number;
+  translationY: number;
+};
+
 export type TaskSwipeDraggableListHandle = {
   closeAnyOpen: () => void;
 };
+
+const getDefaultTaskAppearanceKey = (task: Task) =>
+  `${task.id}:${task.section}:${task.completedAt ?? 0}:${task.deletedAt ?? 0}`;
 
 const areListItemsEqual = (
   current: TaskSwipeDraggableListItem[],
@@ -87,15 +118,13 @@ export type TaskSwipeDraggableListProps = {
   projectsById?: Map<string, Project>;
   rowStyles: SwipeTaskRowStyles;
   itemSpacing?: number;
-  /**
-   * Optional scroll ref for coordinating gestures with an outer scroll container.
-   */
+  /** Optional outer scroll ref for gesture coordination (e.g. horizontal parent scroll). */
   scrollRef?: React.RefObject<any>;
   /**
    * Rendering mode for the list.
-   * - `auto` (default): DraggableFlatList on most platforms, ScrollView on iOS 26+.
+   * - `auto` (default): DraggableFlatList.
    * - `static`: Render list content only; caller owns the scroll container.
-   * - `nestable`: Render a NestableDraggableFlatList for use inside a NestableScrollContainer.
+   * - `nestable`: legacy alias of `auto`.
    */
   renderMode?: 'auto' | 'static' | 'nestable';
 
@@ -109,12 +138,18 @@ export type TaskSwipeDraggableListProps = {
 
   contentContainerStyle?: StyleProp<ViewStyle>;
   containerStyle?: StyleProp<ViewStyle>;
+  isDark: boolean;
+  onLayout?: (e: LayoutChangeEvent) => void;
   contentInsetAdjustmentBehavior?: 'automatic' | 'never';
 
   /**
-   * `react-native-draggable-flatlist` exposes scroll via `onScrollOffsetChange` (number), not `onScroll`.
+   * `react - native - draggable - flatlist` exposes scroll via `onScrollOffsetChange` (number), not `onScroll`.
    */
   onScrollOffsetChange?: (scrollOffset: number) => void;
+  onListTouchMove?: (event: GestureResponderEvent) => void;
+  onListTouchEnd?: (event: GestureResponderEvent) => void;
+  onListTouchCancel?: (event: GestureResponderEvent) => void;
+  onDragGestureUpdate?: (params: TaskDragGestureUpdateParams) => void;
 
   /**
    * Reports drag state changes so callers can avoid treating drag as scroll.
@@ -122,17 +157,6 @@ export type TaskSwipeDraggableListProps = {
   onDragStateChange?: (isDragging: boolean) => void;
   onSwipeStateChange?: (isSwiping: boolean) => void;
   onRowTouchStateChange?: (isTouchingRow: boolean) => void;
-  /**
-   * Horizontal outer board offset used to compensate active drag X while board auto-scrolls.
-   * Only used together with `dragAxisMode="free"`.
-   */
-  crossAxisExternalOffset?: SharedValue<number>;
-  /**
-   * Drag axis behavior:
-   * - `vertical` (default): classic sortable list drag.
-   * - `free`: keep vertical reorder, but let the active item follow finger on X too.
-   */
-  dragAxisMode?: "vertical" | "free";
 
   header?: React.ReactElement | null;
   footer?: React.ReactElement | null;
@@ -141,8 +165,18 @@ export type TaskSwipeDraggableListProps = {
   enabledTags?: Set<TagId>;
   showTaskIcons?: boolean;
   showCompactSubtasks?: boolean;
+  /** While dragging, switches the active drag preview into compact icon mode. */
+  dragCompactPreview?: boolean;
+  /** While dragging, apply horizontal translation to the active row preview. */
+  followHorizontalDrag?: boolean;
+  /** Additional horizontal drag compensation (for parent horizontal scroll while dragging). */
+  dragTranslateXCompensation?: number;
+  /** Override row swipe activation threshold to improve parent horizontal scrolling. */
+  rowSwipeActivationThreshold?: number;
   /** When set, datetime tags matching this day are suppressed in task rows. */
   selectedDateStart?: number;
+  /** When true, prepend overdue date before the overdue time in row meta. */
+  showOverdueDatePrefix?: boolean;
 
   onPressTask: (taskId: string) => void;
   toggleComplete: (taskId: string) => void;
@@ -157,22 +191,12 @@ export type TaskSwipeDraggableListProps = {
     from: number;
     to: number;
   }) => boolean | void;
-  onDragTouchPoint?: (params: {
-    absoluteX: number;
-    absoluteY: number;
-    translationX: number;
-    translationY: number;
-  }) => void;
   getTaskRowStyleOverrides?: (params: {
     task: Task;
     sectionId: string | null;
     isSectionFirstTask: boolean;
     isSectionLastTask: boolean;
-  }) => {
-    itemSpacerStyle?: StyleProp<ViewStyle>;
-    swipeClipStyle?: StyleProp<ViewStyle>;
-    rowStyle?: StyleProp<ViewStyle>;
-  } | null;
+  }) => TaskRowStyleOverrides | null;
 
   keyForTask?: (task: Task) => string;
   sortByOrderRank?: boolean;
@@ -183,6 +207,16 @@ export type TaskSwipeDraggableListProps = {
   syncDataDuringDrag?: boolean;
   /** Disable internal list layout animations when parent drives its own transition. */
   animateDataLayoutChanges?: boolean;
+  /** Optional section reveal progress (0..1 expanded) for staggered task entry animation. */
+  revealProgress?: Animated.Value | Animated.AnimatedInterpolation<number>;
+  revealPhase?: 'enter' | 'exit';
+  revealStaggerStep?: number;
+  revealTranslateX?: number;
+  /**
+   * When true, the list shrinks to content height when short.
+   * This keeps the area below rows free for parent gestures.
+   */
+  shrinkToContentWhenShort?: boolean;
 };
 
 export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHandle, TaskSwipeDraggableListProps>(function TaskSwipeDraggableList(
@@ -198,20 +232,29 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     renderHeaderRow,
     contentContainerStyle,
     containerStyle,
+    isDark,
+    onLayout,
     contentInsetAdjustmentBehavior,
     onScrollOffsetChange,
+    onListTouchMove,
+    onListTouchEnd,
+    onListTouchCancel,
+    onDragGestureUpdate,
     onDragStateChange,
     onSwipeStateChange,
     onRowTouchStateChange,
-    crossAxisExternalOffset,
-    dragAxisMode = "vertical",
     header,
     footer,
     empty,
     enabledTags,
     showTaskIcons,
     showCompactSubtasks = false,
+    dragCompactPreview = false,
+    followHorizontalDrag = false,
+    dragTranslateXCompensation = 0,
+    rowSwipeActivationThreshold,
     selectedDateStart,
+    showOverdueDatePrefix = false,
     onPressTask,
     toggleComplete,
     toggleSubtask,
@@ -220,40 +263,86 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     onReorderData,
     onDragBeginTask,
     onDragEndMeta,
-    onDragTouchPoint,
     getTaskRowStyleOverrides,
     keyForTask,
     sortByOrderRank,
-    syncDataDuringDrag = false,
+    syncDataDuringDrag = true,
     animateDataLayoutChanges = true,
+    revealProgress,
+    revealPhase = 'enter',
+    revealStaggerStep = 0.055,
+    revealTranslateX = 72,
+    shrinkToContentWhenShort = false,
   },
   ref
 ) {
-  const isDark = theme === 'dark';
+  const { reduceMotionEnabled } = useAppSettings();
   const isFocused = useIsFocused();
+  const { width: viewportWidth } = useWindowDimensions();
   const { popInTaskIds, consumeTaskPopIn } = useTaskCreateContext();
-
   const emojiTint = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.12 : 0.22), [isDark, theme]);
   const emojiFallback = React.useMemo(
     () => withAlpha(Colors[theme].background, isDark ? 0.52 : 0.74),
     [isDark, theme]
   );
 
-  const swipeCompleteBg = React.useMemo(() => (isDark ? '#30D158' : '#34C759'), [isDark]);
-  const swipeDeleteBg = React.useMemo(() => (isDark ? '#FF453A' : '#FF3B30'), [isDark]);
+  const swipeCompleteBg = React.useMemo(() => '#22C55E', []);
+  const swipeDeleteBg = React.useMemo(() => '#F4512C', []);
 
   const enabledTagsResolved = React.useMemo(() => enabledTags ?? new Set<TagId>(), [enabledTags]);
   const showTaskIconsResolved = React.useMemo(() => showTaskIcons ?? true, [showTaskIcons]);
   const popInTaskIdSet = React.useMemo(() => new Set(popInTaskIds), [popInTaskIds]);
+  const [dynamicPopInTaskIds, setDynamicPopInTaskIds] = React.useState<string[]>([]);
+  const dynamicPopInTaskIdSet = React.useMemo(
+    () => new Set(dynamicPopInTaskIds),
+    [dynamicPopInTaskIds],
+  );
+  const previousTaskKeyByIdRef = React.useRef<Map<string, string> | null>(null);
+  const suppressDynamicPopInUntilRef = React.useRef(0);
 
   const isDraggingRef = React.useRef(false);
   const placeholderIndexRef = React.useRef<number>(-1);
   const draggingTaskIdRef = React.useRef<string | null>(null);
+  const activeDragTranslationX = React.useRef(new Animated.Value(0)).current;
+  const activeDragTranslationXValueRef = React.useRef(0);
+  const dragCompensationX = React.useRef(new Animated.Value(0)).current;
+  const dragCompensationXValueRef = React.useRef(0);
   const openSwipeIdRef = React.useRef<string | null>(null);
   const closeByIdRef = React.useRef(new Map<string, () => void>());
   const swipingTaskIdsRef = React.useRef(new Set<string>());
   const touchingTaskIdsRef = React.useRef(new Set<string>());
-  const internalScrollRef = React.useRef<any>(null);
+
+  const resetActiveDragTranslationX = React.useCallback(() => {
+    if (activeDragTranslationXValueRef.current === 0) return;
+    activeDragTranslationXValueRef.current = 0;
+    activeDragTranslationX.setValue(0);
+  }, [activeDragTranslationX]);
+
+  const updateActiveDragTranslationX = React.useCallback(
+    (nextValue: number) => {
+      if (!Number.isFinite(nextValue)) return;
+      const current = activeDragTranslationXValueRef.current;
+      if (Math.abs(current - nextValue) < 0.5) return;
+      activeDragTranslationXValueRef.current = nextValue;
+      activeDragTranslationX.setValue(nextValue);
+    },
+    [activeDragTranslationX]
+  );
+
+  React.useEffect(() => {
+    const nextCompensation = Number.isFinite(dragTranslateXCompensation)
+      ? dragTranslateXCompensation
+      : 0;
+    const current = dragCompensationXValueRef.current;
+    if (Math.abs(current - nextCompensation) < 0.5) return;
+    dragCompensationXValueRef.current = nextCompensation;
+    dragCompensationX.setValue(nextCompensation);
+  }, [dragCompensationX, dragTranslateXCompensation]);
+
+  const resolvedActiveDragTranslateX = React.useMemo(
+    () => Animated.add(activeDragTranslationX, dragCompensationX),
+    [activeDragTranslationX, dragCompensationX]
+  );
 
   const registerClose = React.useCallback((taskId: string, close: () => void) => {
     closeByIdRef.current.set(taskId, close);
@@ -339,9 +428,21 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   const handlePopInAnimationEnd = React.useCallback(
     (taskId: string) => {
       consumeTaskPopIn(taskId);
+      setDynamicPopInTaskIds((current) =>
+        current.filter((candidate) => candidate !== taskId),
+      );
     },
     [consumeTaskPopIn]
   );
+  const suppressDynamicPopIns = React.useCallback((durationMs = 520) => {
+    suppressDynamicPopInUntilRef.current = Date.now() + durationMs;
+    setDynamicPopInTaskIds([]);
+  }, []);
+
+  React.useEffect(() => {
+    if (isFocused) return;
+    setDynamicPopInTaskIds([]);
+  }, [isFocused]);
 
   const beginSwipe = React.useCallback((taskId: string) => {
     for (const [id, close] of closeByIdRef.current.entries()) {
@@ -365,25 +466,86 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   const tasksById = React.useMemo(() => new Map(tasksSorted.map((t) => [t.id, t] as const)), [tasksSorted]);
 
   const listData = React.useMemo<TaskSwipeDraggableListItem[]>(() => {
-    const makeKey = keyForTask ?? ((t: Task) => t.id);
+    const makeKey = keyForTask ?? getDefaultTaskAppearanceKey;
     return tasksSorted.map((t) => ({ kind: 'task', key: makeKey(t), taskId: t.id }));
   }, [keyForTask, tasksSorted]);
 
-  const resolvedData = data ?? listData;
+  const resolvedData = React.useMemo<TaskSwipeDraggableListItem[]>(() => {
+    const base = data ?? listData;
+    if (base.length === 0) return base;
+
+    let hasDanglingTaskReference = false;
+    const sanitized: TaskSwipeDraggableListItem[] = [];
+    for (const item of base) {
+      if (item.kind === 'header' || tasksById.has(item.taskId)) {
+        sanitized.push(item);
+      } else {
+        hasDanglingTaskReference = true;
+      }
+    }
+
+    return hasDanglingTaskReference ? sanitized : base;
+  }, [data, listData, tasksById]);
 
   const [flatListData, setFlatListData] = React.useState<TaskSwipeDraggableListItem[]>(() => resolvedData);
+
+  React.useEffect(() => {
+    const nextTaskKeyById = new Map<string, string>();
+    for (const item of resolvedData) {
+      if (item.kind !== 'task') continue;
+      nextTaskKeyById.set(item.taskId, item.key);
+    }
+
+    const previousTaskKeyById = previousTaskKeyByIdRef.current;
+    previousTaskKeyByIdRef.current = nextTaskKeyById;
+    if (!previousTaskKeyById) return;
+    if (!isFocused || reduceMotionEnabled) return;
+    if (suppressDynamicPopInUntilRef.current > Date.now()) return;
+
+    const changedTaskIds: string[] = [];
+    let structuralChangeCount = 0;
+    for (const taskId of previousTaskKeyById.keys()) {
+      if (!nextTaskKeyById.has(taskId)) {
+        structuralChangeCount += 1;
+      }
+    }
+    for (const [taskId, key] of nextTaskKeyById.entries()) {
+      const previousKey = previousTaskKeyById.get(taskId);
+      if (!previousKey) {
+        structuralChangeCount += 1;
+        continue;
+      }
+      if (previousKey && previousKey !== key) {
+        changedTaskIds.push(taskId);
+      }
+    }
+
+    if (changedTaskIds.length === 0 || changedTaskIds.length > 2) return;
+    if (structuralChangeCount > 1) return;
+
+    setDynamicPopInTaskIds((current) => {
+      const next = new Set(current);
+      changedTaskIds.forEach((taskId) => next.add(taskId));
+      return Array.from(next);
+    });
+  }, [isFocused, reduceMotionEnabled, resolvedData]);
 
   React.useLayoutEffect(() => {
     if (isDraggingRef.current && !syncDataDuringDrag) return;
 
     setFlatListData((current) => {
       if (areListItemsEqual(current, resolvedData)) return current;
-      if (animateDataLayoutChanges) {
+      if (animateDataLayoutChanges && !reduceMotionEnabled) {
         configureListDataLayoutAnimation();
       }
       return resolvedData;
     });
-  }, [animateDataLayoutChanges, resolvedData, syncDataDuringDrag]);
+  }, [
+    animateDataLayoutChanges,
+    reduceMotionEnabled,
+    resolvedData,
+    syncDataDuringDrag,
+  ]);
 
   const taskSectionMetaById = React.useMemo(() => {
     const bySection = new Map<string, string[]>();
@@ -404,13 +566,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
         currentSection = item.sectionId;
         continue;
       }
-      let sectionId = currentSection;
-      const keyParts = item.key.split(':');
-      const suffix = keyParts[keyParts.length - 1];
-      if (suffix === 'today' || suffix === 'upcoming' || suffix === 'completed') {
-        sectionId = suffix;
-      }
-      appendTask(sectionId, item.taskId);
+      appendTask(currentSection, item.taskId);
     }
 
     const taskMeta = new Map<
@@ -433,33 +589,134 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     }
     return taskMeta;
   }, [flatListData]);
+  const flatListIndexByKey = React.useMemo(
+    () =>
+      new Map(flatListData.map((item, index) => [item.key, index] as const)),
+    [flatListData],
+  );
+  const getRevealTranslateX = React.useCallback(
+    (index: number) => {
+      if (!revealProgress || reduceMotionEnabled) return null;
 
-  // Native tab-bar minimize-on-scroll currently tracks ScrollView reliably on iOS 26,
-  // but not DraggableFlatList. Keep a ScrollView path for iOS 26 to preserve native minimize behavior.
-  const useScrollViewCompatibilityMode = isIOS26OrNewer();
-  const rowScrollGestureRef = React.useMemo(() => {
-    if (scrollRef) return scrollRef;
-    if (useScrollViewCompatibilityMode) return internalScrollRef;
-    return undefined;
-  }, [scrollRef, useScrollViewCompatibilityMode]);
-  const simultaneousHandlers = React.useMemo(() => {
-    if (scrollRef) return scrollRef;
-    if (useScrollViewCompatibilityMode) return internalScrollRef;
-    return undefined;
-  }, [scrollRef, useScrollViewCompatibilityMode]);
-  const usesNestedScrollGestures = renderMode === 'nestable' || useScrollViewCompatibilityMode;
-  const listActivationDistance = usesNestedScrollGestures ? 22 : 12;
-  // `react-native-draggable-flatlist` only emits `onDragTouchPoint` when cross-axis drag is enabled.
-  // Auto-enable it whenever callers subscribe to drag touch points.
-  const allowCrossAxisDrag = dragAxisMode === "free" || !!onDragTouchPoint;
+      const safeIndex = Number.isFinite(index) ? Math.max(0, index) : 0;
+      const stagger = Math.max(0.02, Math.min(0.1, revealStaggerStep));
+      const start = Math.min(0.03 + safeIndex * stagger, 0.76);
+      const end = Math.min(start + 0.3, 1);
+
+      if (revealPhase === 'exit') {
+        return revealProgress.interpolate({
+          inputRange: [0, start, end, 1],
+          outputRange: [0, 0, revealTranslateX, revealTranslateX],
+          extrapolate: 'clamp',
+        });
+      }
+
+      return revealProgress.interpolate({
+        inputRange: [0, start, end, 1],
+        outputRange: [revealTranslateX, revealTranslateX, 0, 0],
+        extrapolate: 'clamp',
+      });
+    },
+    [
+      reduceMotionEnabled,
+      revealPhase,
+      revealProgress,
+      revealStaggerStep,
+      revealTranslateX,
+    ],
+  );
+
+  const listActivationDistance = LIST_ACTIVATION_DISTANCE_DEFAULT;
+  const simultaneousHandlers = React.useMemo(
+    () => scrollRef ?? undefined,
+    [scrollRef]
+  );
   const resolvedContainerStyle: StyleProp<ViewStyle> = React.useMemo(() => {
-    return [{ flex: 1, backgroundColor: Colors[theme].background, overflow: 'visible' }, containerStyle];
-  }, [containerStyle, theme]);
+    return [
+      {
+        flex: shrinkToContentWhenShort ? undefined : 1,
+        flexShrink: shrinkToContentWhenShort ? 1 : undefined,
+        minHeight: shrinkToContentWhenShort ? 0 : undefined,
+        backgroundColor: Colors[theme].background,
+        overflow: "visible",
+      },
+      containerStyle,
+    ];
+  }, [containerStyle, shrinkToContentWhenShort, theme]);
+  const resolvedListStyle: StyleProp<ViewStyle> = React.useMemo(
+    () =>
+      shrinkToContentWhenShort
+        ? {
+            alignSelf: "stretch",
+            flexGrow: 0,
+            flexShrink: 1,
+            minHeight: 0,
+            overflow: "visible",
+          }
+        : { flex: 1, overflow: "visible" },
+    [shrinkToContentWhenShort]
+  );
+  const constrainedRowMaxWidth = React.useMemo(() => {
+    if (viewportWidth < TASK_LIST_WIDE_LAYOUT_BREAKPOINT) return 0;
+    return Math.min(TASK_LIST_MAX_CONTENT_WIDTH, viewportWidth - 32);
+  }, [viewportWidth]);
+  const autoTaskRowStyleOverrides = React.useMemo<TaskRowStyleOverrides | null>(
+    () => {
+      if (constrainedRowMaxWidth <= 0) return null;
+      return {
+        itemSpacerStyle: { alignItems: "center" as const },
+        swipeClipStyle: {
+          width: "100%" as const,
+          maxWidth: constrainedRowMaxWidth,
+          alignSelf: "center" as const,
+        },
+        rowStyle: { width: "100%" as const },
+      };
+    },
+    [constrainedRowMaxWidth]
+  );
+  const constrainedHeaderContainerStyle = React.useMemo<
+    StyleProp<ViewStyle> | null
+  >(() => {
+    if (constrainedRowMaxWidth <= 0) return null;
+    return {
+      width: "100%",
+      maxWidth: constrainedRowMaxWidth,
+      alignSelf: "center",
+    };
+  }, [constrainedRowMaxWidth]);
+  const mergeTaskRowStyleOverrides = React.useCallback(
+    (nextOverrides: TaskRowStyleOverrides | null | undefined) => {
+      if (!autoTaskRowStyleOverrides) return nextOverrides ?? null;
+      return {
+        itemSpacerStyle: [
+          autoTaskRowStyleOverrides.itemSpacerStyle,
+          nextOverrides?.itemSpacerStyle,
+        ],
+        swipeClipStyle: [
+          autoTaskRowStyleOverrides.swipeClipStyle,
+          nextOverrides?.swipeClipStyle,
+        ],
+        rowStyle: [autoTaskRowStyleOverrides.rowStyle, nextOverrides?.rowStyle],
+      } satisfies TaskRowStyleOverrides;
+    },
+    [autoTaskRowStyleOverrides]
+  );
 
   const renderItem = React.useCallback(
-    ({ item, drag, isActive }: RenderItemParams<TaskSwipeDraggableListItem>) => {
+    ({ item, drag, isActive, getIndex }: RenderItemParams<TaskSwipeDraggableListItem>) => {
+      const liveIndex = getIndex();
+      const index =
+        typeof liveIndex === "number" &&
+        Number.isFinite(liveIndex) &&
+        liveIndex >= 0
+          ? liveIndex
+          : (flatListIndexByKey.get(item.key) ?? -1);
       if (item.kind === 'header') {
-        return renderHeaderRow ? renderHeaderRow(item.sectionId) : null;
+        const headerRow = renderHeaderRow ? renderHeaderRow(item.sectionId) : null;
+        if (!headerRow) return null;
+        if (!constrainedHeaderContainerStyle) return headerRow;
+        return <View style={constrainedHeaderContainerStyle}>{headerRow}</View>;
       }
 
       const task = tasksById.get(item.taskId);
@@ -469,20 +726,27 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
         isSectionFirstTask: false,
         isSectionLastTask: false,
       };
-      const rowStyleOverrides = getTaskRowStyleOverrides?.({
-        task,
-        sectionId: sectionMeta.sectionId,
-        isSectionFirstTask: sectionMeta.isSectionFirstTask,
-        isSectionLastTask: sectionMeta.isSectionLastTask,
-      });
+      const rowStyleOverrides = mergeTaskRowStyleOverrides(
+        getTaskRowStyleOverrides?.({
+          task,
+          sectionId: sectionMeta.sectionId,
+          isSectionFirstTask: sectionMeta.isSectionFirstTask,
+          isSectionLastTask: sectionMeta.isSectionLastTask,
+        }),
+      );
+      const shouldAnimatePopIn =
+        isFocused &&
+        (popInTaskIdSet.has(task.id) || dynamicPopInTaskIdSet.has(task.id));
 
-      return (
+      const row = (
         <SwipeTaskRow
           task={task}
           project={projectsById?.get(task.projectId)}
           drag={drag}
           isActive={isActive}
           styles={rowStyles}
+          isDark={isDark}
+          isLast={index === flatListData.length - 1}
           itemSpacing={itemSpacing}
           emojiTint={emojiTint}
           emojiFallback={emojiFallback}
@@ -491,6 +755,11 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           enabledTags={enabledTagsResolved}
           showTaskIcons={showTaskIconsResolved}
           showCompactSubtasks={showCompactSubtasks}
+          dragCompactPreview={dragCompactPreview}
+          activeDragTranslateX={resolvedActiveDragTranslateX}
+          revealTranslateX={shouldAnimatePopIn ? null : getRevealTranslateX(index)}
+          followHorizontalDrag={followHorizontalDrag}
+          swipeActivationThreshold={rowSwipeActivationThreshold}
           beginSwipe={beginSwipe}
           endSwipe={endSwipe}
           registerClose={registerClose}
@@ -500,17 +769,18 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           toggleComplete={toggleComplete}
           toggleSubtask={toggleSubtask}
           deleteTask={deleteTask}
-          externalScrollRef={rowScrollGestureRef}
           onSwipeGestureActiveChange={reportSwipeGestureActive}
           onTouchInteractionChange={reportRowTouchInteraction}
-          shouldPopIn={isFocused && popInTaskIdSet.has(task.id)}
+          shouldPopIn={shouldAnimatePopIn}
           onPopInAnimationEnd={handlePopInAnimationEnd}
           selectedDateStart={selectedDateStart}
+          showOverdueDatePrefix={showOverdueDatePrefix}
           itemSpacerStyle={rowStyleOverrides?.itemSpacerStyle}
           swipeClipStyle={rowStyleOverrides?.swipeClipStyle}
           rowStyle={rowStyleOverrides?.rowStyle}
         />
       );
+      return row;
     },
     [
       beginSwipe,
@@ -521,19 +791,28 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       emojiTint,
       endSwipe,
       getTaskRowStyleOverrides,
+      mergeTaskRowStyleOverrides,
+      getRevealTranslateX,
       handlePressTask,
       handlePopInAnimationEnd,
+      constrainedHeaderContainerStyle,
+      dynamicPopInTaskIdSet,
       isFocused,
+      isDark,
       itemSpacing,
       popInTaskIdSet,
-      rowScrollGestureRef,
       renderHeaderRow,
       projectsById,
       rowStyles,
       registerClose,
       selectedDateStart,
+      showOverdueDatePrefix,
       showTaskIconsResolved,
       showCompactSubtasks,
+      dragCompactPreview,
+      followHorizontalDrag,
+      resolvedActiveDragTranslateX,
+      rowSwipeActivationThreshold,
       swipeCompleteBg,
       swipeDeleteBg,
       taskSectionMetaById,
@@ -543,13 +822,18 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       unregisterClose,
       reportSwipeGestureActive,
       reportRowTouchInteraction,
+      flatListData.length,
+      flatListIndexByKey,
     ]
   );
 
   const renderCompatItem = React.useCallback(
-    (item: TaskSwipeDraggableListItem) => {
+    (item: TaskSwipeDraggableListItem, index: number) => {
       if (item.kind === 'header') {
-        return renderHeaderRow ? renderHeaderRow(item.sectionId) : null;
+        const headerRow = renderHeaderRow ? renderHeaderRow(item.sectionId) : null;
+        if (!headerRow) return null;
+        if (!constrainedHeaderContainerStyle) return headerRow;
+        return <View style={constrainedHeaderContainerStyle}>{headerRow}</View>;
       }
 
       const task = tasksById.get(item.taskId);
@@ -559,20 +843,27 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
         isSectionFirstTask: false,
         isSectionLastTask: false,
       };
-      const rowStyleOverrides = getTaskRowStyleOverrides?.({
-        task,
-        sectionId: sectionMeta.sectionId,
-        isSectionFirstTask: sectionMeta.isSectionFirstTask,
-        isSectionLastTask: sectionMeta.isSectionLastTask,
-      });
+      const rowStyleOverrides = mergeTaskRowStyleOverrides(
+        getTaskRowStyleOverrides?.({
+          task,
+          sectionId: sectionMeta.sectionId,
+          isSectionFirstTask: sectionMeta.isSectionFirstTask,
+          isSectionLastTask: sectionMeta.isSectionLastTask,
+        }),
+      );
+      const shouldAnimatePopIn =
+        isFocused &&
+        (popInTaskIdSet.has(task.id) || dynamicPopInTaskIdSet.has(task.id));
 
-      return (
+      const row = (
         <SwipeTaskRow
           task={task}
           project={projectsById?.get(task.projectId)}
           drag={() => { }}
           isActive={false}
           styles={rowStyles}
+          isDark={isDark}
+          isLast={index === flatListData.length - 1}
           itemSpacing={itemSpacing}
           emojiTint={emojiTint}
           emojiFallback={emojiFallback}
@@ -581,6 +872,11 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           enabledTags={enabledTagsResolved}
           showTaskIcons={showTaskIconsResolved}
           showCompactSubtasks={showCompactSubtasks}
+          dragCompactPreview={dragCompactPreview}
+          activeDragTranslateX={null}
+          revealTranslateX={shouldAnimatePopIn ? null : getRevealTranslateX(index)}
+          followHorizontalDrag={followHorizontalDrag}
+          swipeActivationThreshold={rowSwipeActivationThreshold}
           beginSwipe={beginSwipe}
           endSwipe={endSwipe}
           registerClose={registerClose}
@@ -590,17 +886,18 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           toggleComplete={toggleComplete}
           toggleSubtask={toggleSubtask}
           deleteTask={deleteTask}
-          externalScrollRef={rowScrollGestureRef}
           onSwipeGestureActiveChange={reportSwipeGestureActive}
           onTouchInteractionChange={reportRowTouchInteraction}
-          shouldPopIn={isFocused && popInTaskIdSet.has(task.id)}
+          shouldPopIn={shouldAnimatePopIn}
           onPopInAnimationEnd={handlePopInAnimationEnd}
           selectedDateStart={selectedDateStart}
+          showOverdueDatePrefix={showOverdueDatePrefix}
           itemSpacerStyle={rowStyleOverrides?.itemSpacerStyle}
           swipeClipStyle={rowStyleOverrides?.swipeClipStyle}
           rowStyle={rowStyleOverrides?.rowStyle}
         />
       );
+      return row;
     },
     [
       beginSwipe,
@@ -611,19 +908,27 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       emojiTint,
       endSwipe,
       getTaskRowStyleOverrides,
+      mergeTaskRowStyleOverrides,
+      getRevealTranslateX,
       handlePressTask,
       handlePopInAnimationEnd,
+      constrainedHeaderContainerStyle,
+      dynamicPopInTaskIdSet,
       isFocused,
+      isDark,
       itemSpacing,
       popInTaskIdSet,
       projectsById,
       registerClose,
-      rowScrollGestureRef,
       renderHeaderRow,
       rowStyles,
       selectedDateStart,
+      showOverdueDatePrefix,
       showTaskIconsResolved,
       showCompactSubtasks,
+      dragCompactPreview,
+      followHorizontalDrag,
+      rowSwipeActivationThreshold,
       swipeCompleteBg,
       swipeDeleteBg,
       taskSectionMetaById,
@@ -633,6 +938,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       unregisterClose,
       reportSwipeGestureActive,
       reportRowTouchInteraction,
+      flatListData.length,
     ]
   );
 
@@ -644,7 +950,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
         {flatListData.length === 0 ? (
           empty ?? null
         ) : (
-          flatListData.map((item) => <React.Fragment key={item.key}>{renderCompatItem(item)}</React.Fragment>)
+          flatListData.map((item, index) => <React.Fragment key={item.key}>{renderCompatItem(item, index)}</React.Fragment>)
         )}
 
         {footer ?? null}
@@ -655,6 +961,8 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   const handleDragBegin = React.useCallback(
     (fromIndex: number) => {
       isDraggingRef.current = true;
+      suppressDynamicPopIns();
+      resetActiveDragTranslationX();
       onDragStateChange?.(true);
       placeholderIndexRef.current = fromIndex;
       closeAnyOpen();
@@ -666,18 +974,47 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       } else {
         draggingTaskIdRef.current = null;
       }
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(
-        () => undefined,
-      );
+      triggerImpactHaptic(Haptics.ImpactFeedbackStyle.Medium);
     },
-    [closeAnyOpen, onDragBeginTask, onDragStateChange, resolvedData],
+    [
+      closeAnyOpen,
+      onDragBeginTask,
+      onDragStateChange,
+      resetActiveDragTranslationX,
+      resolvedData,
+      suppressDynamicPopIns,
+    ],
   );
 
   const handleDragRelease = React.useCallback(() => {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
-      () => undefined,
-    );
+    triggerImpactHaptic(Haptics.ImpactFeedbackStyle.Light);
   }, []);
+
+  const handleDragGestureUpdateInternal = React.useCallback(
+    (params: TaskDragGestureUpdateParams) => {
+      const { phase, translationX } = params;
+      if (phase === "begin") {
+        resetActiveDragTranslationX();
+      } else if (phase === "update") {
+        if (followHorizontalDrag) {
+          updateActiveDragTranslationX(
+            Number.isFinite(translationX) ? translationX : 0
+          );
+        } else {
+          resetActiveDragTranslationX();
+        }
+      } else {
+        resetActiveDragTranslationX();
+      }
+      onDragGestureUpdate?.(params);
+    },
+    [
+      followHorizontalDrag,
+      onDragGestureUpdate,
+      resetActiveDragTranslationX,
+      updateActiveDragTranslationX,
+    ],
+  );
 
   const handleDragEnd = React.useCallback(
     ({
@@ -689,49 +1026,64 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       from: number;
       to: number;
     }) => {
-      const handledExternally = onDragEndMeta?.({ data, from, to }) === true;
+      const nextData = data.filter(
+        (item) => item.kind === "header" || tasksById.has(item.taskId),
+      );
+      suppressDynamicPopIns();
+      const handledExternally =
+        onDragEndMeta?.({ data: nextData, from, to }) === true;
       if (handledExternally) {
-        const draggingTaskId = draggingTaskIdRef.current;
-        if (!draggingTaskId) {
-          setFlatListData(data);
-        } else {
-          setFlatListData((prev) =>
-            prev.filter(
-              (item) => item.kind === "header" || item.taskId !== draggingTaskId,
-            ),
-          );
-        }
+        resetActiveDragTranslationX();
+        // External handlers mutate parent data; keep local list stable and
+        // wait for parent sync to avoid transient remount flashes.
+        // Delay the drag-state reset so the drop commit's state changes
+        // propagate before the useLayoutEffect re-syncs flatListData.
+        draggingTaskIdRef.current = null;
+        placeholderIndexRef.current = -1;
+        requestAnimationFrame(() => {
+          isDraggingRef.current = false;
+          onDragStateChange?.(false);
+        });
       } else {
-        setFlatListData(data);
-        onReorderData?.(data);
-        onReorder?.(data.filter((d) => d.kind === "task").map((d) => d.taskId));
+        resetActiveDragTranslationX();
+        setFlatListData(nextData);
+        onReorderData?.(nextData);
+        onReorder?.(
+          nextData.filter((d) => d.kind === "task").map((d) => d.taskId),
+        );
+        draggingTaskIdRef.current = null;
+        placeholderIndexRef.current = -1;
+        // Delay drag-state reset to give parent re-render one frame to propagate,
+        // preventing the useLayoutEffect from re-syncing data and causing a flash.
+        requestAnimationFrame(() => {
+          isDraggingRef.current = false;
+          onDragStateChange?.(false);
+        });
       }
-      draggingTaskIdRef.current = null;
-      isDraggingRef.current = false;
-      placeholderIndexRef.current = -1;
-      onDragStateChange?.(false);
     },
-    [onDragEndMeta, onDragStateChange, onReorder, onReorderData],
+    [
+      onDragEndMeta,
+      onDragStateChange,
+      onReorder,
+      onReorderData,
+      resetActiveDragTranslationX,
+      suppressDynamicPopIns,
+      tasksById,
+    ],
   );
 
   const dragListProps = {
     data: flatListData,
     keyExtractor: (item: TaskSwipeDraggableListItem) => item.key,
     renderItem,
-    style: { overflow: 'visible' as const },
     ListHeaderComponent: header ?? null,
     ListFooterComponent: footer ?? null,
     ListEmptyComponent: empty ?? null,
     contentContainerStyle,
     simultaneousHandlers,
     activationDistance: listActivationDistance,
-    autoscrollSpeed: 22,
-    animationConfig: {
-      damping: 32,
-      stiffness: 420,
-      mass: 0.22,
-      overshootClamping: true,
-    },
+    autoscrollSpeed: LIST_AUTOSCROLL_SPEED,
+    animationConfig: reduceMotionEnabled ? undefined : LIST_ANIMATION_CONFIG,
     dragItemOverflow: true,
     onDragBegin: handleDragBegin,
     onPlaceholderIndexChange: (index: number) => {
@@ -739,52 +1091,29 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     },
     onRelease: handleDragRelease,
     onDragEnd: handleDragEnd,
-    onDragTouchPoint,
-    allowCrossAxisDrag,
-    crossAxisExternalOffset,
+    onTouchMove: onListTouchMove,
+    onTouchEnd: onListTouchEnd,
+    onTouchCancel: onListTouchCancel,
+    onDragGestureUpdate: handleDragGestureUpdateInternal,
   };
 
   if (renderMode === 'static') {
     return renderListContent();
   }
 
-  if (renderMode === 'nestable') {
-    return <NestableDraggableFlatList {...dragListProps} />;
-  }
-
-  if (useScrollViewCompatibilityMode) {
-    return (
-      <View style={resolvedContainerStyle}>
-        <NestableScrollContainer
-          ref={internalScrollRef}
-          style={{ flex: 1, overflow: "visible" }}
-          contentInsetAdjustmentBehavior={contentInsetAdjustmentBehavior ?? 'automatic'}
-          alwaysBounceVertical
-          showsVerticalScrollIndicator={false}
-        >
-          <NestableDraggableFlatList {...dragListProps} />
-        </NestableScrollContainer>
-      </View>
-    );
-  }
-
   return (
     <DraggableFlatList
       {...dragListProps}
-      style={{ flex: 1, overflow: "visible" }}
+      style={resolvedListStyle}
       containerStyle={resolvedContainerStyle}
       contentContainerStyle={contentContainerStyle}
+      removeClippedSubviews={false}
       contentInsetAdjustmentBehavior={contentInsetAdjustmentBehavior ?? 'automatic'}
       onScrollOffsetChange={onScrollOffsetChange}
       showsVerticalScrollIndicator={false}
       activationDistance={listActivationDistance}
-      autoscrollSpeed={22}
-      animationConfig={{
-        damping: 32,
-        stiffness: 420,
-        mass: 0.22,
-        overshootClamping: true,
-      }}
+      autoscrollSpeed={LIST_AUTOSCROLL_SPEED}
+      animationConfig={reduceMotionEnabled ? undefined : LIST_ANIMATION_CONFIG}
       dragItemOverflow
       onDragBegin={handleDragBegin}
       onPlaceholderIndexChange={(index) => {

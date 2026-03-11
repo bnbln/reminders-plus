@@ -45,13 +45,13 @@ export default function LocationPickerScreen() {
     setLocationDraft(task?.location ?? '');
   }, [locationDraft, task?.location]);
 
-  const handleSave = React.useCallback(() => {
+  const applyLocationAndClose = React.useCallback((nextLocation: string | undefined) => {
     if (!taskId) {
       router.back();
       return;
     }
 
-    const normalizedLocation = (locationDraft ?? '').trim();
+    const normalizedLocation = (nextLocation ?? '').trim();
     setTasks((prev) =>
       prev.map((candidate) =>
         candidate.id === taskId
@@ -64,7 +64,11 @@ export default function LocationPickerScreen() {
     );
 
     router.back();
-  }, [locationDraft, router, setTasks, taskId]);
+  }, [router, setTasks, taskId]);
+
+  const handleSave = React.useCallback(() => {
+    applyLocationAndClose(locationDraft);
+  }, [applyLocationAndClose, locationDraft]);
 
   const handleCancel = React.useCallback(() => {
     router.back();
@@ -101,12 +105,13 @@ export default function LocationPickerScreen() {
         `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
 
       setLocationDraft(label);
+      applyLocationAndClose(label);
     } catch {
       Alert.alert(t('taskCreate.locationErrorTitle'), t('taskCreate.locationErrorBody'));
     } finally {
       setIsLocating(false);
     }
-  }, []);
+  }, [applyLocationAndClose]);
 
   const isLocationEmpty = (locationDraft ?? '').trim().length === 0;
 
@@ -167,7 +172,7 @@ export default function LocationPickerScreen() {
           </Pressable>
 
           <Pressable
-            onPress={() => setLocationDraft('')}
+            onPress={() => applyLocationAndClose(undefined)}
             style={({ pressed }) => [
               styles.optionRow,
               isLocationEmpty && styles.optionRowActive,

@@ -6,12 +6,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HeaderCloseButton } from '@/components/ui/header-close-button';
 import { withAlpha } from '@/components/ui/glass-surface';
-import { HeaderIconButton } from '@/components/ui/header-icon-button';
 import { SFSymbol } from '@/components/ui/sfsymbol';
+import { usePremium } from '@/context/premium-store';
 import { Colors } from '@/constants/theme';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
+import { shouldRouteToProjectLimitGate } from '@/utils/project-creation-gate';
 
 export default function ProjectPickerScreen() {
     const router = useRouter();
@@ -27,30 +28,27 @@ export default function ProjectPickerScreen() {
     const insets = useSafeAreaInsets();
 
     const { tasks, setTasks, projects } = useTasksStore();
+    const { hasPremiumAccess, isReady } = usePremium();
     const task = React.useMemo(() => tasks.find((t) => t.id === taskId), [tasks, taskId]);
     const visibleProjects = React.useMemo(() => projects.filter((project) => !project.deletedAt), [projects]);
+    const activeProjectCount = React.useMemo(
+        () => projects.filter((project) => !project.deletedAt).length,
+        [projects]
+    );
+    const selectedProjectId = task?.projectId?.trim().length ? task.projectId : null;
 
-    // Local state
-    const [selectedProjectId, setSelectedProjectId] = React.useState<string | null | undefined>(undefined);
+    const applyProjectSelectionAndClose = React.useCallback((nextProjectId: string | null) => {
+        if (!taskId) {
+            router.back();
+            return;
+        }
 
-    // Initialize state
-    React.useEffect(() => {
-        if (selectedProjectId !== undefined) return;
-        if (!task) return;
-        setSelectedProjectId(task.projectId || null);
-    }, [selectedProjectId, task]);
-
-    const handleSave = React.useCallback(() => {
-        if (!taskId) return;
-        const nextProjectId = selectedProjectId === undefined
-            ? task?.projectId || ''
-            : selectedProjectId || '';
         setTasks((prev) => prev.map((t) => (t.id === taskId ? {
             ...t,
-            projectId: nextProjectId,
+            projectId: nextProjectId ?? '',
         } : t)));
         router.back();
-    }, [task?.projectId, taskId, selectedProjectId, setTasks, router]);
+    }, [router, setTasks, taskId]);
 
     const handleCancel = React.useCallback(() => {
         router.back();
@@ -59,8 +57,16 @@ export default function ProjectPickerScreen() {
     const handleCreateProject = React.useCallback(() => {
         // Navigate to create project modal
         // Since we are in a modal, pushing another modal might stack them
-        router.push('/project/create-modal');
-    }, [router]);
+        router.push(
+            shouldRouteToProjectLimitGate({
+                activeProjectCount,
+                hasPremiumAccess,
+                isReady,
+            })
+                ? '/project/limit-modal'
+                : '/project/create-modal'
+        );
+    }, [activeProjectCount, hasPremiumAccess, isReady, router]);
 
 
     return (
@@ -70,11 +76,6 @@ export default function ProjectPickerScreen() {
                     title: t('projectPicker.title'),
                     headerLeft: () => (
                         <HeaderCloseButton onPress={handleCancel} color={Colors[theme].text} />
-                    ),
-                    headerRight: () => (
-                        <HeaderIconButton onPress={handleSave}>
-                            <MaterialIcons name="check" size={24} color={Colors[theme].text} />
-                        </HeaderIconButton>
                     ),
                     headerShown: true,
                     headerStyle: {
@@ -101,7 +102,7 @@ export default function ProjectPickerScreen() {
 
                     {/* No Project Option */}
                     <Pressable
-                        onPress={() => setSelectedProjectId(null)}
+                        onPress={() => applyProjectSelectionAndClose(null)}
                         style={[styles.optionRow, (selectedProjectId ?? null) === null && styles.optionRowActive]}
                     >
                         <View style={[styles.optionIcon, { backgroundColor: withAlpha(Colors[theme].text, isDark ? 0.15 : 0.1) }]}>
@@ -121,7 +122,7 @@ export default function ProjectPickerScreen() {
                         return (
                             <Pressable
                                 key={p.id}
-                                onPress={() => setSelectedProjectId(p.id)}
+                                onPress={() => applyProjectSelectionAndClose(p.id)}
                                 style={[styles.optionRow, isActive && styles.optionRowActive]}
                             >
                                 <View style={[styles.optionIcon, { backgroundColor: withAlpha(p.color, 0.15) }]}>

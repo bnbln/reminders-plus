@@ -16,16 +16,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { SFSymbol } from '@/components/ui/sfsymbol';
 import { Colors } from '@/constants/theme';
+import { usePremium } from '@/context/premium-store';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
+import { shouldRouteToProjectLimitGate } from '@/utils/project-creation-gate';
 
 type ThemeName = keyof typeof Colors;
 
 type EmojiPreset = {
   emoji: string;
   icon: string;
-  label: string;
+  labelKey: string;
 };
 
 const DEFAULT_PROJECT_ICON = 'folder.fill';
@@ -34,24 +36,24 @@ const PICKER_ROW_GAP = 8;
 const ACTION_BUTTON_SIZE = 44;
 
 const EMOJI_PRESETS: EmojiPreset[] = [
-  { emoji: '📁', icon: 'folder.fill', label: 'Folder' },
-  { emoji: '📝', icon: 'doc.text.fill', label: 'Notes' },
-  { emoji: '⭐', icon: 'star.fill', label: 'Star' },
-  { emoji: '❤️', icon: 'heart.fill', label: 'Heart' },
-  { emoji: '🚩', icon: 'flag.fill', label: 'Flag' },
-  { emoji: '🏷️', icon: 'tag.fill', label: 'Tag' },
-  { emoji: '🎨', icon: 'paintbrush.fill', label: 'Creative' },
-  { emoji: '💼', icon: 'briefcase.fill', label: 'Work' },
-  { emoji: '👥', icon: 'person.2.fill', label: 'Team' },
-  { emoji: '🛒', icon: 'cart.fill', label: 'Shopping' },
-  { emoji: '🎁', icon: 'gift.fill', label: 'Gift' },
-  { emoji: '🎮', icon: 'gamecontroller.fill', label: 'Gaming' },
-  { emoji: '🎧', icon: 'headphones', label: 'Audio' },
-  { emoji: '✈️', icon: 'airplane', label: 'Travel' },
-  { emoji: '🚋', icon: 'tram.fill', label: 'Mobility' },
-  { emoji: '🍃', icon: 'leaf.fill', label: 'Nature' },
-  { emoji: '🔥', icon: 'flame.fill', label: 'Focus' },
-  { emoji: '⚡', icon: 'bolt.fill', label: 'Energy' },
+  { emoji: '📁', icon: 'folder.fill', labelKey: 'projectPreset.folder' },
+  { emoji: '📝', icon: 'doc.text.fill', labelKey: 'projectPreset.notes' },
+  { emoji: '⭐', icon: 'star.fill', labelKey: 'projectPreset.star' },
+  { emoji: '❤️', icon: 'heart.fill', labelKey: 'projectPreset.heart' },
+  { emoji: '🚩', icon: 'flag.fill', labelKey: 'projectPreset.flag' },
+  { emoji: '🏷️', icon: 'tag.fill', labelKey: 'projectPreset.tag' },
+  { emoji: '🎨', icon: 'paintbrush.fill', labelKey: 'projectPreset.creative' },
+  { emoji: '💼', icon: 'briefcase.fill', labelKey: 'projectPreset.work' },
+  { emoji: '👥', icon: 'person.2.fill', labelKey: 'projectPreset.team' },
+  { emoji: '🛒', icon: 'cart.fill', labelKey: 'projectPreset.shopping' },
+  { emoji: '🎁', icon: 'gift.fill', labelKey: 'projectPreset.gift' },
+  { emoji: '🎮', icon: 'gamecontroller.fill', labelKey: 'projectPreset.gaming' },
+  { emoji: '🎧', icon: 'headphones', labelKey: 'projectPreset.audio' },
+  { emoji: '✈️', icon: 'airplane', labelKey: 'projectPreset.travel' },
+  { emoji: '🚋', icon: 'tram.fill', labelKey: 'projectPreset.mobility' },
+  { emoji: '🍃', icon: 'leaf.fill', labelKey: 'projectPreset.nature' },
+  { emoji: '🔥', icon: 'flame.fill', labelKey: 'projectPreset.focus' },
+  { emoji: '⚡', icon: 'bolt.fill', labelKey: 'projectPreset.energy' },
 ];
 
 const ICON_PRESETS = [
@@ -118,12 +120,17 @@ export default function ProjectEditScreen() {
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   const { projects, setProjects, setTasks } = useTasksStore();
+  const { hasPremiumAccess, isReady } = usePremium();
 
   const project = React.useMemo(
     () => (id ? projects.find((candidate) => candidate.id === id) : undefined),
     [id, projects]
   );
   const isCreate = !id || !project;
+  const activeProjectCount = React.useMemo(
+    () => projects.filter((candidate) => !candidate.deletedAt).length,
+    [projects]
+  );
 
   const [name, setName] = React.useState(project?.name ?? '');
   const [description, setDescription] = React.useState(project?.description ?? '');
@@ -139,9 +146,17 @@ export default function ProjectEditScreen() {
 
   React.useEffect(() => {
     if (isCreate) {
-      router.replace('/project/create-modal');
+      router.replace(
+        shouldRouteToProjectLimitGate({
+          activeProjectCount,
+          hasPremiumAccess,
+          isReady,
+        })
+          ? '/project/limit-modal'
+          : '/project/create-modal'
+      );
     }
-  }, [isCreate, router]);
+  }, [activeProjectCount, hasPremiumAccess, isCreate, isReady, router]);
 
   React.useEffect(() => {
     if (!project) return;
@@ -231,7 +246,7 @@ export default function ProjectEditScreen() {
 
     const emojiActions: MenuAction[] = EMOJI_PRESETS.map((preset) => ({
       id: `emoji:${preset.emoji}`,
-      title: `${preset.emoji} ${preset.label}`,
+      title: `${preset.emoji} ${t(preset.labelKey)}`,
       state: Platform.OS === 'ios' ? (selectedEmoji === preset.emoji ? 'on' : 'off') : undefined,
     }));
 
@@ -248,7 +263,7 @@ export default function ProjectEditScreen() {
 
     return [
       {
-        title: 'Emoji',
+        title: t('projectEdit.emoji'),
         displayInline: true,
         subactions: emojiActions,
       },

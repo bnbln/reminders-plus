@@ -21,7 +21,14 @@ import Animated, {
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { SFSymbol } from '@/components/ui/sfsymbol';
 import { Colors } from '@/constants/theme';
-import { getDueAtForSection, getNextRoutineDate, Project, Subtask, Task, useTasksStore } from '@/context/tasks-store';
+import {
+  createRoutineCompletionTransition,
+  getDueAtForSection,
+  Project,
+  Subtask,
+  Task,
+  useTasksStore,
+} from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getIntlLocale, t } from '@/i18n';
 import { deriveActiveSectionFromDueAt, hasValidDueAt } from '@/utils/task-dates';
@@ -232,32 +239,32 @@ export default function TaskViewScreen() {
       return;
     }
 
-    // For routine tasks: reschedule to next occurrence instead of completing
-    const routineType = task.routineType || task.routineInterval;
-    if (task.isRoutine && routineType) {
-      const nextDue = getNextRoutineDate(
-        task.dueAt,
-        routineType,
-        {
-          weekday: task.routineWeekday,
-          nthWeek: task.routineNthWeek,
-          monthDay: task.routineMonthDay,
-          month: task.routineMonth,
-        }
-      );
-      const nextSection = deriveActiveSectionFromDueAt(nextDue);
-
-      updateTask({
-        dueAt: nextDue,
-        section: nextSection as 'today' | 'upcoming',
-        // Reset subtasks for next occurrence
-        subtasks: task.subtasks?.map(s => ({ ...s, done: false })),
+    const now = Date.now();
+    const routineTransition = createRoutineCompletionTransition(
+      task,
+      now,
+      new Set(tasks.map((candidate) => candidate.id)),
+    );
+    if (routineTransition) {
+      setTasks((prev) => {
+        const current = prev.find((candidate) => candidate.id === task.id);
+        if (!current) return prev;
+        const resolvedTransition = createRoutineCompletionTransition(
+          current,
+          now,
+          new Set(prev.map((candidate) => candidate.id)),
+        );
+        if (!resolvedTransition) return prev;
+        const next = prev.map((candidate) =>
+          candidate.id === task.id ? resolvedTransition.nextTask : candidate,
+        );
+        return [...next, resolvedTransition.completedTask];
       });
       return;
     }
 
-    updateTask({ section: 'completed', completedAt: Date.now() });
-  }, [task, updateTask]);
+    updateTask({ section: 'completed', completedAt: now });
+  }, [setTasks, task, tasks, updateTask]);
 
   const onDelete = React.useCallback(() => {
     if (!task) return;

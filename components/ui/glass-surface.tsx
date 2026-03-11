@@ -9,6 +9,7 @@ export type GlassSurfaceProps = ViewProps & {
   tintColor?: string;
   fallbackBackgroundColor?: string;
   isInteractive?: boolean;
+  disabled?: boolean;
 };
 
 export function withAlpha(color: string, alpha: number): string {
@@ -45,6 +46,7 @@ export const GlassSurface = React.forwardRef<NativeViewRef, GlassSurfaceProps>(
       tintColor,
       fallbackBackgroundColor = 'transparent',
       isInteractive = false,
+      disabled = false,
       ...rest
     },
     ref
@@ -91,14 +93,20 @@ export const GlassSurface = React.forwardRef<NativeViewRef, GlassSurfaceProps>(
     }
 
     return (
-      <View ref={ref} style={style} {...rest}>
-        <GlassViewComponent
-          pointerEvents="none"
-          style={[StyleSheet.absoluteFill, radiusStyles]}
-          glassEffectStyle={glassEffectStyle}
-          tintColor={tintColor}
-          isInteractive={isInteractive}
-        />
+      <View
+        ref={ref}
+        style={disabled ? style : [style, { backgroundColor: 'transparent' }]}
+        {...rest}
+      >
+        {!disabled && (
+          <GlassViewComponent
+            pointerEvents="none"
+            style={[StyleSheet.absoluteFill, radiusStyles]}
+            glassEffectStyle={glassEffectStyle}
+            tintColor={tintColor}
+            isInteractive={isInteractive}
+          />
+        )}
         {children}
       </View>
     );

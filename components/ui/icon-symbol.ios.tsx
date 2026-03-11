@@ -14,12 +14,17 @@ export function IconSymbol({
   style?: StyleProp<ViewStyle>;
   weight?: SymbolWeight;
 }) {
+  const resolvedName =
+    typeof name === 'string' && name.trim().length > 0
+      ? name
+      : ('questionmark.circle' as SymbolViewProps['name']);
+
   return (
     <SymbolView
       weight={weight}
       tintColor={color}
       resizeMode="scaleAspectFit"
-      name={name}
+      name={resolvedName}
       style={[
         {
           width: size,

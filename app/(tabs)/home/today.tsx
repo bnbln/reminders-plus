@@ -1,16 +1,36 @@
+import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { NativeModules, Platform, StyleSheet, Text, View } from 'react-native';
 
 import { TaskSwipeDraggableList } from '@/components/tasks/task-swipe-draggable-list';
+import {
+  createSharedTaskRowStyles,
+  SPACING,
+} from '@/components/tasks/task-row-style-tokens';
 import { FloatingAddButton } from '@/components/ui/floating-add-button';
 import { withAlpha } from '@/components/ui/glass-surface';
+import { StreakAccentBackground } from '@/components/ui/streak-accent-background';
 import { Colors } from '@/constants/theme';
 import { useHomeFilters } from '@/context/home-filters-store';
-import { type Task, useTasksStore } from '@/context/tasks-store';
+import { useTaskCreateContext } from '@/context/task-create-context';
+import {
+  createRoutineCompletionTransition,
+  type Task,
+  useTasksStore,
+} from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
 import { isIOS26OrNewer } from '@/utils/ios-version';
+
+type TaskAccessoryContextBridge = {
+  setContext?: (
+    mode: 'task' | 'today' | 'routine' | 'project' | 'inProject',
+    projectId?: string | null,
+    projectLabel?: string | null,
+    selectedDateStart?: number | null,
+  ) => void;
+};
 
 function hasValidDueDate(task: Task) {
   // Robust gegen ältere/teilweise Daten (z.B. Persisted State), obwohl `Task.dueAt` im Typ required ist.
@@ -26,6 +46,9 @@ function isDueToday(task: Task, startOfDayMs: number, endOfDayMs: number) {
 export default function TodayScreen() {
   const router = useRouter();
   const theme = useColorScheme() ?? 'light';
+  const accessoryBridge = NativeModules
+    .TaskAccessoryContextBridge as TaskAccessoryContextBridge | undefined;
+  const { setMode, setPresetDateStart } = useTaskCreateContext();
   const showFloatingAddButton = Platform.OS === 'ios' && !isIOS26OrNewer();
   const params = useLocalSearchParams<{ withNotes?: string; withSubtasks?: string }>();
   const withNotesEnabled = params.withNotes === '1';
@@ -37,6 +60,35 @@ export default function TodayScreen() {
       : params.withSubtasks === '1';
   const { tasks, setTasks, projects } = useTasksStore();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const setTodayAccessoryContext = React.useCallback((dateStart: number) => {
+    if (Platform.OS !== 'ios' || !isIOS26OrNewer()) return;
+    const setContext = accessoryBridge?.setContext;
+    if (!setContext) return;
+    try {
+      (setContext as any)('today', null, null, dateStart);
+    } catch {
+      setContext('today', null, null);
+    }
+  }, [accessoryBridge]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      setMode('today');
+      const now = new Date();
+      const selectedDateStart = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+        0,
+        0,
+        0,
+        0,
+      ).getTime();
+      setPresetDateStart(selectedDateStart);
+      setTodayAccessoryContext(selectedDateStart);
+      return undefined;
+    }, [setMode, setPresetDateStart, setTodayAccessoryContext]),
+  );
 
   const projectsById = React.useMemo(() => new Map(projects.map((p) => [p.id, p] as const)), [projects]);
 
@@ -66,17 +118,33 @@ export default function TodayScreen() {
 
   const toggleComplete = React.useCallback(
     (taskId: string) => {
-      setTasks((prev) =>
-        prev.map((t) =>
+      const now = Date.now();
+      setTasks((prev) => {
+        const task = prev.find((candidate) => candidate.id === taskId);
+        if (!task) return prev;
+
+        const routineTransition = createRoutineCompletionTransition(
+          task,
+          now,
+          new Set(prev.map((candidate) => candidate.id)),
+        );
+        if (routineTransition && task.section !== 'completed') {
+          const next = prev.map((candidate) =>
+            candidate.id === taskId ? routineTransition.nextTask : candidate,
+          );
+          return [...next, routineTransition.completedTask];
+        }
+
+        return prev.map((t) =>
           t.id === taskId
             ? {
                 ...t,
                 section: 'completed',
-                completedAt: Date.now(),
+                completedAt: now,
               }
             : t
-        )
-      );
+        );
+      });
     },
     [setTasks]
   );
@@ -129,13 +197,15 @@ export default function TodayScreen() {
   );
 
   const handleAddTask = React.useCallback(() => {
-    router.push('/task/create-modal');
+    router.push({ pathname: '/task/create-modal', params: { preset: 'today' } });
   }, [router]);
 
   return (
     <View style={styles.container}>
+      <StreakAccentBackground isDark={theme === 'dark'} />
       <TaskSwipeDraggableList
         theme={theme}
+        isDark={theme === 'dark'}
         tasks={todayTasks}
         projectsById={projectsById}
         rowStyles={styles}
@@ -153,6 +223,7 @@ export default function TodayScreen() {
         toggleSubtask={toggleSubtask}
         deleteTask={deleteTask}
         onReorder={applyOrderFromListData}
+        containerStyle={{ backgroundColor: 'transparent' }}
       />
 
       {showFloatingAddButton ? <FloatingAddButton onPress={handleAddTask} /> : null}
@@ -170,158 +241,55 @@ const createStyles = (theme: keyof typeof Colors) => {
   const tagText = withAlpha(text, 0.78);
   const dangerBg = isDark ? 'rgba(255,69,58,0.18)' : 'rgba(255,59,48,0.14)';
   const dangerBorder = isDark ? 'rgba(255,69,58,0.32)' : 'rgba(255,59,48,0.26)';
-  const rowMetaText = withAlpha(text, isDark ? 0.5 : 0.42);
+  const rowMetaText = withAlpha(text, isDark ? 0.42 : 0.34);
+  const sharedRowStyles = createSharedTaskRowStyles({
+    textColor: text,
+    rowSurface,
+    rowDividerColor: rowDivider,
+    rowMetaColor: rowMetaText,
+    rowSubtitleColor: withAlpha(text, 0.62),
+    hairlineColor: hairline,
+    tagBackground: tagBg,
+    tagTextColor: tagText,
+    dangerBackground: dangerBg,
+    dangerBorderColor: dangerBorder,
+    rowMinHeight: 58,
+    rowPaddingVertical: SPACING.xs,
+    rowTitleFontSize: 16,
+    rowTitleLineHeight: 21,
+    rowMetaFontSize: 11,
+    rowMetaLineHeight: 14,
+    rowSubtitleFontSize: 13,
+    rowSubtitleLineHeight: 17,
+  });
 
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: Colors[theme].background,
+      backgroundColor: 'transparent',
     },
     content: {
-      paddingHorizontal: 16,
-      paddingTop: 8,
-      paddingBottom: 184,
+      paddingHorizontal: SPACING.md,
+      paddingTop: SPACING.xxs,
+      paddingBottom: 160,
     },
-
-    itemSpacer: {
-      marginBottom: 0,
-    },
-    swipeClip: {
-      borderRadius: 12,
-      overflow: 'hidden',
-      backgroundColor: rowSurface,
-    },
-    underlay: {
-      ...StyleSheet.absoluteFillObject,
-    },
-    actionSlot: {
-      position: 'absolute',
-      top: 0,
-      bottom: 0,
-      justifyContent: 'center',
-    },
-    actionSlotLeft: {
-      left: 0,
-      alignItems: 'center',
-    },
-    actionSlotRight: {
-      right: 0,
-      alignItems: 'center',
-    },
-    actionSlotInner: {
-      width: 40,
-      height: 40,
-      borderRadius: 11,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-
-    row: {
-      minHeight: 66,
-      borderRadius: 0,
-      backgroundColor: rowSurface,
-      justifyContent: 'center',
-      paddingHorizontal: 8,
-      paddingVertical: 11,
-      gap: 6,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: rowDivider,
-    },
-    rowInner: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      gap: 12,
-    },
-    emojiTile: {
-      width: 30,
-      height: 30,
-      borderRadius: 10,
-      alignItems: 'center',
-      justifyContent: 'center',
-      overflow: 'hidden',
-      borderWidth: StyleSheet.hairlineWidth,
-      marginTop: 1,
-    },
-    emojiText: {
-      fontSize: 17,
-    },
-    textStack: {
-      flex: 1,
-      gap: 4,
-    },
-    titleRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 10,
-    },
-    rowTitle: {
-      flex: 1,
-      fontSize: 17,
-      lineHeight: 22,
-      fontWeight: '600',
-      color: text,
-      letterSpacing: -0.2,
-    },
-    rowMeta: {
-      fontSize: 12,
-      lineHeight: 16,
-      fontWeight: '600',
-      color: rowMetaText,
-      letterSpacing: 0.15,
-    },
-    rowSubtitle: {
-      fontSize: 14,
-      lineHeight: 19,
-      fontWeight: '500',
-      color: withAlpha(text, 0.72),
-    },
-
-    tagRow: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 6,
-      marginTop: 2,
-    },
-    tagChip: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      maxWidth: '100%',
-      paddingVertical: 4,
-      paddingHorizontal: 8,
-      borderRadius: 999,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hairline,
-      backgroundColor: tagBg,
-    },
-    tagChipDanger: {
-      backgroundColor: dangerBg,
-      borderColor: dangerBorder,
-    },
-    tagChipText: {
-      fontSize: 12,
-      lineHeight: 16,
-      fontWeight: '600',
-      color: tagText,
-      maxWidth: 220,
-    },
-
-    dragRow: {
-      borderRadius: 0,
-      backgroundColor: rowSurface,
-      borderWidth: 0,
-      opacity: 1,
-    },
+    ...sharedRowStyles,
 
     empty: {
       alignItems: 'center',
-      paddingVertical: 22,
+      marginTop: SPACING.xs,
+      paddingVertical: SPACING.sm,
+      paddingHorizontal: SPACING.sm,
+      borderRadius: SPACING.sm,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: withAlpha(text, isDark ? 0.14 : 0.1),
+      backgroundColor: withAlpha(text, isDark ? 0.06 : 0.03),
     },
     emptyText: {
-      fontSize: 14,
-      lineHeight: 18,
+      fontSize: 13,
+      lineHeight: 17,
       fontWeight: '600',
-      opacity: 0.65,
+      opacity: 0.6,
     },
   });
 };

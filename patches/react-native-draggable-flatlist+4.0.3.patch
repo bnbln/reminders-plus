@@ -1,0 +1,344 @@
+diff --git a/node_modules/react-native-draggable-flatlist/lib/module/components/CellRendererComponent.js b/node_modules/react-native-draggable-flatlist/lib/module/components/CellRendererComponent.js
+index 7e32214..8b921c3 100644
+--- a/node_modules/react-native-draggable-flatlist/lib/module/components/CellRendererComponent.js
++++ b/node_modules/react-native-draggable-flatlist/lib/module/components/CellRendererComponent.js
+@@ -1,7 +1,7 @@
+ function _extends() { _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return _extends.apply(this, arguments); }
+ 
+ import React, { useEffect, useMemo, useRef } from "react";
+-import { findNodeHandle } from "react-native";
++import { findNodeHandle, UIManager } from "react-native";
+ import Animated, { runOnUI, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
+ import { useDraggableFlatListContext } from "../context/draggableFlatListContext";
+ import { isWeb } from "../constants";
+@@ -87,14 +87,27 @@ function CellRendererComponent(props) {
+       }
+     };
+ 
+-    const containerNode = containerRef.current;
+-    const viewNode = viewRef.current;
+-    const nodeHandle = containerNode;
++    const containerNode =
++    // @ts-ignore - animated refs expose getNode in some configs
++    (containerRef.current === null || containerRef.current === void 0 ? void 0 : containerRef.current.getNode) ? containerRef.current.getNode() : containerRef.current;
++    const measuredViewNode =
++    // @ts-ignore - animated refs expose getNode in some configs
++    (viewRef.current === null || viewRef.current === void 0 ? void 0 : viewRef.current.getNode) ? viewRef.current.getNode() : viewRef.current;
++    const containerHandle = findNodeHandle(containerNode);
++    const viewHandle = findNodeHandle(measuredViewNode);
+ 
+-    if (viewNode && nodeHandle) {
+-      //@ts-ignore
+-      viewNode.measureLayout(nodeHandle, onSuccess, onFail);
++    if (containerHandle && viewHandle && UIManager.measureLayout) {
++      UIManager.measureLayout(viewHandle, containerHandle, onFail, onSuccess);
++      return;
+     }
++
++    if (isWeb && measuredViewNode && containerNode) {
++      //@ts-ignore - web fallback path
++      measuredViewNode.measureLayout(containerNode, onSuccess, onFail);
++      return;
++    }
++
++    onFail();
+   });
+   const onCellLayout = useStableCallback(e => {
+     heldTanslate.value = 0;
+diff --git a/node_modules/react-native-draggable-flatlist/lib/module/components/NestableDraggableFlatList.js b/node_modules/react-native-draggable-flatlist/lib/module/components/NestableDraggableFlatList.js
+index 3bf1f43..092a596 100644
+--- a/node_modules/react-native-draggable-flatlist/lib/module/components/NestableDraggableFlatList.js
++++ b/node_modules/react-native-draggable-flatlist/lib/module/components/NestableDraggableFlatList.js
+@@ -1,7 +1,7 @@
+ function _extends() { _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return _extends.apply(this, arguments); }
+ 
+ import React, { useRef, useState } from "react";
+-import { findNodeHandle, LogBox } from "react-native";
++import { findNodeHandle, LogBox, UIManager } from "react-native";
+ import { useDerivedValue, useSharedValue } from "react-native-reanimated";
+ import DraggableFlatList from "../components/DraggableFlatList";
+ import { useSafeNestableScrollContainerContext } from "../context/nestableScrollContainerContext";
+@@ -38,7 +38,14 @@ function NestableDraggableFlatListInner(props, ref) {
+     let {
+       containerRef
+     } = _ref;
+-    const nodeHandle = findNodeHandle(scrollableRef.current);
++    const scrollNode =
++    // @ts-ignore - reanimated nodes expose getNode in some configs
++    (scrollableRef.current === null || scrollableRef.current === void 0 ? void 0 : scrollableRef.current.getNode) ? scrollableRef.current.getNode() : scrollableRef.current;
++    const containerNode =
++    // @ts-ignore - reanimated nodes expose getNode in some configs
++    (containerRef.current === null || containerRef.current === void 0 ? void 0 : containerRef.current.getNode) ? containerRef.current.getNode() : containerRef.current;
++    const nodeHandle = findNodeHandle(scrollNode);
++    const containerHandle = findNodeHandle(containerNode);
+ 
+     const onSuccess = (_x, y) => {
+       listVerticalOffset.value = y;
+@@ -46,10 +53,14 @@ function NestableDraggableFlatListInner(props, ref) {
+ 
+     const onFail = () => {
+       console.log("## nested draggable list measure fail");
+-    }; //@ts-ignore
++    };
+ 
++    if (containerHandle && nodeHandle && UIManager.measureLayout) {
++      UIManager.measureLayout(containerHandle, nodeHandle, onFail, onSuccess);
++      return;
++    }
+ 
+-    containerRef.current.measureLayout(nodeHandle, onSuccess, onFail);
++    onFail();
+   });
+   const onDragBegin = useStableCallback(params => {
+     var _props$onDragBegin;
+@@ -75,7 +86,7 @@ function NestableDraggableFlatListInner(props, ref) {
+   return /*#__PURE__*/React.createElement(DraggableFlatList, _extends({
+     ref: ref,
+     onContainerLayout: onListContainerLayout,
+-    activationDistance: props.activationDistance || 20,
++    activationDistance: props.activationDistance ?? 20,
+     scrollEnabled: false
+   }, props, {
+     outerScrollOffset: outerScrollOffset,
+diff --git a/node_modules/react-native-draggable-flatlist/lib/typescript/types.d.ts b/node_modules/react-native-draggable-flatlist/lib/typescript/types.d.ts
+index 2abb4a2..0a25b1d 100644
+--- a/node_modules/react-native-draggable-flatlist/lib/typescript/types.d.ts
++++ b/node_modules/react-native-draggable-flatlist/lib/typescript/types.d.ts
+@@ -9,6 +9,13 @@ export declare type DragEndParams<T> = {
+     from: number;
+     to: number;
+ };
++export declare type DragGestureUpdateParams = {
++    phase: "begin" | "update" | "end";
++    absoluteX: number;
++    absoluteY: number;
++    translationX: number;
++    translationY: number;
++};
+ declare type Modify<T, R> = Omit<T, keyof R> & R;
+ declare type DefaultProps = Readonly<typeof DEFAULT_PROPS>;
+ export declare type DraggableFlatListProps<T> = Modify<FlatListProps<T>, {
+@@ -25,6 +32,7 @@ export declare type DraggableFlatListProps<T> = Modify<FlatListProps<T>, {
+     onDragEnd?: (params: DragEndParams<T>) => void;
+     onPlaceholderIndexChange?: (placeholderIndex: number) => void;
+     onRelease?: (index: number) => void;
++    onDragGestureUpdate?: (params: DragGestureUpdateParams) => void;
+     onScrollOffsetChange?: (scrollOffset: number) => void;
+     renderItem: RenderItem<T>;
+     renderPlaceholder?: RenderPlaceholder<T>;
+diff --git a/node_modules/react-native-draggable-flatlist/src/components/CellRendererComponent.tsx b/node_modules/react-native-draggable-flatlist/src/components/CellRendererComponent.tsx
+index e4e861a..b0f4792 100644
+--- a/node_modules/react-native-draggable-flatlist/src/components/CellRendererComponent.tsx
++++ b/node_modules/react-native-draggable-flatlist/src/components/CellRendererComponent.tsx
+@@ -4,6 +4,7 @@ import {
+   LayoutChangeEvent,
+   MeasureLayoutOnSuccessCallback,
+   StyleProp,
++  UIManager,
+   ViewStyle,
+ } from "react-native";
+ import Animated, {
+@@ -88,14 +89,27 @@ function CellRendererComponent<T>(props: Props<T>) {
+       }
+     };
+ 
+-    const containerNode = containerRef.current;
+-    const viewNode = viewRef.current;
+-    const nodeHandle = containerNode;
++    const containerNode =
++      // @ts-ignore - animated refs expose getNode in some configs
++      containerRef.current?.getNode?.() ?? containerRef.current;
++    const measuredViewNode =
++      // @ts-ignore - animated refs expose getNode in some configs
++      viewRef.current?.getNode?.() ?? viewRef.current;
++    const containerHandle = findNodeHandle(containerNode);
++    const viewHandle = findNodeHandle(measuredViewNode);
++
++    if (containerHandle && viewHandle && UIManager.measureLayout) {
++      UIManager.measureLayout(viewHandle, containerHandle, onFail, onSuccess);
++      return;
++    }
+ 
+-    if (viewNode && nodeHandle) {
+-      //@ts-ignore
+-      viewNode.measureLayout(nodeHandle, onSuccess, onFail);
++    if (isWeb && measuredViewNode && containerNode) {
++      // @ts-ignore - web fallback path
++      measuredViewNode.measureLayout(containerNode, onSuccess, onFail);
++      return;
+     }
++
++    onFail();
+   });
+ 
+   const onCellLayout = useStableCallback((e?: LayoutChangeEvent) => {
+diff --git a/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx b/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx
+index 7c88afc..f111b36 100644
+--- a/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx
++++ b/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx
+@@ -10,7 +10,6 @@ import {
+   ListRenderItem,
+   FlatListProps,
+   LayoutChangeEvent,
+-  InteractionManager,
+ } from "react-native";
+ import {
+   FlatList,
+@@ -119,9 +118,15 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+   if (dataHasChanged) {
+     // When data changes make sure `activeKey` is nulled out in the same render pass
+     activeKey = null;
+-    InteractionManager.runAfterInteractions(() => {
+-      reset();
+-    });
++    if (typeof globalThis.requestIdleCallback === "function") {
++      globalThis.requestIdleCallback(() => {
++        reset();
++      });
++    } else {
++      setTimeout(() => {
++        reset();
++      }, 0);
++    }
+   }
+ 
+   useEffect(() => {
+@@ -237,6 +242,17 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+   const onPlaceholderIndexChange = useStableCallback((index: number) => {
+     props.onPlaceholderIndexChange?.(index);
+   });
++  const onDragGestureUpdate = useStableCallback(
++    (params: {
++      phase: "begin" | "update" | "end";
++      absoluteX: number;
++      absoluteY: number;
++      translationX: number;
++      translationY: number;
++    }) => {
++      props.onDragGestureUpdate?.(params);
++    }
++  );
+ 
+   // Handle case where user ends drag without moving their finger.
+   useAnimatedReaction(
+@@ -277,6 +293,13 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+       gestureDisabled.value = disabled.value;
+       if (gestureDisabled.value) return;
+       panGestureState.value = evt.state;
++      runOnJS(onDragGestureUpdate)({
++        phase: "begin",
++        absoluteX: evt.absoluteX,
++        absoluteY: evt.absoluteY,
++        translationX: evt.translationX,
++        translationY: evt.translationY,
++      });
+     })
+     .onUpdate((evt) => {
+       if (gestureDisabled.value) return;
+@@ -285,6 +308,13 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+         ? evt.translationX
+         : evt.translationY;
+       touchTranslate.value = translation;
++      runOnJS(onDragGestureUpdate)({
++        phase: "update",
++        absoluteX: evt.absoluteX,
++        absoluteY: evt.absoluteY,
++        translationX: evt.translationX,
++        translationY: evt.translationY,
++      });
+     })
+     .onEnd((evt) => {
+       if (gestureDisabled.value) return;
+@@ -296,6 +326,13 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+ 
+       touchTranslate.value = translation + autoScrollDistance.value;
+       panGestureState.value = evt.state;
++      runOnJS(onDragGestureUpdate)({
++        phase: "end",
++        absoluteX: evt.absoluteX,
++        absoluteY: evt.absoluteY,
++        translationX: evt.translationX,
++        translationY: evt.translationY,
++      });
+ 
+       // Only call onDragEnd if actually dragging a cell
+       if (activeIndexAnim.value === -1 || disabled.value) return;
+diff --git a/node_modules/react-native-draggable-flatlist/src/components/NestableDraggableFlatList.tsx b/node_modules/react-native-draggable-flatlist/src/components/NestableDraggableFlatList.tsx
+index 1559352..b8d0f51 100644
+--- a/node_modules/react-native-draggable-flatlist/src/components/NestableDraggableFlatList.tsx
++++ b/node_modules/react-native-draggable-flatlist/src/components/NestableDraggableFlatList.tsx
+@@ -1,5 +1,5 @@
+ import React, { useRef, useState } from "react";
+-import { findNodeHandle, LogBox } from "react-native";
++import { findNodeHandle, LogBox, UIManager } from "react-native";
+ import Animated, {
+   useDerivedValue,
+   useSharedValue,
+@@ -48,7 +48,15 @@ function NestableDraggableFlatListInner<T>(
+   });
+ 
+   const onListContainerLayout = useStableCallback(async ({ containerRef }) => {
+-    const nodeHandle = findNodeHandle(scrollableRef.current);
++    const scrollNode =
++      // @ts-ignore - reanimated nodes expose getNode in some configs
++      scrollableRef.current?.getNode?.() ?? scrollableRef.current;
++    const containerNode =
++      // @ts-ignore - reanimated nodes expose getNode in some configs
++      containerRef.current?.getNode?.() ?? containerRef.current;
++
++    const nodeHandle = findNodeHandle(scrollNode);
++    const containerHandle = findNodeHandle(containerNode);
+ 
+     const onSuccess = (_x: number, y: number) => {
+       listVerticalOffset.value = y;
+@@ -56,8 +64,13 @@ function NestableDraggableFlatListInner<T>(
+     const onFail = () => {
+       console.log("## nested draggable list measure fail");
+     };
+-    //@ts-ignore
+-    containerRef.current.measureLayout(nodeHandle, onSuccess, onFail);
++
++    if (containerHandle && nodeHandle && UIManager.measureLayout) {
++      UIManager.measureLayout(containerHandle, nodeHandle, onFail, onSuccess);
++      return;
++    }
++
++    onFail();
+   });
+ 
+   const onDragBegin: DraggableFlatListProps<T>["onDragBegin"] = useStableCallback(
+@@ -89,7 +102,7 @@ function NestableDraggableFlatListInner<T>(
+     <DraggableFlatList
+       ref={ref}
+       onContainerLayout={onListContainerLayout}
+-      activationDistance={props.activationDistance || 20}
++      activationDistance={props.activationDistance ?? 20}
+       scrollEnabled={false}
+       {...props}
+       outerScrollOffset={outerScrollOffset}
+diff --git a/node_modules/react-native-draggable-flatlist/src/types.ts b/node_modules/react-native-draggable-flatlist/src/types.ts
+index d6755c8..eec5e5b 100644
+--- a/node_modules/react-native-draggable-flatlist/src/types.ts
++++ b/node_modules/react-native-draggable-flatlist/src/types.ts
+@@ -18,6 +18,13 @@ export type DragEndParams<T> = {
+   from: number;
+   to: number;
+ };
++export type DragGestureUpdateParams = {
++  phase: "begin" | "update" | "end";
++  absoluteX: number;
++  absoluteY: number;
++  translationX: number;
++  translationY: number;
++};
+ type Modify<T, R> = Omit<T, keyof R> & R;
+ 
+ type DefaultProps = Readonly<typeof DEFAULT_PROPS>;
+@@ -38,6 +45,7 @@ export type DraggableFlatListProps<T> = Modify<
+     onDragEnd?: (params: DragEndParams<T>) => void;
+     onPlaceholderIndexChange?: (placeholderIndex: number) => void;
+     onRelease?: (index: number) => void;
++    onDragGestureUpdate?: (params: DragGestureUpdateParams) => void;
+     onScrollOffsetChange?: (scrollOffset: number) => void;
+     renderItem: RenderItem<T>;
+     renderPlaceholder?: RenderPlaceholder<T>;

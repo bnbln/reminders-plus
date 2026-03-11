@@ -6,7 +6,7 @@ import type { Project, Task } from "@/context/tasks-store";
 import { t } from "@/i18n";
 
 const STORAGE_KEYS = {
-  seeded: "reminds.tasks.onboardingSeeded.v1",
+  seeded: "reminds.tasks.onboardingSeeded.v2",
 } as const;
 
 export async function hasCompletedOnboardingSeed(): Promise<boolean> {
@@ -30,29 +30,31 @@ export async function markCompletedOnboardingSeed(): Promise<void> {
 
 function getTodayDueAt() {
   const now = new Date();
-  const preferred = new Date(
+  const dueAt = new Date(
     now.getFullYear(),
     now.getMonth(),
     now.getDate(),
-    Math.min(23, Math.max(8, now.getHours() + 1)),
+    12,
     0,
     0,
     0,
   );
-  return preferred.getTime();
+  return dueAt.getTime();
 }
 
-function getTomorrowDueAt() {
+function getOneMonthAgoDueAt() {
   const now = new Date();
-  const startOfToday = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-  );
-  const tomorrow = new Date(startOfToday);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(11, 0, 0, 0);
-  return tomorrow.getTime();
+  const targetMonth = now.getMonth() === 0 ? 11 : now.getMonth() - 1;
+  const targetYear =
+    now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+  const maxDayOfTargetMonth = new Date(
+    targetYear,
+    targetMonth + 1,
+    0,
+  ).getDate();
+  const targetDay = Math.min(now.getDate(), maxDayOfTargetMonth);
+  const dueAt = new Date(targetYear, targetMonth, targetDay, 12, 0, 0, 0);
+  return dueAt.getTime();
 }
 
 export function createOnboardingSeedData(): {
@@ -60,10 +62,22 @@ export function createOnboardingSeedData(): {
   tasks: Task[];
 } {
   const now = Date.now();
+  const todayDueAt = getTodayDueAt();
+  const oneMonthAgoDueAt = getOneMonthAgoDueAt();
 
   const projects: Project[] = [
-    { id: "p-work", name: t("seed.project.work"), color: "#0A84FF", icon: "briefcase.fill" },
-    { id: "p-home", name: t("seed.project.home"), color: "#FF9500", icon: "house.fill" },
+    {
+      id: "p-work",
+      name: t("seed.project.work"),
+      color: "#0A84FF",
+      icon: "briefcase.fill",
+    },
+    {
+      id: "p-home",
+      name: t("seed.project.home"),
+      color: "#FF9500",
+      icon: "house.fill",
+    },
     {
       id: "p-selfcare",
       name: t("seed.project.selfcare"),
@@ -79,8 +93,8 @@ export function createOnboardingSeedData(): {
       subtitle: t("seed.task.swipeLeft.subtitle"),
       emoji: "👈",
       projectId: "p-home",
-      dueAt: getTodayDueAt(),
-      dueHasTime: true,
+      dueAt: todayDueAt,
+      dueHasTime: false,
       section: "today",
       orderRank: 1000,
       location: undefined,
@@ -95,8 +109,8 @@ export function createOnboardingSeedData(): {
       subtitle: t("seed.task.swipeRight.subtitle"),
       emoji: "👉",
       projectId: "p-home",
-      dueAt: getTodayDueAt(),
-      dueHasTime: true,
+      dueAt: todayDueAt,
+      dueHasTime: false,
       section: "today",
       orderRank: 2000,
       location: undefined,
@@ -111,10 +125,10 @@ export function createOnboardingSeedData(): {
       subtitle: t("seed.task.drag.subtitle"),
       emoji: "↕️",
       projectId: "p-work",
-      dueAt: 0,
+      dueAt: todayDueAt,
       dueHasTime: false,
-      section: "upcoming",
-      orderRank: 1000,
+      section: "today",
+      orderRank: 3000,
       location: undefined,
       notes: undefined,
       subtasks: undefined,
@@ -127,10 +141,74 @@ export function createOnboardingSeedData(): {
       subtitle: t("seed.task.details.subtitle"),
       emoji: "🔎",
       projectId: "p-selfcare",
-      dueAt: getTomorrowDueAt(),
+      dueAt: todayDueAt,
+      dueHasTime: false,
+      section: "today",
+      orderRank: 4000,
+      location: undefined,
+      notes: undefined,
+      subtasks: undefined,
+      completedAt: undefined,
+      deletedAt: undefined,
+    },
+    {
+      id: `t-seed-${now}-inbox-overdue`,
+      title: t("seed.task.inboxOverdue.title"),
+      subtitle: t("seed.task.inboxOverdue.subtitle"),
+      emoji: "⚠️",
+      projectId: "p-work",
+      dueAt: oneMonthAgoDueAt,
       dueHasTime: false,
       section: "upcoming",
-      orderRank: 2000,
+      orderRank: 5000,
+      location: undefined,
+      notes: undefined,
+      subtasks: undefined,
+      completedAt: undefined,
+      deletedAt: undefined,
+    },
+    {
+      id: `t-seed-${now}-inbox-without-date`,
+      title: t("seed.task.inboxWithoutDate.title"),
+      subtitle: t("seed.task.inboxWithoutDate.subtitle"),
+      emoji: "💼",
+      projectId: "p-work",
+      dueAt: 0,
+      dueHasTime: false,
+      section: "upcoming",
+      orderRank: 6000,
+      location: undefined,
+      notes: undefined,
+      subtasks: undefined,
+      completedAt: undefined,
+      deletedAt: undefined,
+    },
+    {
+      id: `t-seed-${now}-favorite-color`,
+      title: t("seed.task.favoriteColor.title"),
+      subtitle: t("seed.task.favoriteColor.subtitle"),
+      emoji: "🎨",
+      projectId: "p-home",
+      dueAt: 0,
+      dueHasTime: false,
+      section: "upcoming",
+      orderRank: 7000,
+      location: undefined,
+      notes: undefined,
+      subtasks: undefined,
+      completedAt: undefined,
+      deletedAt: undefined,
+    },
+    {
+      id: `t-seed-${now}-more-features`,
+      title: t("seed.task.moreFeatures.title"),
+      subtitle: t("seed.task.moreFeatures.subtitle"),
+      emoji: "🖤",
+      projectId: "p-selfcare",
+      dueAt: 0,
+      dueHasTime: false,
+      section: "upcoming",
+      orderRank: 8000,
       location: undefined,
       notes: undefined,
       subtasks: undefined,

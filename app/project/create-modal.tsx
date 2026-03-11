@@ -16,16 +16,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { SFSymbol } from '@/components/ui/sfsymbol';
 import { Colors } from '@/constants/theme';
+import { getAccentColorValue, useAppSettings } from '@/context/settings-store';
+import { usePremium } from '@/context/premium-store';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
+import { shouldRouteToProjectLimitGate } from '@/utils/project-creation-gate';
 
 type ThemeName = keyof typeof Colors;
 
 type EmojiPreset = {
   emoji: string;
   icon: string;
-  label: string;
+  labelKey: string;
 };
 
 const DEFAULT_PROJECT_ICON = 'folder.fill';
@@ -34,24 +37,24 @@ const PICKER_ROW_GAP = 8;
 const SEND_BUTTON_SIZE = 44;
 
 const EMOJI_PRESETS: EmojiPreset[] = [
-  { emoji: '📁', icon: 'folder.fill', label: 'Folder' },
-  { emoji: '📝', icon: 'doc.text.fill', label: 'Notes' },
-  { emoji: '⭐', icon: 'star.fill', label: 'Star' },
-  { emoji: '❤️', icon: 'heart.fill', label: 'Heart' },
-  { emoji: '🚩', icon: 'flag.fill', label: 'Flag' },
-  { emoji: '🏷️', icon: 'tag.fill', label: 'Tag' },
-  { emoji: '🎨', icon: 'paintbrush.fill', label: 'Creative' },
-  { emoji: '💼', icon: 'briefcase.fill', label: 'Work' },
-  { emoji: '👥', icon: 'person.2.fill', label: 'Team' },
-  { emoji: '🛒', icon: 'cart.fill', label: 'Shopping' },
-  { emoji: '🎁', icon: 'gift.fill', label: 'Gift' },
-  { emoji: '🎮', icon: 'gamecontroller.fill', label: 'Gaming' },
-  { emoji: '🎧', icon: 'headphones', label: 'Audio' },
-  { emoji: '✈️', icon: 'airplane', label: 'Travel' },
-  { emoji: '🚋', icon: 'tram.fill', label: 'Mobility' },
-  { emoji: '🍃', icon: 'leaf.fill', label: 'Nature' },
-  { emoji: '🔥', icon: 'flame.fill', label: 'Focus' },
-  { emoji: '⚡', icon: 'bolt.fill', label: 'Energy' },
+  { emoji: '📁', icon: 'folder.fill', labelKey: 'projectPreset.folder' },
+  { emoji: '📝', icon: 'doc.text.fill', labelKey: 'projectPreset.notes' },
+  { emoji: '⭐', icon: 'star.fill', labelKey: 'projectPreset.star' },
+  { emoji: '❤️', icon: 'heart.fill', labelKey: 'projectPreset.heart' },
+  { emoji: '🚩', icon: 'flag.fill', labelKey: 'projectPreset.flag' },
+  { emoji: '🏷️', icon: 'tag.fill', labelKey: 'projectPreset.tag' },
+  { emoji: '🎨', icon: 'paintbrush.fill', labelKey: 'projectPreset.creative' },
+  { emoji: '💼', icon: 'briefcase.fill', labelKey: 'projectPreset.work' },
+  { emoji: '👥', icon: 'person.2.fill', labelKey: 'projectPreset.team' },
+  { emoji: '🛒', icon: 'cart.fill', labelKey: 'projectPreset.shopping' },
+  { emoji: '🎁', icon: 'gift.fill', labelKey: 'projectPreset.gift' },
+  { emoji: '🎮', icon: 'gamecontroller.fill', labelKey: 'projectPreset.gaming' },
+  { emoji: '🎧', icon: 'headphones', labelKey: 'projectPreset.audio' },
+  { emoji: '✈️', icon: 'airplane', labelKey: 'projectPreset.travel' },
+  { emoji: '🚋', icon: 'tram.fill', labelKey: 'projectPreset.mobility' },
+  { emoji: '🍃', icon: 'leaf.fill', labelKey: 'projectPreset.nature' },
+  { emoji: '🔥', icon: 'flame.fill', labelKey: 'projectPreset.focus' },
+  { emoji: '⚡', icon: 'bolt.fill', labelKey: 'projectPreset.energy' },
 ];
 
 const ICON_PRESETS = [
@@ -118,7 +121,9 @@ export default function ProjectCreateModal() {
   const isDark = theme === 'dark';
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
-  const { setProjects } = useTasksStore();
+  const { accentColor } = useAppSettings();
+  const { projects, setProjects } = useTasksStore();
+  const { hasPremiumAccess, isReady } = usePremium();
 
   const [name, setName] = React.useState('');
   const [description, setDescription] = React.useState('');
@@ -131,6 +136,10 @@ export default function ProjectCreateModal() {
   const activeInputRef = React.useRef<'title' | 'description'>('title');
 
   const canSubmit = name.trim().length > 0;
+  const activeProjectCount = React.useMemo(
+    () => projects.filter((project) => !project.deletedAt).length,
+    [projects]
+  );
 
   React.useEffect(() => {
     const timer = setTimeout(() => titleInputRef.current?.focus(), 0);
@@ -160,7 +169,7 @@ export default function ProjectCreateModal() {
     activeInputRef.current = 'description';
   }, []);
 
-  const onCreate = React.useCallback(() => {
+  const createProject = React.useCallback(() => {
     const trimmedName = name.trim();
     if (!trimmedName) return;
 
@@ -184,6 +193,23 @@ export default function ProjectCreateModal() {
     router.back();
   }, [color, description, icon, name, router, selectedEmoji, setProjects]);
 
+  const onCreate = React.useCallback(() => {
+    if (!name.trim()) return;
+
+    if (
+      shouldRouteToProjectLimitGate({
+        activeProjectCount,
+        hasPremiumAccess,
+        isReady,
+      })
+    ) {
+      router.replace('/project/limit-modal');
+      return;
+    }
+
+    createProject();
+  }, [activeProjectCount, createProject, hasPremiumAccess, isReady, name, router]);
+
   const onBackdropPress = React.useCallback(() => {
     router.back();
   }, [router]);
@@ -193,7 +219,7 @@ export default function ProjectCreateModal() {
 
     const emojiActions: MenuAction[] = EMOJI_PRESETS.map((preset) => ({
       id: `emoji:${preset.emoji}`,
-      title: `${preset.emoji} ${preset.label}`,
+      title: `${preset.emoji} ${t(preset.labelKey)}`,
       state: Platform.OS === 'ios' ? (selectedEmoji === preset.emoji ? 'on' : 'off') : undefined,
     }));
 
@@ -210,7 +236,7 @@ export default function ProjectCreateModal() {
 
     return [
       {
-        title: 'Emoji',
+        title: t('projectEdit.emoji'),
         displayInline: true,
         subactions: emojiActions,
       },
@@ -269,7 +295,8 @@ export default function ProjectCreateModal() {
   const fieldTint = withAlpha(Colors[theme].background, isDark ? 0.2 : 0.34);
   const fieldFallback = withAlpha(Colors[theme].background, isDark ? 0.82 : 0.92);
   const pickerFallback = withAlpha(Colors[theme].background, isDark ? 0.8 : 0.9);
-  const sendTint = withAlpha('#007AFF', isDark ? 0.88 : 0.78);
+  const accentColorValue = getAccentColorValue(accentColor);
+  const sendTint = withAlpha(accentColorValue, isDark ? 0.88 : 0.78);
   const disabledSendTint = withAlpha(Colors[theme].background, isDark ? 0.24 : 0.32);
 
   const previewEmoji = selectedEmoji.trim();
@@ -420,7 +447,7 @@ export default function ProjectCreateModal() {
                 style={[styles.sendSurface, !canSubmit && styles.sendSurfaceDisabled]}
                 glassEffectStyle="regular"
                 tintColor={canSubmit ? sendTint : disabledSendTint}
-                fallbackBackgroundColor={canSubmit ? '#007AFF' : pickerFallback}
+                fallbackBackgroundColor={canSubmit ? accentColorValue : pickerFallback}
                 isInteractive
               >
                 <MaterialIcons

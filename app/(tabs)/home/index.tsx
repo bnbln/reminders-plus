@@ -1,14 +1,18 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import * as Haptics from "expo-haptics";
+import { type MenuAction } from "@react-native-menu/menu";
+import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import React from "react";
 import {
   Animated,
+  AppState,
   Easing,
   FlatList,
   type GestureResponderEvent,
-  type LayoutChangeEvent,
   LayoutAnimation,
+  type LayoutChangeEvent,
+  Modal,
+  NativeModules,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   Platform,
@@ -18,19 +22,38 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { NestableScrollContainer } from "react-native-draggable-flatlist";
 
 import {
+  DatePicker as ExpoSwiftUIDatePicker,
+  Host as ExpoSwiftUIHost,
+} from "@expo/ui/swift-ui";
+import { datePickerStyle as expoSwiftDatePickerStyleModifier } from "@expo/ui/swift-ui/modifiers";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { LinearGradient } from "expo-linear-gradient";
+
+import {
+  type TaskDragGestureUpdateParams,
   TaskSwipeDraggableList,
   type TaskSwipeDraggableListHandle,
   type TaskSwipeDraggableListItem,
 } from "@/components/tasks/task-swipe-draggable-list";
+import { AnimatedNumber } from "@/components/ui/animated-number";
 import { FloatingAddButton } from "@/components/ui/floating-add-button";
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
-import { Colors } from "@/constants/theme";
-import { useHomeFilters } from "@/context/home-filters-store";
+import { SFSymbol } from "@/components/ui/sfsymbol";
+import { StreakAccentBackground } from "@/components/ui/streak-accent-background";
+import { Colors, LIGHT_ACCENT_SCREEN_BACKGROUND } from "@/constants/theme";
+import {
+  parseShowCompletedTasksParam,
+  parseShowProjectTasksParam,
+  parseShowRoutineTasksParam,
+  useHomeFilters,
+} from "@/context/home-filters-store";
+import { getAccentColorValue, useAppSettings } from "@/context/settings-store";
 import { useTaskCreateContext } from "@/context/task-create-context";
 import {
+  createRoutineCompletionTransition,
   getDueAtForSection,
   getNextRoutineDate,
   SectionId,
@@ -39,7 +62,8 @@ import {
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useStreaks } from "@/hooks/use-streaks";
-import { countLabel, t } from "@/i18n";
+import { t } from "@/i18n";
+import { triggerSelectionHaptic } from "@/utils/haptics";
 import { isIOS26OrNewer } from "@/utils/ios-version";
 import {
   alignDueAtToLocalDay,
@@ -50,31 +74,93 @@ import {
 } from "@/utils/task-dates";
 
 type ThemeName = keyof typeof Colors;
+type TaskAccessoryContextBridge = {
+  setContext?: (
+    mode: "task" | "today" | "routine" | "project" | "inProject",
+    projectId?: string | null,
+    projectLabel?: string | null,
+    selectedDateStart?: number | null,
+  ) => void;
+};
+
 const GRID_HORIZONTAL_PADDING = 16;
 const GRID_GAP = 10;
 const SECTION_SIDE_INSET = 0;
-const DATE_RAIL_HORIZONTAL_PADDING = 12;
+const DATE_RAIL_HORIZONTAL_PADDING = 6;
 const DATE_RAIL_PAST_DAYS = 119;
 const DATE_RAIL_FUTURE_DAYS = 365;
-const DATE_RAIL_MIN_ITEM_WIDTH = 44;
-const DATE_RAIL_ITEM_GAP = 0;
-const DATE_RAIL_PAGE_DAYS = 7;
-const DATE_DROP_VERTICAL_PADDING = 8;
+const DATE_RAIL_MIN_ITEM_WIDTH = 40;
+const DATE_RAIL_ITEM_GAP = 6;
+const DATE_RAIL_FADE_WIDTH = 96;
 const STREAK_PROGRESS_DAYS = 7;
-const HOME_TASK_ITEM_SPACING = 4;
-const TASK_ROW_SIDE_BLEED = 6;
+const HOME_TASK_ITEM_SPACING = 8;
+const HOME_METRICS_BOTTOM_GAP = 16;
+const HOME_TASK_LIST_TOP_GAP = 16;
+const HOME_CALENDAR_LIST_GAP = 20;
+const HOME_ARCHIVE_PILL_TOP_GAP = 24;
+const TASK_ROW_SIDE_BLEED = 8;
 const HERO_HEADER_OVERLAP = 268;
 const TASK_ROW_HORIZONTAL_PADDING = 12;
 const CONTENT_STACK_GAP = 10;
 const DATE_TRANSITION_DURATION = 250;
-const TODAY_SURFACE_HEIGHT_ANIMATION_DURATION = 300;
+const DATE_RAIL_TITLE_TRANSITION_DURATION = 300;
+const DATE_RAIL_TITLE_SCRUB_DURATION = 190;
+const DATE_RAIL_TITLE_TRANSITION_DISTANCE = 10;
+const DRAG_RAIL_HOVER_INTENT_MS = 80;
+const HOME_TASK_INITIAL_REVEAL_DURATION_MS = 340;
+const IOS_LIGHT_BASE_BACKGROUND = "#F2F2F7"; // systemGroupedBackground
+const IOS_LIGHT_ELEVATED_SURFACE = "#FFFFFF"; // secondarySystemGroupedBackground
+const IOS_LIGHT_INSET_SURFACE = "#EBEBF0"; // tertiarySystemFill-like
+const IOS_LIGHT_SEPARATOR = "rgba(60, 60, 67, 0.22)"; // separator
+const IOS_LIGHT_TINT_FILL = "rgba(118, 118, 128, 0.2)"; // quaternarySystemFill-like
+// Customize task row surfaces here:
+const HOME_TASK_ROW_SURFACE_LIGHT = IOS_LIGHT_ELEVATED_SURFACE;
+const HOME_TASK_ROW_SURFACE_DARK = "rgba(35, 35, 35, 0.2)";
+const HOME_ONBOARDING_KEYS = {
+  gestures: "reminds.home.onboarding.gestures.v1",
+  dragDropTargets: "reminds.home.onboarding.dragDropTargets.v1",
+} as const;
+
+let hasPlayedHomeInitialRevealThisSession = false;
 
 const SECTION_ORDER: SectionId[] = ["today", "upcoming", "completed"];
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 
-const configureSmoothListLayoutTransition = () => {
+// Month Year Picker styles
+const CALENDAR_POPOVER_WIDTH = 340;
+const CALENDAR_POPOVER_HEIGHT = 332;
+
+async function readOnboardingSeen(key: string): Promise<boolean> {
+  try {
+    if (Platform.OS === "web") {
+      if (typeof localStorage === "undefined") return false;
+      return localStorage.getItem(key) === "1";
+    }
+    const value = await AsyncStorage.getItem(key);
+    return value === "1";
+  } catch {
+    return false;
+  }
+}
+
+async function markOnboardingSeen(key: string): Promise<void> {
+  try {
+    if (Platform.OS === "web") {
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem(key, "1");
+      }
+      return;
+    }
+    await AsyncStorage.setItem(key, "1");
+  } catch {
+    // ignore
+  }
+}
+
+const configureSmoothListLayoutTransition = (enabled: boolean = true) => {
+  if (!enabled) return;
   LayoutAnimation.configureNext({
     duration: 280,
     create: {
@@ -153,6 +239,9 @@ const adjustDueAtOnSectionChange = (
   targetDayStart: number,
 ): Task => {
   if (nextSection === "completed") {
+    if (task.section === "completed") {
+      return task;
+    }
     return {
       ...task,
       section: "completed",
@@ -186,27 +275,18 @@ const adjustDueAtOnSectionChange = (
   };
 };
 
-type QuickTile = {
-  key: "streaks";
+type HomeMetricsProps = {
+  completionPercentage: number;
   currentStreak: number;
-  longestStreak: number;
-  mostTasksInOneDay: number;
-  onPress: () => void;
+  onPressStatus: () => void;
+  onPressStreak: () => void;
 };
 
-type QuickNavTheme = {
-  topSurface: string;
-  topDivider: string;
-  cardTintColor: string;
-  cardFallbackColor: string;
-  streakFlameActive: string;
-  streakFlameInactive: string;
-  streakPrimaryText: string;
-  streakMutedText: string;
-  streakStatLabel: string;
-  streakStatValue: string;
-  streakProgressTrack: string;
-  streakProgressFill: string;
+type HomeMetricsTheme = {
+  cardBackgroundColor: string;
+  borderColor: string;
+  primaryText: string;
+  mutedText: string;
 };
 
 type DateRailDay = {
@@ -220,225 +300,169 @@ type DateRailDay = {
   eventCount: number;
 };
 
+type DateRailMonthOption = {
+  key: string;
+  monthStart: number;
+  title: string;
+};
+
 type DateListTransitionState = {
   fromDateStart: number;
   toDateStart: number;
   direction: 1 | -1;
 };
+type DateRailTitleTransitionState = {
+  currentText: string;
+  previousText: string | null;
+  direction: 1 | -1;
+  animationToken: number;
+  phase: "idle" | "preparing" | "animating";
+};
+type DateSelectionSource =
+  | "press"
+  | "rail"
+  | "swipe"
+  | "momentum"
+  | "picker"
+  | "programmatic";
 
 type DragSurfaceId = "today" | "upcoming";
 type DragBounds = { x: number; y: number; width: number; height: number };
 
-const isPointNearBounds = (
-  bounds: DragBounds | null,
-  x: number,
-  y: number,
-  inset: { top: number; right: number; bottom: number; left: number },
-) => {
-  if (!bounds) return false;
-  return (
-    x >= bounds.x - inset.left &&
-    x <= bounds.x + bounds.width + inset.right &&
-    y >= bounds.y - inset.top &&
-    y <= bounds.y + bounds.height + inset.bottom
-  );
+const isSameLocalMonth = (left: number, right: number) => {
+  const l = new Date(left);
+  const r = new Date(right);
+  return l.getFullYear() === r.getFullYear() && l.getMonth() === r.getMonth();
 };
 
-function QuickNavGrid({
-  tiles,
+function HomeMetricsGrid({
+  animateValues,
+  metricsAnimationCycle,
+  metrics,
   styles,
   theme,
 }: {
-  tiles: QuickTile[];
+  animateValues: boolean;
+  metricsAnimationCycle: number;
+  metrics: HomeMetricsProps;
   styles: ReturnType<typeof createStyles>;
-  theme: QuickNavTheme;
+  theme: HomeMetricsTheme;
 }) {
   return (
-    <View style={styles.quickGridWrap}>
-      <View style={styles.quickGrid}>
-        {tiles.map((tile) => {
-          const progressDays = clamp(tile.currentStreak, 0, STREAK_PROGRESS_DAYS);
-          const rawProgressPercent = (progressDays / STREAK_PROGRESS_DAYS) * 100;
-          const progressPercent = Number.isFinite(rawProgressPercent)
-            ? clamp(Math.round(rawProgressPercent), 0, 100)
-            : 0;
-          const streakLabel =
-            tile.currentStreak === 1
-              ? t("streaks.hero.one")
-              : t("streaks.hero.other");
-          const longestLabel = countLabel(
-            tile.longestStreak,
-            "streaks.count.days.one",
-            "streaks.count.days.other",
-          );
-          const recordPerDayLabel = `${tile.mostTasksInOneDay}/${t(
-            "home.quick.day",
-          )}`;
-          const fireIconColor =
-            tile.currentStreak > 0
-              ? theme.streakFlameActive
-              : theme.streakFlameInactive;
-          const scaleDays = Array.from(
-            { length: STREAK_PROGRESS_DAYS },
-            (_, idx) => idx + 1,
-          );
+    <View style={styles.metricsGridWrap}>
+      <View style={styles.metricsGrid}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`status: ${metrics.completionPercentage}%`}
+          onPress={metrics.onPressStatus}
+          hitSlop={8}
+          style={({ pressed }) => [
+            styles.metricsCardPressable,
+            pressed && { opacity: 0.9 },
+            { transform: [{ scale: pressed ? 0.98 : 1 }] },
+          ]}
+        >
+          <GlassSurface
+            style={styles.metricsCard}
+            glassEffectStyle="regular"
+            tintColor={theme.cardBackgroundColor}
+            fallbackBackgroundColor={theme.cardBackgroundColor}
+            isInteractive
+          >
+            <View style={styles.metricsCardInner}>
+              <View style={styles.metricsHeaderRow}>
+                <SFSymbol
+                  name="arrow.up.right"
+                  size={16}
+                  color="#22C55E"
+                  weight="bold"
+                />
+                <Text
+                  style={[
+                    styles.metricsHeaderLabel,
+                    { color: theme.mutedText },
+                  ]}
+                >
+                  STATUS
+                </Text>
+              </View>
+              <AnimatedNumber
+                animateFromZeroOnMount
+                formattedNumber={`${metrics.completionPercentage}%`}
+                replayKey={metricsAnimationCycle}
+                shouldAnimate={animateValues}
+                textStyle={[
+                  styles.metricsPrimaryValue,
+                  { color: theme.primaryText },
+                ]}
+              />
+            </View>
+          </GlassSurface>
+        </Pressable>
 
-          return (
-            <Pressable
-              key={tile.key}
-              accessibilityRole="button"
-              accessibilityLabel={`${t("home.quick.streaks")}: ${tile.currentStreak} ${streakLabel}`}
-              onPress={tile.onPress}
-              pressRetentionOffset={{ top: 2, bottom: 2, left: 2, right: 2 }}
-              hitSlop={8}
-              style={styles.quickTilePressable}
-            >
-              <GlassSurface
-                style={styles.quickTile}
-                glassEffectStyle="regular"
-                tintColor={theme.cardTintColor}
-                fallbackBackgroundColor={theme.cardFallbackColor}
-              >
-                <View style={styles.quickTileInner}>
-                  <View style={styles.streakHeaderRow}>
-                    <View style={styles.streakLeadRow}>
-                      <MaterialIcons
-                        name="local-fire-department"
-                        size={48}
-                        color={fireIconColor}
-                        style={styles.streakFlameIcon}
-                      />
-                      <View style={styles.streakLeadTextWrap}>
-                        <Text
-                          style={[
-                            styles.streakPrimaryValue,
-                            { color: theme.streakPrimaryText },
-                          ]}
-                        >
-                          {tile.currentStreak}
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={styles.streakStatsColumn}>
-                      <View style={styles.streakStatsGrid}>
-                        <View style={styles.streakStatsLabelRow}>
-                          <View style={styles.streakStatsCell}>
-                            <Text
-                              numberOfLines={2}
-                              style={[
-                                styles.streakStatLabel,
-                                { color: theme.streakStatLabel },
-                              ]}
-                            >
-                              {t("streaks.stats.longest")}
-                            </Text>
-                          </View>
-                          <View style={styles.streakStatsCell}>
-                            <Text
-                              numberOfLines={2}
-                              style={[
-                                styles.streakStatLabel,
-                                { color: theme.streakStatLabel },
-                              ]}
-                            >
-                              {t("streaks.stats.record")}
-                            </Text>
-                          </View>
-                        </View>
-                        <View style={styles.streakStatsValueRow}>
-                          <View style={styles.streakStatsCell}>
-                            <Text
-                              numberOfLines={1}
-                              style={[
-                                styles.streakStatValue,
-                                { color: theme.streakStatValue },
-                              ]}
-                            >
-                              {longestLabel}
-                            </Text>
-                          </View>
-                          <View style={styles.streakStatsCell}>
-                            <Text
-                              numberOfLines={1}
-                              style={[
-                                styles.streakStatValue,
-                                { color: theme.streakStatValue },
-                              ]}
-                            >
-                              {recordPerDayLabel}
-                            </Text>
-                          </View>
-                        </View>
-                      </View>
-                    </View>
-                  </View>
-
-                  <View style={styles.streakProgressWrap}>
-                    <View style={styles.streakProgressTrackInset}>
-                      <GlassSurface
-                        style={[
-                          styles.streakProgressTrack,
-                          { backgroundColor: theme.streakProgressTrack },
-                        ]}
-                        glassEffectStyle="regular"
-                        tintColor={theme.streakProgressTrack}
-                        fallbackBackgroundColor={theme.streakProgressTrack}
-                      >
-                        <GlassSurface
-                          style={[
-                            styles.streakProgressFill,
-                            {
-                              width: `${progressPercent}%`,
-                              backgroundColor: theme.streakProgressFill,
-                            },
-                          ]}
-                          glassEffectStyle="regular"
-                          tintColor={theme.streakProgressFill}
-                          fallbackBackgroundColor={theme.streakProgressFill}
-                        />
-                        <View
-                          pointerEvents="none"
-                          style={styles.streakProgressLabelsRow}
-                        >
-                          {scaleDays.map((day) => (
-                            <View key={day} style={styles.streakProgressLabelCell}>
-                              <Text
-                                style={[
-                                  styles.streakProgressLabelText,
-                                  { color: theme.streakPrimaryText },
-                                ]}
-                              >
-                                {day}
-                              </Text>
-                            </View>
-                          ))}
-                        </View>
-                      </GlassSurface>
-                    </View>
-                  </View>
-                </View>
-              </GlassSurface>
-            </Pressable>
-          );
-        })}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`streak: ${metrics.currentStreak}`}
+          onPress={metrics.onPressStreak}
+          hitSlop={8}
+          style={({ pressed }) => [
+            styles.metricsCardPressable,
+            pressed && { opacity: 0.9 },
+            { transform: [{ scale: pressed ? 0.98 : 1 }] },
+          ]}
+        >
+          <GlassSurface
+            style={styles.metricsCard}
+            glassEffectStyle="regular"
+            tintColor={theme.cardBackgroundColor}
+            fallbackBackgroundColor={theme.cardBackgroundColor}
+            isInteractive
+          >
+            <View style={styles.metricsCardInner}>
+              <View style={styles.metricsHeaderRow}>
+                <SFSymbol name="flame.fill" size={16} color="#F97316" />
+                <Text
+                  style={[
+                    styles.metricsHeaderLabel,
+                    { color: theme.mutedText },
+                  ]}
+                >
+                  STREAK
+                </Text>
+              </View>
+              <AnimatedNumber
+                animateFromZeroOnMount
+                formattedNumber={`${metrics.currentStreak}`}
+                replayKey={metricsAnimationCycle}
+                shouldAnimate={animateValues}
+                textStyle={[
+                  styles.metricsPrimaryValue,
+                  { color: theme.primaryText },
+                ]}
+              />
+            </View>
+          </GlassSurface>
+        </Pressable>
       </View>
-    </View >
+    </View>
   );
 }
 
 const createStyles = (
   theme: ThemeName,
   dateRailItemWidth: number,
+  calendarActiveColor: string,
 ) => {
   const isDark = theme === "dark";
+  const useAppleLightPalette = !isDark && Platform.OS === "ios";
   const text = Colors[theme].text;
-  const rowSurface = Colors[theme].background;
 
   // ─── Design Tokens ─────────────────────────────────
-  const ACCENT = "#F4512C";
-  const ALPHA_2 = 0.72;  // secondary: subtitles, meta, icons
-  const ALPHA_3 = 0.48;  // tertiary: labels, section headers, hints
-  const ALPHA_4 = 0.28;  // quaternary: dividers, faint borders
+  const CALENDAR_ACCENT = calendarActiveColor;
+  const DRAG_ACCENT = "#F4512C";
+  const ALPHA_2 = 0.72; // secondary: subtitles, meta, icons
+  const ALPHA_3 = 0.48; // tertiary: labels, section headers, hints
+  const ALPHA_4 = 0.28; // quaternary: dividers, faint borders
   const WEIGHT_HERO = "900" as const;
   const WEIGHT_HEADING = "700" as const;
   const WEIGHT_BODY = "600" as const;
@@ -449,27 +473,47 @@ const createStyles = (
   const RADIUS_PILL = 999;
   // ───────────────────────────────────────────────────
 
-  const hairline = withAlpha(text, ALPHA_4);
-  const rowDivider = isDark ? "rgba(255,255,255,0.24)" : "rgba(0,0,0,0.16)";
+  const hairline = isDark
+    ? withAlpha(text, ALPHA_4)
+    : useAppleLightPalette
+      ? IOS_LIGHT_SEPARATOR
+      : withAlpha(text, ALPHA_4);
+  const rowCardSurface = isDark
+    ? HOME_TASK_ROW_SURFACE_DARK
+    : HOME_TASK_ROW_SURFACE_LIGHT;
+  const insetSurface = isDark
+    ? "rgba(255,255,255,0.06)"
+    : useAppleLightPalette
+      ? IOS_LIGHT_INSET_SURFACE
+      : "rgba(0,0,0,0.04)";
   const tagBg = withAlpha(text, isDark ? 0.1 : 0.08);
   const tagText = withAlpha(text, ALPHA_2);
   const dangerBg = isDark ? "rgba(255,69,58,0.18)" : "rgba(255,59,48,0.14)";
   const dangerBorder = isDark ? "rgba(255,69,58,0.32)" : "rgba(255,59,48,0.26)";
   const rowMetaText = withAlpha(text, ALPHA_3);
   const dayBubbleSize = Math.max(30, Math.min(40, dateRailItemWidth - 14));
-  const heroCardBorder = isDark ? "rgba(255,255,255,0.09)" : "rgba(17,24,28,0.09)";
+  const heroCardBorder = isDark
+    ? "rgba(255,255,255,0.09)"
+    : useAppleLightPalette
+      ? "rgba(60,60,67,0.18)"
+      : "rgba(17,24,28,0.09)";
   const heroCardRadius = 18;
 
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: Colors[theme].background,
+      backgroundColor: "transparent",
     },
     content: {
       paddingHorizontal: GRID_HORIZONTAL_PADDING,
       paddingTop: 8,
       paddingBottom: 184,
       gap: CONTENT_STACK_GAP,
+    },
+    taskListContent: {
+      paddingHorizontal: GRID_HORIZONTAL_PADDING,
+      paddingTop: 8,
+      paddingBottom: 184,
     },
     topHeroWrap: {
       marginHorizontal: -GRID_HORIZONTAL_PADDING,
@@ -481,81 +525,48 @@ const createStyles = (
     topHeroSurface: {
       paddingTop: 0,
       // Keep vertical spacing between streak card and the shared day panel.
-      paddingBottom: CONTENT_STACK_GAP,
+      paddingBottom: HOME_METRICS_BOTTOM_GAP,
     },
-    quickGridWrap: {
+    metricsGridWrap: {
       marginTop: 0,
       marginBottom: 0,
       paddingHorizontal: GRID_HORIZONTAL_PADDING,
     },
-    quickGrid: {
+    metricsGrid: {
       flexDirection: "row",
-      flexWrap: "wrap",
-      gap: GRID_GAP,
+      justifyContent: "space-between",
+      gap: 16,
     },
-    quickTilePressable: {
-      width: "100%",
-      flexGrow: 0,
+    metricsCardPressable: {
+      flex: 1,
     },
-    quickTile: {
-      borderRadius: heroCardRadius,
+    metricsCard: {
+      borderRadius: 24,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: heroCardBorder,
-      backgroundColor: "transparent",
-      minHeight: 120,
       overflow: "hidden",
+      minHeight: 110,
     },
-    quickTileInner: {
-      paddingHorizontal: 24,
-      paddingTop: 26,
-      paddingBottom: 26,
-      gap: 20,
-      flex: 1,
-      justifyContent: "space-between",
-    },
-    streakHeaderRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 14,
-    },
-    streakLeadRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      flex: 1,
-      minWidth: 0,
-    },
-    streakFlameIcon: {
-      marginTop: 2,
-    },
-    streakLeadTextWrap: {
-      gap: 2,
-      justifyContent: "flex-start",
-      paddingTop: 0,
-    },
-    streakPrimaryValue: {
-      fontSize: 56,
-      lineHeight: 56,
-      fontWeight: WEIGHT_HERO,
-      letterSpacing: -1.5,
-    },
-    streakStatsColumn: {
-      alignItems: "stretch",
+    metricsCardInner: {
+      paddingHorizontal: 20,
+      paddingVertical: 20,
       justifyContent: "center",
-      marginLeft: 8,
-      minWidth: 178,
-      flexShrink: 0,
-      paddingTop: 2,
-      paddingRight: 2,
+      gap: 8,
     },
-    streakStatsGrid: {
-      gap: 6,
-    },
-    streakStatsLabelRow: {
+    metricsHeaderRow: {
       flexDirection: "row",
       alignItems: "center",
       gap: 8,
+    },
+    metricsHeaderLabel: {
+      fontSize: 13,
+      fontWeight: WEIGHT_HEADING,
+      letterSpacing: 0.5,
+    },
+    metricsPrimaryValue: {
+      fontSize: 40,
+      fontWeight: WEIGHT_HERO,
+      letterSpacing: -0.5,
     },
     streakStatsValueRow: {
       flexDirection: "row",
@@ -619,21 +630,68 @@ const createStyles = (
       letterSpacing: 0.15,
     },
     dateRailWrap: {
-      paddingHorizontal: DATE_RAIL_HORIZONTAL_PADDING,
-      // Mirror spacing below the divider for optical centering.
-      paddingTop: 16,
-      paddingBottom: 10,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: heroCardBorder,
-      marginBottom: 0,
+      paddingHorizontal: 0,
+      paddingTop: 10,
+      paddingBottom: 6,
+      marginHorizontal: 0,
+      marginTop: 0,
+      marginBottom: HOME_CALENDAR_LIST_GAP,
+      zIndex: 100,
+    },
+    dateRailWrapCollapsed: {
+      paddingBottom: 2,
+      marginBottom: 2,
     },
     dateRailMotionContent: {
       position: "relative",
+      zIndex: 100,
+    },
+    dateRailListContainer: {
+      position: "relative",
+    },
+    dateRailCenterIndicator: {
+      width: dateRailItemWidth,
+      height: 64,
+      borderRadius: 12,
+      backgroundColor: CALENDAR_ACCENT,
+    },
+    dateRailFadeLeft: {
+      position: "absolute",
+      left: 0,
+      top: 0,
+      bottom: 0,
+      width: DATE_RAIL_FADE_WIDTH,
+      zIndex: 10,
+    },
+    dateRailFadeRight: {
+      position: "absolute",
+      right: 0,
+      top: 0,
+      bottom: 0,
+      width: DATE_RAIL_FADE_WIDTH,
+      zIndex: 10,
     },
     dateRailTitleHost: {
       position: "relative",
-      minHeight: 36,
-      marginBottom: 12,
+      minHeight: 40,
+      marginBottom: 10,
+      justifyContent: "center",
+      zIndex: 100,
+    },
+    dateRailTitleHostCollapsed: {
+      marginBottom: 2,
+    },
+    dateRailHeadlineRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+      width: "100%",
+      paddingHorizontal: 12,
+    },
+    dateRailHeadlineTextHost: {
+      flex: 1,
+      minHeight: 24,
       justifyContent: "center",
     },
     dateRailTitlePressable: {
@@ -645,16 +703,35 @@ const createStyles = (
     },
     dateRailTitleViewport: {
       width: "100%",
-      overflow: "hidden",
-      alignItems: "center",
+      overflow: "visible",
+      alignItems: "flex-start",
       justifyContent: "center",
     },
-    dateRailTitleTrack: {
-      flexDirection: "row",
-      alignItems: "center",
+    dateRailTitleTextViewport: {
+      height: 24,
+      overflow: "hidden",
+      alignItems: "flex-start",
+      justifyContent: "center",
+      position: "relative",
     },
-    dateRailTitlePage: {
-      flexShrink: 0,
+    dateRailTitleTextTransitionHost: {
+      height: 24,
+      width: "100%",
+      alignItems: "flex-start",
+      justifyContent: "center",
+      position: "relative",
+    },
+    dateRailTitleTextMeasure: {
+      opacity: 0,
+    },
+    dateRailTitleTextTransitionText: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+    },
+    dateRailTitleCenterHost: {
+      flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
     },
@@ -663,13 +740,87 @@ const createStyles = (
       alignItems: "center",
       justifyContent: "center",
       gap: 8,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: RADIUS_PILL,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: hairline,
+    },
+    calendarButtonRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
+    calendarButton: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: heroCardBorder,
+    },
+    calendarPopover: {
+      width: CALENDAR_POPOVER_WIDTH,
+      height: CALENDAR_POPOVER_HEIGHT,
+      borderRadius: RADIUS_CARD,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: heroCardBorder,
+      overflow: "hidden",
+      shadowColor: "#000000",
+      shadowOpacity: isDark ? 0.4 : 0.18,
+      shadowRadius: 28,
+      shadowOffset: { width: 0, height: 14 },
+    },
+    calendarQuickActionsRow: {
+      flexDirection: "row",
+      gap: 8,
+      paddingHorizontal: 12,
+      paddingTop: 10,
+      paddingBottom: 6,
+    },
+    calendarQuickActionButton: {
+      flex: 1,
+      borderRadius: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: heroCardBorder,
+      backgroundColor: isDark
+        ? "rgba(255,255,255,0.08)"
+        : "rgba(255,255,255,0.9)",
+      paddingVertical: 9,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    calendarQuickActionButtonText: {
+      fontSize: 13,
+      lineHeight: 16,
+      fontWeight: WEIGHT_HEADING,
+      color: text,
+      opacity: ALPHA_2,
+    },
+    calendarPickerBody: {
+      flex: 1,
+      alignItems: "stretch",
+      justifyContent: "center",
+      paddingHorizontal: 12,
+      paddingBottom: 12,
+    },
+    calendarPickerNative: {
+      flex: 1,
+      minHeight: 190,
+    },
+    calendarPickerSwiftHost: {
+      flex: 1,
+      minHeight: 190,
+      justifyContent: "center",
     },
     dateRailTitle: {
       fontSize: 18,
+      lineHeight: 24,
       fontWeight: WEIGHT_HEADING,
       color: text,
       letterSpacing: 0.2,
-      textAlign: "center",
+      textAlign: "left",
       marginBottom: 0,
     },
     dateRailList: {
@@ -680,60 +831,83 @@ const createStyles = (
     },
     dateRailDay: {
       width: dateRailItemWidth,
-      alignItems: "center",
-      justifyContent: "flex-start",
-      gap: 4,
-      paddingHorizontal: 0,
-      paddingTop: 1,
-      paddingBottom: 5,
-    },
-    dateRailDayBubble: {
-      width: dayBubbleSize,
-      height: dayBubbleSize,
-      borderRadius: dayBubbleSize / 2,
+      height: 64,
       alignItems: "center",
       justifyContent: "center",
+      gap: 2,
+      paddingHorizontal: 0,
+      paddingTop: 6,
+      paddingBottom: 6,
+      borderRadius: 12,
+      backgroundColor: "transparent",
     },
-    dateRailDayBubbleSelected: {
-      backgroundColor: ACCENT,
+    dateRailDayDropCandidate: {
+      borderWidth: 1.5,
+      borderColor: withAlpha(CALENDAR_ACCENT, 0.92),
+      backgroundColor: withAlpha(CALENDAR_ACCENT, isDark ? 0.16 : 0.14),
+    },
+    dateRailDayDropReady: {
+      borderWidth: 2,
+      borderColor: CALENDAR_ACCENT,
+      backgroundColor: withAlpha(CALENDAR_ACCENT, isDark ? 0.16 : 0.12),
+    },
+    dateRailDaySelected: {
+      backgroundColor: CALENDAR_ACCENT,
     },
     dateRailDayNum: {
-      color: isDark ? "rgba(255,255,255,0.92)" : "#111111",
-      fontSize: 21,
+      color: isDark ? "rgba(255,255,255,0.92)" : "#475569",
+      fontSize: 20,
       lineHeight: 24,
-      fontWeight: WEIGHT_SUBTLE,
+      fontWeight: WEIGHT_HEADING,
       letterSpacing: -0.15,
     },
     dateRailDayNumSelected: {
       color: "#FFFFFF",
     },
     dateRailDayNumToday: {
-      color: ACCENT,
+      color: CALENDAR_ACCENT,
     },
     dateRailDayNumWeekend: {
       color: withAlpha(text, ALPHA_3),
     },
+    dateRailDayNumDropCandidate: {
+      color: withAlpha(CALENDAR_ACCENT, 0.98),
+    },
+    dateRailDayNumDropReady: {
+      color: withAlpha(CALENDAR_ACCENT, 0.98),
+    },
     dateRailDow: {
-      color: isDark ? "rgba(255,255,255,0.9)" : "#111111",
-      fontSize: 11,
-      lineHeight: 14,
+      color: isDark ? "rgba(255,255,255,0.8)" : "#64748B",
+      fontSize: 10,
+      lineHeight: 12,
       fontWeight: WEIGHT_BODY,
       letterSpacing: 0.35,
       textTransform: "uppercase",
+    },
+    dateRailDowDropCandidate: {
+      color: withAlpha(CALENDAR_ACCENT, 0.95),
+    },
+    dateRailDowDropReady: {
+      color: withAlpha(CALENDAR_ACCENT, 0.95),
+    },
+    dateRailDowSelected: {
+      color: "#FFFFFF",
     },
     dateRailDowWeekend: {
       color: withAlpha(text, ALPHA_3),
     },
     dateRailEventIndicator: {
-      marginTop: 2,
+      position: "absolute",
+      bottom: 6,
       width: 6,
       height: 6,
       borderRadius: 3,
-      backgroundColor: isDark ? withAlpha("#FFFFFF", ALPHA_2) : withAlpha("#FFFFFF", 0.9),
+      backgroundColor: isDark
+        ? withAlpha("#FFFFFF", ALPHA_2)
+        : withAlpha("#000000", 0.5),
     },
     dateRailEventIndicatorSpacer: {
-      height: 6,
-      marginTop: 2,
+      display: "none",
     },
     dateTasksSurface: {
       position: "relative",
@@ -746,6 +920,12 @@ const createStyles = (
     dateTasksSurfaceHeightFrame: {
       overflow: "hidden",
     },
+    dateTasksSurfaceHeightFrameCollapsed: {
+      overflow: "visible",
+    },
+    dateTasksSurfaceHeightFrameDragActive: {
+      overflow: "visible",
+    },
     upcomingTasksSurface: {
       marginTop: CONTENT_STACK_GAP,
       position: "relative",
@@ -755,27 +935,56 @@ const createStyles = (
       backgroundColor: "transparent",
       overflow: "hidden",
     },
+    upcomingTasksSurfaceCollapsed: {
+      marginTop: 4,
+    },
+    segmentSurfaceCollapsed: {
+      borderWidth: 0,
+      borderColor: "transparent",
+      overflow: "visible",
+    },
     segmentSurfaceDragActive: {
       overflow: "visible",
-      zIndex: 40,
+      zIndex: 200,
       elevation: 24,
     },
     segmentSurfaceDragInactive: {
       zIndex: 10,
     },
+    segmentSurfaceDropHover: {
+      borderWidth: 2,
+      borderColor: DRAG_ACCENT,
+      backgroundColor: withAlpha(DRAG_ACCENT, isDark ? 0.08 : 0.05),
+    },
     taskListInset: {
       paddingHorizontal: TASK_ROW_SIDE_BLEED,
-      paddingTop: 10,
-      paddingBottom: 8,
+      paddingTop: 0,
+      paddingBottom: 0,
       overflow: "visible",
     },
     taskListInsetNoContent: {
       paddingTop: 0,
       paddingBottom: 0,
     },
+    taskContentSolid: {
+      marginHorizontal: 4,
+      marginTop: 0,
+      marginBottom: 0,
+      borderRadius: 18,
+      backgroundColor: insetSurface,
+      overflow: "hidden",
+      paddingHorizontal: 0,
+      paddingVertical: 8,
+    },
+    todayTaskContentTransparent: {
+      backgroundColor: "transparent",
+    },
     dateListTransitionHost: {
       position: "relative",
       overflow: "hidden",
+    },
+    dateListTransitionHostDragActive: {
+      overflow: "visible",
     },
     dateListTransitionTrack: {
       flexDirection: "row",
@@ -787,9 +996,13 @@ const createStyles = (
     sectionHeader: {
       flexDirection: "row",
       alignItems: "center",
-      marginTop: 12,
+      marginTop: HOME_TASK_LIST_TOP_GAP,
       marginBottom: 6,
       paddingHorizontal: SECTION_SIDE_INSET,
+    },
+    sectionHeaderCollapsed: {
+      marginTop: 4,
+      marginBottom: 2,
     },
     sectionHeaderButton: {
       flexDirection: "row",
@@ -799,26 +1012,51 @@ const createStyles = (
       paddingVertical: 6,
       paddingHorizontal: TASK_ROW_HORIZONTAL_PADDING,
     },
+    sectionHeaderButtonCollapsed: {
+      paddingVertical: 4,
+    },
     sectionTitle: {
       fontSize: 12,
       lineHeight: 16,
       fontWeight: WEIGHT_HEADING,
-      letterSpacing: 0.8,
-      textTransform: "uppercase" as const,
+      //letterSpacing: 0.8,
       color: text,
       opacity: ALPHA_3,
     },
     sectionChevron: {
       opacity: ALPHA_3,
     },
+    sectionCountBadge: {
+      minWidth: 22,
+      height: 22,
+      borderRadius: 11,
+      paddingHorizontal: 4,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: withAlpha(text, isDark ? 0.18 : 0.1),
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: withAlpha(text, isDark ? 0.34 : 0.2),
+    },
+    sectionCountBadgeText: {
+      fontSize: 12,
+      lineHeight: 14,
+      fontWeight: WEIGHT_HEADING,
+      color: withAlpha(text, isDark ? 0.84 : 0.66),
+      textAlign: "center",
+    },
     itemSpacer: {
       marginBottom: 0,
+      width: "100%",
+      alignSelf: "stretch",
     },
     swipeClip: {
-      borderRadius: RADIUS_CARD,
+      borderRadius: 20,
       overflow: "hidden",
-      backgroundColor: rowSurface,
-      marginHorizontal: -TASK_ROW_SIDE_BLEED,
+      backgroundColor: "transparent",
+      marginHorizontal: 0,
+      minHeight: 52,
+      width: "100%",
+      alignSelf: "stretch",
     },
     underlay: {
       ...StyleSheet.absoluteFillObject,
@@ -838,26 +1076,26 @@ const createStyles = (
       alignItems: "center",
     },
     actionSlotInner: {
-      width: 40,
-      height: 40,
-      borderRadius: RADIUS_TILE,
+      flex: 1,
       alignItems: "center",
       justifyContent: "center",
+      alignSelf: "stretch",
     },
     row: {
-      minHeight: 56,
-      borderRadius: 0,
-      backgroundColor: rowSurface,
+      minHeight: 52,
+      width: "100%",
+      borderRadius: 20,
+      backgroundColor: rowCardSurface,
       justifyContent: "center",
-      paddingHorizontal: TASK_ROW_HORIZONTAL_PADDING,
-      paddingVertical: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
       gap: 4,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: withAlpha(rowDivider, 0.5),
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: heroCardBorder,
     },
     dragRow: {
-      borderRadius: RADIUS_CARD,
-      backgroundColor: rowSurface,
+      borderRadius: 20,
+      backgroundColor: rowCardSurface,
       borderWidth: 0,
       opacity: 1,
       overflow: "visible",
@@ -874,17 +1112,18 @@ const createStyles = (
       gap: 10,
     },
     emojiTile: {
-      width: 34,
-      height: 34,
-      borderRadius: RADIUS_TILE,
+      width: 36,
+      height: 36,
+      borderRadius: 10,
       alignItems: "center",
       justifyContent: "center",
       overflow: "hidden",
-      borderWidth: StyleSheet.hairlineWidth,
-      marginTop: 1,
+      borderWidth: 0,
+      marginTop: 0,
+      backgroundColor: "transparent",
     },
     emojiText: {
-      fontSize: 20,
+      fontSize: 24,
     },
     textStack: {
       flex: 1,
@@ -897,24 +1136,24 @@ const createStyles = (
     },
     rowTitle: {
       flex: 1,
-      fontSize: 17,
-      lineHeight: 22,
+      fontSize: 16,
+      lineHeight: 20,
       fontWeight: WEIGHT_HEADING,
       color: text,
-      letterSpacing: -0.25,
+      letterSpacing: -0.2,
     },
     rowMeta: {
-      fontSize: 11,
-      lineHeight: 15,
+      fontSize: 10,
+      lineHeight: 14,
       fontWeight: WEIGHT_BODY,
       color: rowMetaText,
       letterSpacing: 0.1,
     },
     rowSubtitle: {
-      fontSize: 13,
-      lineHeight: 18,
+      fontSize: 12,
+      lineHeight: 16,
       fontWeight: WEIGHT_SUBTLE,
-      color: withAlpha(text, 0.36),
+      color: withAlpha(text, 0.32),
     },
     tagRow: {
       flexDirection: "row",
@@ -925,30 +1164,41 @@ const createStyles = (
     tagChip: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 4,
+      gap: 3,
       maxWidth: "100%",
-      paddingVertical: 3,
-      paddingHorizontal: 7,
-      borderRadius: RADIUS_CHIP,
+      paddingVertical: 2,
+      paddingHorizontal: 8,
+      borderRadius: RADIUS_PILL,
       borderWidth: 0,
-      backgroundColor: tagBg,
+      backgroundColor: isDark
+        ? "rgba(255,255,255,0.12)"
+        : useAppleLightPalette
+          ? IOS_LIGHT_BASE_BACKGROUND
+          : "rgba(255,255,255,0.85)",
     },
     tagChipDanger: {
       backgroundColor: dangerBg,
       borderColor: dangerBorder,
     },
     tagChipText: {
-      fontSize: 11,
-      lineHeight: 15,
-      fontWeight: WEIGHT_BODY,
-      letterSpacing: 0.1,
-      color: tagText,
+      fontSize: 10,
+      lineHeight: 14,
+      fontWeight: WEIGHT_HEADING,
+      letterSpacing: 0.2,
+      textTransform: "uppercase" as const,
+      color: isDark ? withAlpha(text, 0.7) : withAlpha(text, 0.5),
       maxWidth: 220,
     },
     emptyState: {
-      paddingTop: 22,
-      paddingBottom: 16,
+      minHeight: 188,
+      paddingVertical: 40,
+      paddingHorizontal: 16,
       alignItems: "center",
+      justifyContent: "center",
+      gap: 10,
+    },
+    emptyStateIcon: {
+      opacity: 0.34,
     },
     upcomingEmptyDropZone: {
       minHeight: 86,
@@ -961,9 +1211,12 @@ const createStyles = (
       color: withAlpha(text, ALPHA_3),
     },
     archivePillFooter: {
-      paddingTop: 16,
+      paddingTop: HOME_ARCHIVE_PILL_TOP_GAP,
       paddingBottom: 24,
       alignItems: "center",
+    },
+    archivePillFooterCollapsed: {
+      paddingTop: 4,
     },
     archivePill: {
       flexDirection: "row",
@@ -989,6 +1242,37 @@ const createStyles = (
       height: 70,
       opacity: 0,
     },
+    calendarPickerContainer: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 1000,
+    },
+    calendarPickerOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: "rgba(0,0,0,0.4)",
+    },
+    calendarPickerContent: {
+      width: CALENDAR_POPOVER_WIDTH,
+      height: CALENDAR_POPOVER_HEIGHT,
+      borderRadius: RADIUS_CARD,
+      overflow: "hidden",
+    },
+    calendarPickerButton: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: RADIUS_PILL,
+      backgroundColor: withAlpha(text, 0.1),
+    },
+    calendarPickerButtonText: {
+      fontSize: 14,
+      fontWeight: WEIGHT_BODY,
+      color: text,
+    },
   });
 };
 
@@ -997,73 +1281,336 @@ export default function HomeScreen() {
   const router = useRouter();
   const theme = useColorScheme() ?? "light";
   const isDark = theme === "dark";
-  const { width: viewportWidth } = useWindowDimensions();
+  const useAppleLightPalette = !isDark && Platform.OS === "ios";
+  const screenBackground = isDark
+    ? Colors[theme].background
+    : LIGHT_ACCENT_SCREEN_BACKGROUND;
+  const accessoryBridge = NativeModules.TaskAccessoryContextBridge as
+    | TaskAccessoryContextBridge
+    | undefined;
+  const { setMode, setPresetDateStart, queueTaskPopIn } =
+    useTaskCreateContext();
+  const { accentColor, reduceMotionEnabled } = useAppSettings();
+  const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
+  const isScreenFocusedRef = React.useRef(false);
+
+  const [isCalendarPickerOpen, setIsCalendarPickerOpen] = React.useState(false);
+  const [metricsAnimationCycle, setMetricsAnimationCycle] = React.useState(0);
+  const isExpoUISwiftPickerAvailable =
+    Platform.OS === "ios" &&
+    !!(NativeModules as Record<string, unknown> | undefined)?.ExpoUI;
+
   const showFloatingAddButton = Platform.OS === "ios" && !isIOS26OrNewer();
   const params = useLocalSearchParams<{
     sections?: string;
     withNotes?: string;
     withSubtasks?: string;
+    completed?: string;
+    projects?: string;
+    routines?: string;
   }>();
   const enabledSections = React.useMemo(
     () => parseSectionsParam(params.sections),
     [params.sections],
   );
   const withNotesEnabled = params.withNotes === "1";
-  const dateRailItemWidth = React.useMemo(() => {
-    const availableWidth = Math.max(
-      0,
-      viewportWidth -
-      GRID_HORIZONTAL_PADDING * 2 -
-      DATE_RAIL_HORIZONTAL_PADDING * 2,
-    );
-    return Math.max(
-      DATE_RAIL_MIN_ITEM_WIDTH,
-      (availableWidth - DATE_RAIL_ITEM_GAP * 6) / 7,
-    );
-  }, [viewportWidth]);
+  const dateRailItemWidth = 46;
+  const dateRailContainerWidthFallback =
+    viewportWidth - GRID_HORIZONTAL_PADDING * 2;
+  const [dateRailContainerWidth, setDateRailContainerWidth] = React.useState(
+    dateRailContainerWidthFallback,
+  );
+  const dateRailSidePadding = Math.max(
+    0,
+    (dateRailContainerWidth - dateRailItemWidth) / 2,
+  );
+  const calendarActiveColor = React.useMemo(
+    () => getAccentColorValue(accentColor),
+    [accentColor],
+  );
   const styles = React.useMemo(
-    () => createStyles(theme, dateRailItemWidth),
-    [dateRailItemWidth, theme],
+    () => createStyles(theme, dateRailItemWidth, calendarActiveColor),
+    [calendarActiveColor, dateRailItemWidth, theme],
   );
   const { tasks, setTasks, projects } = useTasksStore();
-  const { queueTaskPopIn } = useTaskCreateContext();
-  const { enabledTags, showTagIcons, showCompactSubtasks } = useHomeFilters();
+  const {
+    enabledTags,
+    showTagIcons,
+    showCompactSubtasks,
+    showCompletedTasks,
+    showProjectTasks,
+    showRoutineTasks,
+  } = useHomeFilters();
   const withSubtasksEnabled =
     params.withSubtasks === undefined
       ? showCompactSubtasks
       : params.withSubtasks === "1";
-  const { currentStreak, longestStreak, mostTasksInOneDay } = useStreaks();
+  const showCompletedTasksEnabled =
+    params.completed === undefined
+      ? showCompletedTasks
+      : parseShowCompletedTasksParam(params.completed);
+  const showProjectTasksEnabled =
+    params.projects === undefined
+      ? showProjectTasks
+      : parseShowProjectTasksParam(params.projects);
+  const showRoutineTasksEnabled =
+    params.routines === undefined
+      ? showRoutineTasks
+      : parseShowRoutineTasksParam(params.routines);
+  const [showGestureHint, setShowGestureHint] = React.useState(false);
+  const [
+    shouldHighlightDropTargetsOnFirstDrag,
+    setShouldHighlightDropTargetsOnFirstDrag,
+  ] = React.useState(false);
+  const [showDragDropTargetsHint, setShowDragDropTargetsHint] =
+    React.useState(false);
+  const gesturesHintSeenRef = React.useRef(true);
+  const dragDropTargetsHintSeenRef = React.useRef(true);
+  const gestureHintCopy = React.useMemo(
+    () => ({
+      title: t("home.gestureHint.title"),
+      body: t("home.gestureHint.body"),
+      dismissLabel: t("home.gestureHint.dismiss"),
+      dragToDate: t("home.gestureHint.dragToDate"),
+      dragToUndated: t("home.gestureHint.dragToUndated"),
+      monthPickerLabel: t("home.gestureHint.monthPicker"),
+    }),
+    [],
+  );
+  const markGesturesHintSeen = React.useCallback(() => {
+    if (gesturesHintSeenRef.current) return;
+    gesturesHintSeenRef.current = true;
+    setShowGestureHint(false);
+    void markOnboardingSeen(HOME_ONBOARDING_KEYS.gestures);
+  }, []);
+  const markDragDropTargetsHintSeen = React.useCallback(() => {
+    if (dragDropTargetsHintSeenRef.current) return;
+    dragDropTargetsHintSeenRef.current = true;
+    setShouldHighlightDropTargetsOnFirstDrag(false);
+    void markOnboardingSeen(HOME_ONBOARDING_KEYS.dragDropTargets);
+  }, []);
+  React.useEffect(() => {
+    let cancelled = false;
+    const hydrateHints = async () => {
+      const [gesturesSeen, dragTargetsSeen] = await Promise.all([
+        readOnboardingSeen(HOME_ONBOARDING_KEYS.gestures),
+        readOnboardingSeen(HOME_ONBOARDING_KEYS.dragDropTargets),
+      ]);
+      if (cancelled) return;
+      gesturesHintSeenRef.current = gesturesSeen;
+      dragDropTargetsHintSeenRef.current = dragTargetsSeen;
+      setShowGestureHint(!gesturesSeen);
+      setShouldHighlightDropTargetsOnFirstDrag(!dragTargetsSeen);
+    };
+    void hydrateHints();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const { currentStreak } = useStreaks();
   const [selectedDateStart, setSelectedDateStart] = React.useState(() =>
     getStartOfToday(),
   );
+  const [displayedDateTitleDateStart, setDisplayedDateTitleDateStart] =
+    React.useState(() => getStartOfToday());
+  const setTodayAccessoryContext = React.useCallback(
+    (dateStart: number) => {
+      if (Platform.OS !== "ios" || !isIOS26OrNewer()) return;
+      const setContext = accessoryBridge?.setContext;
+      if (!setContext) return;
+      try {
+        (setContext as any)("today", null, null, dateStart);
+      } catch {
+        setContext("today", null, null);
+      }
+    },
+    [accessoryBridge],
+  );
+  useFocusEffect(
+    React.useCallback(() => {
+      isScreenFocusedRef.current = true;
+      setMode("today");
+      setPresetDateStart(selectedDateStart);
+      setTodayAccessoryContext(selectedDateStart);
+      return () => {
+        isScreenFocusedRef.current = false;
+      };
+    }, [
+      selectedDateStart,
+      setMode,
+      setPresetDateStart,
+      setTodayAccessoryContext,
+    ]),
+  );
+  React.useEffect(() => {
+    const appStateSubscription = AppState.addEventListener(
+      "change",
+      (nextState) => {
+        if (nextState !== "active" || !isScreenFocusedRef.current) return;
+        setMetricsAnimationCycle((previous) => previous + 1);
+      },
+    );
+
+    return () => {
+      appStateSubscription.remove();
+    };
+  }, []);
+  React.useEffect(() => {
+    setPresetDateStart(selectedDateStart);
+    setTodayAccessoryContext(selectedDateStart);
+  }, [selectedDateStart, setPresetDateStart, setTodayAccessoryContext]);
   const [listDateStart, setListDateStart] = React.useState(() =>
     getStartOfToday(),
   );
   const dateListTranslateX = React.useRef(new Animated.Value(0)).current;
-  const todaySurfaceHeight = React.useRef(new Animated.Value(0)).current;
-  const [isDateListTransitioning, setIsDateListTransitioning] = React.useState(false);
+  const dateListTransitionProgress = React.useRef(
+    new Animated.Value(1),
+  ).current;
+  const dateListTransitionItemRevealProgress = React.useRef(
+    new Animated.Value(1),
+  ).current;
+  const homeTaskListRevealProgress = React.useRef(new Animated.Value(1)).current;
+  const dateListTransitionHeight = React.useRef(new Animated.Value(0)).current;
+  const dateRailTitleMotion = React.useRef(new Animated.Value(1)).current;
+  const [, setIsDateListTransitioning] = React.useState(false);
   const [dateListTransitionState, setDateListTransitionState] =
     React.useState<DateListTransitionState | null>(null);
-  const [dateListHostWidth, setDateListHostWidth] = React.useState(viewportWidth);
-  const [todaySurfaceMeasuredHeight, setTodaySurfaceMeasuredHeight] =
-    React.useState(0);
-  const todaySurfaceMeasuredHeightRef = React.useRef(0);
-  const hasInitializedTodaySurfaceHeightRef = React.useRef(false);
+  const [dateListHostWidth, setDateListHostWidth] =
+    React.useState(viewportWidth);
   const dateListHostWidthRef = React.useRef(viewportWidth);
+  const dateListHostHeightRef = React.useRef(0);
+  const dateListTransitionHeightsRef = React.useRef({ from: 0, to: 0 });
+  const dateListTransitionReadyRef = React.useRef({ from: false, to: false });
+  const dateListTransitionStartedRef = React.useRef(false);
+  const dateListTransitionActiveTargetDateRef = React.useRef<number | null>(
+    null,
+  );
+  const dateListTransitionConfigRef = React.useRef({
+    startX: 0,
+    endX: 0,
+    fromHeight: 1,
+    toHeight: 1,
+  });
+  const dateListTransitionStartHandlerRef = React.useRef<
+    ((allowFallback: boolean) => void) | null
+  >(null);
   const dateListTransitionStartRafRef = React.useRef<number | null>(null);
-  const todaySurfaceHeightAnimationRef =
+  const dateListTransitionStartTimeoutRef = React.useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+  const dateListTransitionSettleRafRef = React.useRef<number | null>(null);
+  const dateRailTitlePendingDurationRef = React.useRef<number | null>(null);
+  const dateRailTitleDeferredRequestRef = React.useRef<{
+    dateStart: number;
+    title: string;
+  } | null>(null);
+  const dateRailMomentumActiveRef = React.useRef(false);
+  const dateRailTitleAnimationRef =
+    React.useRef<Animated.CompositeAnimation | null>(null);
+  const dateListTransitionProgressAnimationRef =
+    React.useRef<Animated.CompositeAnimation | null>(null);
+  const homeTaskListRevealAnimationRef =
     React.useRef<Animated.CompositeAnimation | null>(null);
   const listTransitionRunningRef = React.useRef(false);
+  const [homeTaskListRevealPhase, setHomeTaskListRevealPhase] =
+    React.useState<"enter" | "exit">("enter");
+  const lastAnimatedTitleDateRef = React.useRef(displayedDateTitleDateStart);
+  const dateRailTitleTransitionStateRef =
+    React.useRef<DateRailTitleTransitionState>({
+      currentText: t("common.today"),
+      previousText: null,
+      direction: 1,
+      animationToken: 0,
+      phase: "idle",
+    });
   const queuedDateStartRef = React.useRef<number | null>(null);
-  const queuedDirectionRef = React.useRef<1 | -1>(1);
   const listDateStartRef = React.useRef(listDateStart);
   const selectedDateStartRef = React.useRef(selectedDateStart);
+  const lastDateSelectionRequestRef = React.useRef<{
+    dateStart: number;
+    source: DateSelectionSource;
+    at: number;
+    direction: 1 | -1;
+  } | null>(null);
   React.useEffect(() => {
     listDateStartRef.current = listDateStart;
   }, [listDateStart]);
   React.useEffect(() => {
     selectedDateStartRef.current = selectedDateStart;
   }, [selectedDateStart]);
+  const stopHomeTaskListRevealAnimation = React.useCallback(() => {
+    const runningAnimation = homeTaskListRevealAnimationRef.current;
+    if (!runningAnimation) return;
+    runningAnimation.stop();
+    homeTaskListRevealAnimationRef.current = null;
+  }, []);
+  const animateHomeTaskListReveal = React.useCallback(
+    (
+      phase: "enter" | "exit",
+      duration: number,
+      onEnd?: (finished: boolean) => void,
+    ) => {
+      stopHomeTaskListRevealAnimation();
+      setHomeTaskListRevealPhase(phase);
+
+      if (reduceMotionEnabled) {
+        homeTaskListRevealProgress.setValue(1);
+        onEnd?.(true);
+        return;
+      }
+
+      homeTaskListRevealProgress.setValue(0);
+      const animation = Animated.timing(homeTaskListRevealProgress, {
+        toValue: 1,
+        duration,
+        easing:
+          phase === "enter"
+            ? Easing.out(Easing.cubic)
+            : Easing.inOut(Easing.cubic),
+        useNativeDriver: true,
+      });
+      homeTaskListRevealAnimationRef.current = animation;
+      animation.start(({ finished }) => {
+        if (homeTaskListRevealAnimationRef.current === animation) {
+          homeTaskListRevealAnimationRef.current = null;
+        }
+        if (finished) {
+          homeTaskListRevealProgress.setValue(1);
+        }
+        onEnd?.(finished);
+      });
+    },
+    [
+      homeTaskListRevealProgress,
+      reduceMotionEnabled,
+      stopHomeTaskListRevealAnimation,
+    ],
+  );
+  React.useEffect(() => {
+    return () => {
+      stopHomeTaskListRevealAnimation();
+    };
+  }, [stopHomeTaskListRevealAnimation]);
+  React.useEffect(() => {
+    if (reduceMotionEnabled) {
+      setHomeTaskListRevealPhase("enter");
+      homeTaskListRevealProgress.setValue(1);
+      hasPlayedHomeInitialRevealThisSession = true;
+      return;
+    }
+
+    if (hasPlayedHomeInitialRevealThisSession) {
+      homeTaskListRevealProgress.setValue(1);
+      return;
+    }
+
+    hasPlayedHomeInitialRevealThisSession = true;
+    animateHomeTaskListReveal("enter", HOME_TASK_INITIAL_REVEAL_DURATION_MS);
+  }, [
+    animateHomeTaskListReveal,
+    homeTaskListRevealProgress,
+    reduceMotionEnabled,
+  ]);
   React.useEffect(() => {
     dateListHostWidthRef.current = viewportWidth;
     setDateListHostWidth((current) =>
@@ -1072,6 +1619,11 @@ export default function HomeScreen() {
   }, [viewportWidth]);
   const dayLabelFormatter = React.useMemo(
     () => new Intl.DateTimeFormat(undefined, { weekday: "narrow" }),
+    [],
+  );
+  const monthActionFormatter = React.useMemo(
+    () =>
+      new Intl.DateTimeFormat(undefined, { month: "short", year: "numeric" }),
     [],
   );
   const todayStart = getStartOfToday();
@@ -1086,76 +1638,121 @@ export default function HomeScreen() {
   const [dragHoveredDateStart, setDragHoveredDateStart] = React.useState<
     number | null
   >(null);
-  const [activeDragSurface, setActiveDragSurface] = React.useState<DragSurfaceId | null>(
-    null,
-  );
+  const [dragDetectedDateStart, setDragDetectedDateStart] = React.useState<
+    number | null
+  >(null);
+  const [isDragOverCalendarHeader, setIsDragOverCalendarHeader] =
+    React.useState(false);
+  const [, setDragDropDebugReason] = React.useState("idle");
+  const [, setActiveDragSurface] = React.useState<DragSurfaceId | null>(null);
   const dragContextRef = React.useRef<{
     taskId: string;
-    sourceSection: SectionId;
-    sourceHasDueAt: boolean;
   } | null>(null);
   const dragHoverDateStartRef = React.useRef<number | null>(null);
   const dragLastRailDateStartRef = React.useRef<number | null>(null);
-  const upcomingExpandTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
-  const dragSurfaceResetFrameRef = React.useRef<number | null>(null);
-  const dropCommitFrameRef = React.useRef<number | null>(null);
-  const upcomingSurfaceRef = React.useRef<View | null>(null);
-  const upcomingSurfaceBoundsRef = React.useRef<DragBounds | null>(null);
-  const dragLastTouchPointRef = React.useRef<{
+  const dragStartPointRef = React.useRef<{
     absoluteX: number;
     absoluteY: number;
   } | null>(null);
+  const dragRailHoverIntentRef = React.useRef<{
+    dateStart: number | null;
+    enteredAt: number;
+  }>({
+    dateStart: null,
+    enteredAt: 0,
+  });
+  const dragSurfaceResetFrameRef = React.useRef<number | null>(null);
+  const dropCommitFrameRef = React.useRef<number | null>(null);
+  const railBoundsMeasureFrameRef = React.useRef<number | null>(null);
+  const upcomingSurfaceRef = React.useRef<View | null>(null);
+  const upcomingSurfaceBoundsRef = React.useRef<DragBounds | null>(null);
+  const todaySurfaceRef = React.useRef<View | null>(null);
+  const todaySurfaceBoundsRef = React.useRef<DragBounds | null>(null);
+  const isHoveringUpcomingDropZone = false;
+  const isHoveringTodayDropZone = false;
+  const completionPercentage = React.useMemo(() => {
+    let todayTotal = 0;
+    let todayCompleted = 0;
+    const todayStartMs = getStartOfToday();
 
-  const quickTiles = React.useMemo<QuickTile[]>(() => {
-    return [
-      {
-        key: "streaks",
-        currentStreak,
-        longestStreak,
-        mostTasksInOneDay,
-        onPress: () => router.push("/home/streaks"),
-      },
-    ];
-  }, [currentStreak, longestStreak, mostTasksInOneDay, router]);
+    for (const task of tasks) {
+      if (task.deletedAt) continue;
 
-  const quickNavTheme = React.useMemo<QuickNavTheme>(() => {
-    const accentDark = "#F4512C";
-    const accentLight = "#D94722";
-    const topSurface = Colors[theme].background;
-    const topDivider = withAlpha(Colors[theme].text, isDark ? 0.08 : 0.1);
+      const isDueToday =
+        hasValidDueAt(task.dueAt) && isSameLocalDay(task.dueAt, todayStartMs);
+      const isCompletedToday =
+        task.completedAt && isSameLocalDay(task.completedAt, todayStartMs);
+
+      if (isDueToday || isCompletedToday) {
+        todayTotal++;
+        if (task.completedAt) {
+          todayCompleted++;
+        }
+      }
+    }
+
+    if (todayTotal === 0) return 0;
+    return Math.round((todayCompleted / todayTotal) * 100);
+  }, [tasks]);
+
+  const homeMetricsProps = React.useMemo<HomeMetricsProps>(() => {
+    return {
+      completionPercentage,
+      currentStreak,
+      onPressStatus: () => router.push("/status"),
+      onPressStreak: () => router.push("/home/streaks"),
+    };
+  }, [completionPercentage, currentStreak, router]);
+
+  const glassSurfacePalette = React.useMemo(() => {
     if (isDark) {
       return {
-        topSurface,
-        topDivider,
-        cardTintColor: withAlpha(Colors[theme].background, 0.2),
-        cardFallbackColor: "#1F2224",
-        streakFlameActive: accentDark,
-        streakFlameInactive: "rgba(245,245,245,0.34)",
-        streakPrimaryText: "#F5F5F5",
-        streakMutedText: "rgba(245,245,245,0.76)",
-        streakStatLabel: "rgba(245,245,245,0.58)",
-        streakStatValue: "rgba(245,245,245,0.92)",
-        streakProgressTrack: "rgba(255,255,255,0.16)",
-        streakProgressFill: accentDark,
+        chipTint: withAlpha(Colors[theme].background, 0.18),
+        chipFallback: withAlpha(Colors[theme].background, 0.86),
+        calendarTint: withAlpha(Colors[theme].background, 0.3),
+        calendarFallback: withAlpha(Colors[theme].background, 0.86),
+        popoverTint: withAlpha(Colors[theme].background, 0.22),
+        popoverFallback: withAlpha(Colors[theme].background, 0.88),
       };
     }
+
+    if (useAppleLightPalette) {
+      return {
+        chipTint: IOS_LIGHT_TINT_FILL,
+        chipFallback: IOS_LIGHT_INSET_SURFACE,
+        calendarTint: "rgba(118, 118, 128, 0.24)",
+        calendarFallback: IOS_LIGHT_INSET_SURFACE,
+        popoverTint: "rgba(118, 118, 128, 0.22)",
+        popoverFallback: IOS_LIGHT_ELEVATED_SURFACE,
+      };
+    }
+
     return {
-      topSurface,
-      topDivider,
-      cardTintColor: withAlpha(Colors[theme].background, 0.52),
-      cardFallbackColor: "#F3F4F7",
-      streakFlameActive: accentLight,
-      streakFlameInactive: "rgba(18,18,18,0.3)",
-      streakPrimaryText: "#121212",
-      streakMutedText: "rgba(18,18,18,0.66)",
-      streakStatLabel: "rgba(18,18,18,0.52)",
-      streakStatValue: "rgba(18,18,18,0.86)",
-      streakProgressTrack: "rgba(18,18,18,0.18)",
-      streakProgressFill: accentLight,
+      chipTint: withAlpha(Colors[theme].background, 0.28),
+      chipFallback: withAlpha(Colors[theme].background, 0.92),
+      calendarTint: withAlpha(Colors[theme].background, 0.4),
+      calendarFallback: withAlpha(Colors[theme].background, 0.92),
+      popoverTint: withAlpha(Colors[theme].background, 0.32),
+      popoverFallback: withAlpha(Colors[theme].background, 0.94),
     };
-  }, [isDark, theme]);
+  }, [isDark, theme, useAppleLightPalette]);
+
+  const homeMetricsTheme = React.useMemo<HomeMetricsTheme>(() => {
+    return {
+      cardBackgroundColor: isDark ? "#1C1C1E" : IOS_LIGHT_ELEVATED_SURFACE,
+      borderColor: isDark
+        ? "rgba(255,255,255,0.14)"
+        : useAppleLightPalette
+          ? IOS_LIGHT_SEPARATOR
+          : "rgba(0,0,0,0.12)",
+      primaryText: isDark ? "#FFFFFF" : "#000000",
+      mutedText: isDark
+        ? "#94A3B8"
+        : useAppleLightPalette
+          ? "#8E8E93"
+          : "#94A3B8",
+    };
+  }, [isDark, useAppleLightPalette]);
 
   const homeEnabledSections = React.useMemo(() => {
     const withoutCompleted = enabledSections.filter((s) => s !== "completed");
@@ -1190,46 +1787,64 @@ export default function HomeScreen() {
     () => new Intl.DateTimeFormat(undefined, { day: "numeric", month: "long" }),
     [],
   );
-  const getDynamicHeaderTitle = React.useCallback((targetDateStart: number) => {
-    if (isSameLocalDay(targetDateStart, todayStart)) {
-      return t("common.today");
-    }
+  const getDynamicHeaderTitle = React.useCallback(
+    (targetDateStart: number) => {
+      if (isSameLocalDay(targetDateStart, todayStart)) {
+        return t("common.today");
+      }
 
-    const currentWeekEnd = addDays(currentWeekStart, 6);
-    const isCurrentWeek =
-      targetDateStart >= currentWeekStart && targetDateStart <= currentWeekEnd;
+      const currentWeekEnd = addDays(currentWeekStart, 6);
+      const isCurrentWeek =
+        targetDateStart >= currentWeekStart &&
+        targetDateStart <= currentWeekEnd;
 
-    if (isCurrentWeek) {
-      const weekday = weekdayTitleFormatter.format(targetDateStart);
-      return weekday.charAt(0).toUpperCase() + weekday.slice(1);
-    }
-    return dateTitleFormatter.format(targetDateStart);
-  }, [
-    currentWeekStart,
-    dateTitleFormatter,
-    todayStart,
-    weekdayTitleFormatter,
-  ]);
-  const dynamicHeaderTitle = React.useMemo(
-    () => getDynamicHeaderTitle(listDateStart),
-    [getDynamicHeaderTitle, listDateStart],
+      if (isCurrentWeek) {
+        const weekday = weekdayTitleFormatter.format(targetDateStart);
+        return weekday.charAt(0).toUpperCase() + weekday.slice(1);
+      }
+      return dateTitleFormatter.format(targetDateStart);
+    },
+    [currentWeekStart, dateTitleFormatter, todayStart, weekdayTitleFormatter],
   );
-  const transitionFromHeaderTitle = React.useMemo(
-    () =>
-      dateListTransitionState
-        ? getDynamicHeaderTitle(dateListTransitionState.fromDateStart)
-        : null,
-    [dateListTransitionState, getDynamicHeaderTitle],
-  );
-  const transitionToHeaderTitle = React.useMemo(
-    () =>
-      dateListTransitionState
-        ? getDynamicHeaderTitle(dateListTransitionState.toDateStart)
-        : null,
-    [dateListTransitionState, getDynamicHeaderTitle],
+  const [dateRailTitleTransitionState, setDateRailTitleTransitionState] =
+    React.useState<DateRailTitleTransitionState>(() => ({
+      currentText: getDynamicHeaderTitle(displayedDateTitleDateStart),
+      previousText: null,
+      direction: 1,
+      animationToken: 0,
+      phase: "idle",
+    }));
+  const updateDateRailTitleTransitionState = React.useCallback(
+    (
+      updater:
+        | DateRailTitleTransitionState
+        | ((
+            current: DateRailTitleTransitionState,
+          ) => DateRailTitleTransitionState),
+    ) => {
+      setDateRailTitleTransitionState((current) => {
+        const next =
+          typeof updater === "function"
+            ? (
+                updater as (
+                  current: DateRailTitleTransitionState,
+                ) => DateRailTitleTransitionState
+              )(current)
+            : updater;
+        dateRailTitleTransitionStateRef.current = next;
+        return current.currentText === next.currentText &&
+          current.previousText === next.previousText &&
+          current.direction === next.direction &&
+          current.animationToken === next.animationToken &&
+          current.phase === next.phase
+          ? current
+          : next;
+      });
+    },
+    [],
   );
   React.useLayoutEffect(() => {
-    navigation.setOptions({ title: t("tabs.tasks") });
+    navigation.setOptions({ title: t("common.today") });
   }, [navigation]);
   const activeDateSelectionStart = dragHoveredDateStart ?? selectedDateStart;
 
@@ -1238,16 +1853,15 @@ export default function HomeScreen() {
     () => dateRailItemWidth + DATE_RAIL_ITEM_GAP,
     [dateRailItemWidth],
   );
-  const dateRailPageInterval = React.useMemo(
-    () => dateRailSnapInterval * DATE_RAIL_PAGE_DAYS,
-    [dateRailSnapInterval],
+  const dateRailRangeStart = React.useMemo(
+    () => addDays(todayStart, -DATE_RAIL_PAST_DAYS),
+    [todayStart],
   );
   const dateRailDays = React.useMemo<DateRailDay[]>(() => {
-    const rangeStart = addDays(currentWeekStart, -DATE_RAIL_PAST_DAYS);
     return Array.from(
       { length: DATE_RAIL_PAST_DAYS + DATE_RAIL_FUTURE_DAYS + 1 },
       (_, index) => {
-        const timestamp = addDays(rangeStart, index);
+        const timestamp = addDays(dateRailRangeStart, index);
         const eventCount = dayEventCountByStart.get(timestamp) ?? 0;
         return {
           key: `d-${timestamp}`,
@@ -1268,63 +1882,372 @@ export default function HomeScreen() {
     );
   }, [
     activeDateSelectionStart,
-    currentWeekStart,
+    dateRailRangeStart,
     dayEventCountByStart,
     dayLabelFormatter,
     todayStart,
   ]);
+  const dateRailMonthOptions = React.useMemo<DateRailMonthOption[]>(() => {
+    const firstDay = dateRailDays[0]?.timestamp;
+    const lastDay = dateRailDays[dateRailDays.length - 1]?.timestamp;
+    if (!firstDay || !lastDay) return [];
+
+    const options: DateRailMonthOption[] = [];
+    const cursor = new Date(firstDay);
+    cursor.setDate(1);
+    cursor.setHours(0, 0, 0, 0);
+    const end = new Date(lastDay);
+    end.setDate(1);
+    end.setHours(0, 0, 0, 0);
+
+    while (cursor.getTime() <= end.getTime()) {
+      const monthStart = cursor.getTime();
+      options.push({
+        key: `m-${monthStart}`,
+        monthStart,
+        title: monthActionFormatter.format(monthStart),
+      });
+      cursor.setMonth(cursor.getMonth() + 1);
+      cursor.setDate(1);
+      cursor.setHours(0, 0, 0, 0);
+    }
+    return options;
+  }, [dateRailDays, monthActionFormatter]);
+  const monthPickerActions = React.useMemo<MenuAction[]>(
+    () =>
+      dateRailMonthOptions.map((option) => ({
+        id: option.key,
+        title: option.title,
+        state:
+          Platform.OS === "ios" &&
+          isSameLocalMonth(option.monthStart, selectedDateStart)
+            ? "on"
+            : undefined,
+      })),
+    [dateRailMonthOptions, selectedDateStart],
+  );
+  const monthPickerButtonLabel = React.useMemo(
+    () => monthActionFormatter.format(selectedDateStart),
+    [monthActionFormatter, selectedDateStart],
+  );
   const cancelDateListTransitionStart = React.useCallback(() => {
-    if (dateListTransitionStartRafRef.current == null) return;
-    cancelAnimationFrame(dateListTransitionStartRafRef.current);
-    dateListTransitionStartRafRef.current = null;
+    if (dateListTransitionStartRafRef.current != null) {
+      cancelAnimationFrame(dateListTransitionStartRafRef.current);
+      dateListTransitionStartRafRef.current = null;
+    }
+    if (dateListTransitionStartTimeoutRef.current != null) {
+      clearTimeout(dateListTransitionStartTimeoutRef.current);
+      dateListTransitionStartTimeoutRef.current = null;
+    }
   }, []);
-  const stopTodaySurfaceHeightAnimation = React.useCallback(() => {
-    const runningAnimation = todaySurfaceHeightAnimationRef.current;
+  const cancelDateListTransitionSettle = React.useCallback(() => {
+    if (dateListTransitionSettleRafRef.current == null) return;
+    cancelAnimationFrame(dateListTransitionSettleRafRef.current);
+    dateListTransitionSettleRafRef.current = null;
+  }, []);
+  const clearDeferredDateRailTitle = React.useCallback(() => {
+    dateRailTitleDeferredRequestRef.current = null;
+  }, []);
+  const stopDateRailTitleAnimation = React.useCallback(() => {
+    const runningAnimation = dateRailTitleAnimationRef.current;
     if (!runningAnimation) return;
     runningAnimation.stop();
-    todaySurfaceHeightAnimationRef.current = null;
+    dateRailTitleAnimationRef.current = null;
   }, []);
-  const animateTodaySurfaceHeight = React.useCallback(
-    (nextHeight: number, immediate = false) => {
-      const target = Math.max(0, nextHeight);
-      stopTodaySurfaceHeightAnimation();
-      if (immediate) {
-        todaySurfaceHeight.setValue(target);
+  const commitDateRailTitle = React.useCallback(
+    (title: string, direction: 1 | -1) => {
+      dateRailTitlePendingDurationRef.current = null;
+      stopDateRailTitleAnimation();
+      dateRailTitleMotion.stopAnimation();
+      dateRailTitleMotion.setValue(1);
+      updateDateRailTitleTransitionState((current) =>
+        current.currentText === title &&
+        current.previousText == null &&
+        current.direction === direction &&
+        current.phase === "idle"
+          ? current
+          : {
+              currentText: title,
+              previousText: null,
+              direction,
+              animationToken: current.animationToken,
+              phase: "idle",
+            },
+      );
+    },
+    [
+      dateRailTitleMotion,
+      stopDateRailTitleAnimation,
+      updateDateRailTitleTransitionState,
+    ],
+  );
+  const resetDateRailTitleMotion = React.useCallback(() => {
+    const current = dateRailTitleTransitionStateRef.current;
+    commitDateRailTitle(current.currentText, current.direction);
+  }, [commitDateRailTitle]);
+  const animateDateRailTitle = React.useCallback(
+    (nextTitle: string, direction: 1 | -1, source: DateSelectionSource) => {
+      if (reduceMotionEnabled) {
+        commitDateRailTitle(nextTitle, direction);
         return;
       }
-      const animation = Animated.timing(todaySurfaceHeight, {
-        toValue: target,
-        duration: TODAY_SURFACE_HEIGHT_ANIMATION_DURATION,
-        easing: Easing.inOut(Easing.cubic),
-        useNativeDriver: false,
-      });
-      todaySurfaceHeightAnimationRef.current = animation;
-      animation.start(({ finished }) => {
-        if (!finished) return;
-        if (todaySurfaceHeightAnimationRef.current === animation) {
-          todaySurfaceHeightAnimationRef.current = null;
+
+      const duration =
+        source === "rail"
+          ? DATE_RAIL_TITLE_SCRUB_DURATION
+          : source === "swipe"
+            ? DATE_RAIL_TITLE_TRANSITION_DURATION - 24
+            : DATE_RAIL_TITLE_TRANSITION_DURATION;
+
+      dateRailTitlePendingDurationRef.current = null;
+      stopDateRailTitleAnimation();
+      dateRailTitleMotion.stopAnimation((motionValue) => {
+        const current = dateRailTitleTransitionStateRef.current;
+        const progress = clamp(motionValue, 0, 1);
+        const outgoingVisibility =
+          progress <= 0.78
+            ? 1 - (progress / 0.78) * 0.76
+            : Math.max(0, 0.24 - ((progress - 0.78) / 0.22) * 0.24);
+        const incomingVisibility = progress;
+        const visibleTitle =
+          current.previousText != null &&
+          outgoingVisibility > incomingVisibility
+            ? current.previousText
+            : current.currentText;
+
+        if (visibleTitle === nextTitle) {
+          commitDateRailTitle(nextTitle, direction);
+          return;
         }
+
+        dateRailTitlePendingDurationRef.current = duration;
+        updateDateRailTitleTransitionState((currentState) => ({
+          currentText: nextTitle,
+          previousText: visibleTitle,
+          direction,
+          animationToken: currentState.animationToken + 1,
+          phase: "preparing",
+        }));
       });
     },
-    [stopTodaySurfaceHeightAnimation, todaySurfaceHeight],
+    [
+      commitDateRailTitle,
+      dateRailTitleMotion,
+      reduceMotionEnabled,
+      stopDateRailTitleAnimation,
+      updateDateRailTitleTransitionState,
+    ],
   );
+  const flushDeferredDateRailTitle = React.useCallback(() => {
+    const deferred = dateRailTitleDeferredRequestRef.current;
+    if (!deferred) return;
+    dateRailTitleDeferredRequestRef.current = null;
+
+    const currentTitleDateStart = lastAnimatedTitleDateRef.current;
+    if (isSameLocalDay(currentTitleDateStart, deferred.dateStart)) {
+      commitDateRailTitle(
+        deferred.title,
+        deferred.dateStart >= currentTitleDateStart ? 1 : -1,
+      );
+      return;
+    }
+
+    const direction: 1 | -1 =
+      deferred.dateStart >= currentTitleDateStart ? 1 : -1;
+    lastAnimatedTitleDateRef.current = deferred.dateStart;
+    animateDateRailTitle(deferred.title, direction, "rail");
+  }, [animateDateRailTitle, commitDateRailTitle]);
+  React.useLayoutEffect(() => {
+    if (
+      dateRailTitleTransitionState.phase !== "preparing" ||
+      dateRailTitleTransitionState.previousText == null
+    ) {
+      return;
+    }
+
+    dateRailTitleMotion.stopAnimation();
+    dateRailTitleMotion.setValue(0);
+    updateDateRailTitleTransitionState((current) =>
+      current.phase !== "preparing"
+        ? current
+        : {
+            ...current,
+            phase: "animating",
+          },
+    );
+  }, [
+    dateRailTitleMotion,
+    dateRailTitleTransitionState.animationToken,
+    dateRailTitleTransitionState.phase,
+    dateRailTitleTransitionState.previousText,
+    updateDateRailTitleTransitionState,
+  ]);
+
+  React.useLayoutEffect(() => {
+    const duration = dateRailTitlePendingDurationRef.current;
+    if (
+      duration == null ||
+      dateRailTitleTransitionState.phase !== "animating" ||
+      dateRailTitleTransitionState.previousText == null
+    ) {
+      return;
+    }
+
+    stopDateRailTitleAnimation();
+    const animation = Animated.timing(dateRailTitleMotion, {
+      toValue: 1,
+      duration,
+      easing: Easing.inOut(Easing.cubic),
+      useNativeDriver: true,
+    });
+    dateRailTitleAnimationRef.current = animation;
+    animation.start(({ finished }) => {
+      if (dateRailTitleAnimationRef.current === animation) {
+        dateRailTitleAnimationRef.current = null;
+      }
+      if (!finished) return;
+      dateRailTitlePendingDurationRef.current = null;
+      updateDateRailTitleTransitionState((current) =>
+        current.previousText == null
+          ? current
+          : {
+              ...current,
+              previousText: null,
+              phase: "idle",
+            },
+      );
+    });
+    return () => {
+      if (dateRailTitleAnimationRef.current === animation) {
+        animation.stop();
+        dateRailTitleAnimationRef.current = null;
+      }
+    };
+  }, [
+    dateRailTitleMotion,
+    dateRailTitleTransitionState.animationToken,
+    dateRailTitleTransitionState.phase,
+    dateRailTitleTransitionState.previousText,
+    stopDateRailTitleAnimation,
+    updateDateRailTitleTransitionState,
+  ]);
+  React.useEffect(() => {
+    const nextTitle = getDynamicHeaderTitle(displayedDateTitleDateStart);
+    if (
+      isSameLocalDay(
+        lastAnimatedTitleDateRef.current,
+        displayedDateTitleDateStart,
+      )
+    ) {
+      clearDeferredDateRailTitle();
+      const current = dateRailTitleTransitionStateRef.current;
+      if (current.currentText !== nextTitle || current.previousText != null) {
+        commitDateRailTitle(nextTitle, current.direction);
+      }
+      return;
+    }
+    const lastRequest = lastDateSelectionRequestRef.current;
+    const source =
+      lastRequest &&
+      isSameLocalDay(lastRequest.dateStart, displayedDateTitleDateStart)
+        ? lastRequest.source
+        : "programmatic";
+    if (source === "rail") {
+      dateRailTitleDeferredRequestRef.current = {
+        dateStart: displayedDateTitleDateStart,
+        title: nextTitle,
+      };
+      return;
+    }
+
+    const previousDateStart = lastAnimatedTitleDateRef.current;
+    lastAnimatedTitleDateRef.current = displayedDateTitleDateStart;
+    const direction =
+      lastRequest &&
+      isSameLocalDay(lastRequest.dateStart, displayedDateTitleDateStart)
+        ? lastRequest.direction
+        : displayedDateTitleDateStart >= previousDateStart
+          ? 1
+          : -1;
+    clearDeferredDateRailTitle();
+    animateDateRailTitle(nextTitle, direction, source);
+  }, [
+    animateDateRailTitle,
+    clearDeferredDateRailTitle,
+    commitDateRailTitle,
+    displayedDateTitleDateStart,
+    getDynamicHeaderTitle,
+  ]);
   const resetDateListMotion = React.useCallback(() => {
     dateListTranslateX.stopAnimation();
     dateListTranslateX.setValue(0);
   }, [dateListTranslateX]);
-  const handleTodaySurfaceContentLayout = React.useCallback(
-    (event: LayoutChangeEvent) => {
-      const nextHeight = Math.max(0, Math.ceil(event.nativeEvent.layout.height));
-      if (
-        Math.abs(nextHeight - todaySurfaceMeasuredHeightRef.current) < 1
-      ) {
-        return;
-      }
-      todaySurfaceMeasuredHeightRef.current = nextHeight;
-      setTodaySurfaceMeasuredHeight(nextHeight);
+  const stopDateListTransitionProgressAnimation = React.useCallback(() => {
+    const runningAnimation = dateListTransitionProgressAnimationRef.current;
+    if (!runningAnimation) return;
+    runningAnimation.stop();
+    dateListTransitionProgressAnimationRef.current = null;
+  }, []);
+  const applyDateListTransitionProgress = React.useCallback(
+    (rawValue: number) => {
+      const value = clamp(rawValue, 0, 1);
+      const { startX, endX, fromHeight, toHeight } =
+        dateListTransitionConfigRef.current;
+
+      dateListTranslateX.setValue(startX + (endX - startX) * value);
+      dateListTransitionHeight.setValue(
+        Math.max(1, fromHeight + (toHeight - fromHeight) * value),
+      );
+
+      const revealStart = 0.14;
+      const revealEnd = 0.98;
+      const revealLinear =
+        value <= revealStart
+          ? 0
+          : value >= revealEnd
+            ? 1
+            : (value - revealStart) / (revealEnd - revealStart);
+
+      dateListTransitionItemRevealProgress.setValue(clamp(revealLinear, 0, 1));
     },
-    [],
+    [
+      dateListTranslateX,
+      dateListTransitionHeight,
+      dateListTransitionItemRevealProgress,
+    ],
   );
+  React.useEffect(() => {
+    const listenerId = dateListTransitionProgress.addListener(({ value }) => {
+      applyDateListTransitionProgress(value);
+    });
+    return () => {
+      dateListTransitionProgress.removeListener(listenerId);
+    };
+  }, [applyDateListTransitionProgress, dateListTransitionProgress]);
+  const resetDateListTransitionMotion = React.useCallback(() => {
+    cancelDateListTransitionStart();
+    cancelDateListTransitionSettle();
+    stopDateListTransitionProgressAnimation();
+    dateListTransitionProgress.setValue(1);
+    dateListTransitionReadyRef.current = { from: false, to: false };
+    dateListTransitionStartedRef.current = false;
+    dateListTransitionActiveTargetDateRef.current = null;
+    dateListTransitionStartHandlerRef.current = null;
+    const stableHeight = Math.max(1, dateListHostHeightRef.current || 1);
+    dateListTransitionConfigRef.current = {
+      startX: 0,
+      endX: 0,
+      fromHeight: stableHeight,
+      toHeight: stableHeight,
+    };
+    applyDateListTransitionProgress(1);
+  }, [
+    applyDateListTransitionProgress,
+    cancelDateListTransitionStart,
+    cancelDateListTransitionSettle,
+    dateListTransitionProgress,
+    stopDateListTransitionProgressAnimation,
+  ]);
   const handleDateListHostLayout = React.useCallback(
     (event: LayoutChangeEvent) => {
       const nextWidth = event.nativeEvent.layout.width;
@@ -1333,186 +2256,329 @@ export default function HomeScreen() {
       setDateListHostWidth((current) =>
         Math.abs(current - nextWidth) < 1 ? current : nextWidth,
       );
+
+      const nextHeight = Math.max(
+        0,
+        Math.ceil(event.nativeEvent.layout.height),
+      );
+      if (nextHeight <= 0) return;
+      dateListHostHeightRef.current = nextHeight;
+      if (!listTransitionRunningRef.current) {
+        dateListTransitionConfigRef.current = {
+          startX: 0,
+          endX: 0,
+          fromHeight: nextHeight,
+          toHeight: nextHeight,
+        };
+        applyDateListTransitionProgress(1);
+      }
     },
-    [],
+    [applyDateListTransitionProgress],
+  );
+  const handleDateListTransitionPageLayout = React.useCallback(
+    (kind: "from" | "to", event: LayoutChangeEvent) => {
+      if (!listTransitionRunningRef.current || !dateListTransitionState) return;
+
+      const nextHeight = Math.max(
+        0,
+        Math.ceil(event.nativeEvent.layout.height),
+      );
+      if (nextHeight <= 0) return;
+
+      const previousHeight = dateListTransitionHeightsRef.current[kind];
+      dateListTransitionReadyRef.current[kind] = true;
+      if (Math.abs(previousHeight - nextHeight) < 1) {
+        dateListTransitionStartHandlerRef.current?.(false);
+        return;
+      }
+
+      dateListTransitionHeightsRef.current[kind] = nextHeight;
+
+      if (!dateListTransitionStartedRef.current) {
+        if (kind === "from") {
+          dateListTransitionConfigRef.current = {
+            ...dateListTransitionConfigRef.current,
+            fromHeight: nextHeight,
+          };
+          applyDateListTransitionProgress(0);
+        } else {
+          dateListTransitionConfigRef.current = {
+            ...dateListTransitionConfigRef.current,
+            toHeight: nextHeight,
+          };
+        }
+      }
+
+      dateListTransitionStartHandlerRef.current?.(false);
+    },
+    [applyDateListTransitionProgress, dateListTransitionState],
+  );
+  const handleDateListFromPageLayout = React.useCallback(
+    (event: LayoutChangeEvent) => {
+      handleDateListTransitionPageLayout("from", event);
+    },
+    [handleDateListTransitionPageLayout],
+  );
+  const handleDateListToPageLayout = React.useCallback(
+    (event: LayoutChangeEvent) => {
+      handleDateListTransitionPageLayout("to", event);
+    },
+    [handleDateListTransitionPageLayout],
   );
 
-  const runDateListTransition = React.useCallback(
-    (nextDateStart: number, direction: 1 | -1) => {
-      if (nextDateStart === listDateStartRef.current) return;
-
-      queuedDateStartRef.current = nextDateStart;
-      queuedDirectionRef.current = direction;
-
-      if (listTransitionRunningRef.current) return;
-
-      const runCycle = () => {
-        const targetDate = queuedDateStartRef.current;
-        if (targetDate == null) {
-          cancelDateListTransitionStart();
-          listTransitionRunningRef.current = false;
-          setIsDateListTransitioning(false);
-          setDateListTransitionState(null);
-          resetDateListMotion();
-          return;
-        }
-
-        const fromDateStart = listDateStartRef.current;
-        if (targetDate === fromDateStart) {
-          cancelDateListTransitionStart();
-          queuedDateStartRef.current = null;
-          listTransitionRunningRef.current = false;
-          setIsDateListTransitioning(false);
-          setDateListTransitionState(null);
-          resetDateListMotion();
-          return;
-        }
-
-        queuedDateStartRef.current = null;
-        listTransitionRunningRef.current = true;
-        setIsDateListTransitioning(true);
-        const dir = queuedDirectionRef.current;
-        setDateListTransitionState({
-          fromDateStart,
-          toDateStart: targetDate,
-          direction: dir,
-        });
-
-        const travel = Math.max(1, dateListHostWidthRef.current);
-        const startX = dir === 1 ? 0 : -travel;
-        const endX = dir === 1 ? -travel : 0;
-
-        resetDateListMotion();
-        dateListTranslateX.setValue(startX);
-
-        cancelDateListTransitionStart();
-        const stageOneRaf = requestAnimationFrame(() => {
-          dateListTransitionStartRafRef.current = requestAnimationFrame(() => {
-            dateListTransitionStartRafRef.current = null;
-            Animated.timing(dateListTranslateX, {
-              toValue: endX,
-              duration: DATE_TRANSITION_DURATION,
-              easing: Easing.inOut(Easing.cubic),
-              useNativeDriver: true,
-            }).start(({ finished }) => {
-              if (!finished) {
-                listTransitionRunningRef.current = false;
-                setIsDateListTransitioning(false);
-                setDateListTransitionState(null);
-                resetDateListMotion();
-                return;
-              }
-
-              setListDateStart(targetDate);
-              listDateStartRef.current = targetDate;
-
-              if (
-                queuedDateStartRef.current !== null &&
-                queuedDateStartRef.current !== targetDate
-              ) {
-                listTransitionRunningRef.current = false;
-                setIsDateListTransitioning(false);
-                setDateListTransitionState(null);
-                runCycle();
-                return;
-              }
-
-              cancelDateListTransitionStart();
-              dateListTransitionStartRafRef.current = requestAnimationFrame(() => {
-                dateListTransitionStartRafRef.current = null;
-
-                if (
-                  queuedDateStartRef.current !== null &&
-                  queuedDateStartRef.current !== targetDate
-                ) {
-                  listTransitionRunningRef.current = false;
-                  setIsDateListTransitioning(false);
-                  setDateListTransitionState(null);
-                  runCycle();
-                  return;
-                }
-
-                listTransitionRunningRef.current = false;
-                setIsDateListTransitioning(false);
-                setDateListTransitionState(null);
-              });
-            });
-          });
-        });
-        dateListTransitionStartRafRef.current = stageOneRaf;
-      };
-
-      runCycle();
-    },
-    [cancelDateListTransitionStart, dateListTranslateX, resetDateListMotion],
-  );
   const setListDateWithoutTransition = React.useCallback(
-    (nextDateStart: number, animateLayout = true) => {
+    (
+      nextDateStart: number,
+      animateLayout = true,
+      preserveTitleMotion = false,
+    ) => {
       if (nextDateStart === listDateStartRef.current) return;
       cancelDateListTransitionStart();
       queuedDateStartRef.current = null;
       listTransitionRunningRef.current = false;
       setIsDateListTransitioning(false);
       setDateListTransitionState(null);
+      stopHomeTaskListRevealAnimation();
+      homeTaskListRevealProgress.setValue(1);
       resetDateListMotion();
+      if (!preserveTitleMotion) {
+        resetDateRailTitleMotion();
+      }
+      resetDateListTransitionMotion();
       if (animateLayout) {
-        configureSmoothListLayoutTransition();
+        configureSmoothListLayoutTransition(!reduceMotionEnabled);
       }
       setListDateStart(nextDateStart);
       listDateStartRef.current = nextDateStart;
     },
-    [cancelDateListTransitionStart, resetDateListMotion],
+    [
+      cancelDateListTransitionStart,
+      homeTaskListRevealProgress,
+      resetDateListMotion,
+      resetDateListTransitionMotion,
+      resetDateRailTitleMotion,
+      reduceMotionEnabled,
+      stopHomeTaskListRevealAnimation,
+    ],
+  );
+  const applyDayChangeWithoutTransition = React.useCallback(
+    (nextDateStart: number, direction: 1 | -1) => {
+      const nextTitle = getDynamicHeaderTitle(nextDateStart);
+      clearDeferredDateRailTitle();
+      lastAnimatedTitleDateRef.current = nextDateStart;
+      commitDateRailTitle(nextTitle, direction);
+      setDisplayedDateTitleDateStart(nextDateStart);
+      setListDateWithoutTransition(nextDateStart, false, true);
+    },
+    [
+      clearDeferredDateRailTitle,
+      commitDateRailTitle,
+      getDynamicHeaderTitle,
+      setListDateWithoutTransition,
+    ],
+  );
+  const runDateListTransition = React.useCallback(
+    (nextDateStart: number, direction: 1 | -1) => {
+      if (nextDateStart === listDateStartRef.current) return;
+      applyDayChangeWithoutTransition(nextDateStart, direction);
+    },
+    [applyDayChangeWithoutTransition],
+  );
+  const isTaskVisibleByTypeToggle = React.useCallback(
+    (task: Task) => {
+      const hasProject = typeof task.projectId === "string" && task.projectId.trim().length > 0;
+      const isRoutineTask =
+        task.isRoutine === true ||
+        typeof task.routineType === "string" ||
+        typeof task.routineInterval === "string";
+
+      if (!showProjectTasksEnabled && hasProject) return false;
+      if (!showRoutineTasksEnabled && isRoutineTask) return false;
+      return true;
+    },
+    [showProjectTasksEnabled, showRoutineTasksEnabled],
+  );
+  const hasVisibleTasksForDateStart = React.useCallback(
+    (targetDateStart: number) => {
+      const targetIsToday = isSameLocalDay(targetDateStart, todayStart);
+      for (const task of tasks) {
+        if (task.deletedAt) continue;
+        if (withNotesEnabled && !task.subtitle) continue;
+        if (!isTaskVisibleByTypeToggle(task)) continue;
+
+        const isCompletedOnTargetDay =
+          hasValidDueAt(task.completedAt) &&
+          isSameLocalDay(task.completedAt, targetDateStart);
+        if (isCompletedOnTargetDay) {
+          if (showCompletedTasksEnabled) return true;
+          continue;
+        }
+
+        const normalizedSection: SectionId =
+          task.section === "completed"
+            ? "completed"
+            : deriveActiveSectionFromDueAt(task.dueAt);
+        if (!homeEnabledSections.includes(normalizedSection)) continue;
+        if (!hasValidDueAt(task.dueAt)) {
+          if (normalizedSection === "today" && targetIsToday) {
+            return true;
+          }
+          continue;
+        }
+        if (isSameLocalDay(task.dueAt, targetDateStart)) {
+          return true;
+        }
+      }
+      return false;
+    },
+    [
+      homeEnabledSections,
+      isTaskVisibleByTypeToggle,
+      showCompletedTasksEnabled,
+      tasks,
+      todayStart,
+      withNotesEnabled,
+    ],
   );
   const selectDateWithTransition = React.useCallback(
-    (nextDateStart: number, directionHint?: 1 | -1) => {
+    (
+      nextDateStart: number,
+      directionHint?: 1 | -1,
+      source: DateSelectionSource = "programmatic",
+    ) => {
       const current = selectedDateStartRef.current;
       if (isSameLocalDay(current, nextDateStart)) return;
+      const now = Date.now();
+      const lastRequest = lastDateSelectionRequestRef.current;
+      if (
+        source === "momentum" &&
+        (dateRailTitleAnimationRef.current || listTransitionRunningRef.current)
+      ) {
+        return;
+      }
+      if (
+        source === "momentum" &&
+        lastRequest &&
+        lastRequest.source !== "momentum" &&
+        now - lastRequest.at < DATE_TRANSITION_DURATION + 220 &&
+        !isSameLocalDay(lastRequest.dateStart, nextDateStart)
+      ) {
+        return;
+      }
+      if (
+        source === "momentum" &&
+        listTransitionRunningRef.current &&
+        isSameLocalDay(nextDateStart, listDateStartRef.current)
+      ) {
+        return;
+      }
       const direction: 1 | -1 =
         directionHint ?? (nextDateStart > current ? 1 : -1);
+      lastDateSelectionRequestRef.current = {
+        dateStart: nextDateStart,
+        source,
+        at: now,
+        direction,
+      };
+      const fromHasVisibleTasks = hasVisibleTasksForDateStart(
+        listDateStartRef.current,
+      );
+      const toHasVisibleTasks = hasVisibleTasksForDateStart(nextDateStart);
       selectedDateStartRef.current = nextDateStart;
+      setPresetDateStart(nextDateStart);
       setSelectedDateStart(nextDateStart);
+      if (reduceMotionEnabled) {
+        applyDayChangeWithoutTransition(nextDateStart, direction);
+        triggerSelectionHaptic();
+        return;
+      }
+      if (!fromHasVisibleTasks && !toHasVisibleTasks) {
+        applyDayChangeWithoutTransition(nextDateStart, direction);
+        triggerSelectionHaptic();
+        return;
+      }
       runDateListTransition(nextDateStart, direction);
-      void Haptics.selectionAsync().catch(() => undefined);
+      triggerSelectionHaptic();
     },
-    [runDateListTransition],
+    [
+      applyDayChangeWithoutTransition,
+      hasVisibleTasksForDateStart,
+      reduceMotionEnabled,
+      runDateListTransition,
+      setPresetDateStart,
+    ],
   );
   const selectDateWithoutTransition = React.useCallback(
-    (nextDateStart: number) => {
+    (nextDateStart: number, source: DateSelectionSource = "programmatic") => {
       const current = selectedDateStartRef.current;
       if (isSameLocalDay(current, nextDateStart)) return;
+      const direction: 1 | -1 = nextDateStart >= current ? 1 : -1;
+      lastDateSelectionRequestRef.current = {
+        dateStart: nextDateStart,
+        source,
+        at: Date.now(),
+        direction,
+      };
       selectedDateStartRef.current = nextDateStart;
+      setPresetDateStart(nextDateStart);
       setSelectedDateStart(nextDateStart);
-      setListDateWithoutTransition(nextDateStart, false);
+      applyDayChangeWithoutTransition(nextDateStart, direction);
     },
-    [setListDateWithoutTransition],
+    [applyDayChangeWithoutTransition, setPresetDateStart],
   );
   React.useEffect(
     () => () => {
       cancelDateListTransitionStart();
+      clearDeferredDateRailTitle();
       resetDateListMotion();
-      stopTodaySurfaceHeightAnimation();
+      resetDateRailTitleMotion();
+      resetDateListTransitionMotion();
+      dateRailTitlePendingDurationRef.current = null;
+      dateRailMomentumActiveRef.current = false;
+      stopDateRailTitleAnimation();
+      todayCollapseAnimationRef.current?.stop();
+      upcomingCollapseAnimationRef.current?.stop();
     },
-    [cancelDateListTransitionStart, resetDateListMotion, stopTodaySurfaceHeightAnimation],
+    [
+      cancelDateListTransitionStart,
+      clearDeferredDateRailTitle,
+      resetDateListTransitionMotion,
+      resetDateListMotion,
+      resetDateRailTitleMotion,
+      stopDateRailTitleAnimation,
+    ],
   );
   const handleSelectDate = React.useCallback(
-    (timestamp: number) => {
-      selectDateWithTransition(timestamp);
+    (timestamp: number, source: DateSelectionSource = "press") => {
+      const current = selectedDateStartRef.current;
+      const directionHint: 1 | -1 = timestamp >= current ? 1 : -1;
+      selectDateWithTransition(timestamp, directionHint, source);
     },
     [selectDateWithTransition],
   );
 
   const getDateRailItemLayout = React.useCallback(
     (_: ArrayLike<DateRailDay> | null | undefined, index: number) => ({
-      length: dateRailSnapInterval,
-      offset: dateRailSnapInterval * index,
+      length: dateRailItemWidth,
+      offset: dateRailSidePadding + dateRailSnapInterval * index,
       index,
     }),
-    [dateRailSnapInterval],
+    [dateRailItemWidth, dateRailSidePadding, dateRailSnapInterval],
   );
 
-  const dateRailRef = React.useRef<FlatList<DateRailDay> | null>(null);
+  const dateRailScrollX = React.useRef(
+    new Animated.Value(dateRailInitialIndex * dateRailSnapInterval),
+  ).current;
+  const dateRailRef = React.useRef<FlatList<DateRailDay> | any>(null);
   const dateRailWrapRef = React.useRef<View | null>(null);
+  const dateRailListRef = React.useRef<View | null>(null);
   const dateRailBoundsRef = React.useRef<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const dateRailListBoundsRef = React.useRef<{
     x: number;
     y: number;
     width: number;
@@ -1521,22 +2587,112 @@ export default function HomeScreen() {
   const dateRailScrollOffsetRef = React.useRef(
     dateRailInitialIndex * dateRailSnapInterval,
   );
-  const currentWeekIndexRef = React.useRef(
-    Math.floor(dateRailInitialIndex / DATE_RAIL_PAGE_DAYS),
+  const dateRailDraggedRef = React.useRef(false);
+  const dateRailLastCenterIndexRef = React.useRef(dateRailInitialIndex);
+  const dateRailSelectionLockTargetIndexRef = React.useRef<number | null>(null);
+  const dateRailSelectionLockUntilRef = React.useRef(0);
+  const dateRailSyncPrimaryRafRef = React.useRef<number | null>(null);
+  const dateRailSyncSecondaryRafRef = React.useRef<number | null>(null);
+  const dateRailSyncTimeoutRef = React.useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+  const getDateRailIndexForDateStart = React.useCallback(
+    (targetDateStart: number) => {
+      const targetIndex = dateRailDays.findIndex((day) =>
+        isSameLocalDay(day.timestamp, targetDateStart),
+      );
+      return targetIndex >= 0 ? targetIndex : dateRailInitialIndex;
+    },
+    [dateRailDays, dateRailInitialIndex],
   );
-  const dateRailWeekSnapOffsets = React.useMemo(() => {
-    const weekCount = Math.ceil(dateRailDays.length / DATE_RAIL_PAGE_DAYS);
-    return Array.from({ length: weekCount }, (_, week) => week * dateRailPageInterval);
-  }, [dateRailDays.length, dateRailPageInterval]);
-  const handleDateRailScrollToIndexFailed = React.useCallback(() => {
-    requestAnimationFrame(() => {
-      dateRailRef.current?.scrollToIndex({
-        index: dateRailInitialIndex,
-        animated: false,
-        viewPosition: 0,
+  const scrollDateRailToDateStart = React.useCallback(
+    (
+      targetDateStart: number,
+      animated = false,
+      lockSelectionDuringScroll = false,
+    ) => {
+      const targetIndex = getDateRailIndexForDateStart(targetDateStart);
+
+      const shouldLockSelection =
+        lockSelectionDuringScroll &&
+        animated &&
+        targetIndex !== dateRailLastCenterIndexRef.current;
+      if (shouldLockSelection) {
+        dateRailSelectionLockTargetIndexRef.current = targetIndex;
+        dateRailSelectionLockUntilRef.current = Date.now() + 800;
+      } else {
+        dateRailSelectionLockTargetIndexRef.current = null;
+        dateRailSelectionLockUntilRef.current = 0;
+      }
+
+      dateRailLastCenterIndexRef.current = targetIndex;
+      const targetOffset = targetIndex * dateRailSnapInterval;
+      dateRailScrollOffsetRef.current = targetOffset;
+      dateRailRef.current?.scrollToOffset?.({
+        offset: targetOffset,
+        animated,
+      });
+      return true;
+    },
+    [dateRailSnapInterval, getDateRailIndexForDateStart],
+  );
+  const handleJumpToToday = React.useCallback(
+    (source: DateSelectionSource = "programmatic") => {
+      const todayDateStart = getStartOfToday();
+      scrollDateRailToDateStart(todayDateStart, true, true);
+      handleSelectDate(todayDateStart, source);
+    },
+    [handleSelectDate, scrollDateRailToDateStart],
+  );
+  const syncDateRailToSelectedDate = React.useCallback(() => {
+    const targetIndex = getDateRailIndexForDateStart(selectedDateStartRef.current);
+    const targetOffset = targetIndex * dateRailSnapInterval;
+    dateRailSelectionLockTargetIndexRef.current = null;
+    dateRailSelectionLockUntilRef.current = 0;
+    dateRailLastCenterIndexRef.current = targetIndex;
+    dateRailScrollOffsetRef.current = targetOffset;
+    dateRailScrollX.stopAnimation();
+    dateRailScrollX.setValue(targetOffset);
+    dateRailRef.current?.scrollToOffset?.({
+      offset: targetOffset,
+      animated: false,
+    });
+  }, [dateRailScrollX, dateRailSnapInterval, getDateRailIndexForDateStart]);
+  const clearScheduledDateRailSync = React.useCallback(() => {
+    if (dateRailSyncPrimaryRafRef.current != null) {
+      cancelAnimationFrame(dateRailSyncPrimaryRafRef.current);
+      dateRailSyncPrimaryRafRef.current = null;
+    }
+    if (dateRailSyncSecondaryRafRef.current != null) {
+      cancelAnimationFrame(dateRailSyncSecondaryRafRef.current);
+      dateRailSyncSecondaryRafRef.current = null;
+    }
+    if (dateRailSyncTimeoutRef.current != null) {
+      clearTimeout(dateRailSyncTimeoutRef.current);
+      dateRailSyncTimeoutRef.current = null;
+    }
+  }, []);
+  const scheduleDateRailSyncToSelectedDate = React.useCallback(() => {
+    clearScheduledDateRailSync();
+    syncDateRailToSelectedDate();
+    dateRailSyncPrimaryRafRef.current = requestAnimationFrame(() => {
+      dateRailSyncPrimaryRafRef.current = null;
+      syncDateRailToSelectedDate();
+      dateRailSyncSecondaryRafRef.current = requestAnimationFrame(() => {
+        dateRailSyncSecondaryRafRef.current = null;
+        syncDateRailToSelectedDate();
       });
     });
-  }, [dateRailInitialIndex]);
+    dateRailSyncTimeoutRef.current = setTimeout(() => {
+      dateRailSyncTimeoutRef.current = null;
+      syncDateRailToSelectedDate();
+    }, 140);
+  }, [clearScheduledDateRailSync, syncDateRailToSelectedDate]);
+  const handleDateRailScrollToIndexFailed = React.useCallback(() => {
+    requestAnimationFrame(() => {
+      scheduleDateRailSyncToSelectedDate();
+    });
+  }, [scheduleDateRailSyncToSelectedDate]);
   const measureDateRailBounds = React.useCallback(() => {
     const node =
       // @ts-ignore - some refs expose getNode
@@ -1556,70 +2712,250 @@ export default function HomeScreen() {
       },
     );
   }, []);
-  const handleDateRailScroll = React.useCallback(
-    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const nextOffset = event.nativeEvent.contentOffset.x;
-      if (typeof nextOffset !== "number" || !Number.isFinite(nextOffset)) return;
-      dateRailScrollOffsetRef.current = nextOffset;
-    },
-    [],
+  const measureDateRailListBounds = React.useCallback(() => {
+    const node =
+      // @ts-ignore - some refs expose getNode
+      dateRailListRef.current?.getNode?.() ?? dateRailListRef.current;
+    if (!node || typeof node.measureInWindow !== "function") return;
+    node.measureInWindow(
+      (x: number, y: number, width: number, height: number) => {
+        if (
+          !Number.isFinite(x) ||
+          !Number.isFinite(y) ||
+          !Number.isFinite(width) ||
+          !Number.isFinite(height)
+        ) {
+          return;
+        }
+        dateRailListBoundsRef.current = { x, y, width, height };
+      },
+    );
+  }, []);
+  const scheduleMeasureDateRailListBounds = React.useCallback(() => {
+    if (railBoundsMeasureFrameRef.current != null) return;
+    railBoundsMeasureFrameRef.current = requestAnimationFrame(() => {
+      railBoundsMeasureFrameRef.current = null;
+      measureDateRailBounds();
+      measureDateRailListBounds();
+    });
+  }, [measureDateRailBounds, measureDateRailListBounds]);
+  const handleDateRailScroll = React.useMemo(
+    () =>
+      Animated.event(
+        [{ nativeEvent: { contentOffset: { x: dateRailScrollX } } }],
+        {
+          useNativeDriver: true,
+          listener: (event: any) => {
+            const nextOffset = event.nativeEvent.contentOffset.x;
+            if (typeof nextOffset !== "number" || !Number.isFinite(nextOffset))
+              return;
+            dateRailScrollOffsetRef.current = nextOffset;
+            const centerIndex = Math.round(nextOffset / dateRailSnapInterval);
+            const nextIndex = clamp(centerIndex, 0, dateRailDays.length - 1);
+            const isUserDrivenScroll =
+              dateRailDraggedRef.current || dateRailMomentumActiveRef.current;
+            const lockedTargetIndex =
+              dateRailSelectionLockTargetIndexRef.current;
+            if (!isUserDrivenScroll && lockedTargetIndex == null) {
+              return;
+            }
+            if (lockedTargetIndex != null) {
+              const lockActive =
+                Date.now() <= dateRailSelectionLockUntilRef.current;
+              if (nextIndex !== lockedTargetIndex && lockActive) {
+                return;
+              }
+              dateRailSelectionLockTargetIndexRef.current = null;
+              dateRailSelectionLockUntilRef.current = 0;
+            }
+            if (nextIndex !== dateRailLastCenterIndexRef.current) {
+              dateRailLastCenterIndexRef.current = nextIndex;
+              triggerSelectionHaptic();
+            }
+            const nextDay = dateRailDays[nextIndex];
+            if (nextDay) {
+              selectDateWithoutTransition(nextDay.timestamp, "rail");
+            }
+          },
+        },
+      ),
+    [
+      dateRailDays,
+      dateRailScrollX,
+      dateRailSnapInterval,
+      selectDateWithoutTransition,
+    ],
   );
+  const handleDateRailScrollBeginDrag = React.useCallback(() => {
+    dateRailDraggedRef.current = true;
+    dateRailMomentumActiveRef.current = false;
+    dateRailSelectionLockTargetIndexRef.current = null;
+    dateRailSelectionLockUntilRef.current = 0;
+  }, []);
+  const handleDateRailScrollEndDrag = React.useCallback(() => {
+    dateRailDraggedRef.current = false;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (dateRailMomentumActiveRef.current) return;
+        flushDeferredDateRailTitle();
+      });
+    });
+  }, [flushDeferredDateRailTitle]);
+  const handleDateRailMomentumBegin = React.useCallback(() => {
+    dateRailMomentumActiveRef.current = true;
+  }, []);
 
   const handleDateRailMomentumEnd = React.useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      dateRailDraggedRef.current = false;
+      dateRailMomentumActiveRef.current = false;
       const offset = event.nativeEvent.contentOffset.x;
       dateRailScrollOffsetRef.current = offset;
-      const maxWeekIndex = Math.max(
-        0,
-        Math.ceil(dateRailDays.length / DATE_RAIL_PAGE_DAYS) - 1,
-      );
-      const weekIndex = Math.min(
-        Math.max(Math.round(offset / dateRailPageInterval), 0),
-        maxWeekIndex,
-      );
-      const previousWeekIndex = currentWeekIndexRef.current;
-      if (weekIndex === previousWeekIndex) return;
-
-      const isBackward = weekIndex < previousWeekIndex;
-      const weekStartIndex = weekIndex * DATE_RAIL_PAGE_DAYS;
-      const rawIndex = isBackward
-        ? weekStartIndex + (DATE_RAIL_PAGE_DAYS - 1)
-        : weekStartIndex;
-      currentWeekIndexRef.current = weekIndex;
-      const nextIndex = Math.min(
-        Math.max(rawIndex, 0),
-        Math.max(dateRailDays.length - 1, 0),
-      );
-      const nextDay = dateRailDays[nextIndex];
-      if (!nextDay) return;
-      handleSelectDate(nextDay.timestamp);
+      dateRailSelectionLockTargetIndexRef.current = null;
+      dateRailSelectionLockUntilRef.current = 0;
+      flushDeferredDateRailTitle();
     },
-    [dateRailDays, dateRailPageInterval, handleSelectDate],
+    [flushDeferredDateRailTitle],
   );
   React.useEffect(() => {
-    const rafId = requestAnimationFrame(measureDateRailBounds);
-    return () => cancelAnimationFrame(rafId);
-  }, [measureDateRailBounds, viewportWidth]);
+    const rafId = requestAnimationFrame(() => {
+      measureDateRailBounds();
+      measureDateRailListBounds();
+      scheduleDateRailSyncToSelectedDate();
+    });
+    return () => {
+      cancelAnimationFrame(rafId);
+      clearScheduledDateRailSync();
+      if (railBoundsMeasureFrameRef.current != null) {
+        cancelAnimationFrame(railBoundsMeasureFrameRef.current);
+        railBoundsMeasureFrameRef.current = null;
+      }
+    };
+  }, [
+    clearScheduledDateRailSync,
+    dateRailContainerWidth,
+    dateRailSidePadding,
+    measureDateRailBounds,
+    measureDateRailListBounds,
+    scheduleDateRailSyncToSelectedDate,
+    viewportHeight,
+    viewportWidth,
+  ]);
 
   const [collapsedSections, setCollapsedSections] = React.useState<
     Record<"today" | "upcoming", boolean>
   >({
     today: false,
-    upcoming: false,
+    upcoming: true,
   });
+  const todayCollapseProgress = React.useRef(
+    new Animated.Value(collapsedSections.today ? 1 : 0),
+  ).current;
+  const upcomingCollapseProgress = React.useRef(
+    new Animated.Value(collapsedSections.upcoming ? 1 : 0),
+  ).current;
+  const todaySectionRevealProgress = React.useMemo(
+    () =>
+      todayCollapseProgress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [1, 0],
+      }),
+    [todayCollapseProgress],
+  );
+  const upcomingSectionRevealProgress = React.useMemo(
+    () =>
+      upcomingCollapseProgress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [1, 0],
+      }),
+    [upcomingCollapseProgress],
+  );
+  const upcomingSectionRevealTranslateY = React.useMemo(
+    () =>
+      upcomingCollapseProgress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0, -8],
+      }),
+    [upcomingCollapseProgress],
+  );
+  const upcomingSectionRevealScale = React.useMemo(
+    () =>
+      upcomingCollapseProgress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [1, 0.985],
+      }),
+    [upcomingCollapseProgress],
+  );
+  const todayCollapseAnimationRef =
+    React.useRef<Animated.CompositeAnimation | null>(null);
+  const upcomingCollapseAnimationRef =
+    React.useRef<Animated.CompositeAnimation | null>(null);
+  const animateCollapseProgress = React.useCallback(
+    (
+      value: Animated.Value,
+      toCollapsed: boolean,
+      animationRef: React.MutableRefObject<Animated.CompositeAnimation | null>,
+    ) => {
+      animationRef.current?.stop();
+      if (reduceMotionEnabled) {
+        value.setValue(toCollapsed ? 1 : 0);
+        animationRef.current = null;
+        return;
+      }
+      const animation = Animated.spring(value, {
+        toValue: toCollapsed ? 1 : 0,
+        friction: 10,
+        tension: 120,
+        useNativeDriver: true,
+      });
+      animationRef.current = animation;
+      animation.start(({ finished }) => {
+        if (!finished) return;
+        if (animationRef.current === animation) {
+          animationRef.current = null;
+        }
+      });
+    },
+    [reduceMotionEnabled],
+  );
+  React.useEffect(() => {
+    if (!collapsedSections.today || !isCalendarPickerOpen) return;
+    setIsCalendarPickerOpen(false);
+  }, [collapsedSections.today, isCalendarPickerOpen]);
+  React.useEffect(() => {
+    animateCollapseProgress(
+      todayCollapseProgress,
+      collapsedSections.today,
+      todayCollapseAnimationRef,
+    );
+  }, [animateCollapseProgress, collapsedSections.today, todayCollapseProgress]);
+  React.useEffect(() => {
+    animateCollapseProgress(
+      upcomingCollapseProgress,
+      collapsedSections.upcoming,
+      upcomingCollapseAnimationRef,
+    );
+  }, [
+    animateCollapseProgress,
+    collapsedSections.upcoming,
+    upcomingCollapseProgress,
+  ]);
 
   const scrollRef = React.useRef<any>(null);
   const todayListRef = React.useRef<TaskSwipeDraggableListHandle | null>(null);
-  const upcomingListRef = React.useRef<TaskSwipeDraggableListHandle | null>(null);
-  const [isSwipeGestureActive, setIsSwipeGestureActive] = React.useState(false);
+  const upcomingListRef = React.useRef<TaskSwipeDraggableListHandle | null>(
+    null,
+  );
   const listDragActiveRef = React.useRef(false);
   const swipeGestureActiveRef = React.useRef(false);
+  const rowTouchActiveRef = React.useRef(false);
   const listTouchStartRef = React.useRef<{
     x: number;
     y: number;
     at: number;
     active: boolean;
-  }>({ x: 0, y: 0, at: 0, active: false });
+    startedOnRow: boolean;
+  }>({ x: 0, y: 0, at: 0, active: false, startedOnRow: false });
   const cancelDragSurfaceResetFrame = React.useCallback(() => {
     if (dragSurfaceResetFrameRef.current == null) return;
     cancelAnimationFrame(dragSurfaceResetFrameRef.current);
@@ -1633,10 +2969,7 @@ export default function HomeScreen() {
   const queueDropCommit = React.useCallback(
     (commit: () => void) => {
       cancelDropCommitFrame();
-      dropCommitFrameRef.current = requestAnimationFrame(() => {
-        dropCommitFrameRef.current = null;
-        commit();
-      });
+      commit();
     },
     [cancelDropCommitFrame],
   );
@@ -1645,17 +2978,39 @@ export default function HomeScreen() {
       // @ts-ignore - some refs expose getNode
       upcomingSurfaceRef.current?.getNode?.() ?? upcomingSurfaceRef.current;
     if (!node || typeof node.measureInWindow !== "function") return;
-    node.measureInWindow((x: number, y: number, width: number, height: number) => {
-      if (
-        !Number.isFinite(x) ||
-        !Number.isFinite(y) ||
-        !Number.isFinite(width) ||
-        !Number.isFinite(height)
-      ) {
-        return;
-      }
-      upcomingSurfaceBoundsRef.current = { x, y, width, height };
-    });
+    node.measureInWindow(
+      (x: number, y: number, width: number, height: number) => {
+        if (
+          !Number.isFinite(x) ||
+          !Number.isFinite(y) ||
+          !Number.isFinite(width) ||
+          !Number.isFinite(height)
+        ) {
+          return;
+        }
+        upcomingSurfaceBoundsRef.current = { x, y, width, height };
+      },
+    );
+  }, []);
+
+  const measureTodaySurfaceBounds = React.useCallback(() => {
+    const node =
+      // @ts-ignore - some refs expose getNode
+      todaySurfaceRef.current?.getNode?.() ?? todaySurfaceRef.current;
+    if (!node || typeof node.measureInWindow !== "function") return;
+    node.measureInWindow(
+      (x: number, y: number, width: number, height: number) => {
+        if (
+          !Number.isFinite(x) ||
+          !Number.isFinite(y) ||
+          !Number.isFinite(width) ||
+          !Number.isFinite(height)
+        ) {
+          return;
+        }
+        todaySurfaceBoundsRef.current = { x, y, width, height };
+      },
+    );
   }, []);
   React.useEffect(
     () => () => {
@@ -1664,70 +3019,268 @@ export default function HomeScreen() {
     },
     [cancelDragSurfaceResetFrame, cancelDropCommitFrame],
   );
-  const clearUpcomingExpandTimer = React.useCallback(() => {
-    if (upcomingExpandTimerRef.current == null) return;
-    clearTimeout(upcomingExpandTimerRef.current);
-    upcomingExpandTimerRef.current = null;
-  }, []);
-  const clearDateDragHover = React.useCallback(() => {
+  const clearDateRailHover = React.useCallback(() => {
+    dragRailHoverIntentRef.current = { dateStart: null, enteredAt: 0 };
     dragHoverDateStartRef.current = null;
     setDragHoveredDateStart((current) => (current == null ? current : null));
+    setDragDetectedDateStart((current) => (current == null ? current : null));
   }, []);
+  const clearDateDragHover = React.useCallback(() => {
+    clearDateRailHover();
+    setIsDragOverCalendarHeader(false);
+    setDragDropDebugReason("idle");
+  }, [clearDateRailHover]);
+  const getTouchPointFromEvent = React.useCallback(
+    (event: GestureResponderEvent) => {
+      const touch =
+        event.nativeEvent.touches?.[0] ?? event.nativeEvent.changedTouches?.[0];
+      if (!touch) return null;
+      if (!Number.isFinite(touch.pageX) || !Number.isFinite(touch.pageY)) {
+        return null;
+      }
+      return {
+        x: touch.pageX,
+        y: touch.pageY,
+      };
+    },
+    [],
+  );
+  const updateDateRailDragHoverFromPoint = React.useCallback(
+    (
+      point: { x: number; y: number },
+      options?: { force?: boolean; source?: "touch" | "gesture" },
+    ) => {
+      scheduleMeasureDateRailListBounds();
+      const force = options?.force === true;
+      const source = options?.source ?? "touch";
+      const headerBounds = dateRailBoundsRef.current;
+      const shouldTrackHeader =
+        !!dragContextRef.current && (force || listDragActiveRef.current);
+      const isInsideCalendarHeader =
+        shouldTrackHeader &&
+        !!headerBounds &&
+        point.x >= headerBounds.x &&
+        point.x <= headerBounds.x + headerBounds.width &&
+        point.y >= headerBounds.y &&
+        point.y <= headerBounds.y + headerBounds.height;
+      setIsDragOverCalendarHeader((current) =>
+        current === isInsideCalendarHeader ? current : isInsideCalendarHeader,
+      );
+      if (!dragContextRef.current) {
+        setDragDropDebugReason(`${source}-no-context`);
+        return;
+      }
+      if (!force && !listDragActiveRef.current) {
+        setDragDropDebugReason(`${source}-not-dragging`);
+        return;
+      }
+      const bounds = dateRailListBoundsRef.current;
+      if (!bounds) {
+        setDragDropDebugReason(`${source}-no-rail-bounds`);
+        return;
+      }
+
+      const isInsideDayRail =
+        point.x >= bounds.x &&
+        point.x <= bounds.x + bounds.width &&
+        point.y >= bounds.y &&
+        point.y <= bounds.y + bounds.height;
+      if (!isInsideDayRail) {
+        dragLastRailDateStartRef.current = null;
+        clearDateRailHover();
+        setDragDropDebugReason(`${source}-outside-rail`);
+        return;
+      }
+
+      const localX = point.x - bounds.x;
+      const contentX =
+        dateRailScrollOffsetRef.current + localX - dateRailSidePadding;
+      const targetIndex = clamp(
+        Math.round(contentX / dateRailSnapInterval),
+        0,
+        dateRailDays.length - 1,
+      );
+      const targetDateStart = dateRailDays[targetIndex]?.timestamp;
+      if (!Number.isFinite(targetDateStart)) {
+        setDragDropDebugReason(`${source}-invalid-target`);
+        return;
+      }
+
+      const previousDateStart = dragLastRailDateStartRef.current;
+      if (previousDateStart !== targetDateStart) {
+        triggerSelectionHaptic();
+      }
+      dragLastRailDateStartRef.current = targetDateStart;
+      setDragDetectedDateStart((current) =>
+        current === targetDateStart ? current : targetDateStart,
+      );
+      setDragDropDebugReason(
+        force ? `${source}-inside-force` : `${source}-inside`,
+      );
+      const now = Date.now();
+      const currentIntent = dragRailHoverIntentRef.current;
+
+      if (force) {
+        if (currentIntent.dateStart !== targetDateStart) {
+          dragRailHoverIntentRef.current = {
+            dateStart: targetDateStart,
+            enteredAt: now,
+          };
+        }
+        dragHoverDateStartRef.current = targetDateStart;
+        setDragHoveredDateStart((current) =>
+          current === targetDateStart ? current : targetDateStart,
+        );
+        return;
+      }
+
+      if (currentIntent.dateStart !== targetDateStart) {
+        dragRailHoverIntentRef.current = {
+          dateStart: targetDateStart,
+          enteredAt: now,
+        };
+        dragHoverDateStartRef.current = null;
+        setDragHoveredDateStart((current) =>
+          current == null ? current : null,
+        );
+        return;
+      }
+
+      if (now - currentIntent.enteredAt < DRAG_RAIL_HOVER_INTENT_MS) return;
+
+      dragHoverDateStartRef.current = targetDateStart;
+      setDragHoveredDateStart((current) =>
+        current === targetDateStart ? current : targetDateStart,
+      );
+    },
+    [
+      clearDateRailHover,
+      dateRailDays,
+      dateRailSidePadding,
+      dateRailSnapInterval,
+      scheduleMeasureDateRailListBounds,
+    ],
+  );
+  const updateDateRailDragHoverFromTouch = React.useCallback(
+    (event: GestureResponderEvent, options?: { force?: boolean }) => {
+      const point = getTouchPointFromEvent(event);
+      if (!point) {
+        setDragDropDebugReason("touch-no-touch-point");
+        return;
+      }
+      updateDateRailDragHoverFromPoint(point, {
+        force: options?.force,
+        source: "touch",
+      });
+    },
+    [getTouchPointFromEvent, updateDateRailDragHoverFromPoint],
+  );
+  const handleDragGestureUpdate = React.useCallback(
+    (params: TaskDragGestureUpdateParams) => {
+      const { absoluteX, absoluteY, phase } = params;
+      if (!Number.isFinite(absoluteX) || !Number.isFinite(absoluteY)) {
+        setDragDropDebugReason("gesture-invalid-point");
+        return;
+      }
+      updateDateRailDragHoverFromPoint(
+        { x: absoluteX, y: absoluteY },
+        { source: "gesture", force: phase === "end" },
+      );
+    },
+    [updateDateRailDragHoverFromPoint],
+  );
+  const handleListDragTouchMove = React.useCallback(
+    (event: GestureResponderEvent) => {
+      updateDateRailDragHoverFromTouch(event);
+    },
+    [updateDateRailDragHoverFromTouch],
+  );
+  const handleListDragTouchEnd = React.useCallback(
+    (event: GestureResponderEvent) => {
+      updateDateRailDragHoverFromTouch(event, { force: true });
+    },
+    [updateDateRailDragHoverFromTouch],
+  );
+  const handleListDragTouchCancel = React.useCallback(() => {
+    if (!dragContextRef.current) return;
+    dragLastRailDateStartRef.current = null;
+    clearDateDragHover();
+  }, [clearDateDragHover]);
+  const handleGlobalDragTouchMove = React.useCallback(
+    (event: GestureResponderEvent) => {
+      if (!listDragActiveRef.current || !dragContextRef.current) return;
+      updateDateRailDragHoverFromTouch(event);
+    },
+    [updateDateRailDragHoverFromTouch],
+  );
+  const handleGlobalDragTouchEnd = React.useCallback(
+    (event: GestureResponderEvent) => {
+      if (!dragContextRef.current) return;
+      updateDateRailDragHoverFromTouch(event, { force: true });
+    },
+    [updateDateRailDragHoverFromTouch],
+  );
+  const handleGlobalDragTouchCancel = React.useCallback(() => {
+    if (!dragContextRef.current) return;
+    dragLastRailDateStartRef.current = null;
+    clearDateDragHover();
+  }, [clearDateDragHover]);
+  const handleTaskListScrollOffsetChange = React.useCallback(
+    (_scrollOffset: number) => {
+      if (!dragContextRef.current && !listDragActiveRef.current) return;
+      scheduleMeasureDateRailListBounds();
+    },
+    [scheduleMeasureDateRailListBounds],
+  );
 
   const closeAnyOpen = React.useCallback(() => {
     todayListRef.current?.closeAnyOpen();
     upcomingListRef.current?.closeAnyOpen();
   }, []);
-  const scheduleUpcomingExpandOnHover = React.useCallback(() => {
-    if (!collapsedSections.upcoming) {
-      clearUpcomingExpandTimer();
-      return;
-    }
-    if (upcomingExpandTimerRef.current != null) return;
-    upcomingExpandTimerRef.current = setTimeout(() => {
-      upcomingExpandTimerRef.current = null;
-      setCollapsedSections((prev) =>
-        prev.upcoming ? { ...prev, upcoming: false } : prev,
-      );
-    }, 160);
-  }, [clearUpcomingExpandTimer, collapsedSections.upcoming]);
-  React.useEffect(() => () => clearUpcomingExpandTimer(), [clearUpcomingExpandTimer]);
-
   const handleSwipeStateChange = React.useCallback((isSwiping: boolean) => {
     swipeGestureActiveRef.current = isSwiping;
-    setIsSwipeGestureActive(isSwiping);
   }, []);
 
-  const handleDragStateChange = React.useCallback((isDragging: boolean) => {
-    listDragActiveRef.current = isDragging;
-    if (isDragging) {
+  const handleRowTouchStateChange = React.useCallback(
+    (isTouchingRow: boolean) => {
+      rowTouchActiveRef.current = isTouchingRow;
+      if (isTouchingRow && listTouchStartRef.current.active) {
+        listTouchStartRef.current.startedOnRow = true;
+      }
+    },
+    [],
+  );
+
+  const handleDragStateChange = React.useCallback(
+    (isDragging: boolean) => {
+      listDragActiveRef.current = isDragging;
+      if (isDragging) {
+        cancelDragSurfaceResetFrame();
+        measureDateRailBounds();
+        measureDateRailListBounds();
+        return;
+      }
       cancelDragSurfaceResetFrame();
-      clearUpcomingExpandTimer();
-      measureUpcomingSurfaceBounds();
-      measureDateRailBounds();
-      return;
-    }
-    cancelDragSurfaceResetFrame();
-    clearUpcomingExpandTimer();
-    dragSurfaceResetFrameRef.current = requestAnimationFrame(() => {
-      dragSurfaceResetFrameRef.current = null;
-      setActiveDragSurface(null);
-    });
-    if (!dragContextRef.current) {
-      clearDateDragHover();
-    }
-  }, [
-    cancelDragSurfaceResetFrame,
-    clearDateDragHover,
-    clearUpcomingExpandTimer,
-    measureDateRailBounds,
-    measureUpcomingSurfaceBounds,
-  ]);
+      dragSurfaceResetFrameRef.current = requestAnimationFrame(() => {
+        dragSurfaceResetFrameRef.current = null;
+        setActiveDragSurface(null);
+      });
+      if (!dragContextRef.current) {
+        clearDateDragHover();
+      }
+    },
+    [
+      cancelDragSurfaceResetFrame,
+      clearDateDragHover,
+      measureDateRailBounds,
+      measureDateRailListBounds,
+    ],
+  );
 
   const shiftSelectedDateBySwipe = React.useCallback(
     (delta: 1 | -1) => {
       const next = addDays(selectedDateStartRef.current, delta);
-      selectDateWithTransition(next, delta > 0 ? 1 : -1);
+      selectDateWithTransition(next, delta > 0 ? 1 : -1, "swipe");
     },
     [selectDateWithTransition],
   );
@@ -1740,6 +3293,7 @@ export default function HomeScreen() {
       y: touch.pageY,
       at: Date.now(),
       active: true,
+      startedOnRow: rowTouchActiveRef.current,
     };
   }, []);
 
@@ -1751,11 +3305,13 @@ export default function HomeScreen() {
 
       const touch = event.nativeEvent.changedTouches?.[0];
       if (!touch) return;
-      dragLastTouchPointRef.current = {
-        absoluteX: touch.pageX,
-        absoluteY: touch.pageY,
-      };
-      if (swipeGestureActiveRef.current || listDragActiveRef.current) return;
+      if (
+        start.startedOnRow ||
+        swipeGestureActiveRef.current ||
+        listDragActiveRef.current
+      ) {
+        return;
+      }
 
       const dx = touch.pageX - start.x;
       const dy = touch.pageY - start.y;
@@ -1776,6 +3332,7 @@ export default function HomeScreen() {
 
   const onListTouchCancel = React.useCallback(() => {
     listTouchStartRef.current.active = false;
+    listTouchStartRef.current.startedOnRow = false;
   }, []);
 
   const projectsById = React.useMemo(
@@ -1783,59 +3340,75 @@ export default function HomeScreen() {
     [projects],
   );
 
-  const getVisibleTasksForDateStart = React.useCallback((targetDateStart: number) => {
-    const base = tasks.filter((t) => {
-      if (t.deletedAt) return false;
-      const normalizedSection: SectionId =
-        t.section === "completed"
-          ? "completed"
-          : deriveActiveSectionFromDueAt(t.dueAt);
-      if (!homeEnabledSections.includes(normalizedSection)) return false;
+  const getVisibleTasksForDateStart = React.useCallback(
+    (targetDateStart: number) => {
+      const targetIsToday = isSameLocalDay(targetDateStart, todayStart);
+      const base = tasks.filter((t) => {
+        if (t.deletedAt) return false;
+        if (withNotesEnabled && !t.subtitle) return false;
+        if (!isTaskVisibleByTypeToggle(t)) return false;
 
-      const dueAtIsValid = hasValidDueAt(t.dueAt);
+        const isCompletedOnTargetDay =
+          hasValidDueAt(t.completedAt) &&
+          isSameLocalDay(t.completedAt, targetDateStart);
+        if (isCompletedOnTargetDay) return true;
 
-      if (!dueAtIsValid) {
-        return normalizedSection === "upcoming";
-      }
+        const normalizedSection: SectionId =
+          t.section === "completed"
+            ? "completed"
+            : deriveActiveSectionFromDueAt(t.dueAt);
+        if (!homeEnabledSections.includes(normalizedSection)) return false;
 
-      return isSameLocalDay(t.dueAt, targetDateStart);
-    });
-    const normalizedBase = base.map((task) => {
-      if (task.section === "completed") return task;
-      const normalizedSection = deriveActiveSectionFromDueAt(task.dueAt);
-      return task.section === normalizedSection
-        ? task
-        : { ...task, section: normalizedSection };
-    });
-    if (!withNotesEnabled) return normalizedBase;
-    return normalizedBase.filter((t) => !!t.subtitle);
-  }, [homeEnabledSections, tasks, withNotesEnabled]);
-  const visibleTasks = React.useMemo(
-    () => getVisibleTasksForDateStart(listDateStart),
-    [getVisibleTasksForDateStart, listDateStart],
+        const dueAtIsValid = hasValidDueAt(t.dueAt);
+
+        if (!dueAtIsValid) {
+          // Keep legacy "today" tasks visible on today even if dueAt is missing.
+          return normalizedSection === "today" && targetIsToday;
+        }
+
+        return isSameLocalDay(t.dueAt, targetDateStart);
+      });
+      const normalizedBase = base.map((task) => {
+        const isCompletedOnTargetDay =
+          hasValidDueAt(task.completedAt) &&
+          isSameLocalDay(task.completedAt, targetDateStart);
+        if (isCompletedOnTargetDay) {
+          return task.section === "completed"
+            ? task
+            : { ...task, section: "completed" as const };
+        }
+        if (task.section === "completed") return task;
+        const normalizedSection = deriveActiveSectionFromDueAt(task.dueAt);
+        return task.section === normalizedSection
+          ? task
+          : { ...task, section: normalizedSection };
+      });
+      return normalizedBase;
+    },
+    [homeEnabledSections, isTaskVisibleByTypeToggle, tasks, todayStart, withNotesEnabled],
   );
-  const visibleTasksById = React.useMemo(
-    () => new Map(visibleTasks.map((task) => [task.id, task] as const)),
-    [visibleTasks],
+  const getDisplayedTasksForDateStart = React.useCallback(
+    (targetDateStart: number) => {
+      const allTasksForDay = getVisibleTasksForDateStart(targetDateStart);
+      if (showCompletedTasksEnabled) return allTasksForDay;
+      return allTasksForDay.filter((task) => task.section !== "completed");
+    },
+    [getVisibleTasksForDateStart, showCompletedTasksEnabled],
+  );
+  const visibleTasks = React.useMemo(
+    () => getDisplayedTasksForDateStart(listDateStart),
+    [getDisplayedTasksForDateStart, listDateStart],
   );
   const visibleTaskDisplaySectionById = React.useMemo(
     () =>
       new Map(
-        visibleTasks.map((task) => [
-          task.id,
-          deriveHomeDisplaySection(task, listDateStart),
-        ] as const),
+        visibleTasks.map(
+          (task) =>
+            [task.id, deriveHomeDisplaySection(task, listDateStart)] as const,
+        ),
       ),
     [listDateStart, visibleTasks],
   );
-
-  const visibleSections = React.useMemo(() => {
-    return SECTION_ORDER.filter((s) =>
-      homeEnabledSections.includes(s),
-    ) as SectionId[];
-  }, [homeEnabledSections]);
-
-  const firstVisibleSection = visibleSections[0] ?? "today";
 
   const tasksBySection = React.useMemo(() => {
     const grouped: Record<SectionId, Task[]> = {
@@ -1855,6 +3428,15 @@ export default function HomeScreen() {
     }
     return grouped;
   }, [visibleTaskDisplaySectionById, visibleTasks]);
+  const visibleSections = React.useMemo(() => {
+    const sections: SectionId[] = ["today"];
+    if (showCompletedTasksEnabled && tasksBySection.completed.length > 0) {
+      sections.push("completed");
+    }
+    return sections;
+  }, [showCompletedTasksEnabled, tasksBySection.completed.length]);
+
+  const firstVisibleSection = visibleSections[0] ?? "today";
 
   type ListItem =
     | { type: "header"; key: string; sectionId: SectionId }
@@ -1878,7 +3460,9 @@ export default function HomeScreen() {
       for (const task of tasksBySection[sectionId]) {
         data.push({
           type: "task",
-          key: `${task.id}:${sectionId}`,
+          key: `task-${task.id}:${sectionId}:${task.completedAt ?? 0}:${
+            task.deletedAt ?? 0
+          }`,
           taskId: task.id,
         });
       }
@@ -1902,20 +3486,6 @@ export default function HomeScreen() {
   const hasTodaySection = visibleSections.includes("today");
   const hasUpcomingSection = visibleSections.includes("upcoming");
   React.useEffect(() => {
-    if (!hasTodaySection) {
-      hasInitializedTodaySurfaceHeightRef.current = false;
-      animateTodaySurfaceHeight(0, true);
-      return;
-    }
-    if (todaySurfaceMeasuredHeight <= 0) {
-      animateTodaySurfaceHeight(0, true);
-      return;
-    }
-    const immediate = !hasInitializedTodaySurfaceHeightRef.current;
-    animateTodaySurfaceHeight(todaySurfaceMeasuredHeight, immediate);
-    hasInitializedTodaySurfaceHeightRef.current = true;
-  }, [animateTodaySurfaceHeight, hasTodaySection, todaySurfaceMeasuredHeight]);
-  React.useEffect(() => {
     const rafId = requestAnimationFrame(measureUpcomingSurfaceBounds);
     return () => cancelAnimationFrame(rafId);
   }, [
@@ -1924,45 +3494,55 @@ export default function HomeScreen() {
     measureUpcomingSurfaceBounds,
     viewportWidth,
   ]);
-  const todaySwipeListData = React.useMemo<TaskSwipeDraggableListItem[]>(() => {
-    if (!hasTodaySection) return [];
-    return swipeListData.filter(
-      (item) =>
-        item.kind === "task" &&
-        (visibleTaskDisplaySectionById.get(item.taskId) ?? "upcoming") === "today",
-    );
-  }, [hasTodaySection, swipeListData, visibleTaskDisplaySectionById]);
-  const hasTodayTasks = todaySwipeListData.length > 0;
+  const hasVisibleTasks = visibleTasks.length > 0;
+  const calendarEmptyState = React.useMemo(
+    () => (
+      <View style={styles.emptyState}>
+        <MaterialIcons
+          name="event-busy"
+          size={32}
+          color={withAlpha(Colors[theme].text, 0.36)}
+          style={styles.emptyStateIcon}
+        />
+        <Text style={styles.emptyText}>{t("home.empty.noTasks")}</Text>
+      </View>
+    ),
+    [styles, theme],
+  );
   const dateListTransitionData = React.useMemo(() => {
     if (!dateListTransitionState) return null;
-    const fromVisibleTasks = getVisibleTasksForDateStart(
+    const fromVisibleTasks = getDisplayedTasksForDateStart(
       dateListTransitionState.fromDateStart,
     );
-    const toVisibleTasks = getVisibleTasksForDateStart(
+    const toVisibleTasks = getDisplayedTasksForDateStart(
       dateListTransitionState.toDateStart,
     );
     const fromTodayData: TaskSwipeDraggableListItem[] = fromVisibleTasks
       .filter(
         (task) =>
-          deriveHomeDisplaySection(task, dateListTransitionState.fromDateStart) ===
-          "today",
+          deriveHomeDisplaySection(
+            task,
+            dateListTransitionState.fromDateStart,
+          ) === "today",
       )
       .sort((a, b) => a.orderRank - b.orderRank)
       .map((task) => ({
         kind: "task",
-        key: `${task.id}:today`,
+        key: `task-${task.id}`,
         taskId: task.id,
       }));
     const toTodayData: TaskSwipeDraggableListItem[] = toVisibleTasks
       .filter(
         (task) =>
-          deriveHomeDisplaySection(task, dateListTransitionState.toDateStart) ===
-          "today",
+          deriveHomeDisplaySection(
+            task,
+            dateListTransitionState.toDateStart,
+          ) === "today",
       )
       .sort((a, b) => a.orderRank - b.orderRank)
       .map((task) => ({
         kind: "task",
-        key: `${task.id}:today`,
+        key: `task-${task.id}`,
         taskId: task.id,
       }));
     return {
@@ -1971,21 +3551,25 @@ export default function HomeScreen() {
       fromTodayData,
       toTodayData,
     };
-  }, [dateListTransitionState, getVisibleTasksForDateStart]);
+  }, [dateListTransitionState, getDisplayedTasksForDateStart]);
   const dateListTransitionPageWidth = React.useMemo(
     () => Math.max(1, dateListHostWidth),
     [dateListHostWidth],
   );
-  const upcomingSwipeListData = React.useMemo<TaskSwipeDraggableListItem[]>(() => {
+  const upcomingSwipeListData = React.useMemo<
+    TaskSwipeDraggableListItem[]
+  >(() => {
     if (!hasUpcomingSection) return [];
     const upcomingTasks = swipeListData.filter(
       (item) =>
         item.kind === "task" &&
-        (visibleTaskDisplaySectionById.get(item.taskId) ?? "upcoming") === "upcoming",
+        (visibleTaskDisplaySectionById.get(item.taskId) ?? "upcoming") ===
+          "upcoming",
     );
     return upcomingTasks;
   }, [hasUpcomingSection, swipeListData, visibleTaskDisplaySectionById]);
   const hasUpcomingTasks = tasksBySection.upcoming.length > 0;
+  const withoutDateCount = tasksBySection.upcoming.length;
 
   const applyOrderFromListData = React.useCallback(
     (data: ListItem[]) => {
@@ -2029,7 +3613,10 @@ export default function HomeScreen() {
           finalOrder.forEach((id, index) => {
             const existing = nextById.get(id);
             if (!existing) return;
-            const moved = reorderedVisibleSet.has(id)
+            const shouldAdjustSectionData =
+              reorderedVisibleSet.has(id) &&
+              deriveHomeDisplaySection(existing, listDateStart) !== sectionId;
+            const moved = shouldAdjustSectionData
               ? adjustDueAtOnSectionChange(existing, sectionId, listDateStart)
               : existing;
             nextById.set(id, { ...moved, orderRank: (index + 1) * 1000 });
@@ -2039,7 +3626,13 @@ export default function HomeScreen() {
         return prev.map((t) => nextById.get(t.id) ?? t);
       });
     },
-    [firstVisibleSection, listDateStart, setTasks, visibleSections, visibleTasks],
+    [
+      firstVisibleSection,
+      listDateStart,
+      setTasks,
+      visibleSections,
+      visibleTasks,
+    ],
   );
 
   const applyOrderFromSwipeListData = React.useCallback(
@@ -2047,27 +3640,15 @@ export default function HomeScreen() {
       const mapped: ListItem[] = data.map((item) =>
         item.kind === "header"
           ? {
-            type: "header",
-            key: item.key,
-            sectionId: item.sectionId as SectionId,
-          }
+              type: "header",
+              key: item.key,
+              sectionId: item.sectionId as SectionId,
+            }
           : { type: "task", key: item.key, taskId: item.taskId },
       );
       applyOrderFromListData(mapped);
     },
     [applyOrderFromListData],
-  );
-  const applyOrderFromTodaySegment = React.useCallback(
-    (data: TaskSwipeDraggableListItem[]) => {
-      applyOrderFromSwipeListData([...data, ...upcomingSwipeListData]);
-    },
-    [applyOrderFromSwipeListData, upcomingSwipeListData],
-  );
-  const applyOrderFromUpcomingSegment = React.useCallback(
-    (data: TaskSwipeDraggableListItem[]) => {
-      applyOrderFromSwipeListData([...todaySwipeListData, ...data]);
-    },
-    [applyOrderFromSwipeListData, todaySwipeListData],
   );
 
   const reseedSection = React.useCallback(
@@ -2088,200 +3669,24 @@ export default function HomeScreen() {
   );
   const handleDragBeginTask = React.useCallback(
     (taskId: string) => {
-      const sourceTask = visibleTasksById.get(taskId);
-      const sourceSection =
-        visibleTaskDisplaySectionById.get(taskId) ??
-        sourceTask?.section ??
-        ("upcoming" as SectionId);
       dragLastRailDateStartRef.current = null;
       dragContextRef.current = {
         taskId,
-        sourceSection,
-        sourceHasDueAt: hasValidDueAt(sourceTask?.dueAt),
       };
-      dragLastTouchPointRef.current = null;
+      dragStartPointRef.current = null;
+      dragRailHoverIntentRef.current = { dateStart: null, enteredAt: 0 };
       cancelDragSurfaceResetFrame();
-      clearUpcomingExpandTimer();
-      setActiveDragSurface(sourceSection === "today" ? "today" : "upcoming");
-      measureUpcomingSurfaceBounds();
+      setActiveDragSurface("today");
       clearDateDragHover();
       measureDateRailBounds();
+      measureDateRailListBounds();
     },
     [
       cancelDragSurfaceResetFrame,
       clearDateDragHover,
-      clearUpcomingExpandTimer,
       measureDateRailBounds,
-      measureUpcomingSurfaceBounds,
-      visibleTaskDisplaySectionById,
-      visibleTasksById,
+      measureDateRailListBounds,
     ],
-  );
-
-  const handleDragTouchPoint = React.useCallback(
-    (params: {
-      absoluteX: number;
-      absoluteY: number;
-      translationX: number;
-      translationY: number;
-    }) => {
-      if (!dragContextRef.current) return;
-
-      const { absoluteX, absoluteY } = params;
-      dragLastTouchPointRef.current = { absoluteX, absoluteY };
-      const isHoveringUpcomingSurface = isPointNearBounds(
-        upcomingSurfaceBoundsRef.current,
-        absoluteX,
-        absoluteY,
-        {
-          top: 36,
-          right: 20,
-          bottom: 64,
-          left: 20,
-        },
-      );
-      if (isHoveringUpcomingSurface) {
-        scheduleUpcomingExpandOnHover();
-      } else {
-        clearUpcomingExpandTimer();
-      }
-      const bounds = dateRailBoundsRef.current;
-      if (!bounds) return;
-
-      const inRailBounds =
-        absoluteX >= bounds.x &&
-        absoluteX <= bounds.x + bounds.width &&
-        absoluteY >= bounds.y - DATE_DROP_VERTICAL_PADDING &&
-        absoluteY <= bounds.y + bounds.height + DATE_DROP_VERTICAL_PADDING;
-
-      if (!inRailBounds) {
-        if (dragHoverDateStartRef.current != null) {
-          clearDateDragHover();
-        }
-        return;
-      }
-
-      const localX = clamp(absoluteX - bounds.x, 0, bounds.width);
-      const contentX = dateRailScrollOffsetRef.current + localX;
-      const rawIndex = Math.round(contentX / dateRailSnapInterval);
-      const dayIndex = clamp(rawIndex, 0, Math.max(dateRailDays.length - 1, 0));
-      const targetDay = dateRailDays[dayIndex];
-      if (!targetDay) return;
-      dragLastRailDateStartRef.current = targetDay.timestamp;
-      if (targetDay.timestamp !== dragHoverDateStartRef.current) {
-        dragHoverDateStartRef.current = targetDay.timestamp;
-        setDragHoveredDateStart(targetDay.timestamp);
-      }
-    },
-    [
-      clearDateDragHover,
-      clearUpcomingExpandTimer,
-      dateRailDays,
-      dateRailSnapInterval,
-      scheduleUpcomingExpandOnHover,
-    ],
-  );
-
-  const resolveOpenDayDropDateStart = React.useCallback(
-    (
-      meta: { data: TaskSwipeDraggableListItem[]; from: number; to: number },
-      dragContext: { taskId: string; sourceSection: SectionId; sourceHasDueAt: boolean },
-    ) => {
-      if (dragContext.sourceSection !== "upcoming") return null;
-      if (dragContext.sourceHasDueAt) return null;
-
-      const targetDateStart = listDateStartRef.current;
-      if (isSameLocalDay(targetDateStart, todayStart)) return null;
-      if (meta.to < meta.from) return targetDateStart;
-
-      let currentSection: SectionId = firstVisibleSection;
-      const orderedUpcomingTaskIds: string[] = [];
-      for (const item of meta.data) {
-        if (item.kind === "header") {
-          currentSection = item.sectionId as SectionId;
-          continue;
-        }
-        if (currentSection === "upcoming") {
-          orderedUpcomingTaskIds.push(item.taskId);
-        }
-      }
-
-      const draggedIndex = orderedUpcomingTaskIds.indexOf(dragContext.taskId);
-      if (draggedIndex < 0) return null;
-
-      const firstUndatedOtherIndex = orderedUpcomingTaskIds.findIndex((taskId) => {
-        if (taskId === dragContext.taskId) return false;
-        const task = visibleTasksById.get(taskId);
-        return !task || !hasValidDueAt(task.dueAt);
-      });
-
-      if (firstUndatedOtherIndex === -1 || draggedIndex < firstUndatedOtherIndex) {
-        return targetDateStart;
-      }
-
-      return null;
-    },
-    [firstVisibleSection, todayStart, visibleTasksById],
-  );
-
-  const shouldDropIntoUpcomingSurface = React.useCallback(
-    (dragContext: { taskId: string; sourceSection: SectionId; sourceHasDueAt: boolean }) => {
-      if (dragContext.sourceSection !== "today") return false;
-      const point = dragLastTouchPointRef.current;
-      if (!point) return false;
-      const extraBottomInset =
-        collapsedSections.upcoming || !hasUpcomingTasks ? 120 : 64;
-      return isPointNearBounds(
-        upcomingSurfaceBoundsRef.current,
-        point.absoluteX,
-        point.absoluteY,
-        {
-          // Allow dropping slightly above/around the "Ohne Datum" card,
-          // which feels more natural when releasing near the section boundary.
-          top: 44,
-          right: 20,
-          bottom: extraBottomInset,
-          left: 20,
-        },
-      );
-    },
-    [collapsedSections.upcoming, hasUpcomingTasks],
-  );
-
-  const applyDraggedTaskToUpcomingUndated = React.useCallback(
-    (taskId: string) => {
-      setTasks((prev) => {
-        const task = prev.find((candidate) => candidate.id === taskId);
-        if (!task || task.deletedAt || task.section === "completed") {
-          return prev;
-        }
-
-        const fromSection = deriveActiveSectionFromDueAt(task.dueAt);
-        if (fromSection === "upcoming" && !hasValidDueAt(task.dueAt)) {
-          return prev;
-        }
-
-        const next = prev.map((candidate) =>
-          candidate.id === taskId
-            ? {
-              ...candidate,
-              section: "upcoming" as const,
-              dueAt: 0,
-              dueHasTime: false,
-              completedAt: undefined,
-            }
-            : candidate,
-        );
-
-        if (fromSection === "upcoming") {
-          return reseedSection(next, "upcoming");
-        }
-
-        const reseededFrom = reseedSection(next, fromSection);
-        return reseedSection(reseededFrom, "upcoming");
-      });
-    },
-    [reseedSection, setTasks],
   );
 
   const applyDraggedTaskToDate = React.useCallback(
@@ -2307,12 +3712,12 @@ export default function HomeScreen() {
         const next = prev.map((candidate) =>
           candidate.id === taskId
             ? {
-              ...candidate,
-              section: toSection,
-              dueAt: nextDueAt,
-              dueHasTime: keepTime,
-              completedAt: undefined,
-            }
+                ...candidate,
+                section: toSection,
+                dueAt: nextDueAt,
+                dueHasTime: keepTime,
+                completedAt: undefined,
+              }
             : candidate,
         );
 
@@ -2328,60 +3733,39 @@ export default function HomeScreen() {
   );
 
   const handleDragEndMeta = React.useCallback(
-    (meta: { data: TaskSwipeDraggableListItem[]; from: number; to: number }) => {
+    (_meta: {
+      data: TaskSwipeDraggableListItem[];
+      from: number;
+      to: number;
+    }) => {
       const dragContext = dragContextRef.current;
       const hoveredDateStart = dragHoverDateStartRef.current;
       const lastRailDateStart = dragLastRailDateStartRef.current;
       dragContextRef.current = null;
       dragLastRailDateStartRef.current = null;
-      clearUpcomingExpandTimer();
       clearDateDragHover();
 
       if (!dragContext) {
-        dragLastTouchPointRef.current = null;
         return false;
       }
 
-      if (shouldDropIntoUpcomingSurface(dragContext)) {
-        const droppedTaskId = dragContext.taskId;
-        dragLastTouchPointRef.current = null;
-        queueDropCommit(() => {
-          configureSmoothListLayoutTransition();
-          setCollapsedSections((prev) =>
-            prev.upcoming ? { ...prev, upcoming: false } : prev,
-          );
-          applyDraggedTaskToUpcomingUndated(droppedTaskId);
-          queueTaskPopIn(droppedTaskId);
-        });
-        return true;
-      }
-
-      const targetDateStart =
-        hoveredDateStart ??
-        lastRailDateStart ??
-        resolveOpenDayDropDateStart(meta, dragContext);
-      dragLastTouchPointRef.current = null;
+      const targetDateStart = hoveredDateStart ?? lastRailDateStart;
       if (targetDateStart == null) return false;
 
       const droppedTaskId = dragContext.taskId;
       queueDropCommit(() => {
-        configureSmoothListLayoutTransition();
         applyDraggedTaskToDate(droppedTaskId, targetDateStart);
-        queueTaskPopIn(droppedTaskId);
         selectDateWithoutTransition(targetDateStart);
+        scrollDateRailToDateStart(targetDateStart);
       });
       return true;
     },
     [
-      applyDraggedTaskToUpcomingUndated,
       applyDraggedTaskToDate,
       clearDateDragHover,
-      clearUpcomingExpandTimer,
       queueDropCommit,
-      queueTaskPopIn,
-      resolveOpenDayDropDateStart,
       selectDateWithoutTransition,
-      shouldDropIntoUpcomingSurface,
+      scrollDateRailToDateStart,
     ],
   );
 
@@ -2392,17 +3776,56 @@ export default function HomeScreen() {
     [router],
   );
 
+  const getToggleCompleteTargetSection = React.useCallback(
+    (task: Task, now: number): SectionId => {
+      if (task.section === "completed") {
+        return hasValidDueAt(task.dueAt)
+          ? deriveActiveSectionFromDueAt(task.dueAt)
+          : "today";
+      }
+
+      const routineType = task.isRoutine
+        ? (task.routineType ?? task.routineInterval)
+        : undefined;
+      if (!routineType) return "completed";
+
+      const nextDue = getNextRoutineDate(task.dueAt, routineType, {
+        weekday: task.routineWeekday,
+        nthWeek: task.routineNthWeek,
+        monthDay: task.routineMonthDay,
+        month: task.routineMonth,
+      });
+      return deriveActiveSectionFromDueAt(nextDue, now);
+    },
+    [],
+  );
+
   const handleToggleComplete = React.useCallback(
     (taskId: string) => {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      const currentTask = tasks.find((task) => task.id === taskId);
+      if (!currentTask) return;
+
+      const now = Date.now();
+      const targetSection = getToggleCompleteTargetSection(currentTask, now);
+      const shouldQueuePopIn =
+        !reduceMotionEnabled &&
+        targetSection !== currentTask.section &&
+        (targetSection !== "completed" || showCompletedTasksEnabled);
+      if (shouldQueuePopIn) {
+        queueTaskPopIn(taskId);
+      }
+
+      if (!reduceMotionEnabled) {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      }
       setTasks((prev) => {
         const task = prev.find((t) => t.id === taskId);
         if (!task) return prev;
 
         const fromSection = task.section;
-        const now = Date.now();
         let toSection: SectionId = fromSection;
-        const nowDate = new Date(now);
+        let completedRoutineEntry: Task | null = null;
+        const existingIds = new Set(prev.map((candidate) => candidate.id));
 
         const next = prev.map((t): Task => {
           if (t.id !== taskId) return t;
@@ -2419,35 +3842,21 @@ export default function HomeScreen() {
               ...(hasDueAt
                 ? {}
                 : {
-                  dueAt: getDueAtForSection("today"),
-                  dueHasTime: true,
-                }),
+                    dueAt: getDueAtForSection("today"),
+                    dueHasTime: true,
+              }),
             };
           }
 
-          const routineType = t.isRoutine
-            ? (t.routineType ?? t.routineInterval)
-            : undefined;
-
-          if (routineType) {
-            const nextDue = getNextRoutineDate(t.dueAt, routineType, {
-              weekday: t.routineWeekday,
-              nthWeek: t.routineNthWeek,
-              monthDay: t.routineMonthDay,
-              month: t.routineMonth,
-            });
-            toSection = deriveActiveSectionFromDueAt(nextDue, nowDate.getTime());
-            return {
-              ...t,
-              dueAt: nextDue,
-              section: toSection,
-              completedAt: undefined,
-              // Start fresh for the next routine occurrence.
-              subtasks: t.subtasks?.map((subtask) => ({
-                ...subtask,
-                done: false,
-              })),
-            };
+          const routineTransition = createRoutineCompletionTransition(
+            t,
+            now,
+            existingIds,
+          );
+          if (routineTransition) {
+            toSection = routineTransition.nextTask.section;
+            completedRoutineEntry = routineTransition.completedTask;
+            return routineTransition.nextTask;
           }
 
           toSection = "completed";
@@ -2458,12 +3867,19 @@ export default function HomeScreen() {
           };
         });
 
-        if (toSection === fromSection) return next;
+        const nextWithCompletionEntry = completedRoutineEntry
+          ? [...next, completedRoutineEntry]
+          : next;
 
-        const moved = next.find((t) => t.id === taskId);
-        if (!moved) return next;
+        if (toSection === fromSection) {
+          if (!completedRoutineEntry) return nextWithCompletionEntry;
+          return reseedSection(nextWithCompletionEntry, "completed");
+        }
 
-        const other = next.filter((t) => t.id !== taskId);
+        const moved = nextWithCompletionEntry.find((t) => t.id === taskId);
+        if (!moved) return nextWithCompletionEntry;
+
+        const other = nextWithCompletionEntry.filter((t) => t.id !== taskId);
         const dest = other
           .filter((t) => t.section === toSection)
           .sort((a, b) => a.orderRank - b.orderRank);
@@ -2473,15 +3889,28 @@ export default function HomeScreen() {
 
         const reseededFrom = reseedSection(withInserted, fromSection);
         const reseededBoth = reseedSection(reseededFrom, toSection);
+        if (completedRoutineEntry && toSection !== "completed") {
+          return reseedSection(reseededBoth, "completed");
+        }
         return reseededBoth;
       });
     },
-    [reseedSection, setTasks],
+    [
+      getToggleCompleteTargetSection,
+      queueTaskPopIn,
+      reduceMotionEnabled,
+      reseedSection,
+      setTasks,
+      showCompletedTasksEnabled,
+      tasks,
+    ],
   );
 
   const handleDeleteTask = React.useCallback(
     (taskId: string) => {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      if (!reduceMotionEnabled) {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      }
       setTasks((prev) => {
         const task = prev.find((t) => t.id === taskId);
         if (!task) return prev;
@@ -2490,7 +3919,7 @@ export default function HomeScreen() {
         );
       });
     },
-    [setTasks],
+    [reduceMotionEnabled, setTasks],
   );
 
   const handleToggleSubtask = React.useCallback(
@@ -2519,19 +3948,42 @@ export default function HomeScreen() {
   );
 
   const handleAddTask = React.useCallback(() => {
-    router.push("/task/create-modal");
-  }, [router]);
+    const activeDateStart = selectedDateStartRef.current || selectedDateStart;
+    setPresetDateStart(activeDateStart);
+    router.push({
+      pathname: "/task/create-modal",
+      params: {
+        preset: "today",
+        dateStart: String(activeDateStart),
+      },
+    });
+  }, [router, selectedDateStart, setPresetDateStart]);
 
   const renderSectionHeaderRow = React.useCallback(
     (sectionId: string) => {
       const id = sectionId as SectionId;
       const isCollapsible = id === "today" || id === "upcoming";
-      const isCollapsed =
-        id === "today" ? collapsedSections.today : collapsedSections.upcoming;
+      const collapseProgress =
+        id === "today" ? todayCollapseProgress : upcomingCollapseProgress;
+      const chevronRotate = collapseProgress.interpolate({
+        inputRange: [0, 1],
+        outputRange: ["90deg", "0deg"],
+      });
+      const chipScale = collapseProgress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [1, 0.985],
+      });
+      const chipOpacity = collapseProgress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [1, 0.94],
+      });
 
       const onToggle = () => {
         if (!isCollapsible) return;
         closeAnyOpen();
+        if (id === "upcoming") {
+          configureSmoothListLayoutTransition(!reduceMotionEnabled);
+        }
         setCollapsedSections((prev) => ({
           ...prev,
           [id]: !prev[id as "today" | "upcoming"],
@@ -2546,8 +3998,8 @@ export default function HomeScreen() {
           accessibilityLabel={
             isCollapsible
               ? t("home.filter.toggleSection", {
-                section: t(SECTION_TITLE_KEYS[id]),
-              })
+                  section: t(SECTION_TITLE_KEYS[id]),
+                })
               : undefined
           }
           onPress={onToggle}
@@ -2557,43 +4009,77 @@ export default function HomeScreen() {
             isUpcoming && { justifyContent: "center", gap: 8 },
           ]}
         >
-          <Text
-            style={isUpcoming ? styles.dateRailTitle : styles.sectionTitle}
-          >
-            {t(SECTION_TITLE_KEYS[id])}
-          </Text>
-          {isCollapsible ? (
-            <MaterialIcons
-              name="chevron-right"
-              size={isUpcoming ? 24 : 18}
-              color={
-                isUpcoming
-                  ? Colors[theme].text
-                  : withAlpha(Colors[theme].text, 0.48)
-              }
-              style={[
-                styles.sectionChevron,
-                {
-                  transform: [{ rotate: isCollapsed ? "0deg" : "90deg" }],
-                  opacity: isUpcoming ? 1 : 0.48,
-                  marginTop: isUpcoming ? 2 : 0, // Visual tuning for larger font
-                },
-              ]}
-            />
-          ) : null}
+          {isUpcoming ? (
+            <Animated.View
+              style={{
+                transform: [{ scale: chipScale }],
+                opacity: chipOpacity,
+              }}
+            >
+              <GlassSurface
+                tintColor={glassSurfacePalette.chipTint}
+                fallbackBackgroundColor={glassSurfacePalette.chipFallback}
+                style={styles.dateRailTitleRow}
+              >
+                <Text style={styles.dateRailTitle}>
+                  {t(SECTION_TITLE_KEYS[id])}
+                </Text>
+                <View style={styles.sectionCountBadge}>
+                  <Text style={styles.sectionCountBadgeText}>
+                    {withoutDateCount}
+                  </Text>
+                </View>
+                {isCollapsible ? (
+                  <Animated.View
+                    style={{
+                      transform: [{ rotate: chevronRotate }],
+                      marginTop: 2,
+                    }}
+                  >
+                    <MaterialIcons
+                      name="chevron-right"
+                      size={24}
+                      color={Colors[theme].text}
+                      style={[styles.sectionChevron, { opacity: 1 }]}
+                    />
+                  </Animated.View>
+                ) : null}
+              </GlassSurface>
+            </Animated.View>
+          ) : (
+            <>
+              <Text style={styles.sectionTitle}>
+                {t(SECTION_TITLE_KEYS[id])}
+              </Text>
+              {isCollapsible ? (
+                <Animated.View
+                  style={{
+                    transform: [{ rotate: chevronRotate }],
+                    marginTop: 0,
+                  }}
+                >
+                  <MaterialIcons
+                    name="chevron-right"
+                    size={18}
+                    color={withAlpha(Colors[theme].text, 0.48)}
+                    style={[styles.sectionChevron, { opacity: 0.48 }]}
+                  />
+                </Animated.View>
+              ) : null}
+            </>
+          )}
         </Pressable>
       );
 
-      return (
-        <View style={styles.sectionHeader}>
-          {headerButton}
-        </View>
-      );
+      return <View style={styles.sectionHeader}>{headerButton}</View>;
     },
     [
       closeAnyOpen,
-      collapsedSections.today,
-      collapsedSections.upcoming,
+      glassSurfacePalette,
+      reduceMotionEnabled,
+      todayCollapseProgress,
+      upcomingCollapseProgress,
+      withoutDateCount,
       styles,
       theme,
     ],
@@ -2601,6 +4087,32 @@ export default function HomeScreen() {
 
   const dateRailPanel = React.useMemo(() => {
     if (firstVisibleSection !== "today") return null;
+    const isPreparingTitleTransition =
+      dateRailTitleTransitionState.phase === "preparing";
+    const outgoingTitleOpacity = dateRailTitleMotion.interpolate({
+      inputRange: [0, 0.78, 1],
+      outputRange: [1, 0.24, 0],
+    });
+    const incomingTitleOpacity = dateRailTitleMotion.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, 1],
+    });
+    const outgoingTitleTranslateY = dateRailTitleMotion.interpolate({
+      inputRange: [0, 1],
+      outputRange: [
+        0,
+        -DATE_RAIL_TITLE_TRANSITION_DISTANCE *
+          dateRailTitleTransitionState.direction,
+      ],
+    });
+    const incomingTitleTranslateY = dateRailTitleMotion.interpolate({
+      inputRange: [0, 1],
+      outputRange: [
+        DATE_RAIL_TITLE_TRANSITION_DISTANCE *
+          dateRailTitleTransitionState.direction,
+        0,
+      ],
+    });
     return (
       <View
         ref={dateRailWrapRef}
@@ -2609,179 +4121,276 @@ export default function HomeScreen() {
       >
         <View style={styles.dateRailMotionContent}>
           <View style={styles.dateRailTitleHost}>
-            <Pressable
-              onPress={() => {
-                closeAnyOpen();
-                configureSmoothListLayoutTransition();
-                setCollapsedSections((prev) => ({
-                  ...prev,
-                  today: !prev.today,
-                }));
-              }}
-              disabled={isDateListTransitioning}
-              hitSlop={20}
-              style={styles.dateRailTitlePressable}
-            >
-              <View style={styles.dateRailTitleViewport}>
-                {isDateListTransitioning &&
-                dateListTransitionState &&
-                transitionFromHeaderTitle &&
-                transitionToHeaderTitle ? (
-                  <Animated.View
-                    style={[
-                      styles.dateRailTitleTrack,
-                      { transform: [{ translateX: dateListTranslateX }] },
-                    ]}
-                  >
-                    {dateListTransitionState.direction === 1 ? (
-                      <>
-                        <View
-                          style={[
-                            styles.dateRailTitlePage,
-                            { width: dateListTransitionPageWidth },
-                          ]}
-                        >
-                          <View style={styles.dateRailTitleRow}>
-                            <Text style={styles.dateRailTitle}>{transitionFromHeaderTitle}</Text>
-                            <MaterialIcons
-                              name="chevron-right"
-                              size={24}
-                              color={Colors[theme].text}
-                              style={[
-                                styles.sectionChevron,
-                                {
-                                  transform: [
-                                    { rotate: collapsedSections.today ? "0deg" : "90deg" },
-                                  ],
-                                  marginTop: 2,
-                                  opacity: 1,
-                                },
-                              ]}
-                            />
-                          </View>
-                        </View>
-                        <View
-                          style={[
-                            styles.dateRailTitlePage,
-                            { width: dateListTransitionPageWidth },
-                          ]}
-                        >
-                          <View style={styles.dateRailTitleRow}>
-                            <Text style={styles.dateRailTitle}>{transitionToHeaderTitle}</Text>
-                            <MaterialIcons
-                              name="chevron-right"
-                              size={24}
-                              color={Colors[theme].text}
-                              style={[
-                                styles.sectionChevron,
-                                {
-                                  transform: [
-                                    { rotate: collapsedSections.today ? "0deg" : "90deg" },
-                                  ],
-                                  marginTop: 2,
-                                  opacity: 1,
-                                },
-                              ]}
-                            />
-                          </View>
-                        </View>
-                      </>
-                    ) : (
-                      <>
-                        <View
-                          style={[
-                            styles.dateRailTitlePage,
-                            { width: dateListTransitionPageWidth },
-                          ]}
-                        >
-                          <View style={styles.dateRailTitleRow}>
-                            <Text style={styles.dateRailTitle}>{transitionToHeaderTitle}</Text>
-                            <MaterialIcons
-                              name="chevron-right"
-                              size={24}
-                              color={Colors[theme].text}
-                              style={[
-                                styles.sectionChevron,
-                                {
-                                  transform: [
-                                    { rotate: collapsedSections.today ? "0deg" : "90deg" },
-                                  ],
-                                  marginTop: 2,
-                                  opacity: 1,
-                                },
-                              ]}
-                            />
-                          </View>
-                        </View>
-                        <View
-                          style={[
-                            styles.dateRailTitlePage,
-                            { width: dateListTransitionPageWidth },
-                          ]}
-                        >
-                          <View style={styles.dateRailTitleRow}>
-                            <Text style={styles.dateRailTitle}>{transitionFromHeaderTitle}</Text>
-                            <MaterialIcons
-                              name="chevron-right"
-                              size={24}
-                              color={Colors[theme].text}
-                              style={[
-                                styles.sectionChevron,
-                                {
-                                  transform: [
-                                    { rotate: collapsedSections.today ? "0deg" : "90deg" },
-                                  ],
-                                  marginTop: 2,
-                                  opacity: 1,
-                                },
-                              ]}
-                            />
-                          </View>
-                        </View>
-                      </>
-                    )}
-                  </Animated.View>
-                ) : (
-                  <View style={styles.dateRailTitleRow}>
-                    <Text style={styles.dateRailTitle}>{dynamicHeaderTitle}</Text>
-                    <MaterialIcons
-                      name="chevron-right"
-                      size={24}
-                      color={Colors[theme].text}
+            <View style={styles.dateRailHeadlineRow}>
+              <View style={styles.dateRailHeadlineTextHost}>
+                <View style={styles.dateRailTitleTextViewport}>
+                  <View style={styles.dateRailTitleTextTransitionHost}>
+                    {dateRailTitleTransitionState.previousText ? (
+                      <Animated.Text
+                        style={[
+                          styles.dateRailTitle,
+                          styles.dateRailTitleTextTransitionText,
+                          isPreparingTitleTransition
+                            ? {
+                                opacity: 1,
+                                transform: [{ translateY: 0 }],
+                              }
+                            : {
+                                opacity: outgoingTitleOpacity,
+                                transform: [
+                                  { translateY: outgoingTitleTranslateY },
+                                ],
+                              },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {dateRailTitleTransitionState.previousText}
+                      </Animated.Text>
+                    ) : null}
+                    <Animated.Text
                       style={[
-                        styles.sectionChevron,
-                        {
-                          transform: [{ rotate: collapsedSections.today ? "0deg" : "90deg" }],
-                          marginTop: 2,
-                          opacity: 1,
-                        },
+                        styles.dateRailTitle,
+                        styles.dateRailTitleTextTransitionText,
+                        dateRailTitleTransitionState.previousText
+                          ? isPreparingTitleTransition
+                            ? {
+                                opacity: 0,
+                                transform: [
+                                  {
+                                    translateY:
+                                      DATE_RAIL_TITLE_TRANSITION_DISTANCE *
+                                      dateRailTitleTransitionState.direction,
+                                  },
+                                ],
+                              }
+                            : {
+                                opacity: incomingTitleOpacity,
+                                transform: [
+                                  { translateY: incomingTitleTranslateY },
+                                ],
+                              }
+                          : {
+                              opacity: 1,
+                              transform: [{ translateY: 0 }],
+                            },
                       ]}
-                    />
+                      numberOfLines={1}
+                    >
+                      {dateRailTitleTransitionState.currentText}
+                    </Animated.Text>
                   </View>
-                )}
+                </View>
               </View>
-            </Pressable>
+              <View style={styles.calendarButtonRow}>
+                <GlassSurface
+                  tintColor={glassSurfacePalette.calendarTint}
+                  fallbackBackgroundColor={glassSurfacePalette.calendarFallback}
+                  style={styles.calendarButton}
+                  isInteractive={true}
+                >
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t("home.jumpToToday")}
+                    hitSlop={16}
+                    style={StyleSheet.absoluteFillObject}
+                    onPress={() => {
+                      handleJumpToToday("press");
+                    }}
+                  >
+                    <View
+                      style={{
+                        flex: 1,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <SFSymbol
+                        name="arrow.uturn.backward"
+                        size={16}
+                        color={Colors[theme].text}
+                      />
+                    </View>
+                  </Pressable>
+                </GlassSurface>
+
+                <GlassSurface
+                  tintColor={glassSurfacePalette.calendarTint}
+                  fallbackBackgroundColor={glassSurfacePalette.calendarFallback}
+                  style={styles.calendarButton}
+                  isInteractive={true}
+                >
+                  <Pressable
+                    accessibilityRole="button"
+                    hitSlop={16}
+                    style={StyleSheet.absoluteFillObject}
+                    onPress={() => {
+                      setIsCalendarPickerOpen((prev) => !prev);
+                    }}
+                  >
+                    <View
+                      style={{
+                        flex: 1,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <SFSymbol
+                        name="calendar"
+                        size={16}
+                        color={Colors[theme].text}
+                      />
+                    </View>
+                  </Pressable>
+                </GlassSurface>
+              </View>
+            </View>
           </View>
-          {!collapsedSections.today ? (
-            <FlatList
+
+          {/* Calendar picker rendered as top-level Modal to avoid clipping */}
+          <Modal
+            visible={isCalendarPickerOpen}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setIsCalendarPickerOpen(false)}
+          >
+            {/* Backdrop */}
+            <Pressable
+              style={[
+                StyleSheet.absoluteFillObject,
+                { backgroundColor: "transparent" },
+              ]}
+              onPress={() => setIsCalendarPickerOpen(false)}
+            />
+            {/* Popover card */}
+            <View
+              pointerEvents="box-none"
+              style={{
+                position: "absolute",
+                top: 96,
+                left: 0,
+                right: 0,
+                alignItems: "center",
+              }}
+            >
+              <GlassSurface
+                tintColor={glassSurfacePalette.popoverTint}
+                fallbackBackgroundColor={glassSurfacePalette.popoverFallback}
+                style={styles.calendarPopover}
+                isInteractive={true}
+              >
+                <View style={styles.calendarQuickActionsRow}>
+                  <Pressable
+                    style={styles.calendarQuickActionButton}
+                    onPress={() => {
+                      handleJumpToToday("picker");
+                      setIsCalendarPickerOpen(false);
+                    }}
+                  >
+                    <Text style={styles.calendarQuickActionButtonText}>
+                      {t("common.today")}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.calendarQuickActionButton}
+                    onPress={() => {
+                      const tomorrowDateStart = addDays(getStartOfToday(), 1);
+                      scrollDateRailToDateStart(tomorrowDateStart, true, true);
+                      handleSelectDate(tomorrowDateStart, "picker");
+                      setIsCalendarPickerOpen(false);
+                    }}
+                  >
+                    <Text style={styles.calendarQuickActionButtonText}>
+                      {t("taskDetail.relative.tomorrow")}
+                    </Text>
+                  </Pressable>
+                </View>
+
+                <View style={styles.calendarPickerBody}>
+                  {isExpoUISwiftPickerAvailable ? (
+                    <ExpoSwiftUIHost
+                      matchContents
+                      style={styles.calendarPickerSwiftHost}
+                    >
+                      <ExpoSwiftUIDatePicker
+                        selection={new Date(selectedDateStart)}
+                        displayedComponents={["date"]}
+                        modifiers={[expoSwiftDatePickerStyleModifier("wheel")]}
+                        onDateChange={(date: Date) => {
+                          const nextDateStart = getStartOfDay(date.getTime());
+                          scrollDateRailToDateStart(nextDateStart, true, true);
+                          handleSelectDate(nextDateStart, "picker");
+                        }}
+                      />
+                    </ExpoSwiftUIHost>
+                  ) : (
+                    <DateTimePicker
+                      value={new Date(selectedDateStart)}
+                      mode="date"
+                      display="spinner"
+                      onChange={(_: any, date?: Date) => {
+                        if (!date) return;
+                        const nextDateStart = getStartOfDay(date.getTime());
+                        scrollDateRailToDateStart(nextDateStart, true, true);
+                        handleSelectDate(nextDateStart, "picker");
+                      }}
+                      style={styles.calendarPickerNative}
+                      textColor={isDark ? "#ffffff" : "#000000"}
+                      themeVariant={isDark ? "dark" : "light"}
+                    />
+                  )}
+                </View>
+              </GlassSurface>
+            </View>
+          </Modal>
+
+          <View
+            ref={dateRailListRef}
+            style={styles.dateRailListContainer}
+            onLayout={(e) => {
+              const w = e.nativeEvent.layout.width;
+              if (w > 0 && Math.abs(w - dateRailContainerWidth) > 1) {
+                setDateRailContainerWidth(w);
+              }
+              measureDateRailListBounds();
+              scheduleDateRailSyncToSelectedDate();
+            }}
+            onTouchMove={handleGlobalDragTouchMove}
+            onTouchEnd={handleGlobalDragTouchEnd}
+            onTouchCancel={handleGlobalDragTouchCancel}
+          >
+            <LinearGradient
+              colors={[screenBackground, withAlpha(screenBackground, 0)]}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+              style={styles.dateRailFadeLeft}
+              pointerEvents="none"
+            />
+            <Animated.FlatList
               ref={dateRailRef}
               data={dateRailDays}
-              keyExtractor={(day) => day.key}
-              renderItem={({ item: day }) => {
-                const dayContainerStyle = [styles.dateRailDay];
-                const dayBubbleStyle = [
-                  styles.dateRailDayBubble,
-                  day.isSelected ? styles.dateRailDayBubbleSelected : null,
-                ];
+              keyExtractor={(day: DateRailDay) => day.key}
+              renderItem={({ item: day }: { item: DateRailDay }) => {
+                const isToday = day.isToday;
+                const isDragCandidate =
+                  dragDetectedDateStart != null &&
+                  isSameLocalDay(day.timestamp, dragDetectedDateStart);
+                const isDropHover =
+                  dragHoveredDateStart != null &&
+                  isSameLocalDay(day.timestamp, dragHoveredDateStart);
+
                 const dayNumStyle = [
                   styles.dateRailDayNum,
                   day.isWeekend ? styles.dateRailDayNumWeekend : null,
-                  day.isToday ? styles.dateRailDayNumToday : null,
-                  day.isSelected ? styles.dateRailDayNumSelected : null,
+                  isToday ? styles.dateRailDayNumToday : null,
+                  isDragCandidate ? styles.dateRailDayNumDropCandidate : null,
+                  isDropHover ? styles.dateRailDayNumDropReady : null,
                 ];
+
                 const dayDowStyle = [
                   styles.dateRailDow,
                   day.isWeekend ? styles.dateRailDowWeekend : null,
+                  isDragCandidate ? styles.dateRailDowDropCandidate : null,
+                  isDropHover ? styles.dateRailDowDropReady : null,
                 ];
 
                 return (
@@ -2789,76 +4398,164 @@ export default function HomeScreen() {
                     accessibilityRole="button"
                     accessibilityLabel={`${day.weekday} ${day.dayOfMonth}`}
                     onPress={() => {
+                      dateRailDraggedRef.current = false;
                       closeAnyOpen();
-                      handleSelectDate(day.timestamp);
+                      triggerSelectionHaptic();
+                      scrollDateRailToDateStart(day.timestamp, true, true);
+                      handleSelectDate(day.timestamp, "press");
                     }}
-                    style={dayContainerStyle}
+                    style={({ pressed }) => [
+                      styles.dateRailDay,
+                      isDragCandidate ? styles.dateRailDayDropCandidate : null,
+                      isDropHover ? styles.dateRailDayDropReady : null,
+                      { opacity: pressed ? 0.8 : 1 },
+                    ]}
                   >
                     <Text style={dayDowStyle}>{day.weekday}</Text>
-                    {day.isSelected ? (
-                      <GlassSurface
-                        style={dayBubbleStyle}
-                        glassEffectStyle="regular"
-                        tintColor={"#F4512C"}
-                        fallbackBackgroundColor={"#F4512C"}
-                      >
-                        <Text style={dayNumStyle}>{day.dayOfMonth}</Text>
-                      </GlassSurface>
-                    ) : (
-                      <View style={dayBubbleStyle}>
-                        <Text style={dayNumStyle}>{day.dayOfMonth}</Text>
-                      </View>
-                    )}
-                    {day.eventCount > 0 ? (
+                    <Text style={dayNumStyle}>{day.dayOfMonth}</Text>
+                    {day.eventCount > 0 && (
                       <View style={styles.dateRailEventIndicator} />
-                    ) : (
-                      <View style={styles.dateRailEventIndicatorSpacer} />
                     )}
                   </Pressable>
                 );
               }}
               horizontal
               style={styles.dateRailList}
-              contentContainerStyle={styles.dateRailRow}
-              initialScrollIndex={dateRailInitialIndex}
+              contentContainerStyle={[
+                styles.dateRailRow,
+                { paddingHorizontal: dateRailSidePadding },
+              ]}
+              onLayout={() => {
+                scheduleDateRailSyncToSelectedDate();
+              }}
               getItemLayout={getDateRailItemLayout}
               onScrollToIndexFailed={handleDateRailScrollToIndexFailed}
               onScroll={handleDateRailScroll}
+              onScrollBeginDrag={handleDateRailScrollBeginDrag}
+              onScrollEndDrag={handleDateRailScrollEndDrag}
+              onMomentumScrollBegin={handleDateRailMomentumBegin}
               onMomentumScrollEnd={handleDateRailMomentumEnd}
               showsHorizontalScrollIndicator={false}
-              snapToOffsets={dateRailWeekSnapOffsets}
+              snapToInterval={dateRailSnapInterval}
               snapToAlignment="start"
               decelerationRate="fast"
-              disableIntervalMomentum
               bounces={false}
               scrollEventThrottle={16}
             />
-          ) : null}
+
+            <View
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                top: 0,
+                bottom: 0,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              pointerEvents="none"
+            >
+              <View
+                style={[styles.dateRailCenterIndicator, { overflow: "hidden" }]}
+              >
+                <Animated.View
+                  style={{
+                    flexDirection: "row",
+                    gap: DATE_RAIL_ITEM_GAP,
+                    transform: [
+                      {
+                        translateX: dateRailScrollX.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, -1],
+                        }),
+                      },
+                    ],
+                  }}
+                >
+                  {dateRailDays.map((day) => {
+                    const isToday = day.isToday;
+                    const dayNumStyle = [
+                      styles.dateRailDayNum,
+                      day.isWeekend ? styles.dateRailDayNumWeekend : null,
+                      isToday ? styles.dateRailDayNumToday : null,
+                      { color: "#FFFFFF" },
+                    ];
+                    const dayDowStyle = [
+                      styles.dateRailDow,
+                      day.isWeekend ? styles.dateRailDowWeekend : null,
+                      { color: "#FFFFFF" },
+                    ];
+                    return (
+                      <View
+                        key={day.key}
+                        style={[
+                          styles.dateRailDay,
+                          { backgroundColor: "transparent" },
+                        ]}
+                      >
+                        <Text style={dayDowStyle}>{day.weekday}</Text>
+                        <Text style={dayNumStyle}>{day.dayOfMonth}</Text>
+                        {day.eventCount > 0 && (
+                          <View
+                            style={[
+                              styles.dateRailEventIndicator,
+                              { backgroundColor: "#FFFFFF" },
+                            ]}
+                          />
+                        )}
+                      </View>
+                    );
+                  })}
+                </Animated.View>
+              </View>
+            </View>
+            <LinearGradient
+              colors={[withAlpha(screenBackground, 0), screenBackground]}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+              style={styles.dateRailFadeRight}
+              pointerEvents="none"
+            />
+          </View>
         </View>
       </View>
     );
   }, [
     closeAnyOpen,
-    collapsedSections.today,
     dateRailDays,
-    dateRailInitialIndex,
-    dateRailWeekSnapOffsets,
-    dateListTransitionPageWidth,
-    dateListTransitionState,
-    dateListTranslateX,
-    dynamicHeaderTitle,
+    dateRailSidePadding,
+    dateRailSnapInterval,
+    dateRailScrollX,
+    dateRailTitleMotion,
+    dateRailTitleTransitionState,
+    dragDetectedDateStart,
+    dragHoveredDateStart,
     firstVisibleSection,
     getDateRailItemLayout,
     handleDateRailMomentumEnd,
+    handleDateRailMomentumBegin,
     handleDateRailScroll,
+    handleDateRailScrollBeginDrag,
+    handleDateRailScrollEndDrag,
     handleDateRailScrollToIndexFailed,
+    handleGlobalDragTouchCancel,
+    handleGlobalDragTouchEnd,
+    handleGlobalDragTouchMove,
+    glassSurfacePalette,
+    handleJumpToToday,
     handleSelectDate,
-    isDateListTransitioning,
+    isExpoUISwiftPickerAvailable,
+    scrollDateRailToDateStart,
+    isCalendarPickerOpen,
+    isDark,
     measureDateRailBounds,
+    measureDateRailListBounds,
+    screenBackground,
+    selectedDateStart,
+    scheduleDateRailSyncToSelectedDate,
     styles,
     theme,
-    transitionFromHeaderTitle,
-    transitionToHeaderTitle,
+    dateRailContainerWidth,
   ]);
 
   const listHeader = React.useMemo(() => {
@@ -2867,20 +4564,13 @@ export default function HomeScreen() {
     if (sectionId === "today") {
       return (
         <View style={styles.topHeroWrap}>
-          <View
-            style={[
-              styles.topHeroSurface,
-              {
-                backgroundColor: quickNavTheme.topSurface,
-                borderBottomColor: quickNavTheme.topDivider,
-                borderBottomWidth: StyleSheet.hairlineWidth,
-              },
-            ]}
-          >
-            <QuickNavGrid
-              tiles={quickTiles}
+          <View style={styles.topHeroSurface}>
+            <HomeMetricsGrid
+              animateValues={!reduceMotionEnabled}
+              metricsAnimationCycle={metricsAnimationCycle}
+              metrics={homeMetricsProps}
               styles={styles}
-              theme={quickNavTheme}
+              theme={homeMetricsTheme}
             />
           </View>
         </View>
@@ -2889,12 +4579,19 @@ export default function HomeScreen() {
     return null;
   }, [
     firstVisibleSection,
-    quickNavTheme,
-    quickTiles,
+    homeMetricsProps,
+    homeMetricsTheme,
+    metricsAnimationCycle,
+    reduceMotionEnabled,
     styles,
   ]);
+  const areCollapsibleSectionsCollapsed =
+    (!hasTodaySection || collapsedSections.today) &&
+    (!hasUpcomingSection || collapsedSections.upcoming);
 
   const archivePill = React.useMemo(() => {
+    if (showCompletedTasksEnabled) return null;
+
     const completedCount = tasks.filter(
       (t) => t.section === "completed" && !t.deletedAt,
     ).length;
@@ -2913,7 +4610,14 @@ export default function HomeScreen() {
       completedCount > 0 ? "completed" : "trash";
 
     return (
-      <View style={styles.archivePillFooter}>
+      <View
+        style={[
+          styles.archivePillFooter,
+          areCollapsibleSectionsCollapsed
+            ? styles.archivePillFooterCollapsed
+            : null,
+        ]}
+      >
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t("home.openArchive")}
@@ -2921,14 +4625,8 @@ export default function HomeScreen() {
           style={({ pressed }) => [pressed && { opacity: 0.92 }]}
         >
           <GlassSurface
-            tintColor={withAlpha(
-              Colors[theme].background,
-              isDark ? 0.18 : 0.28,
-            )}
-            fallbackBackgroundColor={withAlpha(
-              Colors[theme].background,
-              isDark ? 0.86 : 0.92,
-            )}
+            tintColor={glassSurfacePalette.chipTint}
+            fallbackBackgroundColor={glassSurfacePalette.chipFallback}
             style={styles.archivePill}
           >
             <MaterialIcons
@@ -2941,332 +4639,79 @@ export default function HomeScreen() {
         </Pressable>
       </View>
     );
-  }, [isDark, router, styles, tasks, theme]);
+  }, [
+    areCollapsibleSectionsCollapsed,
+    glassSurfacePalette,
+    router,
+    showCompletedTasksEnabled,
+    styles,
+    tasks,
+    theme,
+  ]);
 
   return (
-    <View style={styles.container}>
-      <NestableScrollContainer
-        ref={scrollRef}
-        scrollEnabled={!isSwipeGestureActive}
+    <View
+      style={[styles.container, { backgroundColor: "transparent" }]}
+      onTouchMove={handleGlobalDragTouchMove}
+      onTouchEnd={handleGlobalDragTouchEnd}
+      onTouchEndCapture={handleGlobalDragTouchEnd}
+      onTouchCancel={handleGlobalDragTouchCancel}
+    >
+      <StreakAccentBackground isDark={isDark} />
+      <TaskSwipeDraggableList
+        ref={todayListRef}
+        theme={theme}
+        tasks={visibleTasks}
+        data={swipeListData}
+        renderHeaderRow={renderSectionHeaderRow}
+        projectsById={projectsById}
+        isDark={isDark}
+        rowStyles={styles}
+        itemSpacing={HOME_TASK_ITEM_SPACING}
+        enabledTags={enabledTags}
+        showTaskIcons={showTagIcons}
+        showCompactSubtasks={withSubtasksEnabled}
+        dragCompactPreview={isDragOverCalendarHeader}
+        followHorizontalDrag={isDragOverCalendarHeader}
+        selectedDateStart={listDateStart}
+        empty={!hasVisibleTasks ? calendarEmptyState : null}
+        onPressTask={handlePressTask}
+        toggleComplete={handleToggleComplete}
+        toggleSubtask={handleToggleSubtask}
+        deleteTask={handleDeleteTask}
+        onReorderData={applyOrderFromSwipeListData}
+        onDragBeginTask={handleDragBeginTask}
+        onDragEndMeta={handleDragEndMeta}
+        onDragStateChange={handleDragStateChange}
+        onDragGestureUpdate={handleDragGestureUpdate}
+        onScrollOffsetChange={handleTaskListScrollOffsetChange}
+        onListTouchMove={handleListDragTouchMove}
+        onListTouchEnd={handleListDragTouchEnd}
+        onListTouchCancel={handleListDragTouchCancel}
+        onSwipeStateChange={handleSwipeStateChange}
+        onRowTouchStateChange={handleRowTouchStateChange}
+        renderMode="auto"
+        syncDataDuringDrag={false}
+        animateDataLayoutChanges={false}
+        revealProgress={homeTaskListRevealProgress}
+        revealPhase={homeTaskListRevealPhase}
+        revealStaggerStep={0.035}
+        revealTranslateX={48}
+        containerStyle={{ backgroundColor: "transparent" }}
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={[styles.content]}
-        scrollEventThrottle={16}
-        showsVerticalScrollIndicator={false}
-      >
-        {listHeader}
+        contentContainerStyle={styles.taskListContent}
+        header={
+          <>
+            {listHeader}
+            {dateRailPanel}
+          </>
+        }
+        footer={<>{archivePill}</>}
+      />
 
-        {hasTodaySection ? (
-          <GlassSurface
-            style={[
-              styles.dateTasksSurface,
-              activeDragSurface === "today" ? styles.segmentSurfaceDragActive : null,
-              activeDragSurface === "upcoming"
-                ? styles.segmentSurfaceDragInactive
-                : null,
-            ]}
-            glassEffectStyle="regular"
-            tintColor={quickNavTheme.cardTintColor}
-            fallbackBackgroundColor={quickNavTheme.cardFallbackColor}
-          >
-            <Animated.View
-              style={[
-                styles.dateTasksSurfaceHeightFrame,
-                todaySurfaceMeasuredHeight > 0 ? { height: todaySurfaceHeight } : null,
-              ]}
-            >
-              <View onLayout={handleTodaySurfaceContentLayout}>
-                {dateRailPanel}
-
-                {!collapsedSections.today ? (
-                  <View
-                    style={[
-                      styles.taskListInset,
-                      !hasTodayTasks ? styles.taskListInsetNoContent : null,
-                    ]}
-                  >
-                    <View
-                      style={styles.dateListTransitionHost}
-                      onLayout={handleDateListHostLayout}
-                    >
-                      {isDateListTransitioning &&
-                      dateListTransitionState &&
-                      dateListTransitionData ? (
-                        <Animated.View
-                          pointerEvents="none"
-                          style={[
-                            styles.dateListTransitionTrack,
-                            { transform: [{ translateX: dateListTranslateX }] },
-                          ]}
-                        >
-                          {dateListTransitionState.direction === 1 ? (
-                            <>
-                              <View
-                                style={[
-                                  styles.dateListTransitionPage,
-                                  { width: dateListTransitionPageWidth },
-                                ]}
-                              >
-                                <TaskSwipeDraggableList
-                                  theme={theme}
-                                  tasks={dateListTransitionData.fromVisibleTasks}
-                                  projectsById={projectsById}
-                                  rowStyles={styles}
-                                  itemSpacing={HOME_TASK_ITEM_SPACING}
-                                  enabledTags={enabledTags}
-                                  showTaskIcons={showTagIcons}
-                                  showCompactSubtasks={withSubtasksEnabled}
-                                  selectedDateStart={dateListTransitionState.fromDateStart}
-                                  data={dateListTransitionData.fromTodayData}
-                                  empty={
-                                    dateListTransitionData.fromTodayData.length === 0 ? (
-                                      <View style={styles.emptyState}>
-                                        <Text style={styles.emptyText}>{t("home.empty.noTasks")}</Text>
-                                      </View>
-                                    ) : null
-                                  }
-                                  onPressTask={handlePressTask}
-                                  toggleComplete={handleToggleComplete}
-                                  toggleSubtask={handleToggleSubtask}
-                                  deleteTask={handleDeleteTask}
-                                  renderMode="static"
-                                  animateDataLayoutChanges={false}
-                                />
-                              </View>
-                              <View
-                                style={[
-                                  styles.dateListTransitionPage,
-                                  { width: dateListTransitionPageWidth },
-                                ]}
-                              >
-                                <TaskSwipeDraggableList
-                                  theme={theme}
-                                  tasks={dateListTransitionData.toVisibleTasks}
-                                  projectsById={projectsById}
-                                  rowStyles={styles}
-                                  itemSpacing={HOME_TASK_ITEM_SPACING}
-                                  enabledTags={enabledTags}
-                                  showTaskIcons={showTagIcons}
-                                  showCompactSubtasks={withSubtasksEnabled}
-                                  selectedDateStart={dateListTransitionState.toDateStart}
-                                  data={dateListTransitionData.toTodayData}
-                                  empty={
-                                    dateListTransitionData.toTodayData.length === 0 ? (
-                                      <View style={styles.emptyState}>
-                                        <Text style={styles.emptyText}>{t("home.empty.noTasks")}</Text>
-                                      </View>
-                                    ) : null
-                                  }
-                                  onPressTask={handlePressTask}
-                                  toggleComplete={handleToggleComplete}
-                                  toggleSubtask={handleToggleSubtask}
-                                  deleteTask={handleDeleteTask}
-                                  renderMode="static"
-                                  animateDataLayoutChanges={false}
-                                />
-                              </View>
-                            </>
-                          ) : (
-                            <>
-                              <View
-                                style={[
-                                  styles.dateListTransitionPage,
-                                  { width: dateListTransitionPageWidth },
-                                ]}
-                              >
-                                <TaskSwipeDraggableList
-                                  theme={theme}
-                                  tasks={dateListTransitionData.toVisibleTasks}
-                                  projectsById={projectsById}
-                                  rowStyles={styles}
-                                  itemSpacing={HOME_TASK_ITEM_SPACING}
-                                  enabledTags={enabledTags}
-                                  showTaskIcons={showTagIcons}
-                                  showCompactSubtasks={withSubtasksEnabled}
-                                  selectedDateStart={dateListTransitionState.toDateStart}
-                                  data={dateListTransitionData.toTodayData}
-                                  empty={
-                                    dateListTransitionData.toTodayData.length === 0 ? (
-                                      <View style={styles.emptyState}>
-                                        <Text style={styles.emptyText}>{t("home.empty.noTasks")}</Text>
-                                      </View>
-                                    ) : null
-                                  }
-                                  onPressTask={handlePressTask}
-                                  toggleComplete={handleToggleComplete}
-                                  toggleSubtask={handleToggleSubtask}
-                                  deleteTask={handleDeleteTask}
-                                  renderMode="static"
-                                  animateDataLayoutChanges={false}
-                                />
-                              </View>
-                              <View
-                                style={[
-                                  styles.dateListTransitionPage,
-                                  { width: dateListTransitionPageWidth },
-                                ]}
-                              >
-                                <TaskSwipeDraggableList
-                                  theme={theme}
-                                  tasks={dateListTransitionData.fromVisibleTasks}
-                                  projectsById={projectsById}
-                                  rowStyles={styles}
-                                  itemSpacing={HOME_TASK_ITEM_SPACING}
-                                  enabledTags={enabledTags}
-                                  showTaskIcons={showTagIcons}
-                                  showCompactSubtasks={withSubtasksEnabled}
-                                  selectedDateStart={dateListTransitionState.fromDateStart}
-                                  data={dateListTransitionData.fromTodayData}
-                                  empty={
-                                    dateListTransitionData.fromTodayData.length === 0 ? (
-                                      <View style={styles.emptyState}>
-                                        <Text style={styles.emptyText}>{t("home.empty.noTasks")}</Text>
-                                      </View>
-                                    ) : null
-                                  }
-                                  onPressTask={handlePressTask}
-                                  toggleComplete={handleToggleComplete}
-                                  toggleSubtask={handleToggleSubtask}
-                                  deleteTask={handleDeleteTask}
-                                  renderMode="static"
-                                  animateDataLayoutChanges={false}
-                                />
-                              </View>
-                            </>
-                          )}
-                        </Animated.View>
-                      ) : (
-                        <View
-                          onTouchStart={onListTouchStart}
-                          onTouchEnd={onListTouchEnd}
-                          onTouchCancel={onListTouchCancel}
-                          pointerEvents={isDateListTransitioning ? "none" : "auto"}
-                        >
-                          <TaskSwipeDraggableList
-                            ref={todayListRef}
-                            theme={theme}
-                            tasks={visibleTasks}
-                            projectsById={projectsById}
-                            rowStyles={styles}
-                            itemSpacing={HOME_TASK_ITEM_SPACING}
-                            enabledTags={enabledTags}
-                            showTaskIcons={showTagIcons}
-                            showCompactSubtasks={withSubtasksEnabled}
-                            selectedDateStart={listDateStart}
-                            data={todaySwipeListData}
-                            empty={
-                              !hasTodayTasks ? (
-                                <View style={styles.emptyState}>
-                                  <Text style={styles.emptyText}>{t("home.empty.noTasks")}</Text>
-                                </View>
-                              ) : null
-                            }
-                            onPressTask={handlePressTask}
-                            toggleComplete={handleToggleComplete}
-                            toggleSubtask={handleToggleSubtask}
-                            deleteTask={handleDeleteTask}
-                            onReorderData={applyOrderFromTodaySegment}
-                            onDragBeginTask={handleDragBeginTask}
-                            onDragTouchPoint={handleDragTouchPoint}
-                            onDragEndMeta={handleDragEndMeta}
-                            onDragStateChange={handleDragStateChange}
-                            onSwipeStateChange={handleSwipeStateChange}
-                            dragAxisMode="free"
-                            renderMode="nestable"
-                            scrollRef={scrollRef}
-                            animateDataLayoutChanges={false}
-                          />
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                ) : null}
-              </View>
-            </Animated.View>
-          </GlassSurface>
-        ) : null}
-
-        {hasUpcomingSection ? (
-          <GlassSurface
-            ref={upcomingSurfaceRef}
-            onLayout={measureUpcomingSurfaceBounds}
-            style={[
-              styles.upcomingTasksSurface,
-              activeDragSurface === "upcoming"
-                ? styles.segmentSurfaceDragActive
-                : null,
-              activeDragSurface === "today"
-                ? styles.segmentSurfaceDragInactive
-                : null,
-            ]}
-            glassEffectStyle="regular"
-            tintColor={quickNavTheme.cardTintColor}
-            fallbackBackgroundColor={quickNavTheme.cardFallbackColor}
-          >
-            {renderSectionHeaderRow("upcoming")}
-            {!collapsedSections.upcoming ? (
-              <View
-                style={[
-                  styles.taskListInset,
-                  !hasUpcomingTasks ? styles.taskListInsetNoContent : null,
-                ]}
-              >
-                <View
-                  onTouchStart={onListTouchStart}
-                  onTouchEnd={onListTouchEnd}
-                  onTouchCancel={onListTouchCancel}
-                >
-                  <TaskSwipeDraggableList
-                    ref={upcomingListRef}
-                    theme={theme}
-                    tasks={visibleTasks}
-                    projectsById={projectsById}
-                    rowStyles={styles}
-                    itemSpacing={HOME_TASK_ITEM_SPACING}
-                    enabledTags={enabledTags}
-                    showTaskIcons={showTagIcons}
-                    showCompactSubtasks={withSubtasksEnabled}
-                    selectedDateStart={listDateStart}
-                    data={upcomingSwipeListData}
-                    empty={
-                      !hasUpcomingTasks ? (
-                        <View style={styles.upcomingEmptyDropZone} />
-                      ) : null
-                    }
-                    onPressTask={handlePressTask}
-                    toggleComplete={handleToggleComplete}
-                    toggleSubtask={handleToggleSubtask}
-                    deleteTask={handleDeleteTask}
-                    onReorderData={applyOrderFromUpcomingSegment}
-                    onDragBeginTask={handleDragBeginTask}
-                    onDragTouchPoint={handleDragTouchPoint}
-                    onDragEndMeta={handleDragEndMeta}
-                    onDragStateChange={handleDragStateChange}
-                    onSwipeStateChange={handleSwipeStateChange}
-                    dragAxisMode="free"
-                    renderMode="nestable"
-                    scrollRef={scrollRef}
-                  />
-                </View>
-              </View>
-            ) : null}
-          </GlassSurface>
-        ) : null}
-
-        {archivePill}
-
-        <View
-          pointerEvents="none"
-          accessible={false}
-          importantForAccessibility="no-hide-descendants"
-          style={styles.minimizeProbeWrap}
-        >
-          {minimizeProbeRows.map((row) => (
-            <View key={`probe-${row}`} style={styles.minimizeProbeRow} />
-          ))}
-        </View>
-      </NestableScrollContainer>
-
-      {showFloatingAddButton ? <FloatingAddButton onPress={handleAddTask} /> : null}
+      {showFloatingAddButton ? (
+        <FloatingAddButton onPress={handleAddTask} />
+      ) : null}
     </View>
   );
 }

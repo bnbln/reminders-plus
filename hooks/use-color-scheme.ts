@@ -1,17 +1,20 @@
 import { Appearance, useColorScheme as useRNColorScheme } from 'react-native';
+import { resolveThemeFromAppearanceMode, useAppSettings } from '@/context/settings-store';
 
 type ResolvedColorScheme = 'light' | 'dark';
 
+function normalizeScheme(value: unknown): ResolvedColorScheme | null {
+  return value === 'dark' || value === 'light' ? value : null;
+}
+
 export function useColorScheme(): ResolvedColorScheme {
-  const colorScheme = useRNColorScheme();
-  if (colorScheme === 'light' || colorScheme === 'dark') {
-    return colorScheme;
-  }
+  const { appearanceMode, hasHydrated } = useAppSettings();
+  const hookScheme = normalizeScheme(useRNColorScheme());
+  const appearanceScheme = normalizeScheme(Appearance.getColorScheme());
+  const systemScheme = appearanceScheme ?? hookScheme ?? 'light';
 
-  const appearanceScheme = Appearance.getColorScheme();
-  if (appearanceScheme === 'light' || appearanceScheme === 'dark') {
-    return appearanceScheme;
-  }
+  // Before settings hydrate we stay on the device scheme to avoid a light flash on cold start.
+  if (!hasHydrated) return systemScheme;
 
-  return 'light';
+  return resolveThemeFromAppearanceMode(appearanceMode, systemScheme);
 }

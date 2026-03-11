@@ -6,8 +6,36 @@
     <true/>
     <key>CFBundleDevelopmentRegion</key>
     <string>$(DEVELOPMENT_LANGUAGE)</string>
+    <key>CFBundleLocalizations</key>
+    <array>
+      <string>de</string>
+      <string>en</string>
+      <string>es</string>
+      <string>fr</string>
+      <string>pt</string>
+      <string>hi</string>
+      <string>zh</string>
+      <string>ja</string>
+      <string>it</string>
+      <string>sv</string>
+      <string>da</string>
+      <string>fi</string>
+      <string>pl</string>
+      <string>nl</string>
+      <string>tr</string>
+      <string>cs</string>
+      <string>hu</string>
+      <string>ro</string>
+      <string>el</string>
+      <string>id</string>
+      <string>vi</string>
+      <string>ko</string>
+      <string>uk</string>
+      <string>ru</string>
+      <string>ar</string>
+    </array>
     <key>CFBundleDisplayName</key>
-    <string>reminds</string>
+    <string>Reminders+</string>
     <key>CFBundleExecutable</key>
     <string>$(EXECUTABLE_NAME)</string>
     <key>CFBundleIdentifier</key>
@@ -19,7 +47,7 @@
     <key>CFBundlePackageType</key>
     <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0.2</string>
+    <string>1.0.5</string>
     <key>CFBundleSignature</key>
     <string>????</string>
     <key>CFBundleURLTypes</key>
@@ -33,7 +61,7 @@
       </dict>
     </array>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>2</string>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
     <key>LSRequiresIPhoneOS</key>
@@ -45,12 +73,20 @@
       <key>NSAllowsLocalNetworking</key>
       <true/>
     </dict>
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>Wir importieren Termine aus Apple Kalender in deine App.</string>
+    <key>NSCalendarsUsageDescription</key>
+    <string>Wir importieren Termine aus Apple Kalender in deine App.</string>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
     <string>Wir verwenden deinen Standort, um den aktuellen Ort für den Task vorzuschlagen.</string>
     <key>NSLocationAlwaysUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your location</string>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>Wir verwenden deinen Standort, um den aktuellen Ort für den Task vorzuschlagen.</string>
+    <key>NSRemindersFullAccessUsageDescription</key>
+    <string>Wir importieren Erinnerungen aus Apple Erinnerungen in deine App.</string>
+    <key>NSRemindersUsageDescription</key>
+    <string>Wir importieren Erinnerungen aus Apple Erinnerungen in deine App.</string>
     <key>NSUserActivityTypes</key>
     <array>
       <string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>
@@ -65,6 +101,10 @@
     </array>
     <key>UIRequiresFullScreen</key>
     <false/>
+    <key>UIBackgroundModes</key>
+    <array>
+      <string>remote-notification</string>
+    </array>
     <key>UIStatusBarStyle</key>
     <string>UIStatusBarStyleDefault</string>
     <key>UISupportedInterfaceOrientations</key>

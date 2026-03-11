@@ -1,18 +1,14 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import Constants from "expo-constants";
 import { Tabs, useGlobalSearchParams, useSegments } from "expo-router";
-import {
-  Icon,
-  Label,
-  NativeTabs,
-  VectorIcon,
-} from "expo-router/unstable-native-tabs";
+import { NativeTabs } from "expo-router/unstable-native-tabs";
 import React from "react";
 import { DynamicColorIOS, NativeModules, Platform, StyleSheet, View } from "react-native";
 
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Colors } from "@/constants/theme";
+import { preloadStreakAccentBackgroundAssets } from "@/components/ui/streak-accent-background";
+import { Colors, LIGHT_ACCENT_SCREEN_BACKGROUND } from "@/constants/theme";
 import { useTaskCreateContext } from "@/context/task-create-context";
 import { TabBarMinimizeProvider } from "@/context/tabbar-minimize-store";
 import { useTasksStore } from "@/context/tasks-store";
@@ -22,23 +18,30 @@ import { isIOS26OrNewer } from "@/utils/ios-version";
 
 type TaskAccessoryContextBridge = {
   setContext?: (
-    mode: "task" | "routine" | "project" | "inProject",
+    mode: "task" | "today" | "routine" | "project" | "inProject",
     projectId?: string | null,
     projectLabel?: string | null,
+    selectedDateStart?: number | null,
   ) => void;
 };
+const HOME_LIGHT_BACKGROUND = LIGHT_ACCENT_SCREEN_BACKGROUND;
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const theme = colorScheme ?? "light";
+  const tabSceneBackground =
+    theme === "dark" ? Colors[theme].background : HOME_LIGHT_BACKGROUND;
   const isIOS26Plus = isIOS26OrNewer();
-  const showRoutinesTab = false;
   const segments = useSegments();
   const { id: routeIdParam } = useGlobalSearchParams<{ id?: string | string[] }>();
-  const { setProjectId, clearProjectId, setMode } = useTaskCreateContext();
+  const { setProjectId, clearProjectId, setMode, clearPresetDateStart } = useTaskCreateContext();
   const { projects } = useTasksStore();
   const accessoryBridge = NativeModules
     .TaskAccessoryContextBridge as TaskAccessoryContextBridge | undefined;
+
+  React.useEffect(() => {
+    void preloadStreakAccentBackgroundAssets();
+  }, []);
 
   const routeProjectId = React.useMemo(() => {
     const rawRouteId = Array.isArray(routeIdParam) ? routeIdParam[0] : routeIdParam;
@@ -56,6 +59,15 @@ export default function TabLayout() {
 
   React.useEffect(() => {
     const [first, second, third] = segments;
+    const segmentList = segments as string[];
+    const isHomeStackRoute =
+      first === "(tabs)" && (second === undefined || second === "home");
+    const isTodayRoute =
+      isHomeStackRoute &&
+      (third === undefined ||
+        third === "today" ||
+        third === "archive" ||
+        third === "streaks");
 
     // Keep project context only for the in-tab project detail route.
     if (
@@ -67,18 +79,32 @@ export default function TabLayout() {
     ) {
       setProjectId(routeProjectId);
       setMode("inProject");
+      clearPresetDateStart();
       return;
     }
 
-    if (first === "(tabs)" && second === "home" && (third === "routines" || segments.includes("routines"))) {
+    const isRoutinesRoute =
+      (first === "(tabs)" && second === "routines") ||
+      (first === "(tabs)" &&
+        second === "home" &&
+        (third === "routines" || segmentList.includes("routines")));
+    if (isRoutinesRoute) {
       clearProjectId();
       setMode("routine");
+      clearPresetDateStart();
+      return;
+    }
+
+    if (isTodayRoute) {
+      clearProjectId();
+      setMode("today");
       return;
     }
 
     if (first === "(tabs)" && second === "explore") {
       clearProjectId();
       setMode("project");
+      clearPresetDateStart();
       return;
     }
 
@@ -88,13 +114,23 @@ export default function TabLayout() {
     if (first === "(tabs)") {
       clearProjectId();
       setMode("task");
+      clearPresetDateStart();
     }
-  }, [clearProjectId, routeProjectExists, routeProjectId, segments, setMode, setProjectId]);
+  }, [clearPresetDateStart, clearProjectId, routeProjectExists, routeProjectId, segments, setMode, setProjectId]);
 
   React.useEffect(() => {
     if (Platform.OS !== "ios" || !isIOS26Plus) return;
 
     const [first, second, third] = segments;
+    const segmentList = segments as string[];
+    const isHomeStackRoute =
+      first === "(tabs)" && (second === undefined || second === "home");
+    const isTodayRoute =
+      isHomeStackRoute &&
+      (third === undefined ||
+        third === "today" ||
+        third === "archive" ||
+        third === "streaks");
     if (first === "(tabs)" && second === "explore" && third === undefined) {
       accessoryBridge?.setContext?.("project", null, null);
       return;
@@ -121,11 +157,17 @@ export default function TabLayout() {
     }
 
     const isRoutinesRoute =
-      first === "(tabs)" &&
-      second === "home" &&
-      (third === "routines" || segments.includes("routines"));
+      (first === "(tabs)" && second === "routines") ||
+      (first === "(tabs)" &&
+        second === "home" &&
+        (third === "routines" || segmentList.includes("routines")));
     if (isRoutinesRoute) {
       accessoryBridge?.setContext?.("routine", null, null);
+      return;
+    }
+
+    if (isTodayRoute) {
+      accessoryBridge?.setContext?.("today", null, null);
       return;
     }
 
@@ -142,7 +184,7 @@ export default function TabLayout() {
 
   if (Platform.OS !== "ios" && Platform.OS !== "android") {
     return (
-      <View style={{ flex: 1, backgroundColor: Colors[theme].background }}>
+      <View style={{ flex: 1, backgroundColor: tabSceneBackground }}>
         <Tabs
           screenOptions={{
             tabBarActiveTintColor: Colors[theme].tint,
@@ -156,10 +198,10 @@ export default function TabLayout() {
                 style={StyleSheet.absoluteFill}
                 glassEffectStyle="regular"
                 tintColor={withAlpha(
-                  Colors[theme].background,
+                  tabSceneBackground,
                   theme === "dark" ? 0.22 : 0.35,
                 )}
-                fallbackBackgroundColor={Colors[theme].background}
+                fallbackBackgroundColor={tabSceneBackground}
               />
             ),
           }}
@@ -167,13 +209,18 @@ export default function TabLayout() {
           <Tabs.Screen
             name="home"
             options={{
-              title: t("tabs.tasks"),
+              title: t("common.today"),
               tabBarIcon: ({ color }) => (
-                <IconSymbol
-                  size={28}
-                  name="checkmark.circle.fill"
-                  color={color}
-                />
+                <MaterialIcons name="calendar-today" size={24} color={color} />
+              ),
+            }}
+          />
+          <Tabs.Screen
+            name="inbox"
+            options={{
+              title: t("common.inbox"),
+              tabBarIcon: ({ color }) => (
+                <MaterialIcons name="inbox" size={24} color={color} />
               ),
             }}
           />
@@ -207,13 +254,13 @@ export default function TabLayout() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: Colors[theme].background }}>
+    <View style={{ flex: 1, backgroundColor: tabSceneBackground }}>
       <TabBarMinimizeProvider behavior="onScrollDown">
         <NativeTabs
           minimizeBehavior="onScrollDown"
           // Keep scroll-edge behavior native on iOS 26+ so tab minimization can react to content scrolling.
           disableTransparentOnScrollEdge={!isIOS26Plus}
-          backgroundColor={Colors[theme].background}
+          backgroundColor={tabSceneBackground}
           labelStyle={
             Platform.OS === "ios"
               ? {
@@ -233,92 +280,122 @@ export default function TabLayout() {
               : Colors[theme].tint
           }
         >
-          <NativeTabs.Trigger name="home">
-            <Label>{t("tabs.tasks")}</Label>
+          <NativeTabs.Trigger
+            name="home"
+            contentStyle={{ backgroundColor: "transparent" }}
+          >
+            <NativeTabs.Trigger.Label>{t("common.today")}</NativeTabs.Trigger.Label>
             {Platform.select({
               ios: (
-                <Icon
+                <NativeTabs.Trigger.Icon
                   sf={{
-                    default: "checkmark.circle",
-                    selected: "checkmark.circle.fill",
+                    default: "calendar",
+                    selected: "calendar",
                   }}
                 />
               ),
               android: (
-                <Icon
+                <NativeTabs.Trigger.Icon
                   src={
-                    <VectorIcon family={MaterialIcons} name="check-circle" />
+                    <NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="calendar-today" />
                   }
                 />
               ),
             })}
           </NativeTabs.Trigger>
 
-          {isIOS26Plus ? (
-            <NativeTabs.Trigger name="search" role="search">
-              <Label>{t("tabs.search")}</Label>
-              {Platform.select({
-                ios: (
-                  <Icon
-                    sf={{
-                      default: "magnifyingglass",
-                      selected: "magnifyingglass",
-                    }}
-                  />
-                ),
-                android: (
-                  <Icon
-                    src={<VectorIcon family={MaterialIcons} name="search" />}
-                  />
-                ),
-              })}
-            </NativeTabs.Trigger>
-          ) : (
-            <NativeTabs.Trigger name="search">
-              <Label>{t("tabs.search")}</Label>
-              {Platform.select({
-                ios: (
-                  <Icon
-                    sf={{
-                      default: "magnifyingglass",
-                      selected: "magnifyingglass",
-                    }}
-                  />
-                ),
-                android: (
-                  <Icon
-                    src={<VectorIcon family={MaterialIcons} name="search" />}
-                  />
-                ),
-              })}
-            </NativeTabs.Trigger>
-          )}
-
-          <NativeTabs.Trigger name="explore">
-            <Label>{t("tabs.projects")}</Label>
+          <NativeTabs.Trigger
+            name="inbox"
+            contentStyle={{ backgroundColor: "transparent" }}
+          >
+            <NativeTabs.Trigger.Label>{t("common.inbox")}</NativeTabs.Trigger.Label>
             {Platform.select({
-              ios: <Icon sf={{ default: "folder", selected: "folder.fill" }} />,
+              ios: <NativeTabs.Trigger.Icon sf={{ default: "tray", selected: "tray.fill" }} />,
               android: (
-                <Icon
-                  src={<VectorIcon family={MaterialIcons} name="folder" />}
+                <NativeTabs.Trigger.Icon
+                  src={<NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="inbox" />}
                 />
               ),
             })}
           </NativeTabs.Trigger>
 
-          {showRoutinesTab && (
-            <NativeTabs.Trigger name="routines">
-              <Label>{t("home.quick.routines")}</Label>
+          {isIOS26Plus ? (
+            <NativeTabs.Trigger
+              name="search"
+              role="search"
+              contentStyle={{ backgroundColor: "transparent" }}
+            >
+              <NativeTabs.Trigger.Label>{t("tabs.search")}</NativeTabs.Trigger.Label>
               {Platform.select({
-                ios: <Icon sf={{ default: "repeat", selected: "repeat" }} />,
+                ios: (
+                  <NativeTabs.Trigger.Icon
+                    sf={{
+                      default: "magnifyingglass",
+                      selected: "magnifyingglass",
+                    }}
+                  />
+                ),
                 android: (
-                  <Icon
-                    src={<VectorIcon family={MaterialIcons} name="repeat" />}
+                  <NativeTabs.Trigger.Icon
+                    src={<NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="search" />}
+                  />
+                ),
+              })}
+            </NativeTabs.Trigger>
+          ) : (
+            <NativeTabs.Trigger
+              name="search"
+              contentStyle={{ backgroundColor: "transparent" }}
+            >
+              <NativeTabs.Trigger.Label>{t("tabs.search")}</NativeTabs.Trigger.Label>
+              {Platform.select({
+                ios: (
+                  <NativeTabs.Trigger.Icon
+                    sf={{
+                      default: "magnifyingglass",
+                      selected: "magnifyingglass",
+                    }}
+                  />
+                ),
+                android: (
+                  <NativeTabs.Trigger.Icon
+                    src={<NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="search" />}
                   />
                 ),
               })}
             </NativeTabs.Trigger>
           )}
+
+          <NativeTabs.Trigger
+            name="explore"
+            contentStyle={{ backgroundColor: "transparent" }}
+          >
+            <NativeTabs.Trigger.Label>{t("tabs.projects")}</NativeTabs.Trigger.Label>
+            {Platform.select({
+              ios: <NativeTabs.Trigger.Icon sf={{ default: "folder", selected: "folder.fill" }} />,
+              android: (
+                <NativeTabs.Trigger.Icon
+                  src={<NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="folder" />}
+                />
+              ),
+            })}
+          </NativeTabs.Trigger>
+
+          <NativeTabs.Trigger
+            name="routines"
+            hidden
+            contentStyle={{ backgroundColor: "transparent" }}
+          >
+            <NativeTabs.Trigger.Label>{t("home.quick.routines")}</NativeTabs.Trigger.Label>
+            {Platform.select({
+              ios: <NativeTabs.Trigger.Icon sf={{ default: "repeat", selected: "repeat" }} />,
+              android: (
+                <NativeTabs.Trigger.Icon
+                  src={<NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="repeat" />}
+                />
+              ),
+            })}
+          </NativeTabs.Trigger>
         </NativeTabs>
       </TabBarMinimizeProvider>
     </View>
