@@ -1,4 +1,3 @@
-import { apple, createAppleProvider } from "@react-native-ai/apple";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { generateText } from "ai";
 import { Stack, useRouter } from "expo-router";
@@ -29,6 +28,7 @@ import {
   useTasksStore,
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { apple, createAppleProvider } from "@/utils/apple-llm";
 import {
   ASSIST_TOOL_CALL_LIMIT_ERROR,
   type AssistProjectCandidate,
