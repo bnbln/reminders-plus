@@ -7,6 +7,7 @@ import { Colors } from "@/constants/theme";
 import { usePremium } from "@/context/premium-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
+import { ripple } from '@/components/ui/ripple';
 
 type ThemeName = keyof typeof Colors;
 
@@ -114,6 +115,7 @@ export default function ProfileScreen() {
           </Text>
         </View>
         <Pressable
+          android_ripple={ripple()}
           accessibilityRole="button"
           onPress={() => router.push("/plus")}
           style={({ pressed }) => [

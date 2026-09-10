@@ -28,6 +28,7 @@ import {
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
 import { isIOS26OrNewer } from "@/utils/ios-version";
+import { ripple } from '@/components/ui/ripple';
 import {
   deriveActiveSectionFromDueAt,
   hasValidDueAt,
@@ -403,6 +404,7 @@ export default function InboxScreen() {
       return (
         <View style={styles.sectionHeader}>
           <Pressable
+            android_ripple={ripple()}
             accessibilityRole="button"
             accessibilityState={{ expanded: !isCollapsed }}
             onPress={() => toggleSectionCollapsed(id)}

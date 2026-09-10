@@ -28,6 +28,9 @@ export default function HomeLayout() {
         name="index"
         options={{
           title: t("common.today"),
+          // Let the page's gradient background run behind the header.
+          headerTransparent: true,
+          headerStyle: { backgroundColor: "transparent" },
           headerLeft: () => (
             <HeaderTrailingActions
               theme={theme}

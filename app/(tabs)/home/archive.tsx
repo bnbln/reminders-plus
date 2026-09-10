@@ -30,6 +30,7 @@ import {
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
+import { ripple } from '@/components/ui/ripple';
 import {
   deriveActiveSectionFromDueAt,
   hasValidDueAt,
@@ -213,6 +214,7 @@ export default function ArchiveScreen() {
       <View style={styles.header}>
         <View style={styles.segmentWrap}>
           <Pressable
+            android_ripple={ripple()}
             accessibilityRole="button"
             accessibilityLabel={t("archive.tab.completed")}
             onPress={() => setTab("completed")}
@@ -232,6 +234,7 @@ export default function ArchiveScreen() {
             </Text>
           </Pressable>
           <Pressable
+            android_ripple={ripple()}
             accessibilityRole="button"
             accessibilityLabel={t("archive.tab.trash")}
             onPress={() => setTab("trash")}

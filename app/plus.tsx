@@ -23,6 +23,7 @@ import { Colors } from "@/constants/theme";
 import { usePremium } from "@/context/premium-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
+import { ripple } from "@/components/ui/ripple";
 import {
   assistCopyKey,
   IS_ASSIST_SUPPORTED,
@@ -157,6 +158,7 @@ function OfferCard({
 
   return (
     <Pressable
+      android_ripple={ripple()}
       accessibilityRole="button"
       disabled={disabled}
       onPress={onPress}
@@ -422,6 +424,7 @@ export default function PlusScreen({
           headerRight: showsCloseButton
             ? () => (
                 <Pressable
+                  android_ripple={ripple()}
                   accessibilityRole="button"
                   accessibilityLabel={t("common.close")}
                   onPress={onClose}
@@ -520,6 +523,7 @@ export default function PlusScreen({
           ) : null}
 
           <Pressable
+            android_ripple={ripple()}
             accessibilityRole="button"
             disabled={isCheckoutDisabled}
             onPress={() => {
@@ -572,6 +576,7 @@ export default function PlusScreen({
           ) : null}
 
           <Pressable
+            android_ripple={ripple()}
             accessibilityRole="button"
             disabled={isRestoring}
             onPress={() => {
@@ -595,6 +600,7 @@ export default function PlusScreen({
 
           {isSupported ? (
             <Pressable
+              android_ripple={ripple()}
               accessibilityRole="button"
               disabled={isRefreshing}
               onPress={() => {
@@ -618,6 +624,7 @@ export default function PlusScreen({
           ) : null}
 
           <Pressable
+            android_ripple={ripple()}
             accessibilityRole="button"
             onPress={() => setShowsLegalDisclosure((current) => !current)}
             style={({ pressed }) => [

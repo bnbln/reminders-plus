@@ -12,7 +12,6 @@ import DateTimePicker, {
 import {
   type MenuAction,
   type MenuComponentRef,
-  MenuView,
 } from "@react-native-menu/menu";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import * as Calendar from "expo-calendar";
@@ -45,10 +44,12 @@ import {
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { type AppLocale, t } from "@/i18n";
 import { assistCopyKey } from "@/utils/assist-availability";
+import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { SettingsButton } from "@/components/ui/settings-button";
 import { SettingsSwitch } from "@/components/ui/settings-switch";
 import { localizeExistingOnboardingSeedData } from "@/storage/tasks-onboarding-seed";
 import { deriveActiveSectionFromDueAt } from "@/utils/task-dates";
+import { ripple } from "@/components/ui/ripple";
 
 const APPEARANCE_LABEL_KEYS = [
   "settings.appearance.option.adaptive",
@@ -682,6 +683,7 @@ export default function SettingsScreen() {
                 const selected = accentColor === color.id;
                 return (
                   <Pressable
+                    android_ripple={ripple()}
                     key={color.id}
                     accessibilityRole="button"
                     accessibilityLabel={color.label}
@@ -746,7 +748,7 @@ export default function SettingsScreen() {
               {t("settings.badge.title")}
             </Text>
 
-            <MenuView
+            <DropdownMenu
               ref={menuRef}
               actions={appBadgeActions}
               onPressAction={onPressBadgeAction}
@@ -755,39 +757,17 @@ export default function SettingsScreen() {
               isAnchoredToRight={Platform.OS === "android" ? true : undefined}
               style={styles.badgeMenuAnchor}
             >
-              {Platform.OS === "android" ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={t("settings.badge.select")}
-                  onPress={() => menuRef.current?.show?.()}
-                  style={styles.badgeMenuTrigger}
-                >
-                  <Text
-                    style={[styles.badgeValue, { color: Colors[theme].text }]}
-                  >
-                    {t(APP_BADGE_LABEL_KEYS[appBadgeMode])}
-                  </Text>
-                  <MaterialIcons
-                    name="keyboard-arrow-down"
-                    size={18}
-                    color={muted}
-                  />
-                </Pressable>
-              ) : (
-                <View style={styles.badgeMenuTrigger}>
-                  <Text
-                    style={[styles.badgeValue, { color: Colors[theme].text }]}
-                  >
-                    {t(APP_BADGE_LABEL_KEYS[appBadgeMode])}
-                  </Text>
-                  <MaterialIcons
-                    name="keyboard-arrow-down"
-                    size={18}
-                    color={muted}
-                  />
-                </View>
-              )}
-            </MenuView>
+              <View style={styles.badgeMenuTrigger}>
+                <Text style={[styles.badgeValue, { color: Colors[theme].text }]}>
+                  {t(APP_BADGE_LABEL_KEYS[appBadgeMode])}
+                </Text>
+                <MaterialIcons
+                  name="keyboard-arrow-down"
+                  size={18}
+                  color={muted}
+                />
+              </View>
+            </DropdownMenu>
           </View>
 
           <View style={[styles.separator, { backgroundColor: borderColor }]} />
@@ -817,6 +797,7 @@ export default function SettingsScreen() {
               {t("common.time")}
             </Text>
             <Pressable
+              android_ripple={ripple()}
               disabled={!dailySummaryEnabled}
               onPress={() => setShowDailySummaryPicker((current) => !current)}
               style={styles.timeButton}
@@ -884,7 +865,7 @@ export default function SettingsScreen() {
                 App Language
               </Text>
 
-              <MenuView
+              <DropdownMenu
                 ref={devLanguageMenuRef}
                 actions={devLanguageActions}
                 onPressAction={onPressDevLanguageAction}
@@ -893,39 +874,19 @@ export default function SettingsScreen() {
                 isAnchoredToRight={Platform.OS === "android" ? true : undefined}
                 style={styles.badgeMenuAnchor}
               >
-                {Platform.OS === "android" ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Select app language"
-                    onPress={() => devLanguageMenuRef.current?.show?.()}
-                    style={styles.badgeMenuTrigger}
+                <View style={styles.badgeMenuTrigger}>
+                  <Text
+                    style={[styles.badgeValue, { color: Colors[theme].text }]}
                   >
-                    <Text
-                      style={[styles.badgeValue, { color: Colors[theme].text }]}
-                    >
-                      {selectedDevLanguageLabel}
-                    </Text>
-                    <MaterialIcons
-                      name="keyboard-arrow-down"
-                      size={18}
-                      color={muted}
-                    />
-                  </Pressable>
-                ) : (
-                  <View style={styles.badgeMenuTrigger}>
-                    <Text
-                      style={[styles.badgeValue, { color: Colors[theme].text }]}
-                    >
-                      {selectedDevLanguageLabel}
-                    </Text>
-                    <MaterialIcons
-                      name="keyboard-arrow-down"
-                      size={18}
-                      color={muted}
-                    />
-                  </View>
-                )}
-              </MenuView>
+                    {selectedDevLanguageLabel}
+                  </Text>
+                  <MaterialIcons
+                    name="keyboard-arrow-down"
+                    size={18}
+                    color={muted}
+                  />
+                </View>
+              </DropdownMenu>
             </View>
 
             <View style={[styles.separator, { backgroundColor: borderColor }]} />

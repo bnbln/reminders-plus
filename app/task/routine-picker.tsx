@@ -14,6 +14,7 @@ import {
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
+import { ripple } from '@/components/ui/ripple';
 
 type ThemeName = keyof typeof Colors;
 
@@ -217,6 +218,7 @@ export default function RoutinePickerScreen() {
 
             return (
               <Pressable
+                android_ripple={ripple()}
                 key={option.labelKey}
                 onPress={() => applyRoutineSelectionAndClose(option.value)}
                 style={[styles.optionRow, isActive && styles.optionRowActive]}

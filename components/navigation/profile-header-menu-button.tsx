@@ -1,14 +1,14 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import {
-  MenuView,
   type MenuAction,
   type MenuComponentRef,
 } from "@react-native-menu/menu";
 import { useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import React from "react";
-import { Platform, Pressable } from "react-native";
+import { Platform } from "react-native";
 
+import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { Colors } from "@/constants/theme";
 import { usePremium } from "@/context/premium-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -192,10 +192,10 @@ export function ProfileHeaderMenuButton() {
   );
 
   return (
-    <MenuView
+    <DropdownMenu
       ref={menuRef}
       themeVariant={Platform.OS === "ios" ? theme : undefined}
-      isAnchoredToRight={Platform.OS === "android" ? false : undefined}
+      isAnchoredToRight={Platform.OS === "android" ? true : undefined}
       actions={actions}
       onPressAction={onPressAction}
       shouldOpenOnLongPress={false}
@@ -207,18 +207,7 @@ export function ProfileHeaderMenuButton() {
         backgroundColor: "transparent",
       }}
     >
-      {Platform.OS === "android" ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t("profile.menu.accessibility")}
-          style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
-          onPress={() => menuRef.current?.show?.()}
-        >
-          <ProfileMenuIcon theme={theme} />
-        </Pressable>
-      ) : (
-        <ProfileMenuIcon theme={theme} />
-      )}
-    </MenuView>
+      <ProfileMenuIcon theme={theme} />
+    </DropdownMenu>
   );
 }

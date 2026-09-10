@@ -1,5 +1,6 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { type MenuAction } from "@react-native-menu/menu";
+import { useHeaderHeight } from "@react-navigation/elements";
 import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import React from "react";
@@ -65,6 +66,7 @@ import { useStreaks } from "@/hooks/use-streaks";
 import { getIntlLocale, t } from "@/i18n";
 import { triggerSelectionHaptic } from "@/utils/haptics";
 import { isIOS26OrNewer } from "@/utils/ios-version";
+import { ripple, rippleBorderless } from "@/components/ui/ripple";
 import {
   alignDueAtToLocalDay,
   deriveActiveSectionFromDueAt,
@@ -358,6 +360,7 @@ function HomeMetricsGrid({
     <View style={styles.metricsGridWrap}>
       <View style={styles.metricsGrid}>
         <Pressable
+          android_ripple={ripple()}
           accessibilityRole="button"
           accessibilityLabel={`${statusLabel}: ${metrics.completionPercentage}%`}
           onPress={metrics.onPressStatus}
@@ -407,6 +410,7 @@ function HomeMetricsGrid({
         </Pressable>
 
         <Pressable
+          android_ripple={ripple()}
           accessibilityRole="button"
           accessibilityLabel={`${streakLabel}: ${metrics.currentStreak}`}
           onPress={metrics.onPressStreak}
@@ -1285,6 +1289,7 @@ const createStyles = (
 export default function HomeScreen() {
   const navigation = useNavigation();
   const router = useRouter();
+  const headerHeight = useHeaderHeight();
   const theme = useColorScheme() ?? "light";
   const isDark = theme === "dark";
   const useAppleLightPalette = !isDark && Platform.OS === "ios";
@@ -4001,6 +4006,7 @@ export default function HomeScreen() {
 
       const headerButton = (
         <Pressable
+          android_ripple={ripple()}
           accessibilityRole={isCollapsible ? "button" : undefined}
           accessibilityLabel={
             isCollapsible
@@ -4196,6 +4202,7 @@ export default function HomeScreen() {
                   isInteractive={true}
                 >
                   <Pressable
+                    android_ripple={rippleBorderless(16)}
                     accessibilityRole="button"
                     accessibilityLabel={t("home.jumpToToday")}
                     hitSlop={16}
@@ -4227,6 +4234,7 @@ export default function HomeScreen() {
                   isInteractive={true}
                 >
                   <Pressable
+                    android_ripple={rippleBorderless(16)}
                     accessibilityRole="button"
                     hitSlop={16}
                     style={StyleSheet.absoluteFillObject}
@@ -4287,6 +4295,7 @@ export default function HomeScreen() {
               >
                 <View style={styles.calendarQuickActionsRow}>
                   <Pressable
+                    android_ripple={ripple()}
                     style={styles.calendarQuickActionButton}
                     onPress={() => {
                       handleJumpToToday("picker");
@@ -4298,6 +4307,7 @@ export default function HomeScreen() {
                     </Text>
                   </Pressable>
                   <Pressable
+                    android_ripple={ripple()}
                     style={styles.calendarQuickActionButton}
                     onPress={() => {
                       const tomorrowDateStart = addDays(getStartOfToday(), 1);
@@ -4402,6 +4412,7 @@ export default function HomeScreen() {
 
                 return (
                   <Pressable
+                    android_ripple={ripple()}
                     accessibilityRole="button"
                     accessibilityLabel={`${day.weekday} ${day.dayOfMonth}`}
                     onPress={() => {
@@ -4626,6 +4637,7 @@ export default function HomeScreen() {
         ]}
       >
         <Pressable
+          android_ripple={ripple()}
           accessibilityRole="button"
           accessibilityLabel={t("home.openArchive")}
           onPress={() => router.push("/home/archive")}
@@ -4707,7 +4719,15 @@ export default function HomeScreen() {
         revealTranslateX={48}
         containerStyle={{ backgroundColor: "transparent" }}
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={styles.taskListContent}
+        contentContainerStyle={[
+          styles.taskListContent,
+          // The header is transparent so the page background shows through it.
+          // iOS insets the content automatically; Android needs it spelled out
+          // or the first card slides under the title.
+          Platform.OS === "android"
+            ? { paddingTop: headerHeight + 8 }
+            : null,
+        ]}
         header={
           <>
             {listHeader}

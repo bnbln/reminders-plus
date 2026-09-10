@@ -27,6 +27,7 @@ import Reanimated, {
 } from "react-native-reanimated";
 
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
+import { rippleBorderless } from "@/components/ui/ripple";
 import {
   type TagId,
 } from "@/context/home-filters-store";
@@ -1242,6 +1243,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
         <Pressable
           key={subtask.id}
           disabled={!toggleSubtask}
+          android_ripple={rippleBorderless(16)}
           onPress={(event) => {
             event.stopPropagation();
             if (!toggleSubtask) return;

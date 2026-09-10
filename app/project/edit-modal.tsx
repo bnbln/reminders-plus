@@ -1,5 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { MenuView, type MenuAction } from '@react-native-menu/menu';
+import { type MenuAction } from '@react-native-menu/menu';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 import {
@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { DropdownMenu } from '@/components/ui/dropdown-menu';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { SFSymbol } from '@/components/ui/sfsymbol';
 import { Colors } from '@/constants/theme';
@@ -21,6 +22,7 @@ import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
 import { shouldRouteToProjectLimitGate } from '@/utils/project-creation-gate';
+import { ripple } from "@/components/ui/ripple";
 
 type ThemeName = keyof typeof Colors;
 
@@ -418,7 +420,7 @@ export default function ProjectEditScreen() {
           </GlassSurface>
 
           <View style={styles.pickerRow}>
-            <MenuView
+            <DropdownMenu
               actions={symbolActions}
               onPressAction={onPressSymbolAction}
               onOpenMenu={keepKeyboardOpen}
@@ -450,9 +452,9 @@ export default function ProjectEditScreen() {
                   />
                 </View>
               </GlassSurface>
-            </MenuView>
+            </DropdownMenu>
 
-            <MenuView
+            <DropdownMenu
               actions={colorActions}
               onPressAction={onPressColorAction}
               onOpenMenu={keepKeyboardOpen}
@@ -480,9 +482,10 @@ export default function ProjectEditScreen() {
                   />
                 </View>
               </GlassSurface>
-            </MenuView>
+            </DropdownMenu>
 
             <Pressable
+              android_ripple={ripple()}
               onPress={onSave}
               disabled={!canSubmit}
               style={({ pressed }) => [styles.actionPressable, pressed && canSubmit && styles.buttonPressed]}
@@ -506,6 +509,7 @@ export default function ProjectEditScreen() {
           </View>
 
           <Pressable
+            android_ripple={ripple()}
             onPress={onDelete}
             style={({ pressed }) => [pressed && styles.buttonPressed]}
             accessibilityRole="button"

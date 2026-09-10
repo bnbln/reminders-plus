@@ -13,6 +13,7 @@ import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
 import { shouldRouteToProjectLimitGate } from '@/utils/project-creation-gate';
+import { ripple } from "@/components/ui/ripple";
 
 export default function ProjectPickerScreen() {
     const router = useRouter();
@@ -93,6 +94,7 @@ export default function ProjectPickerScreen() {
                 >
                     {/* New Project Button */}
                     <Pressable
+                      android_ripple={ripple()}
                         onPress={handleCreateProject}
                         style={[styles.optionRow, { marginBottom: 24, justifyContent: 'center' }]}
                     >
@@ -102,6 +104,7 @@ export default function ProjectPickerScreen() {
 
                     {/* No Project Option */}
                     <Pressable
+                      android_ripple={ripple()}
                         onPress={() => applyProjectSelectionAndClose(null)}
                         style={[styles.optionRow, (selectedProjectId ?? null) === null && styles.optionRowActive]}
                     >
@@ -121,6 +124,7 @@ export default function ProjectPickerScreen() {
                         const isActive = selectedProjectId === p.id;
                         return (
                             <Pressable
+                              android_ripple={ripple()}
                                 key={p.id}
                                 onPress={() => applyProjectSelectionAndClose(p.id)}
                                 style={[styles.optionRow, isActive && styles.optionRowActive]}

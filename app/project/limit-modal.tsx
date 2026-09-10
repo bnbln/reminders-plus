@@ -17,6 +17,7 @@ import { useTasksStore } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
 import { assistCopyKey } from "@/utils/assist-availability";
+import { ripple } from '@/components/ui/ripple';
 
 type ThemeName = keyof typeof Colors;
 
@@ -105,6 +106,7 @@ export default function ProjectLimitModal() {
 
               <View style={styles.lockButtonRow}>
                 <Pressable
+                  android_ripple={ripple()}
                   accessibilityRole="button"
                   onPress={onClose}
                   style={({ pressed }) => [
@@ -118,6 +120,7 @@ export default function ProjectLimitModal() {
                 </Pressable>
 
                 <Pressable
+                  android_ripple={ripple()}
                   accessibilityRole="button"
                   onPress={() =>
                     router.push({

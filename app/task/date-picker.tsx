@@ -13,6 +13,7 @@ import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
 import { deriveActiveSectionFromDueAt } from '@/utils/task-dates';
+import { ripple } from '@/components/ui/ripple';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
@@ -146,6 +147,7 @@ export default function DatePickerScreen() {
                 >
                     {/* Clear Button / Status */}
                     <Pressable
+                      android_ripple={ripple()}
                         onPress={handleClear}
                         style={[styles.optionRow, isCleared && styles.optionRowActive]}
                     >

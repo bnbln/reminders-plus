@@ -28,6 +28,7 @@ import {
 } from "@/utils/haptics";
 import { isIOS26OrNewer } from "@/utils/ios-version";
 import { shouldRouteToProjectLimitGate } from "@/utils/project-creation-gate";
+import { ripple } from '@/components/ui/ripple';
 
 type ThemeName = keyof typeof Colors;
 const GRID_HORIZONTAL_PADDING = 16;
@@ -279,6 +280,7 @@ function ProjectTile({
 
   return (
     <Pressable
+      android_ripple={ripple()}
       accessibilityRole="button"
       accessibilityLabel={t("explore.tileAccessibility", {
         project: project.name,

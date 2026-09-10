@@ -20,6 +20,7 @@ import { Colors } from '@/constants/theme';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
+import { ripple } from "@/components/ui/ripple";
 
 export default function LocationPickerScreen() {
   const router = useRouter();
@@ -146,6 +147,7 @@ export default function LocationPickerScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <Pressable
+            android_ripple={ripple()}
             onPress={handleUseCurrentLocation}
             style={({ pressed }) => [
               styles.optionRow,
@@ -172,6 +174,7 @@ export default function LocationPickerScreen() {
           </Pressable>
 
           <Pressable
+            android_ripple={ripple()}
             onPress={() => applyLocationAndClose(undefined)}
             style={({ pressed }) => [
               styles.optionRow,

@@ -1,9 +1,11 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -32,6 +34,7 @@ import {
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getIntlLocale, t } from '@/i18n';
 import { deriveActiveSectionFromDueAt, hasValidDueAt } from '@/utils/task-dates';
+import { ripple } from "@/components/ui/ripple";
 
 
 
@@ -180,6 +183,7 @@ export default function TaskViewScreen() {
   const [subtitleHeight, setSubtitleHeight] = React.useState<number>(0);
 
   const scrollRef = React.useRef<ScrollView>(null);
+  const headerHeight = useHeaderHeight();
 
   const scrollToBottom = React.useCallback(() => {
     // Wait slightly for keyboard to animate / spacer to appear
@@ -380,7 +384,8 @@ export default function TaskViewScreen() {
       <View style={[styles.screen, { justifyContent: 'center', alignItems: 'center' }]}>
         <Stack.Screen options={{ title: '', headerTitle: '', headerBackButtonDisplayMode: 'minimal' } as any} />
         <Text style={styles.notFoundTitle}>{t('taskDetail.notFound')}</Text>
-        <Pressable onPress={() => router.back()} style={styles.primaryButton}>
+        <Pressable
+          android_ripple={ripple()} onPress={() => router.back()} style={styles.primaryButton}>
           <Text style={styles.primaryButtonText}>{t('taskDetail.back')}</Text>
         </Pressable>
       </View>
@@ -394,7 +399,12 @@ export default function TaskViewScreen() {
     <ScrollView
       ref={scrollRef}
       style={styles.screen}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[
+        styles.content,
+        // iOS gets this from `contentInsetAdjustmentBehavior`; Android has no
+        // equivalent, so the transparent header would overlap the hero emoji.
+        Platform.OS === 'android' ? { paddingTop: headerHeight + 18 } : null,
+      ]}
       showsVerticalScrollIndicator={false}
       contentInsetAdjustmentBehavior="automatic"
     >
@@ -411,7 +421,8 @@ export default function TaskViewScreen() {
 
       {/* Hero Section */}
       <View style={styles.heroSection}>
-        <Pressable onPress={() => router.push(`/task/emoji-picker?taskId=${task.id}`)} style={styles.heroEmojiWrap}>
+        <Pressable
+          android_ripple={ripple()} onPress={() => router.push(`/task/emoji-picker?taskId=${task.id}`)} style={styles.heroEmojiWrap}>
           <View
             style={[
               styles.heroEmojiBg,
@@ -459,7 +470,8 @@ export default function TaskViewScreen() {
       {/* Property Grid - 2x2 QuickTile Style */}
       <View style={styles.propertyGrid}>
         {/* Datum Tile */}
-        <Pressable onPress={() => router.push(`/task/date-picker?taskId=${task.id}`)} style={styles.propertyTilePressable}>
+        <Pressable
+          android_ripple={ripple()} onPress={() => router.push(`/task/date-picker?taskId=${task.id}`)} style={styles.propertyTilePressable}>
           <GlassSurface
             style={[styles.propertyTile, { borderColor: hairline }]}
             glassEffectStyle="regular"
@@ -473,7 +485,8 @@ export default function TaskViewScreen() {
                   <MaterialIcons name="event" size={16} color={hasDueDate ? '#0A84FF' : withAlpha(Colors[theme].text, 0.6)} />
                 </View>
                 {hasDueDate && (
-                  <Pressable onPress={clearDue} hitSlop={8}>
+                  <Pressable
+                    android_ripple={ripple()} onPress={clearDue} hitSlop={8}>
                     <MaterialIcons name="close" size={16} color={withAlpha(Colors[theme].text, 0.5)} />
                   </Pressable>
                 )}
@@ -487,7 +500,8 @@ export default function TaskViewScreen() {
         </Pressable>
 
         {/* Routine Tile */}
-        <Pressable onPress={() => router.push(`/task/routine-picker?taskId=${task.id}`)} style={styles.propertyTilePressable}>
+        <Pressable
+          android_ripple={ripple()} onPress={() => router.push(`/task/routine-picker?taskId=${task.id}`)} style={styles.propertyTilePressable}>
           <GlassSurface
             style={[styles.propertyTile, { borderColor: hairline }]}
             glassEffectStyle="regular"
@@ -501,7 +515,8 @@ export default function TaskViewScreen() {
                   <MaterialIcons name="loop" size={16} color={task.isRoutine ? '#8B5CF6' : withAlpha(Colors[theme].text, 0.6)} />
                 </View>
                 {task.isRoutine && (
-                  <Pressable onPress={clearRoutine} hitSlop={8}>
+                  <Pressable
+                    android_ripple={ripple()} onPress={clearRoutine} hitSlop={8}>
                     <MaterialIcons name="close" size={16} color={withAlpha(Colors[theme].text, 0.5)} />
                   </Pressable>
                 )}
@@ -515,7 +530,8 @@ export default function TaskViewScreen() {
         </Pressable>
 
         {/* Location Tile */}
-        <Pressable onPress={() => { /* Focus location input or show picker */ }} style={styles.propertyTilePressable}>
+        <Pressable
+          android_ripple={ripple()} onPress={() => { /* Focus location input or show picker */ }} style={styles.propertyTilePressable}>
           <GlassSurface
             style={[styles.propertyTile, { borderColor: hairline }]}
             glassEffectStyle="regular"
@@ -529,11 +545,13 @@ export default function TaskViewScreen() {
                   <MaterialIcons name="place" size={16} color={task.location ? '#10B981' : withAlpha(Colors[theme].text, 0.6)} />
                 </View>
                 {task.location ? (
-                  <Pressable onPress={() => updateTask({ location: undefined })} hitSlop={8}>
+                  <Pressable
+                    android_ripple={ripple()} onPress={() => updateTask({ location: undefined })} hitSlop={8}>
                     <MaterialIcons name="close" size={16} color={withAlpha(Colors[theme].text, 0.5)} />
                   </Pressable>
                 ) : (
-                  <Pressable onPress={onUseCurrentLocation} hitSlop={8}>
+                  <Pressable
+                    android_ripple={ripple()} onPress={onUseCurrentLocation} hitSlop={8}>
                     {isLocating ? <ActivityIndicator size="small" /> : <MaterialIcons name="my-location" size={14} color={withAlpha(Colors[theme].text, 0.5)} />}
                   </Pressable>
                 )}
@@ -552,7 +570,8 @@ export default function TaskViewScreen() {
         </Pressable>
 
         {/* Projekt Tile */}
-        <Pressable onPress={() => router.push(`/task/project-picker?taskId=${task.id}`)} style={styles.propertyTilePressable}>
+        <Pressable
+          android_ripple={ripple()} onPress={() => router.push(`/task/project-picker?taskId=${task.id}`)} style={styles.propertyTilePressable}>
           <GlassSurface
             style={[styles.propertyTile, { borderColor: hairline }]}
             glassEffectStyle="regular"
@@ -575,7 +594,8 @@ export default function TaskViewScreen() {
                   )}
                 </View>
                 {project && (
-                  <Pressable onPress={clearProject} hitSlop={8}>
+                  <Pressable
+                    android_ripple={ripple()} onPress={clearProject} hitSlop={8}>
                     <MaterialIcons name="close" size={16} color={withAlpha(Colors[theme].text, 0.5)} />
                   </Pressable>
                 )}
@@ -597,7 +617,8 @@ export default function TaskViewScreen() {
           <View key={s.id}>
             {idx > 0 ? <View style={[styles.divider, { backgroundColor: hairline }]} /> : null}
             <View style={styles.subtaskRow}>
-              <Pressable onPress={() => toggleSubtask(s.id)} hitSlop={10} style={styles.subtaskCheck}>
+              <Pressable
+                android_ripple={ripple()} onPress={() => toggleSubtask(s.id)} hitSlop={10} style={styles.subtaskCheck}>
                 <MaterialIcons name={s.done ? 'check-box' : 'check-box-outline-blank'} size={22} color={withAlpha(Colors[theme].text, s.done ? 0.9 : 0.55)} />
               </Pressable>
               <TextInput
@@ -615,7 +636,8 @@ export default function TaskViewScreen() {
                   },
                 ]}
               />
-              <Pressable onPress={() => deleteSubtask(s.id)} hitSlop={10} style={styles.subtaskDelete}>
+              <Pressable
+                android_ripple={ripple()} onPress={() => deleteSubtask(s.id)} hitSlop={10} style={styles.subtaskDelete}>
                 <MaterialIcons name="close" size={18} color={withAlpha(Colors[theme].text, 0.5)} />
               </Pressable>
             </View>
@@ -633,7 +655,8 @@ export default function TaskViewScreen() {
             onSubmitEditing={addSubtask}
             returnKeyType="done"
           />
-          <Pressable onPress={addSubtask} hitSlop={10} style={styles.addBtn}>
+          <Pressable
+            android_ripple={ripple()} onPress={addSubtask} hitSlop={10} style={styles.addBtn}>
             <MaterialIcons name="add" size={20} color={withAlpha(Colors[theme].text, 0.85)} />
           </Pressable>
         </View>
@@ -653,7 +676,8 @@ export default function TaskViewScreen() {
       </GlassSurface>
 
       <View style={styles.actionsRow}>
-        <Pressable onPress={onDelete} hitSlop={10} style={styles.iconDangerWrap}>
+        <Pressable
+          android_ripple={ripple()} onPress={onDelete} hitSlop={10} style={styles.iconDangerWrap}>
           <GlassSurface
             style={styles.iconDangerButton}
             glassEffectStyle="regular"
@@ -664,7 +688,8 @@ export default function TaskViewScreen() {
           </GlassSurface>
         </Pressable>
 
-        <Pressable onPress={onToggleComplete} style={styles.primaryActionWrap}>
+        <Pressable
+          android_ripple={ripple()} onPress={onToggleComplete} style={styles.primaryActionWrap}>
           <View>
             {/* Active State (Green) */}
             <Animated.View style={[StyleSheet.absoluteFill, activeStyle]}>
@@ -781,6 +806,9 @@ const createStyles = (theme: keyof typeof Colors) => {
       paddingTop: 18,
       paddingBottom: 44,
       gap: 18,
+      // Fill the viewport so `actionsRow`'s auto margin can bottom-align it on
+      // short tasks; long tasks overflow and scroll as before.
+      flexGrow: 1,
     },
 
     header: {
@@ -1072,6 +1100,7 @@ const createStyles = (theme: keyof typeof Colors) => {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 12,
+      marginTop: 'auto',
     },
     primaryActionWrap: {
       flex: 1,

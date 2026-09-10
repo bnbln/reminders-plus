@@ -1,5 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { MenuView, type MenuAction } from '@react-native-menu/menu';
+import { type MenuAction } from '@react-native-menu/menu';
 import { Stack, useRouter } from 'expo-router';
 import React from 'react';
 import {
@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { DropdownMenu } from '@/components/ui/dropdown-menu';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { SFSymbol } from '@/components/ui/sfsymbol';
 import { Colors } from '@/constants/theme';
@@ -22,6 +23,7 @@ import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
 import { shouldRouteToProjectLimitGate } from '@/utils/project-creation-gate';
+import { ripple } from "@/components/ui/ripple";
 
 type ThemeName = keyof typeof Colors;
 
@@ -384,7 +386,7 @@ export default function ProjectCreateModal() {
           </GlassSurface>
 
           <View style={styles.pickerRow}>
-            <MenuView
+            <DropdownMenu
               actions={symbolActions}
               onPressAction={onPressSymbolAction}
               onOpenMenu={keepKeyboardOpen}
@@ -410,9 +412,9 @@ export default function ProjectCreateModal() {
                   <MaterialIcons name="expand-more" size={14} color={withAlpha(Colors[theme].text, 0.62)} />
                 </View>
               </GlassSurface>
-            </MenuView>
+            </DropdownMenu>
 
-            <MenuView
+            <DropdownMenu
               actions={colorActions}
               onPressAction={onPressColorAction}
               onOpenMenu={keepKeyboardOpen}
@@ -434,9 +436,10 @@ export default function ProjectCreateModal() {
                   <MaterialIcons name="expand-more" size={14} color={withAlpha(Colors[theme].text, 0.62)} />
                 </View>
               </GlassSurface>
-            </MenuView>
+            </DropdownMenu>
 
             <Pressable
+              android_ripple={ripple()}
               onPress={onCreate}
               disabled={!canSubmit}
               style={({ pressed }) => [styles.sendPressable, pressed && canSubmit && styles.buttonPressed]}

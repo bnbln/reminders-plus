@@ -9,6 +9,7 @@ import { Colors } from '@/constants/theme';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
+import { ripple } from "@/components/ui/ripple";
 import {
     filterTaskStyleEmojiOptions,
     TASK_STYLE_COLOR_SWATCHES,
@@ -88,6 +89,7 @@ export default function EmojiPickerScreen() {
                     keyExtractor={(item) => item.emoji}
                     renderItem={({ item }) => (
                         <Pressable
+                          android_ripple={ripple()}
                             onPress={() => applyStyleAndClose(item.emoji, selectedColor)}
                             accessibilityLabel={`${item.emoji} ${item.label}`}
                             style={[
@@ -112,6 +114,7 @@ export default function EmojiPickerScreen() {
                             <View style={styles.colorGrid}>
                                 {TASK_STYLE_COLOR_SWATCHES.map((color) => (
                                     <Pressable
+                                      android_ripple={ripple()}
                                         key={color}
                                         onPress={() => applyStyleAndClose(selectedEmoji, color)}
                                         style={[
@@ -125,6 +128,7 @@ export default function EmojiPickerScreen() {
 
                             {selectedColor && (
                                 <Pressable
+                                  android_ripple={ripple()}
                                     onPress={() => applyStyleAndClose(selectedEmoji, undefined)}
                                     style={styles.resetButton}
                                 >

@@ -30,6 +30,7 @@ import {
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { formatDate, t } from "@/i18n";
+import { ripple } from "@/components/ui/ripple";
 import {
   alignDueAtToLocalDay,
   deriveActiveSectionFromDueAt,
@@ -1493,6 +1494,7 @@ export default function CreateTaskModal() {
                 >
                   {actions.map((action) => (
                     <Pressable
+                      android_ripple={ripple()}
                       key={action.id}
                       accessibilityRole="button"
                       accessibilityLabel={action.title}
@@ -1560,6 +1562,7 @@ export default function CreateTaskModal() {
                 >
                   {actions.map((action) => (
                     <Pressable
+                      android_ripple={ripple()}
                       key={action.id}
                       accessibilityRole="button"
                       accessibilityLabel={action.title}
@@ -1603,6 +1606,7 @@ export default function CreateTaskModal() {
             <View style={styles.selectedTagsWrap}>
               {selectedTags.map((tag) => (
                 <Pressable
+                  android_ripple={ripple()}
                   key={tag.key}
                   accessibilityRole="button"
                   accessibilityLabel={tag.label}
@@ -1632,6 +1636,7 @@ export default function CreateTaskModal() {
                       </Text>
                       {tag.removable ? (
                         <Pressable
+                          android_ripple={ripple()}
                           accessibilityRole="button"
                           accessibilityLabel={t("common.removeTag", {
                             tag: tag.label,
@@ -1680,6 +1685,7 @@ export default function CreateTaskModal() {
                       </Text>
                       {tag.removable ? (
                         <Pressable
+                          android_ripple={ripple()}
                           accessibilityRole="button"
                           accessibilityLabel={t("common.removeTag", {
                             tag: tag.label,
@@ -1716,6 +1722,7 @@ export default function CreateTaskModal() {
             <View pointerEvents="none" style={styles.composerShadowLayer} />
             <View style={styles.composer}>
               <Pressable
+                android_ripple={ripple()}
                 accessibilityRole="button"
                 accessibilityLabel={
                   isMenuExpanded ? t("taskCreate.close") : t("taskCreate.more")
@@ -1833,6 +1840,7 @@ export default function CreateTaskModal() {
               )}
 
               <Pressable
+                android_ripple={ripple()}
                 onPress={onCreate}
                 disabled={!canSubmit}
                 accessibilityRole="button"

@@ -35,7 +35,9 @@ export default function SearchLayout() {
             placement: 'automatic',
             placeholder: t('search.placeholder'),
             cancelButtonText: t('taskDetail.alert.cancel'),
-            autoFocus: true,
+            // Android expands the search bar into the header row on focus, which
+            // squeezes `headerRight` off the leading edge. Let the user open it.
+            autoFocus: Platform.OS === 'ios',
             ref: searchBarRef,
             hideWhenScrolling: false,
             onFocus: () => {
