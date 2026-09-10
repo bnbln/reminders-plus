@@ -350,6 +350,9 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "projectLimit.title": "Mehr als {{count}} Projekte brauchen Reminders+.",
   "projectLimit.body":
     "Dein Free-Plan enthält bis zu {{count}} aktive Projekte. Mit Reminders+ bekommst du unbegrenzte Projekte, AI-Assist und die Cloud-Sync-Freischaltung.",
+  // Android-Variante: AI-Assist gibt es dort nicht und wird deshalb nicht beworben.
+  "projectLimit.body.noAssist":
+    "Dein Free-Plan enthält bis zu {{count}} aktive Projekte. Mit Reminders+ bekommst du unbegrenzte Projekte.",
   "projectLimit.action.later": "Später",
   "projectLimit.action.openPlus": "Reminders+ ansehen",
 
@@ -441,6 +444,8 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "settings.section.interactions": "Interaktionen",
   "settings.remindsPlus.helper":
     "AI-Assist, mehr als 4 Projekte und die Cloud-Sync-Freischaltung für Apple-Geräte.",
+  "settings.remindsPlus.helper.noAssist":
+    "Mit Reminders+ bekommst du mehr als 4 Projekte.",
   "settings.remindsPlus.action.showOptions": "Kaufoptionen anzeigen",
   "settings.remindsPlus.action.openOffer": "Angebot öffnen",
   "settings.appearance.mode": "Farbmodus",
@@ -488,6 +493,8 @@ export const DE_TRANSLATIONS: TranslationDict = {
     "Cloud Sync und alle Pro-Features direkt über Apple aktivieren.",
   "plus.source.default":
     "AI-Assist, mehr Projekte und Cloud Sync direkt über Apple aktivieren.",
+  "plus.source.default.noAssist":
+    "Mit Reminders+ mehr Projekte freischalten.",
   "plus.alert.debugUnlock.title": "Debug-Freischaltung aktiv",
   "plus.alert.debugUnlock.bodyMonthly":
     "Reminders+ wurde lokal für diesen Debug-Build freigeschaltet, weil kein gültiges Store-Produkt verfügbar war.",
@@ -521,6 +528,8 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "plus.legal.hide": "Verfügbarkeitshinweise ausblenden",
   "plus.legal.disclaimer":
     "Cloud Sync funktioniert nur zwischen Apple-Geräten, die mit derselben Apple-ID in iCloud angemeldet sind. AI-Assist ist nur auf Geräten verfügbar, die Apple für Apple Intelligence unterstützt.",
+  "plus.legal.disclaimer.noAssist":
+    "Cloud Sync funktioniert nur zwischen Apple-Geräten, die mit derselben Apple-ID in iCloud angemeldet sind.",
   "plus.action.restorePurchases": "Käufe wiederherstellen",
   "plus.action.reloadProducts": "Produkte neu laden",
 

@@ -13,6 +13,7 @@ import { Colors } from "@/constants/theme";
 import { usePremium } from "@/context/premium-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
+import { IS_ASSIST_SUPPORTED } from "@/utils/assist-availability";
 
 type ProfileMenuActionId =
   | "profile"
@@ -84,13 +85,20 @@ export function ProfileHeaderMenuButton() {
       title: "",
       displayInline: true,
       subactions: [
-        {
-          id: "assist",
-          title: t("screen.assist"),
-          image:
-            Platform.OS === "ios" ? "message.badge.waveform.fill" : undefined,
-          imageColor: Platform.OS === "ios" ? "#0A84FF" : undefined,
-        },
+        // Assist is Apple-only; see `IS_ASSIST_SUPPORTED`.
+        ...(IS_ASSIST_SUPPORTED
+          ? [
+              {
+                id: "assist",
+                title: t("screen.assist"),
+                image:
+                  Platform.OS === "ios"
+                    ? "message.badge.waveform.fill"
+                    : undefined,
+                imageColor: Platform.OS === "ios" ? "#0A84FF" : undefined,
+              } satisfies MenuAction,
+            ]
+          : []),
         {
           id: "cloudSync",
           title: t("screen.cloudSync"),
@@ -113,7 +121,17 @@ export function ProfileHeaderMenuButton() {
       ],
     };
 
-    return [mainGroup, premiumGroup, settingsGroup];
+    const groups = [mainGroup, premiumGroup, settingsGroup];
+
+    // `displayInline` maps to a UIMenu inline section on iOS. Android's PopupMenu
+    // has no such concept, so each group renders as a *submenu* row labelled with
+    // its (deliberately empty) title — an unreadable menu of blank arrows. Flatten
+    // to a single level there; the grouping is purely visual anyway.
+    if (Platform.OS === "android") {
+      return groups.flatMap((group) => group.subactions ?? []);
+    }
+
+    return groups;
   }, [theme]);
 
   const onPressAction = React.useCallback(
@@ -141,6 +159,7 @@ export function ProfileHeaderMenuButton() {
       }
 
       if (actionId === "assist") {
+        if (!IS_ASSIST_SUPPORTED) return;
         if (!isReady || hasPremiumAccess) {
           router.push("/assist");
           return;

@@ -45,7 +45,9 @@
         "NSRemindersFullAccessUsageDescription": "Wir importieren Erinnerungen aus Apple Erinnerungen in deine App.",
         "NSLocationWhenInUseUsageDescription": "Wir verwenden deinen Standort, um den aktuellen Ort für den Task vorzuschlagen.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Wir verwenden deinen Standort, um den aktuellen Ort für den Task vorzuschlagen.",
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
       }
     },
     "android": {
@@ -99,7 +101,8 @@
       "expo-font",
       "expo-image",
       "expo-web-browser",
-      "expo-iap"
+      "expo-iap",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -5,16 +5,16 @@ import { useRouter } from "expo-router";
 import React from "react";
 import {
   Alert,
-  Button,
   Platform,
   Share,
   StyleSheet,
-  Switch,
   Text,
   View,
 } from "react-native";
 
 import { type PremiumPlan } from "@/constants/premium";
+import { SettingsButton } from "@/components/ui/settings-button";
+import { SettingsSwitch } from "@/components/ui/settings-switch";
 import { Colors } from "@/constants/theme";
 import {
   TAG_ORDER,
@@ -775,11 +775,10 @@ export function PremiumCloudSyncBlock({
             {controller.effectiveCloudSyncEnabled ? t("common.active") : t("common.off")}
           </Text>
         </View>
-        <Switch
+        <SettingsSwitch
           value={Platform.OS === "ios" ? controller.cloudSyncEnabled : false}
           onValueChange={controller.onToggleCloudSync}
           disabled={blockDisabled || controller.isCloudSyncBusy}
-          trackColor={{ false: "#7A7A7A", true: "#34C759" }}
         />
       </View>
 
@@ -790,7 +789,7 @@ export function PremiumCloudSyncBlock({
       </Text>
 
       <View style={styles.buttonRow}>
-        <Button
+        <SettingsButton
           title={
             Platform.OS !== "ios"
               ? t("cloudSync.action.onlyMobileApple")
@@ -832,7 +831,7 @@ export function PremiumBackupBlock({
       </Text>
 
       <View style={styles.buttonStack}>
-        <Button
+        <SettingsButton
           title={
             controller.isExportingBackup
               ? t("backup.action.exporting")
@@ -845,7 +844,7 @@ export function PremiumBackupBlock({
             controller.isRestoringBackup
           }
         />
-        <Button
+        <SettingsButton
           title={
             controller.isRestoringBackup
               ? t("backup.action.restoring")

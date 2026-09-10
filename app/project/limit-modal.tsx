@@ -16,6 +16,7 @@ import { usePremium } from "@/context/premium-store";
 import { useTasksStore } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
+import { assistCopyKey } from "@/utils/assist-availability";
 
 type ThemeName = keyof typeof Colors;
 
@@ -99,7 +100,7 @@ export default function ProjectLimitModal() {
                 {t("projectLimit.title", { count: FREE_PROJECT_LIMIT })}
               </Text>
               <Text style={styles.lockBody}>
-                {t("projectLimit.body", { count: FREE_PROJECT_LIMIT })}
+                {t(assistCopyKey("projectLimit.body"), { count: FREE_PROJECT_LIMIT })}
               </Text>
 
               <View style={styles.lockButtonRow}>

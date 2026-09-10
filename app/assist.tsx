@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { generateText } from "ai";
-import { Stack, useRouter } from "expo-router";
+import { Redirect, Stack, useRouter } from "expo-router";
 import React from "react";
 import {
   ActivityIndicator,
@@ -29,6 +29,7 @@ import {
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { apple, createAppleProvider } from "@/utils/apple-llm";
+import { IS_ASSIST_SUPPORTED } from "@/utils/assist-availability";
 import {
   ASSIST_TOOL_CALL_LIMIT_ERROR,
   type AssistProjectCandidate,
@@ -3040,7 +3041,7 @@ function AssistUnlockedScreen() {
   );
 }
 
-export default function AssistScreen() {
+function AssistScreenContent() {
   const router = useRouter();
   const rawColorScheme = useColorScheme();
   const resolvedColorScheme: "light" | "dark" =
@@ -3344,3 +3345,16 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
+
+/**
+ * Assist runs on Apple Foundation Models and has no Android backend, so the
+ * screen is never mounted there. Guarding at the component boundary (rather than
+ * inside `AssistScreenContent`) keeps the hook order stable.
+ */
+export default function AssistScreen() {
+  if (!IS_ASSIST_SUPPORTED) {
+    return <Redirect href="/home" />;
+  }
+
+  return <AssistScreenContent />;
+}

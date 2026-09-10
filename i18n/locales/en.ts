@@ -335,6 +335,8 @@ export const EN_TRANSLATIONS: TranslationDict = {
     'projectLimit.loading': 'Checking your Reminders+ status...',
     'projectLimit.title': 'More than {{count}} projects require Reminders+.',
     'projectLimit.body': 'Your free plan includes up to {{count}} active projects. Reminders+ unlocks unlimited projects, AI Assist, and Cloud Sync.',
+    // Android variant: Assist is Apple-only, so it is not advertised there.
+    'projectLimit.body.noAssist': 'Your free plan includes up to {{count}} active projects. Reminders+ unlocks unlimited projects.',
     'projectLimit.action.later': 'Later',
     'projectLimit.action.openPlus': 'View Reminders+',
 
@@ -403,6 +405,7 @@ export const EN_TRANSLATIONS: TranslationDict = {
     'settings.section.notifications': 'Notifications',
     'settings.section.interactions': 'Interactions',
     'settings.remindsPlus.helper': 'AI Assist, more than 4 projects, and Cloud Sync unlock for Apple devices.',
+    'settings.remindsPlus.helper.noAssist': 'Reminders+ unlocks more than 4 projects.',
     'settings.remindsPlus.action.showOptions': 'Show purchase options',
     'settings.remindsPlus.action.openOffer': 'Open offer',
     'settings.appearance.mode': 'Color mode',
@@ -443,6 +446,7 @@ export const EN_TRANSLATIONS: TranslationDict = {
     'plus.source.projects': 'Unlock more projects, AI Assist, and sync in one step.',
     'plus.source.sync': 'Activate Cloud Sync and all pro features directly via Apple.',
     'plus.source.default': 'Activate AI Assist, more projects, and Cloud Sync directly via Apple.',
+    'plus.source.default.noAssist': 'Unlock more projects with Reminders+.',
     'plus.alert.debugUnlock.title': 'Debug unlock active',
     'plus.alert.debugUnlock.bodyMonthly': 'Reminders+ was unlocked locally for this debug build because no valid store product was available.',
     'plus.alert.debugUnlock.bodyLifetime': 'Lifetime pass was unlocked locally for this debug build because no valid store product was available.',
@@ -469,6 +473,7 @@ export const EN_TRANSLATIONS: TranslationDict = {
     'plus.legal.show': 'Availability notes',
     'plus.legal.hide': 'Hide availability notes',
     'plus.legal.disclaimer': 'Cloud Sync only works between Apple devices signed in to iCloud with the same Apple ID. AI Assist is only available on devices supported by Apple for Apple Intelligence.',
+    'plus.legal.disclaimer.noAssist': 'Cloud Sync only works between Apple devices signed in to iCloud with the same Apple ID.',
     'plus.action.restorePurchases': 'Restore purchases',
     'plus.action.reloadProducts': 'Reload products',
 

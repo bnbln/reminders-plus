@@ -2,6 +2,8 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SymbolView, SymbolViewProps } from 'expo-symbols';
 import { Platform, StyleProp } from 'react-native';
 
+import { resolveMaterialIcon } from '@/constants/sf-symbols';
+
 export function SFSymbol({
     name,
     size = 24,
@@ -30,5 +32,12 @@ export function SFSymbol({
         );
     }
 
-    return <MaterialIcons name="folder" size={size} color={color} style={style as any} />;
+    return (
+        <MaterialIcons
+            name={resolveMaterialIcon(resolvedName)}
+            size={size}
+            color={color}
+            style={style as any}
+        />
+    );
 }

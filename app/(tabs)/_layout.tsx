@@ -5,6 +5,7 @@ import { NativeTabs } from "expo-router/unstable-native-tabs";
 import React from "react";
 import { DynamicColorIOS, NativeModules, Platform, StyleSheet, View } from "react-native";
 
+import { CreateTaskFab } from "@/components/ui/create-task-fab";
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { preloadStreakAccentBackgroundAssets } from "@/components/ui/streak-accent-background";
@@ -398,6 +399,12 @@ export default function TabLayout() {
           </NativeTabs.Trigger>
         </NativeTabs>
       </TabBarMinimizeProvider>
+      {/*
+        iOS gets this button as a native UITabAccessory attached to the tab bar
+        (see AppDelegate.swift). Android has no such affordance, so the same
+        action is surfaced as the Material 3 primary action button.
+      */}
+      {Platform.OS === "android" ? <CreateTaskFab /> : null}
     </View>
   );
 }

@@ -23,6 +23,10 @@ import { Colors } from "@/constants/theme";
 import { usePremium } from "@/context/premium-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
+import {
+  assistCopyKey,
+  IS_ASSIST_SUPPORTED,
+} from "@/utils/assist-availability";
 
 type ThemeName = keyof typeof Colors;
 type PurchaseOption = "monthly" | "lifetime";
@@ -69,7 +73,7 @@ function resolveSourceCopy(source: string) {
     case "sync":
       return t("plus.source.sync");
     default:
-      return t("plus.source.default");
+      return t(assistCopyKey("plus.source.default"));
   }
 }
 
@@ -270,6 +274,14 @@ export default function PlusScreen({
   const checkoutTextColor = isDark ? "#0F1115" : "#FFFFFF";
   const disabledCheckoutBackground = isDark ? "#4B5563" : "#A1A1AA";
   const sourceCopy = resolveSourceCopy(source);
+  // Assist is Apple-only, so don't advertise it on platforms that can't run it.
+  const visibleBenefits = React.useMemo(
+    () =>
+      BENEFITS.filter(
+        (benefit) => benefit.id !== "assist" || IS_ASSIST_SUPPORTED,
+      ),
+    [],
+  );
   const monthlyTitle = resolveStoreProductTitle(
     monthlyProduct,
     t("plus.offer.monthly.title"),
@@ -440,7 +452,7 @@ export default function PlusScreen({
           <Text style={styles.heroSubtitle}>{sourceCopy}</Text>
 
           <View style={styles.benefitsCard}>
-            {BENEFITS.map((benefit, index) => (
+            {visibleBenefits.map((benefit, index) => (
               <View key={benefit.id}>
                 <View style={styles.benefitRow}>
                   <View
@@ -457,7 +469,7 @@ export default function PlusScreen({
                   </View>
                   <Text style={styles.benefitText}>{t(benefit.titleKey)}</Text>
                 </View>
-                {index < BENEFITS.length - 1 ? (
+                {index < visibleBenefits.length - 1 ? (
                   <View style={styles.benefitDivider} />
                 ) : null}
               </View>
@@ -631,7 +643,7 @@ export default function PlusScreen({
 
           {showsLegalDisclosure ? (
             <Text style={[styles.legalDisclosureText, { color: legalTextColor }]}>
-              {t("plus.legal.disclaimer")}
+              {t(assistCopyKey("plus.legal.disclaimer"))}
             </Text>
           ) : null}
 

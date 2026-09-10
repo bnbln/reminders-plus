@@ -33,15 +33,17 @@ type Size = { width: number; height: number };
 let streakAccentBackgroundPreloadPromise: Promise<void> | null = null;
 
 export function preloadStreakAccentBackgroundAssets(): Promise<void> {
-  if (!streakAccentBackgroundPreloadPromise) {
-    streakAccentBackgroundPreloadPromise = Asset.loadAsync(
+  // Bind the memoised promise to a local so the return type stays `Promise<void>`;
+  // TypeScript widens the module-level `let` back to `| null` after the branch.
+  const pending =
+    streakAccentBackgroundPreloadPromise ??
+    (streakAccentBackgroundPreloadPromise = Asset.loadAsync(
       STREAK_BACKGROUND_MODULES,
     )
       .then(() => undefined)
-      .catch(() => undefined);
-  }
+      .catch(() => undefined));
 
-  return streakAccentBackgroundPreloadPromise;
+  return pending;
 }
 
 const styles = StyleSheet.create({

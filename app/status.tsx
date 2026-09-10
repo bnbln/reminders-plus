@@ -1,5 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import SegmentedControl from '@react-native-segmented-control/segmented-control';
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import React, { useMemo, useState } from 'react';
 import {
   Platform,

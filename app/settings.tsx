@@ -14,18 +14,16 @@ import {
   type MenuComponentRef,
   MenuView,
 } from "@react-native-menu/menu";
-import SegmentedControl from "@react-native-segmented-control/segmented-control";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import * as Calendar from "expo-calendar";
 import { useRouter } from "expo-router";
 import React from "react";
 import {
   Alert,
-  Button,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   View,
   type ViewStyle,
@@ -46,6 +44,9 @@ import {
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { type AppLocale, t } from "@/i18n";
+import { assistCopyKey } from "@/utils/assist-availability";
+import { SettingsButton } from "@/components/ui/settings-button";
+import { SettingsSwitch } from "@/components/ui/settings-switch";
 import { localizeExistingOnboardingSeedData } from "@/storage/tasks-onboarding-seed";
 import { deriveActiveSectionFromDueAt } from "@/utils/task-dates";
 
@@ -626,7 +627,7 @@ export default function SettingsScreen() {
           <View style={[styles.separator, { backgroundColor: borderColor }]} />
 
           <Text style={[styles.helperText, { color: muted }]}>
-            {t("settings.remindsPlus.helper")}
+            {t(assistCopyKey("settings.remindsPlus.helper"))}
           </Text>
 
           <View style={[styles.separator, { backgroundColor: borderColor }]} />
@@ -652,7 +653,8 @@ export default function SettingsScreen() {
           <View style={[styles.separator, { backgroundColor: borderColor }]} />
 
           <View style={styles.buttonRow}>
-            <Button
+            <SettingsButton
+              variant="filled"
               title={
                 premiumController.hasPremiumAccess
                   ? t("settings.remindsPlus.action.showOptions")
@@ -725,7 +727,7 @@ export default function SettingsScreen() {
         {SHOW_APPLE_IMPORT_SECTION ? (
           <Section title={t("settings.section.import")} cardStyle={sectionCardStyle}>
             <View style={styles.buttonRow}>
-              <Button
+              <SettingsButton
                 title={
                   isImportingAppleData
                     ? t("settings.import.action.loading")
@@ -794,13 +796,12 @@ export default function SettingsScreen() {
             <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
               {t("settings.notifications.dailySummary")}
             </Text>
-            <Switch
+            <SettingsSwitch
               value={dailySummaryEnabled}
               onValueChange={(enabled) => {
                 setDailySummaryEnabled(enabled);
                 if (!enabled) setShowDailySummaryPicker(false);
               }}
-              trackColor={{ false: "#7A7A7A", true: "#34C759" }}
             />
           </View>
 
@@ -857,10 +858,9 @@ export default function SettingsScreen() {
             <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
               {t("settings.interactions.haptics")}
             </Text>
-            <Switch
+            <SettingsSwitch
               value={hapticsEnabled}
               onValueChange={setHapticsEnabled}
-              trackColor={{ false: "#7A7A7A", true: "#34C759" }}
             />
           </View>
 
@@ -870,10 +870,9 @@ export default function SettingsScreen() {
             <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
               {t("settings.interactions.reduceMotion")}
             </Text>
-            <Switch
+            <SettingsSwitch
               value={reduceMotionEnabled}
               onValueChange={setReduceMotionEnabled}
-              trackColor={{ false: "#7A7A7A", true: "#34C759" }}
             />
           </View>
         </Section>
@@ -940,10 +939,9 @@ export default function SettingsScreen() {
                   Uses simulated streak and status history for App Store screenshots.
                 </Text>
               </View>
-              <Switch
+              <SettingsSwitch
                 value={fakeStatsEnabled}
                 onValueChange={setFakeStatsEnabled}
-                trackColor={{ false: "#7A7A7A", true: "#34C759" }}
               />
             </View>
           </Section>
