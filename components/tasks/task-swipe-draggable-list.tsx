@@ -5,6 +5,7 @@ import {
   Animated,
   LayoutAnimation,
   LayoutChangeEvent,
+  Platform,
   View,
   useWindowDimensions,
   type GestureResponderEvent,
@@ -24,7 +25,13 @@ import type { Project, Task } from '@/context/tasks-store';
 import { triggerImpactHaptic } from '@/utils/haptics';
 
 type ThemeName = keyof typeof Colors;
-const LIST_ACTIVATION_DISTANCE_DEFAULT = 0;
+// DraggableFlatList wraps the whole list (including its ListHeaderComponent,
+// where the horizontal date rail lives) in a single unconstrained Pan
+// gesture when activationDistance is falsy. On Android that gesture wins the
+// touch over nested native scrollables, so the date rail can't be swiped;
+// a nonzero distance makes the library apply activeOffsetY, restricting the
+// container gesture to vertical drags and letting horizontal children scroll.
+const LIST_ACTIVATION_DISTANCE_DEFAULT = Platform.OS === "android" ? 12 : 0;
 const LIST_AUTOSCROLL_SPEED = 58;
 const TASK_LIST_WIDE_LAYOUT_BREAKPOINT = 900;
 const TASK_LIST_MAX_CONTENT_WIDTH = 760;

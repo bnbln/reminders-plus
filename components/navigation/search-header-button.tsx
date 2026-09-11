@@ -13,12 +13,12 @@ export function SearchHeaderButton() {
   const segments = useSegments();
   const theme = useColorScheme() ?? "light";
   const color = Colors[theme].text;
-  const [first, second] = segments;
-  const isSearchRoute = first === "(tabs)" && second === "search";
+  const [first] = segments;
+  const isSearchRoute = first === "global-search";
 
   const handlePress = React.useCallback(() => {
     if (isSearchRoute) return;
-    router.navigate("/search");
+    router.push("/global-search");
   }, [isSearchRoute, router]);
 
   // iOS surfaces search as its own native tab; Android has no tab-bar

@@ -3,7 +3,7 @@ import {
   DefaultTheme,
   ThemeProvider,
 } from "@react-navigation/native";
-import { Stack, useSegments } from "expo-router";
+import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React from "react";
 import { I18nManager, Platform, View } from "react-native";
@@ -33,7 +33,9 @@ export default function RootLayout() {
   const colorScheme = useColorScheme();
   const { localeOverride } = useAppSettings();
   const theme = colorScheme ?? "light";
+  const router = useRouter();
   const segments = useSegments();
+  const searchBarRef = React.useRef<any>(null);
   const showSettingsAccentBackground =
     segments[0] === "settings" || segments[0] === "cloud-sync";
   const themedContentStyle = React.useMemo(
@@ -244,6 +246,27 @@ export default function RootLayout() {
                       ...tabLikeHeaderOptions,
                       title: t("screen.assist"),
                       headerLargeTitle: false,
+                    }}
+                  />
+                  <Stack.Screen
+                    name="global-search"
+                    options={{
+                      ...tabLikeHeaderOptions,
+                      title: t("tabs.search"),
+                      headerLargeTitle: false,
+                      headerSearchBarOptions: {
+                        placement: "automatic",
+                        placeholder: t("search.placeholder"),
+                        cancelButtonText: t("taskDetail.alert.cancel"),
+                        autoFocus: true,
+                        ref: searchBarRef,
+                        hideWhenScrolling: false,
+                        onChangeText: (event: any) => {
+                          router.setParams({
+                            q: String(event?.nativeEvent?.text ?? ""),
+                          });
+                        },
+                      },
                     }}
                   />
                   </Stack>
