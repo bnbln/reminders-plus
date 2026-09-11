@@ -21,6 +21,7 @@ import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
 import { ripple } from "@/components/ui/ripple";
+import { m3InputProps } from '@/components/ui/m3-input';
 
 export default function LocationPickerScreen() {
   const router = useRouter();
@@ -208,6 +209,7 @@ export default function LocationPickerScreen() {
                 style={styles.inputIcon}
               />
               <TextInput
+                {...m3InputProps()}
                 value={locationDraft ?? ''}
                 onChangeText={setLocationDraft}
                 placeholder={t('locationPicker.placeholder.custom')}

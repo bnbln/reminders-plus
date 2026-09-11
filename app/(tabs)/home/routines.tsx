@@ -14,7 +14,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { countLabel, getIntlLocale, t } from '@/i18n';
 import { isIOS26OrNewer } from '@/utils/ios-version';
 import { hasValidDueAt } from '@/utils/task-dates';
-import { ripple } from '@/components/ui/ripple';
+import { ripple, rippleClip } from '@/components/ui/ripple';
 
 type ThemeName = keyof typeof Colors;
 type RoutineStatsBucket = 'daily' | 'weekly' | 'monthlyPlus';
@@ -509,6 +509,7 @@ export default function RoutinesScreen() {
                     android_ripple={ripple()}
                     key={routine.id}
                     onPress={() => router.push(`/task/${routine.id}`)}
+                    style={rippleClip(24)}
                   >
                     <GlassSurface
                       style={styles.routineCard}

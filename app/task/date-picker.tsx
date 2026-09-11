@@ -13,7 +13,7 @@ import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
 import { deriveActiveSectionFromDueAt } from '@/utils/task-dates';
-import { ripple } from '@/components/ui/ripple';
+import { ripple, rippleClip } from "@/components/ui/ripple";
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
@@ -149,7 +149,7 @@ export default function DatePickerScreen() {
                     <Pressable
                       android_ripple={ripple()}
                         onPress={handleClear}
-                        style={[styles.optionRow, isCleared && styles.optionRowActive]}
+                        style={[styles.optionRow, rippleClip(14), isCleared && styles.optionRowActive]}
                     >
                         <View style={[styles.optionIcon, { backgroundColor: withAlpha(Colors[theme].text, isDark ? 0.15 : 0.1) }]}>
                             <MaterialIcons name="event-busy" size={20} color={withAlpha(Colors[theme].text, 0.6)} />
@@ -176,7 +176,7 @@ export default function DatePickerScreen() {
                     </View>
 
                     {/* Time Switch */}
-                    <View style={[styles.optionRow, { justifyContent: 'space-between' }]}>
+                    <View style={[styles.optionRow, rippleClip(14), { justifyContent: 'space-between' }]}>
                         <Text style={styles.optionLabel}>{t('datePicker.time')}</Text>
                         <Switch
                             value={dueHasTimeDraft}

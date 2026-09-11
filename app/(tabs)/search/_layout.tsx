@@ -18,6 +18,9 @@ export default function SearchLayout() {
       screenOptions={{
         headerLargeTitle: Platform.OS === 'ios',
         headerShadowVisible: false,
+        // Let the page background run behind the top app bar.
+        headerTransparent: true,
+        headerStyle: { backgroundColor: 'transparent' },
         headerShown: true,
         contentStyle: { backgroundColor: 'transparent' },
         headerTintColor: Colors[theme].text,

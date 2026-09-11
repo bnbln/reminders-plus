@@ -1,4 +1,5 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { useHeaderHeight } from '@react-navigation/elements';
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -24,6 +25,7 @@ const SEARCH_RESULT_LIMIT = 120;
 const SEARCH_TASK_ITEM_SPACING = 8;
 
 export default function SearchIndex() {
+  const headerHeight = useHeaderHeight();
   const router = useRouter();
   const { q, withSubtasks } = useLocalSearchParams<{
     q?: string;
@@ -164,7 +166,11 @@ export default function SearchIndex() {
       <ScrollView
         key={listRenderKey}
         style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          // Header is transparent; iOS insets automatically, Android does not.
+          Platform.OS === "android" ? { paddingTop: headerHeight } : null,
+        ]}
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
       >

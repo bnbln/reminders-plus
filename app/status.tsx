@@ -20,6 +20,7 @@ import {
   useStatusStats,
 } from '@/hooks/use-status-stats';
 import { t } from '@/i18n';
+import { useHeaderHeight } from '@react-navigation/elements';
 
 type ThemeName = keyof typeof Colors;
 type RangeOption = StatusRangeOption;
@@ -285,6 +286,7 @@ function formatRatioValue({
 }
 
 export default function StatusScreen() {
+  const headerHeight = useHeaderHeight();
   const { width } = useWindowDimensions();
   const theme = useColorScheme() ?? 'light';
   const isDark = theme === 'dark';
@@ -369,7 +371,11 @@ export default function StatusScreen() {
       style={styles.container}
       contentInsetAdjustmentBehavior="automatic"
       alwaysBounceVertical
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[
+          styles.content,
+          // Header is transparent; iOS insets automatically, Android does not.
+          Platform.OS === "android" ? { paddingTop: headerHeight } : null,
+        ]}
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.hero}>

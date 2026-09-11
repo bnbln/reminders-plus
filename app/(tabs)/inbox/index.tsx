@@ -1,4 +1,5 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { useHeaderHeight } from '@react-navigation/elements';
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import {
@@ -110,6 +111,7 @@ function adjustTaskForInboxSection(
 }
 
 export default function InboxScreen() {
+  const headerHeight = useHeaderHeight();
   const router = useRouter();
   const theme = useColorScheme() ?? "light";
   const isDark = theme === "dark";
@@ -494,7 +496,11 @@ export default function InboxScreen() {
         projectsById={projectsById}
         rowStyles={styles}
         itemSpacing={HOME_TASK_ITEM_SPACING}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          // Header is transparent; iOS insets automatically, Android does not.
+          Platform.OS === "android" ? { paddingTop: headerHeight } : null,
+        ]}
         containerStyle={{ backgroundColor: "transparent" }}
         contentInsetAdjustmentBehavior="automatic"
         animateDataLayoutChanges={false}

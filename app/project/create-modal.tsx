@@ -24,6 +24,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
 import { shouldRouteToProjectLimitGate } from '@/utils/project-creation-gate';
 import { ripple } from "@/components/ui/ripple";
+import { m3InputProps } from '@/components/ui/m3-input';
 
 type ThemeName = keyof typeof Colors;
 
@@ -344,6 +345,7 @@ export default function ProjectCreateModal() {
           >
             <View style={styles.nameRow}>
               <TextInput
+                {...m3InputProps()}
                 ref={(ref) => {
                   titleInputRef.current = ref;
                 }}
@@ -368,6 +370,7 @@ export default function ProjectCreateModal() {
             isInteractive
           >
             <TextInput
+              {...m3InputProps()}
               ref={(ref) => {
                 descriptionInputRef.current = ref;
               }}

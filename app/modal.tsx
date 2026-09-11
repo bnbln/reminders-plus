@@ -1,7 +1,7 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import React from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, View, Platform } from 'react-native';
 
 import { HeaderCloseButton } from '@/components/ui/header-close-button';
 import { HeaderIconButton } from '@/components/ui/header-icon-button';
@@ -9,6 +9,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
+import { TextField } from '@/components/ui/text-field';
 
 export default function ModalScreen() {
   const theme = useColorScheme() ?? 'light';
@@ -50,7 +51,7 @@ export default function ModalScreen() {
       />
 
       <View style={styles.content}>
-        <TextInput
+        <TextField
           value={title}
           onChangeText={setTitle}
           placeholder={t('modal.placeholder.title')}
@@ -60,7 +61,13 @@ export default function ModalScreen() {
             styles.input,
             {
               color: Colors[theme].text,
-              backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+              // Android draws the M3 filled container itself.
+              backgroundColor:
+                Platform.OS === 'android'
+                  ? 'transparent'
+                  : theme === 'dark'
+                    ? 'rgba(255,255,255,0.1)'
+                    : 'rgba(0,0,0,0.05)',
             },
           ]}
         />

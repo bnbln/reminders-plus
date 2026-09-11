@@ -28,9 +28,11 @@ import {
   type SectionId,
   type Task,
 } from "@/context/tasks-store";
+import { useSnackbar } from "@/context/snackbar-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { formatDate, t } from "@/i18n";
 import { ripple } from "@/components/ui/ripple";
+import { m3InputProps } from '@/components/ui/m3-input';
 import {
   alignDueAtToLocalDay,
   deriveActiveSectionFromDueAt,
@@ -173,6 +175,7 @@ const formatComposerTimeLabel = (dueAt: number) => {
 };
 
 export default function CreateTaskModal() {
+  const { showSnackbar } = useSnackbar();
   const router = useRouter();
   const {
     projectId: projectIdParam,
@@ -1241,10 +1244,16 @@ export default function CreateTaskModal() {
   const onCreate = React.useCallback(() => {
     setMenuExpanded(false);
     if (!hasTitle) {
-      Alert.alert(
-        t("taskCreate.titleMissingTitle"),
-        t("taskCreate.titleMissingBody"),
-      );
+      // A validation hint needs no decision from the user, so Android gets a
+      // snackbar rather than a modal dialog it has to dismiss.
+      if (Platform.OS === "android") {
+        showSnackbar({ message: t("taskCreate.titleMissingBody") });
+      } else {
+        Alert.alert(
+          t("taskCreate.titleMissingTitle"),
+          t("taskCreate.titleMissingBody"),
+        );
+      }
       return;
     }
     if (requiresRoutineInterval && !hasRoutineInterval) {
@@ -1376,6 +1385,7 @@ export default function CreateTaskModal() {
     setTasks,
     shouldPresetRoutine,
     trimmed,
+    showSnackbar,
   ]);
 
   const close = React.useCallback(() => {
@@ -1786,6 +1796,7 @@ export default function CreateTaskModal() {
                   isInteractive
                 >
                   <TextInput
+                    {...m3InputProps()}
                     ref={(r) => {
                       inputRef.current = r;
                     }}
@@ -1816,6 +1827,7 @@ export default function CreateTaskModal() {
                   isInteractive
                 >
                   <TextInput
+                    {...m3InputProps()}
                     ref={(r) => {
                       inputRef.current = r;
                     }}

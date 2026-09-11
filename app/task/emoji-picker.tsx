@@ -10,6 +10,7 @@ import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
 import { ripple } from "@/components/ui/ripple";
+import { m3InputProps } from '@/components/ui/m3-input';
 import {
     filterTaskStyleEmojiOptions,
     TASK_STYLE_COLOR_SWATCHES,
@@ -139,6 +140,7 @@ export default function EmojiPickerScreen() {
                             <Text style={[styles.sectionTitle, styles.emojiSectionTitle]}>{t('emojiPicker.emoji')}</Text>
                             <View style={styles.searchShell}>
                                 <TextInput
+                                  {...m3InputProps()}
                                     value={query}
                                     onChangeText={setQuery}
                                     placeholder={t('emojiPicker.searchPlaceholder')}

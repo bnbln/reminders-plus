@@ -2,7 +2,7 @@ import { Stack } from 'expo-router';
 import React from 'react';
 import { Platform } from 'react-native';
 
-import { ProfileHeaderMenuButton } from '@/components/navigation/profile-header-menu-button';
+import { HeaderActions } from '@/components/navigation/header-actions';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
@@ -16,6 +16,9 @@ export default function ExploreLayout() {
       screenOptions={{
         headerLargeTitle: Platform.OS === 'ios',
         headerShadowVisible: false,
+        // Let the page background run behind the top app bar.
+        headerTransparent: true,
+        headerStyle: { backgroundColor: 'transparent' },
         contentStyle: { backgroundColor: 'transparent' },
         headerTintColor: Colors[theme].text,
         headerTitleAlign,
@@ -28,7 +31,7 @@ export default function ExploreLayout() {
           title: t('tabs.projects'),
           headerBackButtonDisplayMode: 'minimal',
           headerBackVisible: false,
-          headerRight: () => <ProfileHeaderMenuButton />,
+          headerRight: () => <HeaderActions />,
         }}
       />
     </Stack>

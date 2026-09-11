@@ -13,7 +13,10 @@ import { Colors } from "@/constants/theme";
 import { usePremium } from "@/context/premium-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
-import { IS_ASSIST_SUPPORTED } from "@/utils/assist-availability";
+import {
+  IS_ASSIST_SUPPORTED,
+  IS_CLOUD_SYNC_SUPPORTED,
+} from "@/utils/assist-availability";
 
 type ProfileMenuActionId =
   | "profile"
@@ -99,12 +102,17 @@ export function ProfileHeaderMenuButton() {
               } satisfies MenuAction,
             ]
           : []),
-        {
-          id: "cloudSync",
-          title: t("screen.cloudSync"),
-          image: Platform.OS === "ios" ? "icloud.fill" : undefined,
-          imageColor: Platform.OS === "ios" ? "#0A84FF" : undefined,
-        },
+        // Cloud Sync is CloudKit-only; see `IS_CLOUD_SYNC_SUPPORTED`.
+        ...(IS_CLOUD_SYNC_SUPPORTED
+          ? [
+              {
+                id: "cloudSync",
+                title: t("screen.cloudSync"),
+                image: Platform.OS === "ios" ? "icloud.fill" : undefined,
+                imageColor: Platform.OS === "ios" ? "#0A84FF" : undefined,
+              } satisfies MenuAction,
+            ]
+          : []),
       ],
     };
 
@@ -170,6 +178,7 @@ export function ProfileHeaderMenuButton() {
       }
 
       if (actionId === "cloudSync") {
+        if (!IS_CLOUD_SYNC_SUPPORTED) return;
         if (!isReady || hasPremiumAccess) {
           router.push("/cloud-sync");
           return;

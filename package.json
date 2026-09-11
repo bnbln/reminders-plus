@@ -5,7 +5,8 @@
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
-    "android": "expo run:android",
+    "android": "bash ./scripts/android-run.sh",
+    "android:emulator": "bash ./scripts/android-run.sh --boot-only",
     "ios": "expo run:ios",
     "ios:device": "expo run:ios --device",
     "phone": "bash ./scripts/ios-phone.sh",

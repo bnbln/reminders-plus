@@ -31,10 +31,12 @@ import {
   Task,
   useTasksStore,
 } from '@/context/tasks-store';
+import { useSnackbar } from '@/context/snackbar-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getIntlLocale, t } from '@/i18n';
 import { deriveActiveSectionFromDueAt, hasValidDueAt } from '@/utils/task-dates';
 import { ripple } from "@/components/ui/ripple";
+import { m3InputProps } from '@/components/ui/m3-input';
 
 
 
@@ -184,6 +186,7 @@ export default function TaskViewScreen() {
 
   const scrollRef = React.useRef<ScrollView>(null);
   const headerHeight = useHeaderHeight();
+  const { showSnackbar } = useSnackbar();
 
   const scrollToBottom = React.useCallback(() => {
     // Wait slightly for keyboard to animate / spacer to appear
@@ -272,18 +275,41 @@ export default function TaskViewScreen() {
 
   const onDelete = React.useCallback(() => {
     if (!task) return;
+
+    const taskId = task.id;
+    const softDelete = () =>
+      setTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, deletedAt: Date.now() } : t))
+      );
+
+    if (Platform.OS === 'android') {
+      // Android convention: delete immediately and offer Undo. The delete is a
+      // soft delete already, so undoing is just clearing `deletedAt`.
+      softDelete();
+      router.back();
+      showSnackbar({
+        message: t('taskDetail.snackbar.deleted'),
+        actionLabel: t('common.undo'),
+        onAction: () =>
+          setTasks((prev) =>
+            prev.map((t) => (t.id === taskId ? { ...t, deletedAt: undefined } : t))
+          ),
+      });
+      return;
+    }
+
     Alert.alert(t('taskDetail.alert.deleteTitle'), t('taskDetail.alert.deleteBody'), [
       { text: t('taskDetail.alert.cancel'), style: 'cancel' },
       {
         text: t('taskDetail.alert.delete'),
         style: 'destructive',
         onPress: () => {
-          setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, deletedAt: Date.now() } : t)));
+          softDelete();
           router.back();
         },
       },
     ]);
-  }, [router, setTasks, task]);
+  }, [router, setTasks, showSnackbar, task]);
 
   const clearDue = React.useCallback(() => {
     if (!task) return;
@@ -436,6 +462,8 @@ export default function TaskViewScreen() {
         </Pressable>
 
         <TextInput
+
+          {...m3InputProps()}
           value={task.title}
           onChangeText={(v) => updateTask({ title: v })}
           placeholder={t('taskDetail.placeholder.title')}
@@ -451,6 +479,7 @@ export default function TaskViewScreen() {
           ]}
         />
         <TextInput
+          {...m3InputProps()}
           value={task.subtitle ?? ''}
           onChangeText={(v) => updateTask({ subtitle: v.trim().length ? v : undefined })}
           placeholder={t('taskDetail.placeholder.subtitle')}
@@ -558,6 +587,7 @@ export default function TaskViewScreen() {
               </View>
               <Text style={styles.propertyTileLabel}>{t('taskDetail.property.location')}</Text>
               <TextInput
+                {...m3InputProps()}
                 value={task.location ?? ''}
                 onChangeText={(v) => updateTask({ location: v.trim().length ? v : undefined })}
                 placeholder={t('taskDetail.placeholder.location')}
@@ -622,6 +652,7 @@ export default function TaskViewScreen() {
                 <MaterialIcons name={s.done ? 'check-box' : 'check-box-outline-blank'} size={22} color={withAlpha(Colors[theme].text, s.done ? 0.9 : 0.55)} />
               </Pressable>
               <TextInput
+                {...m3InputProps()}
                 value={s.title}
                 onChangeText={(v) => updateSubtaskTitle(s.id, v)}
                 placeholder={t('taskDetail.placeholder.subtask')}
@@ -647,6 +678,7 @@ export default function TaskViewScreen() {
         <View style={[styles.divider, { backgroundColor: hairline }]} />
         <View style={styles.addSubtaskRow}>
           <TextInput
+            {...m3InputProps()}
             value={newSubtaskTitle}
             onChangeText={setNewSubtaskTitle}
             placeholder={t('taskDetail.placeholder.newSubtask')}
@@ -665,6 +697,7 @@ export default function TaskViewScreen() {
       <GlassSurface style={[styles.panel, { borderColor: hairline }]} glassEffectStyle="regular" tintColor={glassTint} fallbackBackgroundColor={glassFallback}>
         <Text style={styles.panelTitle}>{t('taskDetail.panel.notes')}</Text>
         <TextInput
+          {...m3InputProps()}
           value={task.notes ?? ''}
           onChangeText={(v) => updateTask({ notes: v.length ? v : undefined })}
           placeholder={t('taskDetail.placeholder.notes')}

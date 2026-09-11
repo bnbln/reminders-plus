@@ -13,7 +13,7 @@ import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
 import { shouldRouteToProjectLimitGate } from '@/utils/project-creation-gate';
-import { ripple } from "@/components/ui/ripple";
+import { ripple, rippleClip } from "@/components/ui/ripple";
 
 export default function ProjectPickerScreen() {
     const router = useRouter();
@@ -96,7 +96,7 @@ export default function ProjectPickerScreen() {
                     <Pressable
                       android_ripple={ripple()}
                         onPress={handleCreateProject}
-                        style={[styles.optionRow, { marginBottom: 24, justifyContent: 'center' }]}
+                        style={[styles.optionRow, rippleClip(14), { marginBottom: 24, justifyContent: 'center' }]}
                     >
                         <MaterialIcons name="add" size={20} color={Colors[theme].tint} style={{ marginRight: 8 }} />
                         <Text style={[styles.optionLabel, { color: Colors[theme].tint }]}>{t('projectPicker.newProject')}</Text>
@@ -106,7 +106,7 @@ export default function ProjectPickerScreen() {
                     <Pressable
                       android_ripple={ripple()}
                         onPress={() => applyProjectSelectionAndClose(null)}
-                        style={[styles.optionRow, (selectedProjectId ?? null) === null && styles.optionRowActive]}
+                        style={[styles.optionRow, rippleClip(14), (selectedProjectId ?? null) === null && styles.optionRowActive]}
                     >
                         <View style={[styles.optionIcon, { backgroundColor: withAlpha(Colors[theme].text, isDark ? 0.15 : 0.1) }]}>
                             <MaterialIcons name="folder-off" size={20} color={withAlpha(Colors[theme].text, 0.6)} />
@@ -127,7 +127,7 @@ export default function ProjectPickerScreen() {
                               android_ripple={ripple()}
                                 key={p.id}
                                 onPress={() => applyProjectSelectionAndClose(p.id)}
-                                style={[styles.optionRow, isActive && styles.optionRowActive]}
+                                style={[styles.optionRow, rippleClip(14), isActive && styles.optionRowActive]}
                             >
                                 <View style={[styles.optionIcon, { backgroundColor: withAlpha(p.color, 0.15) }]}>
                                     {p.emoji ? (

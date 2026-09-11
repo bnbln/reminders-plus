@@ -27,6 +27,7 @@ import { ripple } from "@/components/ui/ripple";
 import {
   assistCopyKey,
   IS_ASSIST_SUPPORTED,
+  IS_CLOUD_SYNC_SUPPORTED,
 } from "@/utils/assist-availability";
 
 type ThemeName = keyof typeof Colors;
@@ -276,12 +277,15 @@ export default function PlusScreen({
   const checkoutTextColor = isDark ? "#0F1115" : "#FFFFFF";
   const disabledCheckoutBackground = isDark ? "#4B5563" : "#A1A1AA";
   const sourceCopy = resolveSourceCopy(source);
-  // Assist is Apple-only, so don't advertise it on platforms that can't run it.
+  // Assist and Cloud Sync are Apple-only, so don't advertise them on platforms
+  // that cannot run them.
   const visibleBenefits = React.useMemo(
     () =>
-      BENEFITS.filter(
-        (benefit) => benefit.id !== "assist" || IS_ASSIST_SUPPORTED,
-      ),
+      BENEFITS.filter((benefit) => {
+        if (benefit.id === "assist") return IS_ASSIST_SUPPORTED;
+        if (benefit.id === "sync") return IS_CLOUD_SYNC_SUPPORTED;
+        return true;
+      }),
     [],
   );
   const monthlyTitle = resolveStoreProductTitle(

@@ -1,4 +1,8 @@
-import { Platform, type PressableAndroidRippleConfig } from "react-native";
+import {
+  Platform,
+  type PressableAndroidRippleConfig,
+  type ViewStyle,
+} from "react-native";
 
 /**
  * Material touch feedback for `Pressable`.
@@ -46,4 +50,17 @@ export function rippleBorderless(
     radius,
     foreground: true,
   };
+}
+
+/**
+ * Clips a bounded ripple to a rounded shape.
+ *
+ * Android draws the ripple against the *pressable's own* bounds, not its child's.
+ * Most pressables here wrap a card that carries the radius, so the ripple renders
+ * as a hard rectangle over rounded corners. Spread this onto the `Pressable`'s
+ * style with the same radius as the surface it wraps.
+ */
+export function rippleClip(radius: number): ViewStyle | undefined {
+  if (Platform.OS !== "android") return undefined;
+  return { borderRadius: radius, overflow: "hidden" };
 }

@@ -344,8 +344,13 @@ export default function TabLayout() {
               })}
             </NativeTabs.Trigger>
           ) : (
+            // Android has no native tab-bar search affordance, so search is
+            // reached from a header button on every top-level screen instead
+            // (see SearchHeaderButton). Keep the route registered but hidden
+            // from the tab bar, same as "routines" below.
             <NativeTabs.Trigger
               name="search"
+              hidden={Platform.OS === "android"}
               contentStyle={{ backgroundColor: "transparent" }}
             >
               <NativeTabs.Trigger.Label>{t("tabs.search")}</NativeTabs.Trigger.Label>

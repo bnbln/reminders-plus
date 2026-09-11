@@ -24,3 +24,11 @@ export const IS_ASSIST_SUPPORTED = Platform.OS === "ios";
 export function assistCopyKey(baseKey: string): string {
   return IS_ASSIST_SUPPORTED ? baseKey : `${baseKey}.noAssist`;
 }
+
+/**
+ * Cloud Sync is CloudKit behind the `CloudSyncBridge` native module, so it only
+ * exists on Apple platforms. Android has no equivalent and no fallback, so the
+ * feature is hidden there entirely rather than shown as a permanently disabled
+ * toggle next to an "Only on iPhone/iPad" button.
+ */
+export const IS_CLOUD_SYNC_SUPPORTED = Platform.OS === "ios";

@@ -334,6 +334,9 @@ export const EN_TRANSLATIONS: TranslationDict = {
 
     'projectLimit.loading': 'Checking your Reminders+ status...',
     'projectLimit.title': 'More than {{count}} projects require Reminders+.',
+    'common.undo': 'Undo',
+    'taskDetail.snackbar.deleted': 'Task deleted',
+    'projectEdit.snackbar.deleted': 'Project deleted',
     'projectLimit.body': 'Your free plan includes up to {{count}} active projects. Reminders+ unlocks unlimited projects, AI Assist, and Cloud Sync.',
     // Android variant: Assist is Apple-only, so it is not advertised there.
     'projectLimit.body.noAssist': 'Your free plan includes up to {{count}} active projects. Reminders+ unlocks unlimited projects.',
@@ -473,7 +476,7 @@ export const EN_TRANSLATIONS: TranslationDict = {
     'plus.legal.show': 'Availability notes',
     'plus.legal.hide': 'Hide availability notes',
     'plus.legal.disclaimer': 'Cloud Sync only works between Apple devices signed in to iCloud with the same Apple ID. AI Assist is only available on devices supported by Apple for Apple Intelligence.',
-    'plus.legal.disclaimer.noAssist': 'Cloud Sync only works between Apple devices signed in to iCloud with the same Apple ID.',
+    'plus.legal.disclaimer.noAssist': 'Purchases are processed by the app store on your device.',
     'plus.action.restorePurchases': 'Restore purchases',
     'plus.action.reloadProducts': 'Reload products',
 

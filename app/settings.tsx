@@ -15,6 +15,7 @@ import {
 } from "@react-native-menu/menu";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import * as Calendar from "expo-calendar";
+import { useHeaderHeight } from '@react-navigation/elements';
 import { useRouter } from "expo-router";
 import React from "react";
 import {
@@ -43,7 +44,10 @@ import {
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { type AppLocale, t } from "@/i18n";
-import { assistCopyKey } from "@/utils/assist-availability";
+import {
+  assistCopyKey,
+  IS_CLOUD_SYNC_SUPPORTED,
+} from "@/utils/assist-availability";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { SettingsButton } from "@/components/ui/settings-button";
 import { SettingsSwitch } from "@/components/ui/settings-switch";
@@ -160,6 +164,7 @@ function Section({
 }
 
 export default function SettingsScreen() {
+  const headerHeight = useHeaderHeight();
   const router = useRouter();
   const theme = (useColorScheme() ?? "light") as ThemeName;
   const isDark = theme === "dark";
@@ -607,7 +612,11 @@ export default function SettingsScreen() {
     <View style={{ flex: 1, backgroundColor: "transparent" }}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          // Header is transparent; iOS insets automatically, Android does not.
+          Platform.OS === "android" ? { paddingTop: headerHeight } : null,
+        ]}
         contentInsetAdjustmentBehavior="automatic"
         alwaysBounceVertical
         showsVerticalScrollIndicator={false}
@@ -631,15 +640,22 @@ export default function SettingsScreen() {
             {t(assistCopyKey("settings.remindsPlus.helper"))}
           </Text>
 
-          <View style={[styles.separator, { backgroundColor: borderColor }]} />
+          {/* Cloud Sync is CloudKit-only; hidden rather than shown disabled. */}
+          {IS_CLOUD_SYNC_SUPPORTED ? (
+            <>
+              <View
+                style={[styles.separator, { backgroundColor: borderColor }]}
+              />
 
-          <PremiumCloudSyncBlock
-            controller={premiumController}
-            theme={theme}
-            borderColor={borderColor}
-            muted={muted}
-            disabled={remindersPlusDisabled}
-          />
+              <PremiumCloudSyncBlock
+                controller={premiumController}
+                theme={theme}
+                borderColor={borderColor}
+                muted={muted}
+                disabled={remindersPlusDisabled}
+              />
+            </>
+          ) : null}
 
           <View style={[styles.separator, { backgroundColor: borderColor }]} />
 

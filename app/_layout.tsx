@@ -18,6 +18,7 @@ import { Colors } from "@/constants/theme";
 import { HomeFiltersProvider } from "@/context/home-filters-store";
 import { PremiumProvider } from "@/context/premium-store";
 import { useAppSettings } from "@/context/settings-store";
+import { SnackbarProvider } from "@/context/snackbar-store";
 import { TaskCreateProvider } from "@/context/task-create-context";
 import { TasksProvider } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -55,7 +56,8 @@ export default function RootLayout() {
       contentStyle: themedContentStyle,
       headerBackButtonDisplayMode: "minimal" as const,
       headerLargeTitle: Platform.OS === "ios",
-      headerTransparent: Platform.OS === "ios",
+      // Transparent so the page background runs behind the top app bar.
+      headerTransparent: true,
       headerShadowVisible: false,
       headerTintColor: Colors[theme].text,
       headerTitleAlign: "left" as const,
@@ -92,6 +94,7 @@ export default function RootLayout() {
         <TasksProvider>
           <TaskCreateProvider>
             <HomeFiltersProvider>
+              <SnackbarProvider>
               <ThemeProvider value={navigationTheme}>
                 <View
                   style={{ flex: 1, backgroundColor: Colors[theme].background }}
@@ -247,6 +250,7 @@ export default function RootLayout() {
                 </View>
                 <StatusBar style={theme === "dark" ? "light" : "dark"} />
               </ThemeProvider>
+              </SnackbarProvider>
             </HomeFiltersProvider>
           </TaskCreateProvider>
         </TasksProvider>

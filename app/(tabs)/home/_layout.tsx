@@ -2,8 +2,8 @@ import { Stack } from "expo-router";
 import React from "react";
 import { Platform, StyleSheet, View } from "react-native";
 
+import { HeaderActions } from "@/components/navigation/header-actions";
 import { HeaderTrailingActions } from "@/components/navigation/header-trailing-actions";
-import { ProfileHeaderMenuButton } from "@/components/navigation/profile-header-menu-button";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
@@ -39,7 +39,7 @@ export default function HomeLayout() {
               showRoutineTasksToggle={true}
             />
           ),
-          headerRight: () => <ProfileHeaderMenuButton />,
+          headerRight: () => <HeaderActions />,
         }}
       />
       <Stack.Screen
@@ -47,7 +47,7 @@ export default function HomeLayout() {
         options={{
           title: t("archive.title"),
           headerTransparent: Platform.OS === "ios",
-          headerRight: () => <ProfileHeaderMenuButton />,
+          headerRight: () => <HeaderActions />,
         }}
       />
 
@@ -58,7 +58,7 @@ export default function HomeLayout() {
           headerLargeTitle: false,
           headerBackButtonDisplayMode: "minimal",
           headerTransparent: Platform.OS === "ios",
-          headerRight: () => <ProfileHeaderMenuButton />,
+          headerRight: () => <HeaderActions />,
         }}
       />
       <Stack.Screen
@@ -69,7 +69,7 @@ export default function HomeLayout() {
           headerBackButtonDisplayMode: "minimal",
           headerTransparent: Platform.OS === "ios",
           headerLeft: () => <HeaderTrailingActions theme={theme} />,
-          headerRight: () => <ProfileHeaderMenuButton />,
+          headerRight: () => <HeaderActions />,
         }}
       />
       <Stack.Screen
@@ -82,7 +82,7 @@ export default function HomeLayout() {
           headerRight: () => (
             <View style={styles.headerRightRow}>
               <HeaderTrailingActions theme={theme} />
-              <ProfileHeaderMenuButton />
+              <HeaderActions />
             </View>
           ),
         }}
@@ -95,7 +95,7 @@ export default function HomeLayout() {
           headerBackButtonDisplayMode: "minimal",
           headerTransparent: Platform.OS === "ios",
           headerLeft: () => <HeaderTrailingActions theme={theme} />,
-          headerRight: () => <ProfileHeaderMenuButton />,
+          headerRight: () => <HeaderActions />,
         }}
       />
     </Stack>

@@ -1,3 +1,4 @@
+import { useHeaderHeight } from '@react-navigation/elements';
 import { useRouter } from "expo-router";
 import React from "react";
 import {
@@ -28,7 +29,7 @@ import {
 } from "@/utils/haptics";
 import { isIOS26OrNewer } from "@/utils/ios-version";
 import { shouldRouteToProjectLimitGate } from "@/utils/project-creation-gate";
-import { ripple } from '@/components/ui/ripple';
+import { ripple, rippleClip } from '@/components/ui/ripple';
 
 type ThemeName = keyof typeof Colors;
 const GRID_HORIZONTAL_PADDING = 16;
@@ -291,6 +292,7 @@ function ProjectTile({
       onPress={handlePress}
       style={({ pressed }) => [
         styles.tilePressable,
+        rippleClip(24),
         pressed && !isDragging ? { opacity: 0.94 } : null,
       ]}
     >
@@ -306,6 +308,7 @@ function ProjectTile({
 }
 
 export default function ExploreScreen() {
+  const headerHeight = useHeaderHeight();
   const router = useRouter();
   const theme = useColorScheme() ?? "light";
   const { width: viewportWidth } = useWindowDimensions();
@@ -660,7 +663,11 @@ export default function ExploreScreen() {
         style={styles.scroll}
         scrollEnabled={!draggingProjectId}
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          // Header is transparent; iOS insets automatically, Android does not.
+          Platform.OS === "android" ? { paddingTop: headerHeight } : null,
+        ]}
         alwaysBounceVertical
         showsVerticalScrollIndicator={false}
         onLayout={measureGridOrigin}
