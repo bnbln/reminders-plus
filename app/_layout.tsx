@@ -10,10 +10,7 @@ import { I18nManager, Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 
-import {
-  preloadStreakAccentBackgroundAssets,
-  StreakAccentBackground,
-} from "@/components/ui/streak-accent-background";
+import { StreakAccentBackground } from "@/components/ui/streak-accent-background";
 import { Colors } from "@/constants/theme";
 import { HomeFiltersProvider } from "@/context/home-filters-store";
 import { PremiumProvider } from "@/context/premium-store";
@@ -83,10 +80,6 @@ export default function RootLayout() {
       }
     }
   }, [localeOverride]);
-
-  React.useEffect(() => {
-    void preloadStreakAccentBackgroundAssets();
-  }, []);
 
   return (
     <GestureHandlerRootView

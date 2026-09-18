@@ -8,7 +8,6 @@ import { DynamicColorIOS, NativeModules, Platform, StyleSheet, View } from "reac
 import { CreateTaskFab } from "@/components/ui/create-task-fab";
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { preloadStreakAccentBackgroundAssets } from "@/components/ui/streak-accent-background";
 import { Colors, LIGHT_ACCENT_SCREEN_BACKGROUND } from "@/constants/theme";
 import { useTaskCreateContext } from "@/context/task-create-context";
 import { TabBarMinimizeProvider } from "@/context/tabbar-minimize-store";
@@ -39,10 +38,6 @@ export default function TabLayout() {
   const { projects } = useTasksStore();
   const accessoryBridge = NativeModules
     .TaskAccessoryContextBridge as TaskAccessoryContextBridge | undefined;
-
-  React.useEffect(() => {
-    void preloadStreakAccentBackgroundAssets();
-  }, []);
 
   const routeProjectId = React.useMemo(() => {
     const rawRouteId = Array.isArray(routeIdParam) ? routeIdParam[0] : routeIdParam;

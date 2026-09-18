@@ -41,7 +41,14 @@ function ProfileMenuIcon({ theme }: { theme: keyof typeof Colors }) {
     );
   }
 
-  return <MaterialIcons name="person-outline" size={20} color={color} />;
+  // This trigger doesn't open a profile/account screen — it's the same
+  // Status/Streaks/Routines/Archive/Settings menu as iOS's person icon, just
+  // rendered as a Material dropdown (see DropdownMenu). Material's own
+  // convention for a content-only overflow menu like this is the kebab, not
+  // an avatar — an avatar in Android apps (Gmail, Drive, Photos) implies an
+  // actual account switcher, which this isn't. Match the search icon's
+  // weight (size 24) so the header reads as one consistent icon set.
+  return <MaterialIcons name="more-vert" size={24} color={color} />;
 }
 
 export function ProfileHeaderMenuButton() {
@@ -209,8 +216,10 @@ export function ProfileHeaderMenuButton() {
       onPressAction={onPressAction}
       shouldOpenOnLongPress={false}
       style={{
-        width: 36,
-        height: 36,
+        // 32 matches SearchHeaderButton's HeaderIconButton box so the two
+        // header icons read as the same size on Android.
+        width: Platform.OS === "android" ? 32 : 36,
+        height: Platform.OS === "android" ? 32 : 36,
         alignItems: "center",
         justifyContent: "center",
         backgroundColor: "transparent",

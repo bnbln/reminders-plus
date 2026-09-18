@@ -1444,7 +1444,15 @@ export default function CreateTaskModal() {
   const sendTint = withAlpha(accentColorValue, isDark ? 0.88 : 0.78);
   const sendFallback = accentColorValue;
   const sendIconColor = "white";
-  const composerBottom = Math.max(14, insets.bottom - 16);
+  // iOS's home indicator inset (~34pt) already carries enough clearance that
+  // subtracting 16 still clears it. Android's gesture-nav/button-nav inset is
+  // much smaller, so the same formula left the composer sitting flush against
+  // the nav bar — add a full Material-style 16dp gap on top of the inset
+  // instead of eating into it.
+  const composerBottom =
+    Platform.OS === "android"
+      ? insets.bottom + 16
+      : Math.max(14, insets.bottom - 16);
   const menuBottom = 66;
   const lightBackdropGradient = React.useMemo(
     () =>

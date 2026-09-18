@@ -415,6 +415,7 @@ export const EN_TRANSLATIONS: TranslationDict = {
     'settings.appearance.option.adaptive': 'Adaptive',
     'settings.appearance.option.alwaysLight': 'Always light',
     'settings.appearance.option.alwaysDark': 'Always dark',
+    'settings.appearance.materialYou': 'Material You (from wallpaper)',
     'settings.badge.title': 'App badge',
     'settings.badge.select': 'Select app badge',
     'settings.badge.mode.dueToday': 'Due today',

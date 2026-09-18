@@ -30,7 +30,9 @@ import {
 } from "@expo/ui/swift-ui";
 import { datePickerStyle as expoSwiftDatePickerStyleModifier } from "@expo/ui/swift-ui/modifiers";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import DateTimePicker, {
+  DateTimePickerAndroid,
+} from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
 
 import {
@@ -4239,6 +4241,31 @@ export default function HomeScreen() {
                     hitSlop={16}
                     style={StyleSheet.absoluteFillObject}
                     onPress={() => {
+                      // Android's DateTimePicker has no real inline/embed
+                      // mode: rendering it as a JSX child (any `display`)
+                      // still pops its own native dialog, which stacked on
+                      // top of our custom glass popover as two overlapping
+                      // modals. Use the imperative API to show just the one
+                      // native dialog Android actually has.
+                      if (Platform.OS === "android") {
+                        DateTimePickerAndroid.open({
+                          value: new Date(selectedDateStart),
+                          mode: "date",
+                          onChange: (event, date) => {
+                            if (event.type !== "set" || !date) return;
+                            const nextDateStart = getStartOfDay(
+                              date.getTime(),
+                            );
+                            scrollDateRailToDateStart(
+                              nextDateStart,
+                              true,
+                              true,
+                            );
+                            handleSelectDate(nextDateStart, "picker");
+                          },
+                        });
+                        return;
+                      }
                       setIsCalendarPickerOpen((prev) => !prev);
                     }}
                   >

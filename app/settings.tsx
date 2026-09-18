@@ -3,6 +3,9 @@ import {
   APP_BADGE_MODES,
   type AppBadgeMode,
   APPEARANCE_MODES,
+  getAccentColorValue,
+  IS_MATERIAL_YOU_SUPPORTED,
+  MATERIAL_YOU_ACCENT_ID,
   useAppSettings,
 } from "@/context/settings-store";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
@@ -194,6 +197,17 @@ export default function SettingsScreen() {
   const premiumController = usePremiumSyncBackupController();
   const remindersPlusDisabled =
     !premiumController.isPremiumReady || !premiumController.hasPremiumAccess;
+
+  const isMaterialYouSelected = accentColor === MATERIAL_YOU_ACCENT_ID;
+  const materialYouAccentValue = React.useMemo(
+    () =>
+      IS_MATERIAL_YOU_SUPPORTED
+        ? getAccentColorValue(MATERIAL_YOU_ACCENT_ID)
+        : undefined,
+    // `isDark` isn't read directly, but the Material You scheme depends on
+    // the resolved theme the same way `theme` below does — recompute together.
+    [isDark],
+  );
 
   const dailySummaryTime = React.useMemo(() => {
     const initial = new Date();
@@ -723,6 +737,32 @@ export default function SettingsScreen() {
                   </Pressable>
                 );
               })}
+              {IS_MATERIAL_YOU_SUPPORTED ? (
+                <Pressable
+                  android_ripple={ripple()}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("settings.appearance.materialYou")}
+                  onPress={() => setAccentColor(MATERIAL_YOU_ACCENT_ID)}
+                  style={[
+                    styles.colorButton,
+                    {
+                      backgroundColor: materialYouAccentValue,
+                      borderColor: isMaterialYouSelected
+                        ? Colors[theme].text
+                        : isDark
+                          ? "rgba(255,255,255,0.24)"
+                          : "rgba(17,24,28,0.18)",
+                      borderWidth: isMaterialYouSelected ? 2 : 1,
+                    },
+                  ]}
+                >
+                  <MaterialIcons
+                    name={isMaterialYouSelected ? "check" : "auto-awesome"}
+                    size={14}
+                    color="#fff"
+                  />
+                </Pressable>
+              ) : null}
             </View>
           </View>
 

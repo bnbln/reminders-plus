@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getMaterial3Theme, type Material3Theme } from "@pchmn/expo-material3-theme";
 import React from "react";
 import { Appearance, Platform, type ColorSchemeName } from "react-native";
 
@@ -21,7 +22,16 @@ export const ACCENT_COLORS = [
   { id: "indigo", value: "#5856D6", label: "Indigo" },
 ] as const;
 
-export type AccentColorId = (typeof ACCENT_COLORS)[number]["id"];
+// Android-only: derives the accent (and, via `getMaterial3Scheme`, the rest
+// of the M3 surface palette) from the system's Material You wallpaper theme
+// instead of a fixed swatch. `@pchmn/expo-material3-theme` has no iOS native
+// module (see its expo-module.config.json), so this id is meaningless there.
+export const MATERIAL_YOU_ACCENT_ID = "material" as const;
+export const IS_MATERIAL_YOU_SUPPORTED = Platform.OS === "android";
+
+export type AccentColorId =
+  | (typeof ACCENT_COLORS)[number]["id"]
+  | typeof MATERIAL_YOU_ACCENT_ID;
 
 export type AppBadgeMode =
   | "dueToday"
@@ -75,8 +85,34 @@ const DEFAULT_SETTINGS: PersistedSettings = {
 
 const ACCENT_COLOR_VALUE_BY_ID = ACCENT_COLORS.reduce(
   (acc, color) => ({ ...acc, [color.id]: color.value }),
-  {} as Record<AccentColorId, string>,
+  {} as Partial<Record<AccentColorId, string>>,
 );
+
+// `@material/material-color-utilities`'s own default M3 seed (deep purple);
+// used only as the very first paint before the native call below resolves,
+// and as the non-Android/error fallback.
+const MATERIAL_YOU_FALLBACK_SEED = "#6750A4";
+
+let cachedMaterialTheme: Material3Theme | null | undefined;
+
+function getMaterialYouTheme(): Material3Theme | null {
+  if (cachedMaterialTheme !== undefined) return cachedMaterialTheme;
+  if (!IS_MATERIAL_YOU_SUPPORTED) {
+    cachedMaterialTheme = null;
+    return cachedMaterialTheme;
+  }
+  try {
+    cachedMaterialTheme = getMaterial3Theme(MATERIAL_YOU_FALLBACK_SEED);
+  } catch {
+    cachedMaterialTheme = null;
+  }
+  return cachedMaterialTheme;
+}
+
+/** The current Material You scheme's full M3 palette (light or dark), or null off-Android. */
+export function getMaterialYouScheme(scheme: "light" | "dark" = "light") {
+  return getMaterialYouTheme()?.[scheme] ?? null;
+}
 
 let snapshot: SettingsSnapshot = {
   ...DEFAULT_SETTINGS,
@@ -100,7 +136,10 @@ function isAppearanceMode(value: unknown): value is AppearanceMode {
 }
 
 function isAccentColorId(value: unknown): value is AccentColorId {
-  return ACCENT_COLORS.some((color) => color.id === value);
+  return (
+    ACCENT_COLORS.some((color) => color.id === value) ||
+    value === MATERIAL_YOU_ACCENT_ID
+  );
 }
 
 function isAppBadgeMode(value: unknown): value is AppBadgeMode {
@@ -383,9 +422,20 @@ export function resolveThemeFromAppearanceMode(
 }
 
 export function getAccentColorValue(accentColorId: AccentColorId): string {
+  if (accentColorId === MATERIAL_YOU_ACCENT_ID) {
+    // No theme is threaded through this call site by design (see the many
+    // callers below) — read the scheme Appearance is *currently* resolved
+    // to. applyAppearanceMode() forces this via Appearance.setColorScheme()
+    // for alwaysLight/alwaysDark, so this already matches what `useColorScheme()`
+    // returns elsewhere in the same render pass.
+    const scheme = Appearance.getColorScheme() === "dark" ? "dark" : "light";
+    return (
+      getMaterialYouScheme(scheme)?.primary ?? MATERIAL_YOU_FALLBACK_SEED
+    );
+  }
   return (
     ACCENT_COLOR_VALUE_BY_ID[accentColorId] ??
-    ACCENT_COLOR_VALUE_BY_ID[DEFAULT_SETTINGS.accentColor]
+    (ACCENT_COLOR_VALUE_BY_ID[DEFAULT_SETTINGS.accentColor] as string)
   );
 }
 
