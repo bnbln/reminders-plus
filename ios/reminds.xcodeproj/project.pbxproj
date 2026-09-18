@@ -17,6 +17,7 @@
 		A1C7F2D53D9A4B1E8C7F2301 /* TaskAccessoryContextBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = A1C7F2D43D9A4B1E8C7F2301 /* TaskAccessoryContextBridge.m */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
+		A42D55B02C304A46B507B1CD /* RemindsVerticalBar.m in Sources */ = {isa = PBXBuildFile; fileRef = 911952C4CC97469999DAB725 /* RemindsVerticalBar.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -36,6 +37,7 @@
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = reminds/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* reminds-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "reminds-Bridging-Header.h"; path = "reminds/reminds-Bridging-Header.h"; sourceTree = "<group>"; };
 		F45E905FFA679E56B278FA31 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = reminds/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		911952C4CC97469999DAB725 /* RemindsVerticalBar.m */ = {isa = PBXFileReference; name = "RemindsVerticalBar.m"; path = "reminds/RemindsVerticalBar.m"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; includeInIndex = 0; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -62,6 +64,7 @@
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
 				F45E905FFA679E56B278FA31 /* PrivacyInfo.xcprivacy */,
 				64F967FA4DF049A6924F294C /* SceneDelegate.swift */,
+				911952C4CC97469999DAB725 /* RemindsVerticalBar.m */,
 			);
 			name = reminds;
 			sourceTree = "<group>";
@@ -416,6 +419,7 @@
 				A1C7F2D53D9A4B1E8C7F2301 /* TaskAccessoryContextBridge.m in Sources */,
 				29DD3926389155C935C17088 /* ExpoModulesProvider.swift in Sources */,
 				4B9FEF48EADB4761BA3FDB0D /* SceneDelegate.swift in Sources */,
+				A42D55B02C304A46B507B1CD /* RemindsVerticalBar.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

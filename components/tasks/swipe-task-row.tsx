@@ -1,3 +1,4 @@
+import { usePageDimensions } from "@/components/navigation/vertical-bar-safe-area";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as Haptics from "expo-haptics";
 import React from "react";
@@ -9,7 +10,6 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  useWindowDimensions,
   View,
   type StyleProp,
   type ViewStyle,
@@ -403,7 +403,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   followHorizontalDrag = false,
   swipeActivationThreshold,
 }: SwipeTaskRowProps) {
-  const { width: viewportWidth } = useWindowDimensions();
+  const { width: viewportWidth } = usePageDimensions();
   const swipeRef = React.useRef<SwipeableItemImperativeRef | null>(null);
   const longPressTriggeredRef = React.useRef(false);
   const committedSwipeActionDirectionRef = React.useRef<OpenDirection | null>(

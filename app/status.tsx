@@ -1,3 +1,4 @@
+import { usePageDimensions } from "@/components/navigation/vertical-bar-safe-area";
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import React, { useMemo, useState } from 'react';
@@ -7,7 +8,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useWindowDimensions,
 } from 'react-native';
 
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
@@ -287,7 +287,7 @@ function formatRatioValue({
 
 export default function StatusScreen() {
   const headerHeight = useHeaderHeight();
-  const { width } = useWindowDimensions();
+  const { width } = usePageDimensions();
   const theme = useColorScheme() ?? 'light';
   const isDark = theme === 'dark';
   const compact = width < 390;

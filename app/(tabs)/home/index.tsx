@@ -1,3 +1,4 @@
+import { usePageDimensions } from "@/components/navigation/vertical-bar-safe-area";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { type MenuAction } from "@react-native-menu/menu";
 import { useHeaderHeight } from "expo-router/react-navigation";
@@ -20,7 +21,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from "react-native";
 
@@ -1304,7 +1304,7 @@ export default function HomeScreen() {
   const { setMode, setPresetDateStart, queueTaskPopIn } =
     useTaskCreateContext();
   const { accentColor, reduceMotionEnabled } = useAppSettings();
-  const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
+  const { width: viewportWidth, height: viewportHeight } = usePageDimensions();
   const isScreenFocusedRef = React.useRef(false);
 
   const [isCalendarPickerOpen, setIsCalendarPickerOpen] = React.useState(false);

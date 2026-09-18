@@ -1,3 +1,4 @@
+import { verticalBarTabScreenLayout } from "@/components/navigation/vertical-bar-safe-area";
 import { Stack, useRouter } from 'expo-router';
 import React from 'react';
 import { Platform } from 'react-native';
@@ -15,6 +16,7 @@ export default function SearchLayout() {
 
   return (
     <Stack
+      screenLayout={verticalBarTabScreenLayout}
       screenOptions={{
         headerLargeTitle: Platform.OS === 'ios',
         headerShadowVisible: false,

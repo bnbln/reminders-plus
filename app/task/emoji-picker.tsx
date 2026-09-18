@@ -1,6 +1,7 @@
+import { usePageDimensions } from "@/components/navigation/vertical-bar-safe-area";
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HeaderCloseButton } from '@/components/ui/header-close-button';
@@ -19,7 +20,7 @@ import {
 export default function EmojiPickerScreen() {
     const router = useRouter();
     const { taskId } = useLocalSearchParams<{ taskId: string }>();
-    const { width: windowWidth } = useWindowDimensions();
+    const { width: windowWidth } = usePageDimensions();
     const theme = useColorScheme() ?? 'light';
     const isDark = theme === 'dark';
     const styles = React.useMemo(() => createStyles(theme), [theme]);

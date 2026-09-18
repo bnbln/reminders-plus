@@ -1,8 +1,9 @@
+import { usePageDimensions } from "@/components/navigation/vertical-bar-safe-area";
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect } from "expo-router";
 import { useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
-import { NativeModules, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { NativeModules, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { FloatingAddButton } from '@/components/ui/floating-add-button';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
@@ -339,7 +340,7 @@ function StatTile({
 }
 
 export default function RoutinesScreen() {
-  const { width } = useWindowDimensions();
+  const { width } = usePageDimensions();
   const theme = useColorScheme() ?? 'light';
   const isDark = theme === 'dark';
   const compact = width < 390;

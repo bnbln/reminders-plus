@@ -1,3 +1,4 @@
+import { verticalBarScreenLayout } from "@/components/navigation/vertical-bar-safe-area";
 import { Stack } from "expo-router";
 import React from "react";
 import { Platform } from "react-native";
@@ -10,6 +11,7 @@ export default function AssistantLayout() {
 
   return (
     <Stack
+      screenLayout={verticalBarScreenLayout}
       screenOptions={{
         headerLargeTitle: Platform.OS === "ios",
         headerShadowVisible: false,

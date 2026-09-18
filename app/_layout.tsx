@@ -10,6 +10,7 @@ import { I18nManager, Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 
+import { VerticalBarSafeAreaProvider, verticalBarScreenLayout } from "@/components/navigation/vertical-bar-safe-area";
 import { StreakAccentBackground } from "@/components/ui/streak-accent-background";
 import { Colors } from "@/constants/theme";
 import { HomeFiltersProvider } from "@/context/home-filters-store";
@@ -91,6 +92,7 @@ export default function RootLayout() {
             <HomeFiltersProvider>
               <SnackbarProvider>
               <ThemeProvider value={navigationTheme}>
+                <VerticalBarSafeAreaProvider>
                 <View
                   style={{ flex: 1, backgroundColor: Colors[theme].background }}
                 >
@@ -99,6 +101,7 @@ export default function RootLayout() {
                     enabled={showSettingsAccentBackground}
                   />
                   <Stack
+                    screenLayout={verticalBarScreenLayout}
                     screenOptions={{
                       contentStyle: themedContentStyle,
                     }}
@@ -265,6 +268,7 @@ export default function RootLayout() {
                   </Stack>
                 </View>
                 <StatusBar style={theme === "dark" ? "light" : "dark"} />
+              </VerticalBarSafeAreaProvider>
               </ThemeProvider>
               </SnackbarProvider>
             </HomeFiltersProvider>

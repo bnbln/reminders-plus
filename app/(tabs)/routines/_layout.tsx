@@ -1,3 +1,4 @@
+import { verticalBarTabScreenLayout } from "@/components/navigation/vertical-bar-safe-area";
 import { Stack } from 'expo-router';
 import React from 'react';
 import { Platform } from 'react-native';
@@ -13,6 +14,7 @@ export default function RoutinesTabLayout() {
 
   return (
     <Stack
+      screenLayout={verticalBarTabScreenLayout}
       screenOptions={{
         headerLargeTitle: Platform.OS === 'ios',
         headerShadowVisible: false,

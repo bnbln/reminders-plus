@@ -1,3 +1,4 @@
+import { usePageDimensions } from "@/components/navigation/vertical-bar-safe-area";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
@@ -6,7 +7,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useWindowDimensions,
 } from "react-native";
 import {
   GestureHandlerRootView,
@@ -282,7 +282,7 @@ export default function ProjectDetailScreen() {
   const router = useRouter();
   const theme = (useColorScheme() ?? "light") as ThemeName;
   const isDark = theme === "dark";
-  const { width: viewportWidth } = useWindowDimensions();
+  const { width: viewportWidth } = usePageDimensions();
   const isTabletLayout =
     Platform.OS === "ios" && viewportWidth >= TABLET_LAYOUT_MIN_WIDTH;
   const { columnWidth, maxOffset: maxBoardOffset, snapOffsets } =

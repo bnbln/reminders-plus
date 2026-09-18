@@ -1,3 +1,4 @@
+import { usePageDimensions } from "@/components/navigation/vertical-bar-safe-area";
 import { useHeaderHeight } from "expo-router/react-navigation";
 import { useRouter } from "expo-router";
 import React from "react";
@@ -11,7 +12,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useWindowDimensions,
 } from "react-native";
 
 import { FloatingAddButton } from "@/components/ui/floating-add-button";
@@ -311,7 +311,7 @@ export default function ExploreScreen() {
   const headerHeight = useHeaderHeight();
   const router = useRouter();
   const theme = useColorScheme() ?? "light";
-  const { width: viewportWidth } = useWindowDimensions();
+  const { width: viewportWidth } = usePageDimensions();
   const showFloatingAddButton = Platform.OS === "ios" && !isIOS26OrNewer();
   const palette = React.useMemo(() => createExploreTheme(theme), [theme]);
   const tileWidth = React.useMemo(
