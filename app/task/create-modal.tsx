@@ -1,5 +1,5 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused } from "expo-router";
 import * as ExpoGlassEffect from "expo-glass-effect";
 import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
 import { LinearGradient } from "expo-linear-gradient";
@@ -1479,7 +1479,7 @@ export default function CreateTaskModal() {
             locations={[0, 0.56, 1]}
             start={{ x: 0.5, y: 0 }}
             end={{ x: 0.5, y: 1 }}
-            style={StyleSheet.absoluteFillObject}
+            style={StyleSheet.absoluteFill}
           />
         ) : null}
       </Pressable>
@@ -1924,7 +1924,7 @@ const createStyles = (theme: keyof typeof Colors) => {
       backgroundColor: "transparent",
     },
     backdrop: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: isDark ? "rgba(0,0,0,0.58)" : "transparent",
     },
     keyboard: {

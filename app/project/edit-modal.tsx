@@ -548,7 +548,7 @@ const createStyles = (theme: ThemeName) => {
       backgroundColor: 'transparent',
     },
     backdrop: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: 'transparent',
     },
     keyboard: {

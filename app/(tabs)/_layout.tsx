@@ -1,7 +1,8 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import Constants from "expo-constants";
-import { Tabs, useGlobalSearchParams, useSegments } from "expo-router";
-import { NativeTabs } from "expo-router/unstable-native-tabs";
+import { useGlobalSearchParams, useSegments } from "expo-router";
+import { Tabs } from "expo-router/js-tabs";
+import { NativeTabs } from "expo-router/native-tabs";
 import React from "react";
 import { DynamicColorIOS, NativeModules, Platform, StyleSheet, View } from "react-native";
 

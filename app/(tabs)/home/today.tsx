@@ -1,4 +1,4 @@
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from "expo-router";
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 import { NativeModules, Platform, StyleSheet, Text, View } from 'react-native';

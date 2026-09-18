@@ -399,7 +399,7 @@ const createStyles = (theme: keyof typeof Colors) => {
       alignSelf: "stretch",
     },
     underlay: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
     },
     actionSlot: {
       position: "absolute",

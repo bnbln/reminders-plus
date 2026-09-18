@@ -20,7 +20,7 @@ import {
   useStatusStats,
 } from '@/hooks/use-status-stats';
 import { t } from '@/i18n';
-import { useHeaderHeight } from '@react-navigation/elements';
+import { useHeaderHeight } from "expo-router/react-navigation";
 
 type ThemeName = keyof typeof Colors;
 type RangeOption = StatusRangeOption;

@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused } from "expo-router";
 import React from 'react';
 import {
   Animated,

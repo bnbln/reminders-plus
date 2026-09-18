@@ -17,8 +17,8 @@ import {
   type MenuComponentRef,
 } from "@react-native-menu/menu";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import * as Calendar from "expo-calendar";
-import { useHeaderHeight } from '@react-navigation/elements';
+import * as Calendar from "expo-calendar/legacy";
+import { useHeaderHeight } from "expo-router/react-navigation";
 import { useRouter } from "expo-router";
 import React from "react";
 import {

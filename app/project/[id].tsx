@@ -1365,7 +1365,7 @@ const createRowStyles = (theme: ThemeName): SwipeTaskRowStyles => {
       alignSelf: "stretch",
     },
     underlay: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
     },
     actionSlot: {
       position: "absolute",

@@ -109,7 +109,7 @@ export function createSharedTaskRowStyles({
       marginHorizontal: swipeClipMarginHorizontal,
     },
     underlay: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
     },
     actionSlot: {
       position: "absolute" as const,

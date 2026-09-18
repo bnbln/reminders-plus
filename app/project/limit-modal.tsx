@@ -225,7 +225,7 @@ const createStyles = (theme: ThemeName) => {
       color: "#FFFFFF",
     },
     backdrop: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: isDark ? "rgba(0,0,0,0.58)" : "rgba(0,0,0,0.14)",
     },
     buttonPressed: {

@@ -1,7 +1,7 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { type MenuAction } from "@react-native-menu/menu";
-import { useHeaderHeight } from "@react-navigation/elements";
-import { useFocusEffect } from "@react-navigation/native";
+import { useHeaderHeight } from "expo-router/react-navigation";
+import { useFocusEffect } from "expo-router";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import React from "react";
 import {
@@ -626,7 +626,7 @@ const createStyles = (
       borderRadius: RADIUS_TILE,
     },
     streakProgressLabelsRow: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       flexDirection: "row",
       alignItems: "center",
     },
@@ -1071,7 +1071,7 @@ const createStyles = (
       alignSelf: "stretch",
     },
     underlay: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
     },
     actionSlot: {
       position: "absolute",
@@ -1265,7 +1265,7 @@ const createStyles = (
       zIndex: 1000,
     },
     calendarPickerOverlay: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: "rgba(0,0,0,0.4)",
     },
     calendarPickerContent: {
@@ -4208,7 +4208,7 @@ export default function HomeScreen() {
                     accessibilityRole="button"
                     accessibilityLabel={t("home.jumpToToday")}
                     hitSlop={16}
-                    style={StyleSheet.absoluteFillObject}
+                    style={StyleSheet.absoluteFill}
                     onPress={() => {
                       handleJumpToToday("press");
                     }}
@@ -4239,7 +4239,7 @@ export default function HomeScreen() {
                     android_ripple={rippleBorderless(16)}
                     accessibilityRole="button"
                     hitSlop={16}
-                    style={StyleSheet.absoluteFillObject}
+                    style={StyleSheet.absoluteFill}
                     onPress={() => {
                       // Android's DateTimePicker has no real inline/embed
                       // mode: rendering it as a JSX child (any `display`)
@@ -4298,7 +4298,7 @@ export default function HomeScreen() {
             {/* Backdrop */}
             <Pressable
               style={[
-                StyleSheet.absoluteFillObject,
+                StyleSheet.absoluteFill,
                 { backgroundColor: "transparent" },
               ]}
               onPress={() => setIsCalendarPickerOpen(false)}

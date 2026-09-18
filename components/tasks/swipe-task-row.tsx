@@ -156,7 +156,7 @@ function SwipeActionUnderlay({
     <View style={styles.underlay} pointerEvents="box-none">
       <Reanimated.View
         pointerEvents="none"
-        style={[StyleSheet.absoluteFillObject, fillAnimatedStyle]}
+        style={[StyleSheet.absoluteFill, fillAnimatedStyle]}
       />
       <Pressable
         style={[
