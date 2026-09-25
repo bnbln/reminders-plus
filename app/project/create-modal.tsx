@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DropdownMenu } from '@/components/ui/dropdown-menu';
+import { usePageInsets } from '@/components/navigation/vertical-bar-safe-area';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { SFSymbol } from '@/components/ui/sfsymbol';
 import { Colors } from '@/constants/theme';
@@ -124,6 +125,7 @@ export default function ProjectCreateModal() {
   const isDark = theme === 'dark';
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
+  const pageInsets = usePageInsets();
   const { accentColor } = useAppSettings();
   const { projects, setProjects } = useTasksStore();
   const { hasPremiumAccess, isReady } = usePremium();
@@ -321,7 +323,10 @@ export default function ProjectCreateModal() {
       />
 
       <Pressable
-        style={styles.backdrop}
+        style={[
+          styles.backdrop,
+          { left: -pageInsets.leftInset, right: -pageInsets.rightInset },
+        ]}
         accessibilityRole="button"
         accessibilityLabel={t('taskCreate.close')}
         onPress={onBackdropPress}

@@ -1,10 +1,12 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as Haptics from "expo-haptics";
+import { SymbolView } from "expo-symbols";
 import React from "react";
 import {
   Animated,
   Easing,
   LayoutChangeEvent,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -17,7 +19,13 @@ import {
 import SwipeableItem, {
   OpenDirection,
   type SwipeableItemImperativeRef,
+  type UnderlayParams,
 } from "react-native-swipeable-item";
+import Reanimated, {
+  Extrapolation,
+  interpolate,
+  useAnimatedStyle,
+} from "react-native-reanimated";
 
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { rippleBorderless } from "@/components/ui/ripple";
@@ -76,62 +84,92 @@ type TagChipModel = {
 };
 
 type SwipeActionUnderlayProps = {
-  styles: SwipeTaskRowStyles;
+  params: UnderlayParams<Task>;
   side: "left" | "right";
   backgroundColor: string;
   icon: React.ComponentProps<typeof MaterialIcons>["name"];
   onPress: () => void;
 };
 
+// percentOpen is relative to SWIPE_TRIGGER_SNAP, so SWIPE_STOP sits at 0.5.
+const UNDERLAY_FILL_IN_END = 0.42;
+const UNDERLAY_ICON_IN_START = 0.06;
+const UNDERLAY_ICON_IN_END = 0.36;
+
 function SwipeActionUnderlay({
-  styles,
+  params,
   side,
   backgroundColor,
   icon,
   onPress,
 }: SwipeActionUnderlayProps) {
+  // Fade the solid action color in via opacity instead of interpolating
+  // colors, so the fill never passes through muddy in-between tints and the
+  // left/right underlays hand over cleanly at 0.
+  const fillAnimatedStyle = useAnimatedStyle(() => {
+    const progress = params.percentOpen.value;
+    const t = interpolate(
+      progress,
+      [0, UNDERLAY_FILL_IN_END],
+      [0, 1],
+      Extrapolation.CLAMP,
+    );
+    return { opacity: t * (2 - t) };
+  }, [params.percentOpen]);
+
+  const iconAnimatedStyle = useAnimatedStyle(() => {
+    const progress = params.percentOpen.value;
+    const t = interpolate(
+      progress,
+      [UNDERLAY_ICON_IN_START, UNDERLAY_ICON_IN_END],
+      [0, 1],
+      Extrapolation.CLAMP,
+    );
+    const eased = 1 - (1 - t) * (1 - t) * (1 - t);
+    const directionOffset = side === "left" ? -8 : 8;
+    return {
+      opacity: eased,
+      transform: [
+        { translateX: (1 - eased) * directionOffset },
+        { scale: 0.6 + 0.4 * eased },
+      ],
+    };
+  }, [params.percentOpen, side]);
+
   return (
-    <View
-      style={[styles.underlay, { backgroundColor }]}
-      pointerEvents="box-none"
+    <Pressable
+      style={{
+        flex: 1,
+        width: "100%",
+        justifyContent: "center",
+        alignItems: side === "left" ? "flex-start" : "flex-end",
+        paddingLeft: side === "left" ? 20 : 0,
+        paddingRight: side === "right" ? 20 : 0,
+      }}
+      onPress={onPress}
+      hitSlop={10}
     >
-      <Pressable
+      <Reanimated.View
+        pointerEvents="none"
         style={[
-          styles.actionSlot,
-          {
-            left: 0,
-            right: 0,
-            paddingLeft: side === "left" ? 18 : 0,
-            paddingRight: side === "right" ? 18 : 0,
-            alignItems: side === "left" ? "flex-start" : "flex-end",
-          },
+          StyleSheet.absoluteFill,
+          { backgroundColor },
+          fillAnimatedStyle,
         ]}
-        onPress={onPress}
-        hitSlop={10}
-      >
-        <View
-          style={{
-            width: 36,
-            height: 36,
-            alignItems: "center",
-            justifyContent: "center",
-            alignSelf: side === "left" ? "flex-start" : "flex-end",
-          }}
-          pointerEvents="none"
-        >
-          <MaterialIcons
-            name={icon}
-            size={28}
-            color="#FFFFFF"
-            style={{
-              textShadowColor: "rgba(0,0,0,0.12)",
-              textShadowOffset: { width: 0, height: 1 },
-              textShadowRadius: 4,
-            }}
+      />
+      <Reanimated.View pointerEvents="none" style={iconAnimatedStyle}>
+        {Platform.OS === "ios" ? (
+          <SymbolView
+            name={icon === "delete" ? "trash.fill" : icon === "undo" ? "arrow.uturn.backward" : "checkmark"}
+            tintColor="#FFFFFF"
+            weight="semibold"
+            style={{ width: 22, height: 22 }}
           />
-        </View>
-      </Pressable>
-    </View>
+        ) : (
+          <MaterialIcons name={icon} size={24} color="#FFFFFF" />
+        )}
+      </Reanimated.View>
+    </Pressable>
   );
 }
 
@@ -1346,9 +1384,9 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   ) : null;
 
   const renderUnderlayLeft = React.useCallback(
-    () => (
+    (params: UnderlayParams<Task>) => (
       <SwipeActionUnderlay
-        styles={styles}
+        params={params}
         side="right"
         backgroundColor={rightAction?.backgroundColor ?? swipeDeleteBg}
         icon={rightAction?.icon ?? "delete"}
@@ -1365,9 +1403,9 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   );
 
   const renderUnderlayRight = React.useCallback(
-    () => (
+    (params: UnderlayParams<Task>) => (
       <SwipeActionUnderlay
-        styles={styles}
+        params={params}
         side="left"
         backgroundColor={leftAction?.backgroundColor ?? swipeCompleteBg}
         icon={

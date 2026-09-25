@@ -1,6 +1,11 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { LinearGradient } from "expo-linear-gradient";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import {
+  Stack,
+  useLocalSearchParams,
+  useRouter,
+  type NativeStackHeaderItem,
+} from "expo-router";
 import React from "react";
 import {
   ActivityIndicator,
@@ -24,6 +29,7 @@ import { usePremium } from "@/context/premium-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
 import { ripple } from "@/components/ui/ripple";
+import { useVerticalBarActive } from "@/components/navigation/vertical-bar-safe-area";
 import {
   assistCopyKey,
   IS_ASSIST_SUPPORTED,
@@ -222,6 +228,7 @@ export default function PlusScreen({
 }: PlusScreenProps = {}) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const hasVerticalBar = useVerticalBarActive();
   const theme = (useColorScheme() ?? "light") as ThemeName;
   const isDark = theme === "dark";
   const { source: sourceParam } = useLocalSearchParams<{
@@ -303,6 +310,21 @@ export default function PlusScreen({
     if (router.canGoBack()) router.back();
     else router.replace(closeFallbackHref as any);
   }, [closeFallbackHref, router]);
+  const nativeCloseHeaderItems = React.useMemo<NativeStackHeaderItem[]>(
+    () =>
+      showsCloseButton && hasVerticalBar
+        ? [
+            {
+              type: "button",
+              label: "",
+              icon: { type: "sfSymbol", name: "xmark" },
+              accessibilityLabel: t("common.close"),
+              onPress: onClose,
+            },
+          ]
+        : [],
+    [hasVerticalBar, onClose, showsCloseButton],
+  );
 
   const onPurchaseMonthly = React.useCallback(async () => {
     clearError();
@@ -425,7 +447,7 @@ export default function PlusScreen({
           headerShadowVisible: false,
           headerTransparent: true,
           headerTintColor: headerTextColor,
-          headerRight: showsCloseButton
+          headerRight: showsCloseButton && !hasVerticalBar
             ? () => (
                 <Pressable
                   android_ripple={ripple()}
@@ -436,6 +458,9 @@ export default function PlusScreen({
                   <MaterialIcons name="close" size={22} color={headerTextColor} />
                 </Pressable>
               )
+            : undefined,
+          unstable_headerRightItems: hasVerticalBar
+            ? () => nativeCloseHeaderItems
             : undefined,
         }}
       />

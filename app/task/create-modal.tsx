@@ -19,6 +19,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
+import { usePageInsets } from "@/components/navigation/vertical-bar-safe-area";
 import { Colors, LIGHT_ACCENT_SCREEN_BACKGROUND } from "@/constants/theme";
 import { getAccentColorValue, useAppSettings } from "@/context/settings-store";
 import { useTaskCreateContext } from "@/context/task-create-context";
@@ -191,6 +192,7 @@ export default function CreateTaskModal() {
   const theme = useColorScheme() ?? "light";
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
+  const pageInsets = usePageInsets();
   const isFocused = useIsFocused();
   const {
     projectId: focusedProjectId,
@@ -1467,7 +1469,10 @@ export default function CreateTaskModal() {
   return (
     <View style={styles.root}>
       <Pressable
-        style={styles.backdrop}
+        style={[
+          styles.backdrop,
+          { left: -pageInsets.leftInset, right: -pageInsets.rightInset },
+        ]}
         accessibilityRole="button"
         accessibilityLabel={t("taskCreate.close")}
         onPress={onBackdropPress}
