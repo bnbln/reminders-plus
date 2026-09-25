@@ -143,6 +143,9 @@ PODS:
     - React-RCTFabric
   - ExpoWebBrowser (58.0.0):
     - ExpoModulesCore
+  - ExpoWidgets (58.0.3):
+    - ExpoModulesCore
+    - ExpoUI
   - fast_float (8.0.0):
     - ReactNativeDependencies
   - FBLazyVector (0.88.0-rc.0):
@@ -2337,6 +2340,7 @@ DEPENDENCIES:
   - ExpoSystemUI (from `../node_modules/expo-system-ui/ios`)
   - "ExpoUI (from `../node_modules/@expo/ui/ios/ExpoUI.podspec`)"
   - ExpoWebBrowser (from `../node_modules/expo-web-browser/ios`)
+  - ExpoWidgets (from `../node_modules/expo-widgets/ios`)
   - fast_float (from `build/rndeps-facades/fast_float`)
   - FBLazyVector (from `build/rncore-facades/FBLazyVector`)
   - fmt (from `build/rndeps-facades/fmt`)
@@ -2504,6 +2508,8 @@ EXTERNAL SOURCES:
     :podspec: "../node_modules/@expo/ui/ios/ExpoUI.podspec"
   ExpoWebBrowser:
     :path: "../node_modules/expo-web-browser/ios"
+  ExpoWidgets:
+    :path: "../node_modules/expo-widgets/ios"
   fast_float:
     :path: build/rndeps-facades/fast_float
   FBLazyVector:
@@ -2728,6 +2734,7 @@ SPEC CHECKSUMS:
   ExpoSystemUI: 45f67a7fa85173c428e487e9e57da6d3fe11a0d8
   ExpoUI: 57a1ada9dbcefe27e394d97097e06fc9061ff594
   ExpoWebBrowser: 68251c42a3cc5ca41d7299b3de477ed19c526e01
+  ExpoWidgets: a95e94ce313c6007981db8867854a35a38cebf50
   fast_float: 7c925d1cebf8328d4018d061f49377e9f887e3b4
   FBLazyVector: de12c871c201598881e9c6f87295adf22f82007e
   fmt: ba0886e864ebb21d14c98b2e12e164b8002f5b93
@@ -2819,11 +2826,11 @@ SPEC CHECKSUMS:
   RNDateTimePicker: 5ddeb7b9142ea2b53386cf9e1737fd0ddc5a186f
   RNGestureHandler: a058d61dbca64a49d427d056768d9ac8815f5feb
   RNReanimated: 9320c2318aeebe482adb8098a852f68fae25c295
-  RNScreens: 1b386604ba6e45b594cb15714a078d7dca096211
+  RNScreens: 785f136074561c6a0f7dd53a596805254b2dfaa7
   RNWorklets: 858193312866223f69971a015a4e5cd10f885b89
   SocketRocket: 37aec555668fb852ec12e3c0de59a86ca58f0871
   Yoga: d1c536142c5ff8ec8cd856ab2a7c227a1d875c8e
 
-PODFILE CHECKSUM: 0d9824dd7afc14e60d4567abeaae98de013e561b
+PODFILE CHECKSUM: d57ed57fbfcf3752fbedf9049775ad36fb2f8d37
 
 COCOAPODS: 1.16.2

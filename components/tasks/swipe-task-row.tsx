@@ -112,11 +112,11 @@ function SwipeActionUnderlay({
         <View
           style={{
             width: 36,
-          height: 36,
-          alignItems: "center",
-          justifyContent: "center",
-          alignSelf: side === "left" ? "flex-start" : "flex-end",
-        }}
+            height: 36,
+            alignItems: "center",
+            justifyContent: "center",
+            alignSelf: side === "left" ? "flex-start" : "flex-end",
+          }}
           pointerEvents="none"
         >
           <MaterialIcons

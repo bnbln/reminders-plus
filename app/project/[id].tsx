@@ -1,7 +1,4 @@
-import {
-  usePageDimensions,
-  useVerticalBarActive,
-} from "@/components/navigation/vertical-bar-safe-area";
+import { usePageDimensions } from "@/components/navigation/vertical-bar-safe-area";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
@@ -149,6 +146,7 @@ function KanbanColumn({
   onDragStateChange,
   onDragGestureUpdate,
   onSwipeStateChange,
+  onRowTouchStateChange,
   shrinkToContentWhenShort,
 }: {
   section: SectionId;
@@ -177,6 +175,7 @@ function KanbanColumn({
   onDragStateChange: (isDragging: boolean) => void;
   onDragGestureUpdate: (params: TaskDragGestureUpdateParams) => void;
   onSwipeStateChange: (isSwiping: boolean) => void;
+  onRowTouchStateChange: (isTouchingRow: boolean) => void;
   shrinkToContentWhenShort: boolean;
 }) {
   const enabledTagsSeed = React.useMemo(
@@ -277,6 +276,7 @@ function KanbanColumn({
         onDragStateChange={onDragStateChange}
         onDragGestureUpdate={onDragGestureUpdate}
         onSwipeStateChange={onSwipeStateChange}
+        onRowTouchStateChange={onRowTouchStateChange}
       />
     </View>
   );
@@ -287,7 +287,6 @@ export default function ProjectDetailScreen() {
   const router = useRouter();
   const theme = (useColorScheme() ?? "light") as ThemeName;
   const isDark = theme === "dark";
-  const hasVerticalBar = useVerticalBarActive();
   const { width: viewportWidth } = usePageDimensions();
   const isTabletLayout =
     Platform.OS === "ios" && viewportWidth >= TABLET_LAYOUT_MIN_WIDTH;
@@ -328,6 +327,7 @@ export default function ProjectDetailScreen() {
     sourceSection: SectionId;
   } | null>(null);
   const swipingSectionsRef = React.useRef(new Set<SectionId>());
+  const touchingRowSectionsRef = React.useRef(new Set<SectionId>());
   const boardScrollLockedRef = React.useRef(false);
   const [isBoardScrollLocked, setIsBoardScrollLocked] = React.useState(false);
   const [activeDragSourceSection, setActiveDragSourceSection] =
@@ -496,7 +496,8 @@ export default function ProjectDetailScreen() {
     const shouldLock =
       isTabletLayout ||
       isBoardDraggingRef.current ||
-      swipingSectionsRef.current.size > 0;
+      swipingSectionsRef.current.size > 0 ||
+      touchingRowSectionsRef.current.size > 0;
     applyBoardScrollLock(shouldLock);
   }, [applyBoardScrollLock, isTabletLayout]);
 
@@ -504,6 +505,19 @@ export default function ProjectDetailScreen() {
     (section: SectionId, isSwiping: boolean) => {
       const set = swipingSectionsRef.current;
       if (isSwiping) {
+        set.add(section);
+      } else {
+        set.delete(section);
+      }
+      syncBoardScrollLock();
+    },
+    [syncBoardScrollLock],
+  );
+
+  const handleSectionRowTouchStateChange = React.useCallback(
+    (section: SectionId, isTouchingRow: boolean) => {
+      const set = touchingRowSectionsRef.current;
+      if (isTouchingRow) {
         set.add(section);
       } else {
         set.delete(section);
@@ -1071,7 +1085,7 @@ export default function ProjectDetailScreen() {
           options={{
             title: project.name,
             headerLargeTitle: false,
-            headerTransparent: !hasVerticalBar,
+            headerTransparent: false,
             headerShadowVisible: false,
             headerBackButtonDisplayMode: "minimal",
             gestureEnabled: false,
@@ -1080,9 +1094,7 @@ export default function ProjectDetailScreen() {
             headerTitleAlign: "left",
             headerTitleStyle: { color: Colors[theme].text },
             headerStyle: { backgroundColor: Colors[theme].background },
-            contentStyle: hasVerticalBar
-              ? { backgroundColor: Colors[theme].background }
-              : undefined,
+            contentStyle: { backgroundColor: Colors[theme].background },
             headerRight: () => (
               <HeaderIconButton
                 onPress={onEditProject}
@@ -1201,6 +1213,9 @@ export default function ProjectDetailScreen() {
               onDragGestureUpdate={handleBoardDragGestureUpdate}
               onSwipeStateChange={(isSwiping) =>
                 handleSectionSwipeStateChange(section, isSwiping)
+              }
+              onRowTouchStateChange={(isTouchingRow) =>
+                handleSectionRowTouchStateChange(section, isTouchingRow)
               }
               shrinkToContentWhenShort={!isTabletLayout}
             />

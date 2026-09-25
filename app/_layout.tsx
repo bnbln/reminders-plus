@@ -12,6 +12,7 @@ import "react-native-reanimated";
 
 import { VerticalBarSafeAreaProvider, verticalBarScreenLayout } from "@/components/navigation/vertical-bar-safe-area";
 import { StreakAccentBackground } from "@/components/ui/streak-accent-background";
+import { WidgetSync } from "@/components/widgets/widget-sync";
 import { Colors } from "@/constants/theme";
 import { HomeFiltersProvider } from "@/context/home-filters-store";
 import { PremiumProvider } from "@/context/premium-store";
@@ -88,6 +89,7 @@ export default function RootLayout() {
     >
       <PremiumProvider>
         <TasksProvider>
+          <WidgetSync />
           <TaskCreateProvider>
             <HomeFiltersProvider>
               <SnackbarProvider>

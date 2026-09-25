@@ -10,6 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.reminds",
+      "buildNumber": "2",
       "infoPlist": {
         "CFBundleDisplayName": "Reminders+",
         "CFBundleLocalizations": [
@@ -125,7 +126,46 @@
           }
         }
       ],
-      "expo-widgets"
+      [
+        "expo-widgets",
+        {
+          "bundleIdentifier": "com.anonymous.reminds.widgets",
+          "groupIdentifier": "group.com.anonymous.reminds",
+          "widgets": [
+            {
+              "name": "StreakWidget",
+              "displayName": "Streak",
+              "description": "Deine Serie an erledigten Tagen auf einen Blick.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium",
+                  "accessoryCircular",
+                  "accessoryRectangular",
+                  "accessoryInline"
+                ],
+                "initialLayout": "widgets/streak-widget.tsx"
+              }
+            },
+            {
+              "name": "TasksWidget",
+              "displayName": "Heute",
+              "description": "Deine offenen Aufgaben für heute – direkt abhakbar.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium",
+                  "systemLarge",
+                  "accessoryCircular",
+                  "accessoryRectangular",
+                  "accessoryInline"
+                ],
+                "initialLayout": "widgets/tasks-widget.tsx"
+              }
+            }
+          ]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
