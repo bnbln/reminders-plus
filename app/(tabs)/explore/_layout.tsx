@@ -1,4 +1,8 @@
-import { verticalBarTabScreenLayout } from "@/components/navigation/vertical-bar-safe-area";
+import {
+  useVerticalBarActive,
+  verticalBarTabScreenLayout,
+} from "@/components/navigation/vertical-bar-safe-area";
+import { useNativeProfileHeaderActionItems } from "@/components/navigation/native-header-action-items";
 import { Stack } from 'expo-router';
 import React from 'react';
 import { Platform } from 'react-native';
@@ -10,6 +14,8 @@ import { t } from '@/i18n';
 
 export default function ExploreLayout() {
   const theme = useColorScheme() ?? 'light';
+  const hasVerticalBar = useVerticalBarActive();
+  const nativeHeaderActions = useNativeProfileHeaderActionItems();
   const headerTitleAlign: 'left' | 'center' = 'left';
 
   return (
@@ -34,6 +40,9 @@ export default function ExploreLayout() {
           headerBackButtonDisplayMode: 'minimal',
           headerBackVisible: false,
           headerRight: () => <HeaderActions />,
+          unstable_headerRightItems: hasVerticalBar
+            ? () => nativeHeaderActions
+            : undefined,
         }}
       />
     </Stack>

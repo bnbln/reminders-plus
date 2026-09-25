@@ -2,15 +2,20 @@ import React from "react";
 import { NativeEventEmitter, NativeModules, Platform, View, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-screens/experimental";
 
+import { Colors } from "@/constants/theme";
 import { StreakAccentBackground } from "@/components/ui/streak-accent-background";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 
 const verticalBarModule = Platform.OS === "ios" ? NativeModules.RemindsVerticalBar : undefined;
 const VerticalBarContext = React.createContext(false);
+const VerticalBarActiveContext = React.createContext(false);
 const PageWidthContext = React.createContext<number | undefined>(undefined);
 
 export function VerticalBarSafeAreaProvider({ children }: React.PropsWithChildren) {
-  const [hasVerticalBar, setHasVerticalBar] = React.useState(
+  const [isVerticalBarActive, setIsVerticalBarActive] = React.useState(
+    verticalBarModule?.hasVerticalBar === true,
+  );
+  const [hasSeenVerticalBar, setHasSeenVerticalBar] = React.useState(
     verticalBarModule?.hasVerticalBar === true,
   );
 
@@ -18,18 +23,34 @@ export function VerticalBarSafeAreaProvider({ children }: React.PropsWithChildre
     if (!verticalBarModule) return;
     const subscription = new NativeEventEmitter(verticalBarModule).addListener(
       "verticalBarLayoutChanged",
-      // Once enabled, keep the wrapper across Duo pose changes. The native
-      // Screen updates its insets to zero when bars return to the top/bottom,
-      // without remounting forms or losing their local state.
-      (state: { hasVerticalBar: boolean }) => setHasVerticalBar((previous) => previous || state.hasVerticalBar),
+      (state: { hasVerticalBar: boolean }) => {
+        setIsVerticalBarActive(state.hasVerticalBar);
+        // Keep the wrapper mounted across Duo pose changes. The native Screen
+        // updates its insets to zero when bars return to the top/bottom,
+        // without remounting forms or losing their local state.
+        if (state.hasVerticalBar) setHasSeenVerticalBar(true);
+      },
     );
     return () => subscription.remove();
   }, []);
 
-  return <VerticalBarContext.Provider value={hasVerticalBar}>{children}</VerticalBarContext.Provider>;
+  return (
+    <VerticalBarContext.Provider value={hasSeenVerticalBar}>
+      <VerticalBarActiveContext.Provider value={isVerticalBarActive}>
+        {children}
+      </VerticalBarActiveContext.Provider>
+    </VerticalBarContext.Provider>
+  );
 }
 
-function VerticalBarSafeArea({ children, accentBackground }: React.PropsWithChildren<{ accentBackground: boolean }>) {
+function VerticalBarSafeArea({
+  children,
+  accentBackground,
+  fillBackground = false,
+}: React.PropsWithChildren<{
+  accentBackground: boolean;
+  fillBackground?: boolean;
+}>) {
   const hasVerticalBar = React.useContext(VerticalBarContext);
   const theme = useColorScheme() ?? "light";
   const [width, setWidth] = React.useState<number>();
@@ -38,7 +59,12 @@ function VerticalBarSafeArea({ children, accentBackground }: React.PropsWithChil
   if (!hasVerticalBar) return <>{children}</>;
 
   return (
-    <View style={{ flex: 1 }}>
+    <View
+      style={[
+        { flex: 1 },
+        fillBackground ? { backgroundColor: Colors[theme].background } : null,
+      ]}
+    >
       {/* Only decoration spans the full native Screen, including the bar area. */}
       {accentBackground ? <StreakAccentBackground isDark={theme === "dark"} /> : null}
       {/* Read the nearest Screen's insets, including its toolbar/tab bar.
@@ -62,12 +88,30 @@ export function verticalBarScreenLayout({ children, route }: {
   return <VerticalBarSafeArea accentBackground={route.name === "settings" || route.name === "cloud-sync"}>{children}</VerticalBarSafeArea>;
 }
 
-export function verticalBarTabScreenLayout({ children }: { children: React.ReactNode }) {
-  return <VerticalBarSafeArea accentBackground>{children}</VerticalBarSafeArea>;
+export function verticalBarTabScreenLayout({
+  children,
+  route,
+}: {
+  children: React.ReactNode;
+  route: { name: string };
+}) {
+  const isProjectDetail = route.name === "[id]";
+  return (
+    <VerticalBarSafeArea
+      accentBackground={!isProjectDetail}
+      fillBackground={isProjectDetail}
+    >
+      {children}
+    </VerticalBarSafeArea>
+  );
 }
 
 export function usePageDimensions() {
   const dimensions = useWindowDimensions();
   const width = React.useContext(PageWidthContext);
   return width === undefined ? dimensions : { ...dimensions, width };
+}
+
+export function useVerticalBarActive() {
+  return React.useContext(VerticalBarActiveContext);
 }

@@ -34,6 +34,7 @@ import DateTimePicker, {
   DateTimePickerAndroid,
 } from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
+import MaskedView from "@react-native-masked-view/masked-view";
 
 import {
   type TaskDragGestureUpdateParams,
@@ -46,7 +47,7 @@ import { FloatingAddButton } from "@/components/ui/floating-add-button";
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { SFSymbol } from "@/components/ui/sfsymbol";
 import { StreakAccentBackground } from "@/components/ui/streak-accent-background";
-import { Colors, LIGHT_ACCENT_SCREEN_BACKGROUND } from "@/constants/theme";
+import { Colors } from "@/constants/theme";
 import {
   parseShowCompletedTasksParam,
   parseShowProjectTasksParam,
@@ -667,21 +668,13 @@ const createStyles = (
       borderRadius: 12,
       backgroundColor: CALENDAR_ACCENT,
     },
-    dateRailFadeLeft: {
-      position: "absolute",
-      left: 0,
-      top: 0,
-      bottom: 0,
-      width: DATE_RAIL_FADE_WIDTH,
-      zIndex: 10,
+    dateRailMask: {
+      height: 64,
+      overflow: "hidden",
     },
-    dateRailFadeRight: {
-      position: "absolute",
-      right: 0,
-      top: 0,
-      bottom: 0,
-      width: DATE_RAIL_FADE_WIDTH,
-      zIndex: 10,
+    dateRailMaskedContent: {
+      flex: 1,
+      position: "relative",
     },
     dateRailTitleHost: {
       position: "relative",
@@ -1295,9 +1288,6 @@ export default function HomeScreen() {
   const theme = useColorScheme() ?? "light";
   const isDark = theme === "dark";
   const useAppleLightPalette = !isDark && Platform.OS === "ios";
-  const screenBackground = isDark
-    ? Colors[theme].background
-    : LIGHT_ACCENT_SCREEN_BACKGROUND;
   const accessoryBridge = NativeModules.TaskAccessoryContextBridge as
     | TaskAccessoryContextBridge
     | undefined;
@@ -4102,6 +4092,20 @@ export default function HomeScreen() {
 
   const dateRailPanel = React.useMemo(() => {
     if (firstVisibleSection !== "today") return null;
+    const edgeFade = Math.min(
+      0.38,
+      Math.max(0.12, DATE_RAIL_FADE_WIDTH / Math.max(dateRailContainerWidth, 1)),
+    );
+    const edgeFadeLocations: [number, number, ...number[]] = [
+      0,
+      edgeFade * 0.28,
+      edgeFade * 0.68,
+      edgeFade,
+      1 - edgeFade,
+      1 - edgeFade * 0.68,
+      1 - edgeFade * 0.28,
+      1,
+    ];
     const isPreparingTitleTransition =
       dateRailTitleTransitionState.phase === "preparing";
     const outgoingTitleOpacity = dateRailTitleMotion.interpolate({
@@ -4402,13 +4406,28 @@ export default function HomeScreen() {
             onTouchEnd={handleGlobalDragTouchEnd}
             onTouchCancel={handleGlobalDragTouchCancel}
           >
-            <LinearGradient
-              colors={[screenBackground, withAlpha(screenBackground, 0)]}
-              start={{ x: 0, y: 0.5 }}
-              end={{ x: 1, y: 0.5 }}
-              style={styles.dateRailFadeLeft}
-              pointerEvents="none"
-            />
+            <MaskedView
+              style={styles.dateRailMask}
+              maskElement={
+                <LinearGradient
+                  colors={[
+                    "rgba(0,0,0,0)",
+                    "rgba(0,0,0,0.08)",
+                    "rgba(0,0,0,0.42)",
+                    "#000000",
+                    "#000000",
+                    "rgba(0,0,0,0.42)",
+                    "rgba(0,0,0,0.08)",
+                    "rgba(0,0,0,0)",
+                  ]}
+                  locations={edgeFadeLocations}
+                  start={{ x: 0, y: 0.5 }}
+                  end={{ x: 1, y: 0.5 }}
+                  style={StyleSheet.absoluteFill}
+                />
+              }
+            >
+              <View style={styles.dateRailMaskedContent}>
             <Animated.FlatList
               ref={dateRailRef}
               data={dateRailDays}
@@ -4554,13 +4573,8 @@ export default function HomeScreen() {
                 </Animated.View>
               </View>
             </View>
-            <LinearGradient
-              colors={[withAlpha(screenBackground, 0), screenBackground]}
-              start={{ x: 0, y: 0.5 }}
-              end={{ x: 1, y: 0.5 }}
-              style={styles.dateRailFadeRight}
-              pointerEvents="none"
-            />
+              </View>
+            </MaskedView>
           </View>
         </View>
       </View>
@@ -4595,7 +4609,6 @@ export default function HomeScreen() {
     isDark,
     measureDateRailBounds,
     measureDateRailListBounds,
-    screenBackground,
     selectedDateStart,
     scheduleDateRailSyncToSelectedDate,
     styles,

@@ -1,4 +1,8 @@
-import { verticalBarTabScreenLayout } from "@/components/navigation/vertical-bar-safe-area";
+import {
+  useVerticalBarActive,
+  verticalBarTabScreenLayout,
+} from "@/components/navigation/vertical-bar-safe-area";
+import { useNativeProfileHeaderActionItems } from "@/components/navigation/native-header-action-items";
 import { Stack, useRouter } from 'expo-router';
 import React from 'react';
 import { Platform } from 'react-native';
@@ -12,6 +16,8 @@ export default function SearchLayout() {
   const router = useRouter();
   const searchBarRef = React.useRef<any>(null);
   const theme = useColorScheme() ?? 'light';
+  const hasVerticalBar = useVerticalBarActive();
+  const nativeHeaderActions = useNativeProfileHeaderActionItems();
   const headerTitleAlign: 'left' | 'center' = 'left';
 
   return (
@@ -36,6 +42,9 @@ export default function SearchLayout() {
         options={{
           title: t('tabs.search'),
           headerRight: () => <ProfileHeaderMenuButton />,
+          unstable_headerRightItems: hasVerticalBar
+            ? () => nativeHeaderActions
+            : undefined,
           headerSearchBarOptions: {
             placement: 'automatic',
             placeholder: t('search.placeholder'),

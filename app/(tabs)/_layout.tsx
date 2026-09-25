@@ -316,58 +316,6 @@ export default function TabLayout() {
             })}
           </NativeTabs.Trigger>
 
-          {isIOS26Plus ? (
-            <NativeTabs.Trigger
-              name="search"
-              role="search"
-              contentStyle={{ backgroundColor: "transparent" }}
-            >
-              <NativeTabs.Trigger.Label>{t("tabs.search")}</NativeTabs.Trigger.Label>
-              {Platform.select({
-                ios: (
-                  <NativeTabs.Trigger.Icon
-                    sf={{
-                      default: "magnifyingglass",
-                      selected: "magnifyingglass",
-                    }}
-                  />
-                ),
-                android: (
-                  <NativeTabs.Trigger.Icon
-                    src={<NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="search" />}
-                  />
-                ),
-              })}
-            </NativeTabs.Trigger>
-          ) : (
-            // Android has no native tab-bar search affordance, so search is
-            // reached from a header button on every top-level screen instead
-            // (see SearchHeaderButton). Keep the route registered but hidden
-            // from the tab bar, same as "routines" below.
-            <NativeTabs.Trigger
-              name="search"
-              hidden={Platform.OS === "android"}
-              contentStyle={{ backgroundColor: "transparent" }}
-            >
-              <NativeTabs.Trigger.Label>{t("tabs.search")}</NativeTabs.Trigger.Label>
-              {Platform.select({
-                ios: (
-                  <NativeTabs.Trigger.Icon
-                    sf={{
-                      default: "magnifyingglass",
-                      selected: "magnifyingglass",
-                    }}
-                  />
-                ),
-                android: (
-                  <NativeTabs.Trigger.Icon
-                    src={<NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="search" />}
-                  />
-                ),
-              })}
-            </NativeTabs.Trigger>
-          )}
-
           <NativeTabs.Trigger
             name="explore"
             contentStyle={{ backgroundColor: "transparent" }}
@@ -398,6 +346,56 @@ export default function TabLayout() {
               ),
             })}
           </NativeTabs.Trigger>
+
+          {isIOS26Plus ? (
+            <NativeTabs.Trigger
+              name="search"
+              role="search"
+              contentStyle={{ backgroundColor: "transparent" }}
+            >
+              <NativeTabs.Trigger.Label>{t("tabs.search")}</NativeTabs.Trigger.Label>
+              {Platform.select({
+                ios: (
+                  <NativeTabs.Trigger.Icon
+                    sf={{
+                      default: "magnifyingglass",
+                      selected: "magnifyingglass",
+                    }}
+                  />
+                ),
+                android: (
+                  <NativeTabs.Trigger.Icon
+                    src={<NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="search" />}
+                  />
+                ),
+              })}
+            </NativeTabs.Trigger>
+          ) : (
+            // Keep the hidden Android route and the older tab renderer's
+            // iOS search item at the end of the native tab declaration.
+            <NativeTabs.Trigger
+              name="search"
+              hidden={Platform.OS === "android"}
+              contentStyle={{ backgroundColor: "transparent" }}
+            >
+              <NativeTabs.Trigger.Label>{t("tabs.search")}</NativeTabs.Trigger.Label>
+              {Platform.select({
+                ios: (
+                  <NativeTabs.Trigger.Icon
+                    sf={{
+                      default: "magnifyingglass",
+                      selected: "magnifyingglass",
+                    }}
+                  />
+                ),
+                android: (
+                  <NativeTabs.Trigger.Icon
+                    src={<NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="search" />}
+                  />
+                ),
+              })}
+            </NativeTabs.Trigger>
+          )}
         </NativeTabs>
       </TabBarMinimizeProvider>
       {/*

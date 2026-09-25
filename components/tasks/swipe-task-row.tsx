@@ -1,4 +1,3 @@
-import { usePageDimensions } from "@/components/navigation/vertical-bar-safe-area";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as Haptics from "expo-haptics";
 import React from "react";
@@ -11,20 +10,14 @@ import {
   Text,
   TouchableOpacity,
   View,
+  useWindowDimensions,
   type StyleProp,
   type ViewStyle,
 } from "react-native";
 import SwipeableItem, {
   OpenDirection,
-  type UnderlayParams,
   type SwipeableItemImperativeRef,
 } from "react-native-swipeable-item";
-import Reanimated, {
-  Extrapolation,
-  interpolate,
-  interpolateColor,
-  useAnimatedStyle,
-} from "react-native-reanimated";
 
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { rippleBorderless } from "@/components/ui/ripple";
@@ -43,7 +36,6 @@ const SWIPE_TRIGGER_SNAP = 152;
 const SWIPE_ACTIVATION_THRESHOLD = 10;
 const SWIPE_DAMPING = 7;
 const SWIPE_OVER_SWIPE = 480;
-const SWIPE_SNAP_PROGRESS = SWIPE_STOP / SWIPE_TRIGGER_SNAP;
 const COMPACT_SUBTASK_ICON_SIZE = 18;
 const COMPACT_SUBTASK_TEXT_SIZE = 14;
 const DRAG_LONG_PRESS_DELAY_MS = 260;
@@ -84,7 +76,6 @@ type TagChipModel = {
 };
 
 type SwipeActionUnderlayProps = {
-  params: UnderlayParams<Task>;
   styles: SwipeTaskRowStyles;
   side: "left" | "right";
   backgroundColor: string;
@@ -93,71 +84,17 @@ type SwipeActionUnderlayProps = {
 };
 
 function SwipeActionUnderlay({
-  params,
   styles,
   side,
   backgroundColor,
   icon,
   onPress,
 }: SwipeActionUnderlayProps) {
-  const underlayColorStops = React.useMemo(
-    () => ({
-      soft: withAlpha(backgroundColor, 0.18),
-      medium: withAlpha(backgroundColor, 0.58),
-    }),
-    [backgroundColor],
-  );
-
-  const fillAnimatedStyle = useAnimatedStyle(() => {
-    const progress = Math.max(0, Math.min(1.08, params.percentOpen.value));
-    return {
-      backgroundColor: interpolateColor(
-        progress,
-        [0, 0.12, 0.28, SWIPE_SNAP_PROGRESS],
-        [
-          "rgba(0,0,0,0)",
-          underlayColorStops.soft,
-          underlayColorStops.medium,
-          backgroundColor,
-        ],
-      ),
-    };
-  }, [
-    backgroundColor,
-    params.percentOpen,
-    underlayColorStops.medium,
-    underlayColorStops.soft,
-  ]);
-
-  const actionAnimatedStyle = useAnimatedStyle(() => {
-    const progress = Math.max(0, Math.min(1.12, params.percentOpen.value));
-    const directionOffset = side === "left" ? 14 : -14;
-    return {
-      opacity: interpolate(
-        progress,
-        [0, 0.08, 0.16, SWIPE_SNAP_PROGRESS],
-        [0, 0.22, 0.92, 1],
-        Extrapolation.CLAMP,
-      ),
-      transform: [
-        {
-          translateX: interpolate(
-            progress,
-            [0, 1],
-            [0, directionOffset],
-            Extrapolation.CLAMP,
-          ),
-        },
-      ],
-    };
-  }, [params.percentOpen, side]);
-
   return (
-    <View style={styles.underlay} pointerEvents="box-none">
-      <Reanimated.View
-        pointerEvents="none"
-        style={[StyleSheet.absoluteFill, fillAnimatedStyle]}
-      />
+    <View
+      style={[styles.underlay, { backgroundColor }]}
+      pointerEvents="box-none"
+    >
       <Pressable
         style={[
           styles.actionSlot,
@@ -172,17 +109,15 @@ function SwipeActionUnderlay({
         onPress={onPress}
         hitSlop={10}
       >
-        <Reanimated.View
-          style={[
-            {
-              width: 36,
-              height: 36,
-              alignItems: "center",
-              justifyContent: "center",
-              alignSelf: side === "left" ? "flex-start" : "flex-end",
-            },
-            actionAnimatedStyle,
-          ]}
+        <View
+          style={{
+            width: 36,
+          height: 36,
+          alignItems: "center",
+          justifyContent: "center",
+          alignSelf: side === "left" ? "flex-start" : "flex-end",
+        }}
+          pointerEvents="none"
         >
           <MaterialIcons
             name={icon}
@@ -194,7 +129,7 @@ function SwipeActionUnderlay({
               textShadowRadius: 4,
             }}
           />
-        </Reanimated.View>
+        </View>
       </Pressable>
     </View>
   );
@@ -403,7 +338,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   followHorizontalDrag = false,
   swipeActivationThreshold,
 }: SwipeTaskRowProps) {
-  const { width: viewportWidth } = usePageDimensions();
+  const { width: viewportWidth } = useWindowDimensions();
   const swipeRef = React.useRef<SwipeableItemImperativeRef | null>(null);
   const longPressTriggeredRef = React.useRef(false);
   const committedSwipeActionDirectionRef = React.useRef<OpenDirection | null>(
@@ -1411,9 +1346,8 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   ) : null;
 
   const renderUnderlayLeft = React.useCallback(
-    (params: UnderlayParams<Task>) => (
+    () => (
       <SwipeActionUnderlay
-        params={params}
         styles={styles}
         side="right"
         backgroundColor={rightAction?.backgroundColor ?? swipeDeleteBg}
@@ -1431,9 +1365,8 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   );
 
   const renderUnderlayRight = React.useCallback(
-    (params: UnderlayParams<Task>) => (
+    () => (
       <SwipeActionUnderlay
-        params={params}
         styles={styles}
         side="left"
         backgroundColor={leftAction?.backgroundColor ?? swipeCompleteBg}

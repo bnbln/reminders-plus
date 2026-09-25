@@ -1,4 +1,7 @@
-import { usePageDimensions } from "@/components/navigation/vertical-bar-safe-area";
+import {
+  usePageDimensions,
+  useVerticalBarActive,
+} from "@/components/navigation/vertical-bar-safe-area";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
@@ -215,23 +218,12 @@ function KanbanColumn({
         {
           width: columnWidth,
           backgroundColor: columnBackgroundColor,
+          overflow: isDragSource || isDropTarget ? "visible" : "hidden",
           zIndex: isDragSource ? 60 : 1,
           elevation: isDragSource ? 60 : 0,
         },
       ]}
     >
-      <View style={styles.columnHeader}>
-        <Text style={styles.columnTitle}>{SECTION_TITLES[section]}</Text>
-        <GlassSurface
-          style={styles.countBadge}
-          glassEffectStyle="regular"
-          tintColor={withAlpha(Colors[theme].text, 0.1)}
-          fallbackBackgroundColor={withAlpha(Colors[theme].text, 0.1)}
-        >
-          <Text style={styles.countText}>{tasks.length}</Text>
-        </GlassSurface>
-      </View>
-
       <TaskSwipeDraggableList
         renderMode="auto"
         animateDataLayoutChanges={false}
@@ -247,6 +239,19 @@ function KanbanColumn({
         showTaskIcons={showTagIcons}
         showProjectNames={showProjectNames}
         showCompactSubtasks={showCompactSubtasks}
+        header={
+          <View style={styles.columnHeader}>
+            <Text style={styles.columnTitle}>{SECTION_TITLES[section]}</Text>
+            <GlassSurface
+              style={styles.countBadge}
+              glassEffectStyle="regular"
+              tintColor={withAlpha(Colors[theme].text, 0.1)}
+              fallbackBackgroundColor={withAlpha(Colors[theme].text, 0.1)}
+            >
+              <Text style={styles.countText}>{tasks.length}</Text>
+            </GlassSurface>
+          </View>
+        }
         followHorizontalDrag
         dragTranslateXCompensation={dragTranslateXCompensation}
         rowSwipeActivationThreshold={PROJECT_ROW_SWIPE_ACTIVATION_THRESHOLD}
@@ -282,6 +287,7 @@ export default function ProjectDetailScreen() {
   const router = useRouter();
   const theme = (useColorScheme() ?? "light") as ThemeName;
   const isDark = theme === "dark";
+  const hasVerticalBar = useVerticalBarActive();
   const { width: viewportWidth } = usePageDimensions();
   const isTabletLayout =
     Platform.OS === "ios" && viewportWidth >= TABLET_LAYOUT_MIN_WIDTH;
@@ -1065,6 +1071,7 @@ export default function ProjectDetailScreen() {
           options={{
             title: project.name,
             headerLargeTitle: false,
+            headerTransparent: !hasVerticalBar,
             headerShadowVisible: false,
             headerBackButtonDisplayMode: "minimal",
             gestureEnabled: false,
@@ -1073,6 +1080,9 @@ export default function ProjectDetailScreen() {
             headerTitleAlign: "left",
             headerTitleStyle: { color: Colors[theme].text },
             headerStyle: { backgroundColor: Colors[theme].background },
+            contentStyle: hasVerticalBar
+              ? { backgroundColor: Colors[theme].background }
+              : undefined,
             headerRight: () => (
               <HeaderIconButton
                 onPress={onEditProject}
@@ -1236,7 +1246,7 @@ const createStyles = (theme: ThemeName) => {
       padding: 12,
       height: "100%",
       position: "relative",
-      overflow: "visible",
+      overflow: "hidden",
     },
     columnDropTarget: {
       borderWidth: 2,
