@@ -614,6 +614,9 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   }, [data, listData, tasksById]);
 
   const [flatListData, setFlatListData] = React.useState<TaskSwipeDraggableListItem[]>(() => resolvedData);
+  const [pendingDropData, setPendingDropData] = React.useState<
+    TaskSwipeDraggableListItem[] | null
+  >(null);
   const latestResolvedDataRef = React.useRef(resolvedData);
   latestResolvedDataRef.current = resolvedData;
   const shouldAnimateDropLayout = landing !== null && !reduceMotionEnabled;
@@ -758,37 +761,40 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       new Map(flatListData.map((item, index) => [item.key, index] as const)),
     [flatListData],
   );
-  const getRevealTranslateX = React.useCallback(
-    (index: number) => {
+  // One interpolation per index, reused across renders: a fresh node on every
+  // render defeats SwipeTaskRow's memo and re-renders every row on any list
+  // update (including the drop commit).
+  const getRevealTranslateX = React.useMemo(() => {
+    const cache = new Map<number, Animated.AnimatedInterpolation<number>>();
+    return (index: number) => {
       if (!revealProgress || reduceMotionEnabled) return null;
 
       const safeIndex = Number.isFinite(index) ? Math.max(0, index) : 0;
+      const cached = cache.get(safeIndex);
+      if (cached) return cached;
+
       const stagger = Math.max(0.02, Math.min(0.1, revealStaggerStep));
       const start = Math.min(0.03 + safeIndex * stagger, 0.76);
       const end = Math.min(start + 0.3, 1);
-
-      if (revealPhase === 'exit') {
-        return revealProgress.interpolate({
-          inputRange: [0, start, end, 1],
-          outputRange: [0, 0, revealTranslateX, revealTranslateX],
-          extrapolate: 'clamp',
-        });
-      }
-
-      return revealProgress.interpolate({
+      const interpolation = revealProgress.interpolate({
         inputRange: [0, start, end, 1],
-        outputRange: [revealTranslateX, revealTranslateX, 0, 0],
+        outputRange:
+          revealPhase === 'exit'
+            ? [0, 0, revealTranslateX, revealTranslateX]
+            : [revealTranslateX, revealTranslateX, 0, 0],
         extrapolate: 'clamp',
       });
-    },
-    [
-      reduceMotionEnabled,
-      revealPhase,
-      revealProgress,
-      revealStaggerStep,
-      revealTranslateX,
-    ],
-  );
+      cache.set(safeIndex, interpolation);
+      return interpolation;
+    };
+  }, [
+    reduceMotionEnabled,
+    revealPhase,
+    revealProgress,
+    revealStaggerStep,
+    revealTranslateX,
+  ]);
+
 
   const listActivationDistance = LIST_ACTIVATION_DISTANCE_DEFAULT;
   const simultaneousHandlers = React.useMemo(
@@ -918,7 +924,6 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           isActive={isActive}
           styles={rowStyles}
           isDark={isDark}
-          isLast={index === flatListData.length - 1}
           itemSpacing={itemSpacing}
           emojiTint={emojiTint}
           emojiFallback={emojiFallback}
@@ -1003,7 +1008,6 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       unregisterClose,
       reportSwipeGestureActive,
       reportRowTouchInteraction,
-      flatListData.length,
       flatListIndexByKey,
       landing,
       landingRow,
@@ -1048,7 +1052,6 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           isActive={false}
           styles={rowStyles}
           isDark={isDark}
-          isLast={index === flatListData.length - 1}
           itemSpacing={itemSpacing}
           emojiTint={emojiTint}
           emojiFallback={emojiFallback}
@@ -1125,7 +1128,6 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       unregisterClose,
       reportSwipeGestureActive,
       reportRowTouchInteraction,
-      flatListData.length,
     ]
   );
 
@@ -1285,31 +1287,41 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
         });
       } else {
         resetActiveDragTranslationX();
-        setFlatListData(nextData);
-        onReorderData?.(nextData);
-        onReorder?.(
-          nextData.filter((d) => d.kind === "task").map((d) => d.taskId),
-        );
         draggingTaskIdRef.current = null;
         placeholderIndexRef.current = -1;
-        // Delay drag-state reset to give parent re-render one frame to propagate,
-        // preventing the useLayoutEffect from re-syncing data and causing a flash.
-        requestAnimationFrame(() => {
-          isDraggingRef.current = false;
-          onDragStateChange?.(false);
-        });
+        // Don't reorder in this render: the library clears its active cell in
+        // it, and every cell keeps its drag offset until Reanimated restarts
+        // the cell styles in the passive effects of this commit. The reorder
+        // follows in the effect below, so layout and offsets change together.
+        setPendingDropData(nextData);
       }
     },
     [
       onDragEndMeta,
       onDragStateChange,
-      onReorder,
-      onReorderData,
       resetActiveDragTranslationX,
       suppressDynamicPopIns,
       tasksById,
     ],
   );
+
+  React.useEffect(() => {
+    if (!pendingDropData) return;
+    // Runs after the cells' own passive effects (children first), i.e. once
+    // their styles hold the drop position independently of the data order.
+    setPendingDropData(null);
+    setFlatListData(pendingDropData);
+    onReorderData?.(pendingDropData);
+    onReorder?.(
+      pendingDropData
+        .filter((d) => d.kind === "task")
+        .map((d) => d.taskId),
+    );
+    requestAnimationFrame(() => {
+      isDraggingRef.current = false;
+      onDragStateChange?.(false);
+    });
+  }, [onDragStateChange, onReorder, onReorderData, pendingDropData]);
 
   const dragListProps = {
     data: flatListData,

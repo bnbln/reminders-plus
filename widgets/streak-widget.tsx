@@ -12,6 +12,7 @@ import {
 } from '@expo/ui/swift-ui';
 import {
   containerBackground,
+  fixedSize,
   font,
   foregroundStyle,
   frame,
@@ -236,6 +237,8 @@ const StreakWidget = (props: StreakWidgetProps, environment: WidgetEnvironment) 
               font({ size: 12, weight: 'semibold' }),
               foregroundStyle(secondary),
               lineLimit(1),
+              // The column is only as wide as the bar chart; let the label use its full width.
+              fixedSize(),
             ]}>
             {props.todayLabel + ' · ' + props.todayValueLabel}
           </Text>

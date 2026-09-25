@@ -18,6 +18,7 @@ import { HomeFiltersProvider } from "@/context/home-filters-store";
 import { PremiumProvider } from "@/context/premium-store";
 import { useAppSettings } from "@/context/settings-store";
 import { SnackbarProvider } from "@/context/snackbar-store";
+import { StreakCelebrationProvider } from "@/context/streak-celebration-store";
 import { TaskCreateProvider } from "@/context/task-create-context";
 import { TasksProvider } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -90,6 +91,7 @@ export default function RootLayout() {
       <PremiumProvider>
         <TasksProvider>
           <WidgetSync />
+          <StreakCelebrationProvider>
           <TaskCreateProvider>
             <HomeFiltersProvider>
               <SnackbarProvider>
@@ -283,6 +285,7 @@ export default function RootLayout() {
               </SnackbarProvider>
             </HomeFiltersProvider>
           </TaskCreateProvider>
+          </StreakCelebrationProvider>
         </TasksProvider>
       </PremiumProvider>
     </GestureHandlerRootView>

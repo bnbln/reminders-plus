@@ -16,6 +16,7 @@ import {
   buttonStyle,
   containerBackground,
   font,
+  fixedSize,
   foregroundStyle,
   frame,
   gaugeStyle,
@@ -86,14 +87,14 @@ const TasksWidget = (props: TasksWidgetProps, environment: WidgetEnvironment) =>
     doneIds: doneIds.indexOf(id) >= 0 ? doneIds.filter((entry) => entry !== id) : doneIds.concat([id]),
   });
 
-  const rowContent = (task: TasksWidgetProps['tasks'][number], compact: boolean) => (
+  const rowContent = (task: TasksWidgetProps['tasks'][number]) => (
     <HStack spacing={7} modifiers={[frame({ maxWidth: Infinity, alignment: 'leading' })]}>
       {task.emoji.length > 0 && (
-        <Text modifiers={[font({ size: compact ? 12 : 13 })]}>{task.emoji}</Text>
+        <Text modifiers={[font({ size: 13 })]}>{task.emoji}</Text>
       )}
       <Text
         modifiers={[
-          font({ size: compact ? 13 : 14, weight: 'medium' }),
+          font({ size: 14, weight: 'medium' }),
           lineLimit(1),
           minimumScaleFactor(0.8),
           strikethrough({ isActive: isDone(task.id), pattern: 'solid' }),
@@ -108,6 +109,7 @@ const TasksWidget = (props: TasksWidgetProps, environment: WidgetEnvironment) =>
             font({ size: 12, weight: task.overdue ? 'semibold' : 'regular', design: 'rounded' }),
             foregroundStyle(task.overdue && !isTinted ? '#FF3B30' : secondary),
             lineLimit(1),
+            fixedSize(),
           ]}>
           {task.time}
         </Text>
@@ -115,22 +117,51 @@ const TasksWidget = (props: TasksWidgetProps, environment: WidgetEnvironment) =>
     </HStack>
   );
 
+  // The small widget is too narrow for title and time side by side: stack them
+  // so the title gets the full row width and the time never gets squeezed.
+  const compactRowContent = (task: TasksWidgetProps['tasks'][number]) => (
+    <VStack
+      alignment="leading"
+      spacing={1}
+      modifiers={[frame({ maxWidth: Infinity, alignment: 'leading' })]}>
+      <Text
+        modifiers={[
+          font({ size: 13, weight: 'semibold' }),
+          lineLimit(1),
+          strikethrough({ isActive: isDone(task.id), pattern: 'solid' }),
+          opacity(isDone(task.id) ? 0.45 : 1),
+        ]}>
+        {task.emoji.length > 0 ? task.emoji + ' ' + task.title : task.title}
+      </Text>
+      {task.time.length > 0 && (
+        <Text
+          modifiers={[
+            font({ size: 11, weight: task.overdue ? 'semibold' : 'medium', design: 'rounded' }),
+            foregroundStyle(task.overdue && !isTinted ? '#FF3B30' : secondary),
+            lineLimit(1),
+          ]}>
+          {task.time}
+        </Text>
+      )}
+    </VStack>
+  );
+
   const row = (task: TasksWidgetProps['tasks'][number], compact: boolean) => (
-    <HStack key={task.id} spacing={8}>
+    <HStack key={task.id} spacing={8} alignment={compact ? 'top' : 'center'}>
       <Button
         target={task.id}
         onPress={() => toggle(task.id)}
         modifiers={[buttonStyle('plain')]}>
         <Image
           systemName={isDone(task.id) ? 'checkmark.circle.fill' : 'circle'}
-          size={compact ? 15 : 17}
+          size={compact ? 16 : 17}
           color={isDone(task.id) ? accent : isTinted ? '#FFFFFF' : task.color}
         />
       </Button>
       {compact ? (
-        rowContent(task, compact)
+        compactRowContent(task)
       ) : (
-        <Link destination={task.url}>{rowContent(task, compact)}</Link>
+        <Link destination={task.url}>{rowContent(task)}</Link>
       )}
     </HStack>
   );

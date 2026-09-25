@@ -258,13 +258,21 @@ export default function InboxScreen() {
           finalOrder.forEach((taskId, index) => {
             const currentTask = nextById.get(taskId);
             if (!currentTask) return;
-            const nextTask = reorderedVisibleSet.has(taskId)
-              ? adjustTaskForInboxSection(currentTask, sectionId, nowReference)
-              : currentTask;
-            nextById.set(taskId, {
-              ...nextTask,
-              orderRank: (index + 1) * 1000,
-            });
+            const nextTask =
+              reorderedVisibleSet.has(taskId) &&
+              deriveInboxSection(currentTask, nowReference) !== sectionId
+                ? adjustTaskForInboxSection(currentTask, sectionId, nowReference)
+                : currentTask;
+            const nextOrderRank = (index + 1) * 1000;
+            // Keep untouched tasks referentially stable so their rows skip
+            // re-rendering in the drop commit.
+            if (
+              nextTask === currentTask &&
+              currentTask.orderRank === nextOrderRank
+            ) {
+              return;
+            }
+            nextById.set(taskId, { ...nextTask, orderRank: nextOrderRank });
           });
         }
 

@@ -306,7 +306,6 @@ export type SwipeTaskRowProps = {
   isActive: boolean;
   styles: SwipeTaskRowStyles;
   isDark: boolean;
-  isLast?: boolean;
   itemSpacing?: number;
   emojiTint: string;
   emojiFallback: string;
@@ -373,7 +372,6 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   isActive,
   styles,
   isDark,
-  isLast = false,
   itemSpacing = 0,
   emojiTint,
   emojiFallback,
@@ -1057,11 +1055,14 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       itemSpacerStyle,
       measuredRowHeight > 0 ? { minHeight: measuredRowHeight } : null,
       {
-        marginBottom: isLast ? 0 : itemSpacing,
+        // Same spacing on every row (including the last): the drag list
+        // measures cells with their margin, so a smaller last cell made
+        // neighbours shift too little while dragging and jump after the drop.
+        marginBottom: itemSpacing,
         overflow: "visible" as const,
       },
     ],
-    [isLast, itemSpacing, itemSpacerStyle, measuredRowHeight, styles.itemSpacer],
+    [itemSpacing, itemSpacerStyle, measuredRowHeight, styles.itemSpacer],
   );
   const swipeCommitSpacerStyle = React.useMemo(() => {
     if (!shouldApplySwipeCommitState) return null;
@@ -1070,11 +1071,10 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       minHeight: 0,
       marginBottom: swipeCommitCollapseProgress.interpolate({
         inputRange: [0, 1],
-        outputRange: [0, isLast ? 0 : itemSpacing],
+        outputRange: [0, itemSpacing],
       }),
     };
   }, [
-    isLast,
     itemSpacing,
     shouldApplySwipeCommitState,
     swipeCommitCollapseProgress,
@@ -1095,11 +1095,10 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       minHeight: 0,
       marginBottom: popInExpandProgress.interpolate({
         inputRange: [0, 1],
-        outputRange: [0, isLast ? 0 : itemSpacing],
+        outputRange: [0, itemSpacing],
       }),
     };
   }, [
-    isLast,
     itemSpacing,
     measuredRowHeight,
     popInExpandProgress,
@@ -1148,11 +1147,41 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     shouldApplyPopInLayoutState,
   ]);
 
+  // dragRow styles drop the hairline border; keep its width (just hide it) so
+  // lifting/dropping a row never changes its height by a sub-pixel amount,
+  // which would re-measure the cell mid-drag and nudge the row on release.
+  const dragRowBorderLock = React.useMemo(() => {
+    const base = StyleSheet.flatten(styles.row) ?? {};
+    const lock: ViewStyle = {};
+    const widthKeys = [
+      "borderWidth",
+      "borderTopWidth",
+      "borderBottomWidth",
+      "borderLeftWidth",
+      "borderRightWidth",
+    ] as const;
+    let hasBorder = false;
+    for (const key of widthKeys) {
+      const value = base[key];
+      if (typeof value === "number" && value > 0) {
+        lock[key] = value;
+        hasBorder = true;
+      }
+    }
+    if (!hasBorder) return null;
+    lock.borderColor = "transparent";
+    lock.borderTopColor = "transparent";
+    lock.borderBottomColor = "transparent";
+    lock.borderLeftColor = "transparent";
+    lock.borderRightColor = "transparent";
+    return lock;
+  }, [styles.row]);
   const rowContentStyle = React.useMemo(
     () => [
       styles.row,
       rowStyle,
       isActive ? styles.dragRow : undefined,
+      isActive ? dragRowBorderLock : undefined,
       shouldUseCompactDragPreview
         ? {
             width: DRAG_COMPACT_PREVIEW_SIZE,
@@ -1166,6 +1195,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
         : undefined,
     ],
     [
+      dragRowBorderLock,
       isActive,
       rowStyle,
       shouldUseCompactDragPreview,

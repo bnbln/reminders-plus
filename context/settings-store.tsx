@@ -56,6 +56,7 @@ type PersistedSettings = {
   accentColor: AccentColorId;
   hapticsEnabled: boolean;
   reduceMotionEnabled: boolean;
+  streakCelebrationEnabled: boolean;
   localeOverride: AppLocale | null;
   appBadgeMode: AppBadgeMode;
   dailySummaryEnabled: boolean;
@@ -75,6 +76,7 @@ const DEFAULT_SETTINGS: PersistedSettings = {
   accentColor: "blue",
   hapticsEnabled: true,
   reduceMotionEnabled: false,
+  streakCelebrationEnabled: false,
   localeOverride: null,
   appBadgeMode: DEFAULT_APP_BADGE_MODE,
   dailySummaryEnabled: false,
@@ -194,6 +196,9 @@ function sanitizeStoredSettings(value: unknown): PersistedSettings | null {
   const hapticsEnabled = (value as { hapticsEnabled?: unknown }).hapticsEnabled;
   const reduceMotionEnabled = (value as { reduceMotionEnabled?: unknown })
     .reduceMotionEnabled;
+  const streakCelebrationEnabled = (value as {
+    streakCelebrationEnabled?: unknown;
+  }).streakCelebrationEnabled;
   const localeOverride = (value as { localeOverride?: unknown }).localeOverride;
   const appBadgeMode = (value as { appBadgeMode?: unknown }).appBadgeMode;
   const dailySummaryEnabled = (value as { dailySummaryEnabled?: unknown })
@@ -219,6 +224,10 @@ function sanitizeStoredSettings(value: unknown): PersistedSettings | null {
       typeof reduceMotionEnabled === "boolean"
         ? reduceMotionEnabled
         : DEFAULT_SETTINGS.reduceMotionEnabled,
+    streakCelebrationEnabled:
+      typeof streakCelebrationEnabled === "boolean"
+        ? streakCelebrationEnabled
+        : DEFAULT_SETTINGS.streakCelebrationEnabled,
     localeOverride:
       localeOverride === null
         ? null
@@ -344,6 +353,7 @@ function updateSettings(next: PersistedSettings) {
     snapshot.accentColor !== next.accentColor ||
     snapshot.hapticsEnabled !== next.hapticsEnabled ||
     snapshot.reduceMotionEnabled !== next.reduceMotionEnabled ||
+    snapshot.streakCelebrationEnabled !== next.streakCelebrationEnabled ||
     snapshot.localeOverride !== next.localeOverride ||
     snapshot.appBadgeMode !== next.appBadgeMode ||
     snapshot.dailySummaryEnabled !== next.dailySummaryEnabled ||
@@ -382,6 +392,8 @@ function patchSettings(partial: Partial<PersistedSettings>) {
     hapticsEnabled: partial.hapticsEnabled ?? snapshot.hapticsEnabled,
     reduceMotionEnabled:
       partial.reduceMotionEnabled ?? snapshot.reduceMotionEnabled,
+    streakCelebrationEnabled:
+      partial.streakCelebrationEnabled ?? snapshot.streakCelebrationEnabled,
     localeOverride:
       partial.localeOverride !== undefined
         ? partial.localeOverride
@@ -487,6 +499,13 @@ export function useAppSettings() {
     [],
   );
 
+  const setStreakCelebrationEnabled = React.useCallback(
+    (streakCelebrationEnabled: boolean) => {
+      patchSettings({ streakCelebrationEnabled });
+    },
+    [],
+  );
+
   const setLocaleOverride = React.useCallback(
     (localeOverride: AppLocale | null) => {
       patchSettings({ localeOverride });
@@ -538,6 +557,7 @@ export function useAppSettings() {
     setAccentColor,
     setHapticsEnabled,
     setReduceMotionEnabled,
+    setStreakCelebrationEnabled,
     setLocaleOverride,
     setAppBadgeMode,
     setDailySummaryEnabled,

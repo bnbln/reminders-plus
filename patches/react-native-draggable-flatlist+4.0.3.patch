@@ -1,17 +1,18 @@
 diff --git a/node_modules/react-native-draggable-flatlist/lib/module/components/CellRendererComponent.js b/node_modules/react-native-draggable-flatlist/lib/module/components/CellRendererComponent.js
-index 7e32214..8b921c3 100644
+index 7e32214..75c719e 100644
 --- a/node_modules/react-native-draggable-flatlist/lib/module/components/CellRendererComponent.js
 +++ b/node_modules/react-native-draggable-flatlist/lib/module/components/CellRendererComponent.js
 @@ -1,7 +1,7 @@
  function _extends() { _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return _extends.apply(this, arguments); }
  
- import React, { useEffect, useMemo, useRef } from "react";
+-import React, { useEffect, useMemo, useRef } from "react";
 -import { findNodeHandle } from "react-native";
++import React, { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 +import { findNodeHandle, UIManager } from "react-native";
  import Animated, { runOnUI, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
  import { useDraggableFlatListContext } from "../context/draggableFlatListContext";
  import { isWeb } from "../constants";
-@@ -87,14 +87,27 @@ function CellRendererComponent(props) {
+@@ -87,15 +87,39 @@ function CellRendererComponent(props) {
        }
      };
  
@@ -43,10 +44,22 @@ index 7e32214..8b921c3 100644
 +
 +    onFail();
    });
++  // A drop commits the reordered data in its own render. Clear the held
++  // drag offset in that same commit (layout effect -> UI thread right after
++  // the mount) instead of waiting for the async onLayout event, otherwise the
++  // cell briefly shows its new layout *plus* the old drag offset.
++  const lastIndexRef = useRef(index);
++  useLayoutEffect(() => {
++    if (lastIndexRef.current === index) return;
++    lastIndexRef.current = index;
++    if (!isWeb) heldTanslate.value = 0;
++  }, [index]);
++
    const onCellLayout = useStableCallback(e => {
      heldTanslate.value = 0;
+     updateCellMeasurements();
 diff --git a/node_modules/react-native-draggable-flatlist/lib/module/components/NestableDraggableFlatList.js b/node_modules/react-native-draggable-flatlist/lib/module/components/NestableDraggableFlatList.js
-index 3bf1f43..092a596 100644
+index 3bf1f43..25f072a 100644
 --- a/node_modules/react-native-draggable-flatlist/lib/module/components/NestableDraggableFlatList.js
 +++ b/node_modules/react-native-draggable-flatlist/lib/module/components/NestableDraggableFlatList.js
 @@ -1,7 +1,7 @@
@@ -127,10 +140,14 @@ index 2abb4a2..0a25b1d 100644
      renderItem: RenderItem<T>;
      renderPlaceholder?: RenderPlaceholder<T>;
 diff --git a/node_modules/react-native-draggable-flatlist/src/components/CellRendererComponent.tsx b/node_modules/react-native-draggable-flatlist/src/components/CellRendererComponent.tsx
-index e4e861a..b0f4792 100644
+index e4e861a..338f831 100644
 --- a/node_modules/react-native-draggable-flatlist/src/components/CellRendererComponent.tsx
 +++ b/node_modules/react-native-draggable-flatlist/src/components/CellRendererComponent.tsx
-@@ -4,6 +4,7 @@ import {
+@@ -1,9 +1,10 @@
+-import React, { useEffect, useMemo, useRef } from "react";
++import React, { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+ import {
+   findNodeHandle,
    LayoutChangeEvent,
    MeasureLayoutOnSuccessCallback,
    StyleProp,
@@ -138,7 +155,7 @@ index e4e861a..b0f4792 100644
    ViewStyle,
  } from "react-native";
  import Animated, {
-@@ -88,14 +89,27 @@ function CellRendererComponent<T>(props: Props<T>) {
+@@ -88,16 +89,40 @@ function CellRendererComponent<T>(props: Props<T>) {
        }
      };
  
@@ -171,7 +188,20 @@ index e4e861a..b0f4792 100644
 +    onFail();
    });
  
++  // A drop commits the reordered data in its own render. Clear the held
++  // drag offset in that same commit (layout effect -> UI thread right after
++  // the mount) instead of waiting for the async onLayout event, otherwise the
++  // cell briefly shows its new layout *plus* the old drag offset.
++  const lastIndexRef = useRef(index);
++  useLayoutEffect(() => {
++    if (lastIndexRef.current === index) return;
++    lastIndexRef.current = index;
++    if (!isWeb) heldTanslate.value = 0;
++  }, [index]);
++
    const onCellLayout = useStableCallback((e?: LayoutChangeEvent) => {
+     heldTanslate.value = 0;
+     updateCellMeasurements();
 diff --git a/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx b/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx
 index 7c88afc..f111b36 100644
 --- a/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx

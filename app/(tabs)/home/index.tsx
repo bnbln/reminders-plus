@@ -3464,7 +3464,9 @@ export default function HomeScreen() {
       for (const task of tasksBySection[sectionId]) {
         data.push({
           type: "task",
-          key: `task-${task.id}:${sectionId}:${task.completedAt ?? 0}:${
+          // No section in the key: a row dragged into another section must
+          // keep its cell, otherwise it remounts (and flashes) on drop.
+          key: `task-${task.id}:${task.completedAt ?? 0}:${
             task.deletedAt ?? 0
           }`,
           taskId: task.id,
@@ -3623,7 +3625,13 @@ export default function HomeScreen() {
             const moved = shouldAdjustSectionData
               ? adjustDueAtOnSectionChange(existing, sectionId, listDateStart)
               : existing;
-            nextById.set(id, { ...moved, orderRank: (index + 1) * 1000 });
+            const nextOrderRank = (index + 1) * 1000;
+            // Keep untouched tasks referentially stable so their rows skip
+            // re-rendering in the drop commit.
+            if (moved === existing && existing.orderRank === nextOrderRank) {
+              return;
+            }
+            nextById.set(id, { ...moved, orderRank: nextOrderRank });
           });
         }
 

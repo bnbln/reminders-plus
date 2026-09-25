@@ -469,6 +469,18 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "settings.notifications.dailySummary": "Tägliche Zusammenfassung",
   "settings.interactions.haptics": "Haptik aktivieren",
   "settings.interactions.reduceMotion": "Bewegung reduzieren",
+  "settings.interactions.streakCelebration": "Streak-Feier",
+  "settings.interactions.streakCelebrationHint":
+    "Vollbild-Flamme, sobald du die erste Aufgabe des Tages erledigst.",
+  "settings.interactions.streakCelebrationPreview": "Vorschau abspielen",
+  "streakCelebration.continue": "Weiter",
+  "streakCelebration.first":
+    "Der erste Funke! Erledige morgen wieder eine Aufgabe, damit dein Streak weiterbrennt.",
+  "streakCelebration.keepGoing":
+    "Du bist on fire! Komm morgen wieder, um deinen Streak am Leben zu halten.",
+  "streakCelebration.milestone": "Meilenstein! {{count}} Tage am Stück – unaufhaltsam.",
+  "streakCelebration.record": "Neuer Rekord",
+  "streakCelebration.a11y": "Streak verlängert: {{count}} Tage",
   "settings.import.unavailableTitle": "Nicht verfügbar",
   "settings.import.unavailableBody":
     "Apple Kalender/Erinnerungen sind nur auf iOS verfügbar.",

@@ -54,6 +54,7 @@ import {
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { SettingsButton } from "@/components/ui/settings-button";
 import { SettingsSwitch } from "@/components/ui/settings-switch";
+import { useStreakCelebration } from "@/context/streak-celebration-store";
 import { localizeExistingOnboardingSeedData } from "@/storage/tasks-onboarding-seed";
 import { deriveActiveSectionFromDueAt } from "@/utils/task-dates";
 import { ripple } from "@/components/ui/ripple";
@@ -181,6 +182,7 @@ export default function SettingsScreen() {
     appearanceMode,
     hapticsEnabled,
     reduceMotionPreference,
+    streakCelebrationEnabled,
     localeOverride,
     appBadgeMode,
     dailySummaryEnabled,
@@ -190,12 +192,14 @@ export default function SettingsScreen() {
     setAppearanceMode,
     setHapticsEnabled,
     setReduceMotionEnabled,
+    setStreakCelebrationEnabled,
     setLocaleOverride,
     setAppBadgeMode,
     setDailySummaryEnabled,
     setDailySummaryMinutes,
     setFakeStatsEnabled,
   } = useAppSettings();
+  const { playPreview: playStreakCelebrationPreview } = useStreakCelebration();
   const premiumController = usePremiumSyncBackupController();
   const remindersPlusDisabled =
     !premiumController.isPremiumReady || !premiumController.hasPremiumAccess;
@@ -928,6 +932,39 @@ export default function SettingsScreen() {
               onValueChange={setReduceMotionEnabled}
             />
           </View>
+
+          <View style={[styles.separator, { backgroundColor: borderColor }]} />
+
+          <View style={styles.switchRow}>
+            <View style={styles.switchLabelWrap}>
+              <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
+                {t("settings.interactions.streakCelebration")}
+              </Text>
+              <Text style={[styles.helperInlineText, { color: muted }]}>
+                {t("settings.interactions.streakCelebrationHint")}
+              </Text>
+            </View>
+            <SettingsSwitch
+              accessibilityLabel={t("settings.interactions.streakCelebration")}
+              value={streakCelebrationEnabled}
+              onValueChange={setStreakCelebrationEnabled}
+            />
+          </View>
+
+          <View style={[styles.separator, { backgroundColor: borderColor }]} />
+
+          <Pressable
+            android_ripple={ripple()}
+            accessibilityRole="button"
+            accessibilityLabel={t("settings.interactions.streakCelebrationPreview")}
+            onPress={playStreakCelebrationPreview}
+            style={styles.linkRow}
+          >
+            <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
+              {t("settings.interactions.streakCelebrationPreview")}
+            </Text>
+            <MaterialIcons name="local-fire-department" size={22} color="#FF7A1F" />
+          </Pressable>
         </Section>
 
         <Section title={t("settings.section.legal")} cardStyle={sectionCardStyle}>

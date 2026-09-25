@@ -430,6 +430,18 @@ export const EN_TRANSLATIONS: TranslationDict = {
     'settings.notifications.dailySummary': 'Daily summary',
     'settings.interactions.haptics': 'Enable haptics',
     'settings.interactions.reduceMotion': 'Reduce motion',
+    'settings.interactions.streakCelebration': 'Streak celebration',
+    'settings.interactions.streakCelebrationHint':
+      'Full-screen flame when you complete your first task of the day.',
+    'settings.interactions.streakCelebrationPreview': 'Play preview',
+    'streakCelebration.continue': 'Continue',
+    'streakCelebration.first':
+      'The first spark! Complete a task tomorrow to keep your streak burning.',
+    'streakCelebration.keepGoing':
+      "You're on fire! Come back tomorrow to keep your streak alive.",
+    'streakCelebration.milestone': 'Milestone! {{count}} days in a row – unstoppable.',
+    'streakCelebration.record': 'New record',
+    'streakCelebration.a11y': 'Streak extended: {{count}} days',
     'settings.import.unavailableTitle': 'Unavailable',
     'settings.import.unavailableBody': 'Apple Calendar/Reminders import is only available on iOS.',
     'settings.import.permissionTitle': 'No permission',
