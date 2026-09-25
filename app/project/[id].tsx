@@ -1,4 +1,7 @@
-import { usePageDimensions } from "@/components/navigation/vertical-bar-safe-area";
+import {
+  usePageDimensions,
+  useVerticalBarActive,
+} from "@/components/navigation/vertical-bar-safe-area";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
@@ -468,6 +471,7 @@ export default function ProjectDetailScreen() {
   const theme = (useColorScheme() ?? "light") as ThemeName;
   const isDark = theme === "dark";
   const { width: viewportWidth } = usePageDimensions();
+  const hasVerticalBar = useVerticalBarActive();
   const isTabletLayout =
     Platform.OS === "ios" && viewportWidth >= TABLET_LAYOUT_MIN_WIDTH;
   const { columnWidth, maxOffset: maxBoardOffset, snapOffsets } =
@@ -1302,19 +1306,32 @@ export default function ProjectDetailScreen() {
             headerTitleStyle: { color: Colors[theme].text },
             headerStyle: { backgroundColor: Colors[theme].background },
             contentStyle: { backgroundColor: Colors[theme].background },
-            headerRight: () => (
-              <HeaderIconButton
-                onPress={onEditProject}
-                accessibilityRole="button"
-                accessibilityLabel={t("projectEdit.editProject")}
-              >
-                <MaterialIcons
-                  name="edit"
-                  size={24}
-                  color={Colors[theme].text}
-                />
-              </HeaderIconButton>
-            ),
+            headerRight: hasVerticalBar
+              ? undefined
+              : () => (
+                  <HeaderIconButton
+                    onPress={onEditProject}
+                    accessibilityRole="button"
+                    accessibilityLabel={t("projectEdit.editProject")}
+                  >
+                    <MaterialIcons
+                      name="edit"
+                      size={24}
+                      color={Colors[theme].text}
+                    />
+                  </HeaderIconButton>
+                ),
+            // Custom header views never move into the vertical bar.
+            unstable_headerRightItems: hasVerticalBar
+              ? () => [
+                  {
+                    type: "button",
+                    label: t("projectEdit.editProject"),
+                    icon: { type: "sfSymbol", name: "pencil" },
+                    onPress: onEditProject,
+                  },
+                ]
+              : undefined,
           }}
         />
 

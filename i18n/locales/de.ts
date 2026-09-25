@@ -307,6 +307,7 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "common.off": "Aus",
   "common.cancel": "Abbrechen",
   "common.close": "Schließen",
+  "common.done": "Fertig",
   "common.delete": "Löschen",
   "common.ok": "OK",
   "common.planChecking": "Wird geprüft...",

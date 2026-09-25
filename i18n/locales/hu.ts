@@ -275,6 +275,7 @@ export const HU_TRANSLATIONS: TranslationDict = {
   'common.off': 'Ki',
   'common.cancel': 'Mégse',
   'common.close': 'Bezárás',
+  'common.done': 'Kész',
   'common.delete': 'Törölje',
   'common.ok': 'RENDBEN',
   'common.planChecking': 'Ellenőrzés...',

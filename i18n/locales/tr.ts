@@ -275,6 +275,7 @@ export const TR_TRANSLATIONS: TranslationDict = {
   'common.off': 'Kapalı',
   'common.cancel': 'İptal',
   'common.close': 'Kapat',
+  'common.done': 'Bitti',
   'common.delete': 'Sil',
   'common.ok': 'tamam',
   'common.planChecking': 'Kontrol ediliyor...',

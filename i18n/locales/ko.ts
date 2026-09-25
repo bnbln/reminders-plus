@@ -275,6 +275,7 @@ export const KO_TRANSLATIONS: TranslationDict = {
   'common.off': '끄기',
   'common.cancel': '취소',
   'common.close': '닫기',
+  'common.done': '완료',
   'common.delete': '삭제',
   'common.ok': '알았어',
   'common.planChecking': '확인 중...',

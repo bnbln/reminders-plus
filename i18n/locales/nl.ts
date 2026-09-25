@@ -275,6 +275,7 @@ export const NL_TRANSLATIONS: TranslationDict = {
   'common.off': 'Uit',
   'common.cancel': 'Annuleer',
   'common.close': 'Sluiten',
+  'common.done': 'Gereed',
   'common.delete': 'Verwijderen',
   'common.ok': 'Oké',
   'common.planChecking': 'Controleren...',

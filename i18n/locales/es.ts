@@ -28,6 +28,7 @@ export const ES_TRANSLATIONS: TranslationDict = {
   "common.off": "Desactivado",
   "common.cancel": "Cancelar",
   "common.close": "Cerrar",
+  "common.done": "Listo",
   "common.delete": "Eliminar",
   "common.ok": "bien",
   "common.planChecking": "Comprobando...",

@@ -275,6 +275,7 @@ export const VI_TRANSLATIONS: TranslationDict = {
   'common.off': 'Tắt',
   'common.cancel': 'Hủy bỏ',
   'common.close': 'Đóng',
+  'common.done': 'Xong',
   'common.delete': 'Xóa',
   'common.ok': 'được rồi',
   'common.planChecking': 'Đang kiểm tra...',

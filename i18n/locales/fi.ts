@@ -275,6 +275,7 @@ export const FI_TRANSLATIONS: TranslationDict = {
   'common.off': 'Pois päältä',
   'common.cancel': 'Peruuta',
   'common.close': 'Sulje',
+  'common.done': 'Valmis',
   'common.delete': 'Poista',
   'common.ok': 'OK',
   'common.planChecking': 'Tarkistetaan...',

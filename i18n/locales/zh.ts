@@ -275,6 +275,7 @@ export const ZH_TRANSLATIONS: TranslationDict = {
   'common.off': '关闭',
   'common.cancel': '取消',
   'common.close': '关闭',
+  'common.done': '完成',
   'common.delete': '删除',
   'common.ok': '好的',
   'common.planChecking': '正在检查...',

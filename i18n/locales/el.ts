@@ -275,6 +275,7 @@ export const EL_TRANSLATIONS: TranslationDict = {
   'common.off': 'Απενεργοποίηση',
   'common.cancel': 'Ακύρωση',
   'common.close': 'Κλείσιμο',
+  'common.done': 'Τέλος',
   'common.delete': 'Διαγραφή',
   'common.ok': 'ΟΚ',
   'common.planChecking': 'Έλεγχος...',

@@ -275,6 +275,7 @@ export const RU_TRANSLATIONS: TranslationDict = {
   'common.off': 'Выкл.',
   'common.cancel': 'Отмена',
   'common.close': 'Закрыть',
+  'common.done': 'Готово',
   'common.delete': 'Удалить',
   'common.ok': 'ОК',
   'common.planChecking': 'Проверка...',

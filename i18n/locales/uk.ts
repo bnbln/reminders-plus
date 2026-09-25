@@ -275,6 +275,7 @@ export const UK_TRANSLATIONS: TranslationDict = {
   'common.off': 'Вимкнено',
   'common.cancel': 'Скасувати',
   'common.close': 'Закрити',
+  'common.done': 'Готово',
   'common.delete': 'Видалити',
   'common.ok': 'добре',
   'common.planChecking': 'Перевірка...',

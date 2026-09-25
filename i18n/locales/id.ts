@@ -275,6 +275,7 @@ export const ID_TRANSLATIONS: TranslationDict = {
   'common.off': 'Mati',
   'common.cancel': 'Batalkan',
   'common.close': 'Tutup',
+  'common.done': 'Selesai',
   'common.delete': 'Hapus',
   'common.ok': 'Oke',
   'common.planChecking': 'Memeriksa...',

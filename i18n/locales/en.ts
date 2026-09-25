@@ -294,6 +294,7 @@ export const EN_TRANSLATIONS: TranslationDict = {
     'common.off': 'Off',
     'common.cancel': 'Cancel',
     'common.close': 'Close',
+    'common.done': 'Done',
     'common.delete': 'Delete',
     'common.ok': 'OK',
     'common.planChecking': 'Checking...',

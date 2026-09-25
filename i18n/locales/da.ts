@@ -275,6 +275,7 @@ export const DA_TRANSLATIONS: TranslationDict = {
   'common.off': 'Fra',
   'common.cancel': 'Annuller',
   'common.close': 'Tæt',
+  'common.done': 'Færdig',
   'common.delete': 'Slet',
   'common.ok': 'OK',
   'common.planChecking': 'Tjekker...',

@@ -275,6 +275,7 @@ export const RO_TRANSLATIONS: TranslationDict = {
   'common.off': 'Oprit',
   'common.cancel': 'Anulează',
   'common.close': 'Închide',
+  'common.done': 'Gata',
   'common.delete': 'Ștergeți',
   'common.ok': 'Bine',
   'common.planChecking': 'Se verifică...',

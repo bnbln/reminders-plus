@@ -1,10 +1,8 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import React from 'react';
 import { StyleSheet, View, Platform } from 'react-native';
 
-import { HeaderCloseButton } from '@/components/ui/header-close-button';
-import { HeaderIconButton } from '@/components/ui/header-icon-button';
+import { useSheetHeaderActions } from '@/components/navigation/sheet-header-actions';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -28,19 +26,18 @@ export default function ModalScreen() {
     router.back();
   };
 
+  const sheetHeaderActions = useSheetHeaderActions({
+    onClose: handleCancel,
+    onDone: handleAdd,
+    doneDisabled: !canSubmit,
+  });
+
   return (
     <ThemedView style={[styles.container, { backgroundColor: theme === 'dark' ? '#000000' : '#F2F2F7' }]}>
       <Stack.Screen
         options={{
           title: t('modal.newTask'),
-          headerLeft: () => (
-            <HeaderCloseButton onPress={handleCancel} color={Colors[theme].text} />
-          ),
-          headerRight: () => (
-            <HeaderIconButton onPress={handleAdd} disabled={!canSubmit}>
-              <MaterialIcons name="check" size={24} color={canSubmit ? Colors[theme].text : Colors[theme].icon} />
-            </HeaderIconButton>
-          ),
+          ...sheetHeaderActions,
           headerLargeTitle: false,
           headerShown: true,
           headerStyle: {

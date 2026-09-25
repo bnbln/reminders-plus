@@ -275,6 +275,7 @@ export const IT_TRANSLATIONS: TranslationDict = {
   'common.off': 'Spento',
   'common.cancel': 'Annulla',
   'common.close': 'Chiudi',
+  'common.done': 'Fine',
   'common.delete': 'Elimina',
   'common.ok': 'Va bene',
   'common.planChecking': 'Controllo...',

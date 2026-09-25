@@ -275,6 +275,7 @@ export const HI_TRANSLATIONS: TranslationDict = {
   'common.off': 'बंद',
   'common.cancel': 'रद्द करें',
   'common.close': 'बंद करें',
+  'common.done': 'हो गया',
   'common.delete': 'हटाएँ',
   'common.ok': 'ठीक है',
   'common.planChecking': 'जाँच हो रही है...',

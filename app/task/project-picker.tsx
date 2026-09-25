@@ -4,7 +4,7 @@ import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { HeaderCloseButton } from '@/components/ui/header-close-button';
+import { useSheetHeaderActions } from '@/components/navigation/sheet-header-actions';
 import { withAlpha } from '@/components/ui/glass-surface';
 import { SFSymbol } from '@/components/ui/sfsymbol';
 import { usePremium } from '@/context/premium-store';
@@ -54,6 +54,7 @@ export default function ProjectPickerScreen() {
     const handleCancel = React.useCallback(() => {
         router.back();
     }, [router]);
+    const sheetHeaderActions = useSheetHeaderActions({ onClose: handleCancel });
 
     const handleCreateProject = React.useCallback(() => {
         // Navigate to create project modal
@@ -75,9 +76,7 @@ export default function ProjectPickerScreen() {
             <Stack.Screen
                 options={{
                     title: t('projectPicker.title'),
-                    headerLeft: () => (
-                        <HeaderCloseButton onPress={handleCancel} color={Colors[theme].text} />
-                    ),
+                    ...sheetHeaderActions,
                     headerShown: true,
                     headerStyle: {
                         backgroundColor: isDark ? '#000000' : '#F2F2F7',

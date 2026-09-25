@@ -275,6 +275,7 @@ export const AR_TRANSLATIONS: TranslationDict = {
   'common.off': 'إيقاف',
   'common.cancel': 'إلغاء',
   'common.close': 'إغلاق',
+  'common.done': 'تم',
   'common.delete': 'حذف',
   'common.ok': 'حسنًا',
   'common.planChecking': 'جارٍ التحقق...',

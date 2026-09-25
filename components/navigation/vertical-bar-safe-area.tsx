@@ -9,6 +9,9 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 const verticalBarModule = Platform.OS === "ios" ? NativeModules.RemindsVerticalBar : undefined;
 const VerticalBarContext = React.createContext(false);
 const VerticalBarActiveContext = React.createContext(false);
+const RegularWidthContext = React.createContext(false);
+// Android has no size classes; 600dp is Material's compact/medium breakpoint.
+const ANDROID_REGULAR_WIDTH_MIN = 600;
 type PageLayout = { width: number; leftInset: number; rightInset: number };
 const PageLayoutContext = React.createContext<PageLayout | undefined>(undefined);
 
@@ -19,13 +22,21 @@ export function VerticalBarSafeAreaProvider({ children }: React.PropsWithChildre
   const [hasSeenVerticalBar, setHasSeenVerticalBar] = React.useState(
     verticalBarModule?.hasVerticalBar === true,
   );
+  const [isNativeRegularWidth, setIsNativeRegularWidth] = React.useState(
+    verticalBarModule?.isRegularWidth === true,
+  );
+  const { width } = useWindowDimensions();
+  const isRegularWidth = verticalBarModule
+    ? isNativeRegularWidth
+    : Platform.OS === "android" && width >= ANDROID_REGULAR_WIDTH_MIN;
 
   React.useEffect(() => {
     if (!verticalBarModule) return;
     const subscription = new NativeEventEmitter(verticalBarModule).addListener(
       "verticalBarLayoutChanged",
-      (state: { hasVerticalBar: boolean }) => {
+      (state: { hasVerticalBar: boolean; isRegularWidth?: boolean }) => {
         setIsVerticalBarActive(state.hasVerticalBar);
+        setIsNativeRegularWidth(state.isRegularWidth === true);
         // Keep the wrapper mounted across Duo pose changes. The native Screen
         // updates its insets to zero when bars return to the top/bottom,
         // without remounting forms or losing their local state.
@@ -38,7 +49,9 @@ export function VerticalBarSafeAreaProvider({ children }: React.PropsWithChildre
   return (
     <VerticalBarContext.Provider value={hasSeenVerticalBar}>
       <VerticalBarActiveContext.Provider value={isVerticalBarActive}>
-        {children}
+        <RegularWidthContext.Provider value={isRegularWidth}>
+          {children}
+        </RegularWidthContext.Provider>
       </VerticalBarActiveContext.Provider>
     </VerticalBarContext.Provider>
   );
@@ -158,4 +171,12 @@ export function usePageInsets() {
 
 export function useVerticalBarActive() {
   return React.useContext(VerticalBarActiveContext);
+}
+
+/**
+ * Regular horizontal size class of the window, e.g. the inner iPhone Duo
+ * display or an iPad. Layouts use this instead of fixed display widths.
+ */
+export function useIsRegularWidth() {
+  return React.useContext(RegularWidthContext);
 }

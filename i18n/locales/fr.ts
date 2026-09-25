@@ -275,6 +275,7 @@ export const FR_TRANSLATIONS: TranslationDict = {
   'common.off': 'Désactivé',
   'common.cancel': 'Annuler',
   'common.close': 'Fermer',
+  'common.done': 'OK',
   'common.delete': 'Supprimer',
   'common.ok': 'D\'accord',
   'common.planChecking': 'Vérification...',

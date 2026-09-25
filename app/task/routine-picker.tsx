@@ -4,7 +4,7 @@ import React from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { HeaderCloseButton } from "@/components/ui/header-close-button";
+import { useSheetHeaderActions } from "@/components/navigation/sheet-header-actions";
 import { withAlpha } from "@/components/ui/glass-surface";
 import { Colors } from "@/constants/theme";
 import {
@@ -160,6 +160,7 @@ export default function RoutinePickerScreen() {
   const handleCancel = React.useCallback(() => {
     router.back();
   }, [router]);
+  const sheetHeaderActions = useSheetHeaderActions({ onClose: handleCancel });
 
   if (!task && canRecoverDraft) {
     return (
@@ -194,9 +195,7 @@ export default function RoutinePickerScreen() {
           {
             presentation: "formSheet",
             headerTitle: t('routinePicker.title'),
-            headerLeft: () => (
-              <HeaderCloseButton onPress={handleCancel} color={Colors[theme].text} />
-            ),
+            ...sheetHeaderActions,
             headerShown: true,
             headerStyle: {
               backgroundColor: isDark ? "#000000" : "#F2F2F7",

@@ -275,6 +275,7 @@ export const CS_TRANSLATIONS: TranslationDict = {
   'common.off': 'Vypnuto',
   'common.cancel': 'Zrušit',
   'common.close': 'Zavřít',
+  'common.done': 'Hotovo',
   'common.delete': 'Smazat',
   'common.ok': 'OK',
   'common.planChecking': 'Kontrola...',

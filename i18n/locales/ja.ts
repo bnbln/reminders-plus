@@ -275,6 +275,7 @@ export const JA_TRANSLATIONS: TranslationDict = {
   'common.off': 'オフ',
   'common.cancel': 'キャンセル',
   'common.close': '閉じる',
+  'common.done': '完了',
   'common.delete': '削除',
   'common.ok': 'わかりました',
   'common.planChecking': '確認中...',

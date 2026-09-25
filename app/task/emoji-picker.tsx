@@ -4,7 +4,7 @@ import React from 'react';
 import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { HeaderCloseButton } from '@/components/ui/header-close-button';
+import { useSheetHeaderActions } from '@/components/navigation/sheet-header-actions';
 import { withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
 import { useTasksStore } from '@/context/tasks-store';
@@ -41,7 +41,8 @@ export default function EmojiPickerScreen() {
         const minTileSize = 56;
         const availableWidth = Math.max(0, windowWidth - horizontalPadding);
         const computedColumns = Math.floor((availableWidth + gridGap) / (minTileSize + gridGap));
-        const columns = Math.max(4, computedColumns);
+        // Even column counts keep a vertical fold (iPhone Duo) between tiles.
+        const columns = Math.max(4, computedColumns - (computedColumns % 2));
 
         return {
             emojiColumns: columns,
@@ -66,15 +67,14 @@ export default function EmojiPickerScreen() {
     const handleCancel = React.useCallback(() => {
         router.back();
     }, [router]);
+    const sheetHeaderActions = useSheetHeaderActions({ onClose: handleCancel });
 
     return (
         <View style={styles.container}>
             <Stack.Screen
                 options={{
                     title: t('emojiPicker.title'),
-                    headerLeft: () => (
-                        <HeaderCloseButton onPress={handleCancel} color={Colors[theme].text} />
-                    ),
+                    ...sheetHeaderActions,
                     headerShown: true,
                     headerStyle: {
                         backgroundColor: isDark ? '#000000' : '#F2F2F7',

@@ -1,7 +1,7 @@
 #import <React/RCTEventEmitter.h>
 #import <UIKit/UIKit.h>
 
-// Report the window's layout trait, not a device model or a screen-width heuristic.
+// Report the window's layout traits, not a device model or a screen-width heuristic.
 @interface RemindsVerticalBar : RCTEventEmitter
 @property (nonatomic, weak) UIWindow *observedWindow;
 @property (nonatomic, strong) id traitRegistration;
@@ -28,24 +28,31 @@ RCT_EXPORT_MODULE()
 
 - (NSDictionary *)layoutState
 {
+  UITraitCollection *traits = self.activeWindow.traitCollection ?: UITraitCollection.currentTraitCollection;
   BOOL hasVerticalBar = NO;
   if (@available(iOS 27.1, *)) {
-    hasVerticalBar = self.activeWindow.traitCollection.verticalBarEdge != UIVerticalBarEdgeUnspecified;
+    hasVerticalBar = traits.verticalBarEdge != UIVerticalBarEdgeUnspecified;
   }
-  return @{@"hasVerticalBar": @(hasVerticalBar)};
+  // iPhone Duo: compact on the outer display, regular on the inner one.
+  BOOL isRegularWidth = traits.horizontalSizeClass == UIUserInterfaceSizeClassRegular;
+  return @{@"hasVerticalBar": @(hasVerticalBar), @"isRegularWidth": @(isRegularWidth)};
 }
 
 - (NSDictionary *)constantsToExport { return self.layoutState; }
 
 - (void)observeWindow
 {
-  if (@available(iOS 27.1, *)) {
+  if (@available(iOS 17.0, *)) {
     UIWindow *window = self.activeWindow;
     if (self.observedWindow != window || !self.traitRegistration) {
       if (self.traitRegistration) [self.observedWindow unregisterForTraitChanges:self.traitRegistration];
       self.observedWindow = window;
       __weak RemindsVerticalBar *weakSelf = self;
-      self.traitRegistration = [window registerForTraitChanges:UITraitCollection.systemTraitsAffectingVerticalBarEdge
+      NSArray<UITrait> *traits = @[UITraitHorizontalSizeClass.class];
+      if (@available(iOS 27.1, *)) {
+        traits = [traits arrayByAddingObjectsFromArray:UITraitCollection.systemTraitsAffectingVerticalBarEdge];
+      }
+      self.traitRegistration = [window registerForTraitChanges:traits
         withHandler:^(__kindof id<UITraitEnvironment> environment, UITraitCollection *previousTraits) {
           RemindsVerticalBar *module = weakSelf;
           if (module.listening) [module sendEventWithName:@"verticalBarLayoutChanged" body:module.layoutState];
@@ -67,7 +74,7 @@ RCT_EXPORT_MODULE()
 {
   self.listening = NO;
   [NSNotificationCenter.defaultCenter removeObserver:self];
-  if (@available(iOS 27.1, *)) {
+  if (@available(iOS 17.0, *)) {
     if (self.traitRegistration) [self.observedWindow unregisterForTraitChanges:self.traitRegistration];
     self.traitRegistration = nil;
     self.observedWindow = nil;

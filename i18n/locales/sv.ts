@@ -275,6 +275,7 @@ export const SV_TRANSLATIONS: TranslationDict = {
   'common.off': 'Av',
   'common.cancel': 'Avbryt',
   'common.close': 'Stäng',
+  'common.done': 'Klar',
   'common.delete': 'Ta bort',
   'common.ok': 'OK',
   'common.planChecking': 'Kontrollerar...',

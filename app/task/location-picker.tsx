@@ -13,9 +13,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { HeaderCloseButton } from '@/components/ui/header-close-button';
+import { useSheetHeaderActions } from '@/components/navigation/sheet-header-actions';
 import { withAlpha } from '@/components/ui/glass-surface';
-import { HeaderIconButton } from '@/components/ui/header-icon-button';
 import { Colors } from '@/constants/theme';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -116,6 +115,7 @@ export default function LocationPickerScreen() {
   }, [applyLocationAndClose]);
 
   const isLocationEmpty = (locationDraft ?? '').trim().length === 0;
+  const sheetHeaderActions = useSheetHeaderActions({ onClose: handleCancel, onDone: handleSave });
 
   return (
     <View style={styles.container}>
@@ -123,14 +123,7 @@ export default function LocationPickerScreen() {
         options={
           {
             title: t('locationPicker.title'),
-            headerLeft: () => (
-              <HeaderCloseButton onPress={handleCancel} color={Colors[theme].text} />
-            ),
-            headerRight: () => (
-              <HeaderIconButton onPress={handleSave}>
-                <MaterialIcons name="check" size={24} color={Colors[theme].text} />
-              </HeaderIconButton>
-            ),
+            ...sheetHeaderActions,
             headerShown: true,
             headerStyle: {
               backgroundColor: isDark ? '#000000' : '#F2F2F7',
