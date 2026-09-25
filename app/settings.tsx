@@ -160,7 +160,9 @@ function Section({
 }) {
   return (
     <View style={{ gap: 8 }}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+      <Text accessibilityRole="header" style={styles.sectionTitle}>
+        {title}
+      </Text>
       <View style={[styles.sectionCard, cardStyle]}>{children}</View>
     </View>
   );
@@ -178,7 +180,7 @@ export default function SettingsScreen() {
     accentColor,
     appearanceMode,
     hapticsEnabled,
-    reduceMotionEnabled,
+    reduceMotionPreference,
     localeOverride,
     appBadgeMode,
     dailySummaryEnabled,
@@ -717,6 +719,8 @@ export default function SettingsScreen() {
                     key={color.id}
                     accessibilityRole="button"
                     accessibilityLabel={color.label}
+                    accessibilityState={{ selected }}
+                    hitSlop={7}
                     onPress={() => setAccentColor(color.id)}
                     style={[
                       styles.colorButton,
@@ -742,6 +746,8 @@ export default function SettingsScreen() {
                   android_ripple={ripple()}
                   accessibilityRole="button"
                   accessibilityLabel={t("settings.appearance.materialYou")}
+                  accessibilityState={{ selected: isMaterialYouSelected }}
+                  hitSlop={7}
                   onPress={() => setAccentColor(MATERIAL_YOU_ACCENT_ID)}
                   style={[
                     styles.colorButton,
@@ -833,6 +839,7 @@ export default function SettingsScreen() {
               {t("settings.notifications.dailySummary")}
             </Text>
             <SettingsSwitch
+              accessibilityLabel={t("settings.notifications.dailySummary")}
               value={dailySummaryEnabled}
               onValueChange={(enabled) => {
                 setDailySummaryEnabled(enabled);
@@ -855,6 +862,13 @@ export default function SettingsScreen() {
             <Pressable
               android_ripple={ripple()}
               disabled={!dailySummaryEnabled}
+              accessibilityRole="button"
+              accessibilityLabel={`${t("a11y.settings.dailySummaryTime")}: ${formatTime(dailySummaryTime)}`}
+              accessibilityState={{
+                disabled: !dailySummaryEnabled,
+                expanded: showDailySummaryPicker,
+              }}
+              hitSlop={8}
               onPress={() => setShowDailySummaryPicker((current) => !current)}
               style={styles.timeButton}
             >
@@ -896,6 +910,7 @@ export default function SettingsScreen() {
               {t("settings.interactions.haptics")}
             </Text>
             <SettingsSwitch
+              accessibilityLabel={t("settings.interactions.haptics")}
               value={hapticsEnabled}
               onValueChange={setHapticsEnabled}
             />
@@ -908,10 +923,26 @@ export default function SettingsScreen() {
               {t("settings.interactions.reduceMotion")}
             </Text>
             <SettingsSwitch
-              value={reduceMotionEnabled}
+              accessibilityLabel={t("settings.interactions.reduceMotion")}
+              value={reduceMotionPreference}
               onValueChange={setReduceMotionEnabled}
             />
           </View>
+        </Section>
+
+        <Section title={t("settings.section.legal")} cardStyle={sectionCardStyle}>
+          <Pressable
+            android_ripple={ripple()}
+            accessibilityRole="button"
+            accessibilityLabel={t("settings.legal.open")}
+            onPress={() => router.push("/legal" as never)}
+            style={styles.linkRow}
+          >
+            <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
+              {t("settings.legal.open")}
+            </Text>
+            <MaterialIcons name="chevron-right" size={22} color={muted} />
+          </Pressable>
         </Section>
 
         {__DEV__ ? (
@@ -996,7 +1027,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     letterSpacing: 0.2,
-    color: "#6B7280",
+    color: "#5B6270",
     paddingHorizontal: 2,
   },
   sectionCard: {
@@ -1010,6 +1041,14 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   switchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  linkRow: {
+    minHeight: 48,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",

@@ -4242,6 +4242,7 @@ export default function HomeScreen() {
                   <Pressable
                     android_ripple={rippleBorderless(16)}
                     accessibilityRole="button"
+                    accessibilityLabel={t("a11y.home.pickDate")}
                     hitSlop={16}
                     style={StyleSheet.absoluteFill}
                     onPress={() => {

@@ -448,7 +448,7 @@ export default function TaskViewScreen() {
       {/* Hero Section */}
       <View style={styles.heroSection}>
         <Pressable
-          android_ripple={ripple()} onPress={() => router.push(`/task/emoji-picker?taskId=${task.id}`)} style={styles.heroEmojiWrap}>
+          android_ripple={ripple()} accessibilityRole="button" accessibilityLabel={t('a11y.task.changeEmoji')} onPress={() => router.push(`/task/emoji-picker?taskId=${task.id}`)} style={styles.heroEmojiWrap}>
           <View
             style={[
               styles.heroEmojiBg,

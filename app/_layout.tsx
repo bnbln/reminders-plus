@@ -231,6 +231,14 @@ export default function RootLayout() {
                     }}
                   />
                   <Stack.Screen
+                    name="legal"
+                    options={{
+                      ...tabLikeHeaderOptions,
+                      headerLargeTitle: false,
+                      title: t("screen.legal"),
+                    }}
+                  />
+                  <Stack.Screen
                     name="cloud-sync"
                     options={{
                       ...tabLikeHeaderOptions,

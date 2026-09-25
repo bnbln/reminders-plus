@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getMaterial3Theme, type Material3Theme } from "@pchmn/expo-material3-theme";
 import React from "react";
-import { Appearance, Platform, type ColorSchemeName } from "react-native";
+import { AccessibilityInfo, Appearance, Platform, type ColorSchemeName } from "react-native";
 
 import { type AppLocale, setLocale } from "@/i18n";
 
@@ -450,6 +450,24 @@ export function useAppSettings() {
     void hydrateSettings();
   }, []);
 
+  const [systemReduceMotion, setSystemReduceMotion] = React.useState(false);
+  React.useEffect(() => {
+    let mounted = true;
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((enabled) => {
+        if (mounted) setSystemReduceMotion(enabled);
+      })
+      .catch(() => undefined);
+    const subscription = AccessibilityInfo.addEventListener(
+      "reduceMotionChanged",
+      setSystemReduceMotion,
+    );
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, []);
+
   const setAppearanceMode = React.useCallback((appearanceMode: AppearanceMode) => {
     patchSettings({ appearanceMode });
   }, []);
@@ -511,6 +529,11 @@ export function useAppSettings() {
 
   return {
     ...state,
+    // The OS-level Reduce Motion setting always wins (WCAG 2.3.3 / EN 301 549);
+    // the in-app toggle can only add to it. `reduceMotionPreference` is the raw
+    // in-app value for the settings switch.
+    reduceMotionPreference: state.reduceMotionEnabled,
+    reduceMotionEnabled: state.reduceMotionEnabled || systemReduceMotion,
     setAppearanceMode,
     setAccentColor,
     setHapticsEnabled,

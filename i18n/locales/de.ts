@@ -628,6 +628,25 @@ export const DE_TRANSLATIONS: TranslationDict = {
     "Beispiele: Finde alle Routinen mit Standort. Erstelle Task morgen 14:00 im Projekt Arbeit. Verschiebe Einkauf nach Privat.",
   "assist.input.placeholder":
     "z.B. Erstelle Task heute 18:00 mit Standort Supermarkt",
+  "screen.legal": "Rechtliches & Barrierefreiheit",
+  "settings.section.legal": "Rechtliches",
+  "settings.legal.open": "Rechtliches & Barrierefreiheit",
+  "legal.section.documents": "Dokumente",
+  "legal.privacy": "Datenschutzerklärung",
+  "legal.imprint": "Impressum",
+  "legal.terms": "Nutzungsbedingungen (EULA)",
+  "legal.opensInBrowser": "Öffnet im Browser",
+  "legal.openFailed": "Der Link konnte nicht geöffnet werden.",
+  "legal.section.accessibility": "Barrierefreiheit",
+  "legal.accessibility.body": "Wir möchten, dass Reminders+ für alle nutzbar ist, und orientieren uns an der Europäischen Norm EN 301 549 (WCAG 2.1 AA) sowie dem Barrierefreiheitsstärkungsgesetz. Die App unterstützt VoiceOver/TalkBack, Dynamic Type, den Dunkelmodus und die Einstellung „Bewegung reduzieren“. Der Konformitätsstatus ist derzeit „teilweise konform“: Einzelne Elemente haben noch keine vollständigen Screenreader-Beschriftungen, einige Bedienelemente sind kleiner als 44 × 44 Punkte, und manche Aktionen lassen sich noch nicht über alternative Wege ausführen. Wir arbeiten an diesen Punkten.",
+  "legal.accessibility.feedback": "Barrieren melden",
+  "legal.section.ai": "KI-Hinweis",
+  "legal.ai.body": "AI Assist nutzt Apple Intelligence direkt auf deinem Gerät. Antworten werden automatisch von einer KI erzeugt, können Fehler enthalten und sollten vor dem Übernehmen geprüft werden.",
+  "a11y.task.complete": "Als erledigt markieren",
+  "a11y.task.reopen": "Wieder öffnen",
+  "a11y.settings.dailySummaryTime": "Uhrzeit der täglichen Zusammenfassung",
+  "a11y.task.changeEmoji": "Emoji ändern",
+  "a11y.home.pickDate": "Datum auswählen",
 };
 
 export default DE_TRANSLATIONS;
