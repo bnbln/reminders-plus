@@ -60,6 +60,8 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "projectEdit.icon": "Icon",
   "projectEdit.color": "Farbe",
   "projectEdit.delete": "Projekt löschen",
+  "projectEdit.alert.deleteTitle": "Projekt löschen?",
+  "projectEdit.alert.deleteBody": "Das Projekt und alle zugehörigen Aufgaben werden in den Papierkorb verschoben.",
 
   "taskCreate.locationUnavailableTitle": "Standort nicht verfügbar",
   "taskCreate.locationUnavailableBody": "Expo Location fehlt.",
@@ -240,6 +242,8 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "archive.empty.completedBody": "Erledigte Aufgaben erscheinen hier.",
   "archive.empty.trashBody":
     "Gelöschte Aufgaben erscheinen hier und können wiederhergestellt werden.",
+  "archive.alert.deleteForeverTitle": "Endgültig löschen?",
+  "archive.alert.deleteForeverBody": "Die Aufgabe wird endgültig gelöscht und kann nicht wiederhergestellt werden.",
 
   "modal.newTask": "Neue Aufgabe",
   "modal.placeholder.title": "Titel…",
@@ -435,6 +439,9 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "backup.alert.restoreDoneTitle": "Wiederherstellung abgeschlossen",
   "backup.alert.restoreDoneBody":
     "Die Sicherung wurde eingelesen und angewendet.",
+  "backup.alert.restoreConfirmTitle": "Alle Daten ersetzen?",
+  "backup.alert.restoreConfirmBody": "Die Sicherung enthält {{tasks}} Aufgaben und {{projects}} Projekte. Beim Wiederherstellen werden alle aktuellen Aufgaben, Projekte und Einstellungen auf diesem Gerät ersetzt.",
+  "backup.alert.restoreConfirmAction": "Wiederherstellen",
   "backup.alert.restoreFailedTitle": "Wiederherstellung fehlgeschlagen",
   "backup.status.premiumRequired":
     "Datensicherung und Wiederherstellung werden mit Reminders+ freigeschaltet.",
@@ -506,6 +513,7 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "plus.benefit.sync": "Cloud Sync auf Apple-Geräten",
   "plus.source.assist":
     "Freischaltung für deinen AI-Assist und alle Pro-Features.",
+  "assist.locked.body": "AI-Assist ist Teil von Reminders+, zusammen mit unbegrenzten Projekten und Cloud-Sync.",
   "plus.source.projects":
     "Mehr Projekte, AI-Assist und Sync in einem Schritt freischalten.",
   "plus.source.sync":

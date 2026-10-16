@@ -40,6 +40,14 @@ export default function LocationPickerScreen() {
 
   const [locationDraft, setLocationDraft] = React.useState<string | undefined>(undefined);
   const [isLocating, setIsLocating] = React.useState(false);
+  const isLocatingRef = React.useRef(false);
+  // Set once the sheet is closing, so a location lookup that resolves later
+  // does not call router.back() a second time and pop the screen below.
+  const isClosedRef = React.useRef(false);
+
+  React.useEffect(() => () => {
+    isClosedRef.current = true;
+  }, []);
 
   React.useEffect(() => {
     if (locationDraft !== undefined) return;
@@ -47,6 +55,8 @@ export default function LocationPickerScreen() {
   }, [locationDraft, task?.location]);
 
   const applyLocationAndClose = React.useCallback((nextLocation: string | undefined) => {
+    if (isClosedRef.current) return;
+    isClosedRef.current = true;
     if (!taskId) {
       router.back();
       return;
@@ -72,17 +82,21 @@ export default function LocationPickerScreen() {
   }, [applyLocationAndClose, locationDraft]);
 
   const handleCancel = React.useCallback(() => {
+    if (isClosedRef.current) return;
+    isClosedRef.current = true;
     router.back();
   }, [router]);
 
   const handleUseCurrentLocation = React.useCallback(async () => {
+    if (isLocatingRef.current) return;
+    isLocatingRef.current = true;
     setIsLocating(true);
     try {
       let Location: typeof import('expo-location');
       try {
         Location = await import('expo-location');
       } catch {
-        Alert.alert(t('taskCreate.locationUnavailableTitle'), t('taskCreate.locationUnavailableBody'));
+        Alert.alert(t('taskCreate.locationUnavailableTitle'), t('taskCreate.locationErrorBody'));
         return;
       }
 
@@ -97,8 +111,10 @@ export default function LocationPickerScreen() {
         latitude: pos.coords.latitude,
         longitude: pos.coords.longitude,
       });
+      if (isClosedRef.current) return;
 
-      const parts = [rev.name, rev.street, rev.district, rev.city].filter(
+      // reverseGeocodeAsync can resolve to an empty list; fall back to coordinates.
+      const parts = [rev?.name, rev?.street, rev?.district, rev?.city].filter(
         (value): value is string => typeof value === 'string' && value.trim().length > 0
       );
       const label =
@@ -108,8 +124,11 @@ export default function LocationPickerScreen() {
       setLocationDraft(label);
       applyLocationAndClose(label);
     } catch {
-      Alert.alert(t('taskCreate.locationErrorTitle'), t('taskCreate.locationErrorBody'));
+      if (!isClosedRef.current) {
+        Alert.alert(t('taskCreate.locationErrorTitle'), t('taskCreate.locationErrorBody'));
+      }
     } finally {
+      isLocatingRef.current = false;
       setIsLocating(false);
     }
   }, [applyLocationAndClose]);
@@ -143,6 +162,7 @@ export default function LocationPickerScreen() {
           <Pressable
             android_ripple={ripple()}
             onPress={handleUseCurrentLocation}
+            disabled={isLocating}
             style={({ pressed }) => [
               styles.optionRow,
               pressed && styles.optionRowPressed,

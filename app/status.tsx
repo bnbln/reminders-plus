@@ -207,7 +207,8 @@ function ChartBar({
   isDark: boolean;
 }) {
   const heightPercent = max > 0 ? (item.completionRate / max) * 100 : 0;
-  const isZero = item.totalCount === 0;
+  // Keep a visible stub for small non-zero rates, but show 0 % as no bar.
+  const isZero = item.totalCount === 0 || item.completionRate <= 0;
   const barHeight = !isZero ? `${Math.max(8, heightPercent)}%` : '0%';
   const barColor = item.isToday ? '#22C55E' : withAlpha(textColor, 0.6);
   const styles = createStyles(isDark ? 'dark' : 'light', false, false);

@@ -11,11 +11,13 @@ import { Colors } from "@/constants/theme";
 import { useHomeFilters } from "@/context/home-filters-store";
 import {
   createRoutineCompletionTransition,
+  getDueAtForSection,
   type Task,
   useTasksStore,
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
+import { deriveActiveSectionFromDueAt, hasValidDueAt } from "@/utils/task-dates";
 
 const IOS_LIGHT_BASE_BACKGROUND = "#F2F2F7";
 const IOS_LIGHT_ELEVATED_SURFACE = "#FFFFFF";
@@ -93,12 +95,35 @@ export function SearchResultsScreen() {
         const task = prev.find((candidate) => candidate.id === taskId);
         if (!task) return prev;
 
+        // Reopen a completed task the same way the archive does: back to the
+        // section its due date implies, or to today when it has no date.
+        if (task.section === "completed") {
+          const hasDueAt = hasValidDueAt(task.dueAt);
+          return prev.map((candidate) =>
+            candidate.id === taskId
+              ? {
+                  ...candidate,
+                  section: hasDueAt
+                    ? deriveActiveSectionFromDueAt(task.dueAt)
+                    : "today",
+                  completedAt: undefined,
+                  ...(hasDueAt
+                    ? {}
+                    : {
+                        dueAt: getDueAtForSection("today"),
+                        dueHasTime: true,
+                      }),
+                }
+              : candidate,
+          );
+        }
+
         const routineTransition = createRoutineCompletionTransition(
           task,
           now,
           new Set(prev.map((candidate) => candidate.id)),
         );
-        if (routineTransition && task.section !== "completed") {
+        if (routineTransition) {
           const next = prev.map((candidate) =>
             candidate.id === taskId ? routineTransition.nextTask : candidate,
           );

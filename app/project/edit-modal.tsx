@@ -3,6 +3,7 @@ import { type MenuAction } from '@react-native-menu/menu';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -163,8 +164,12 @@ export default function ProjectEditScreen() {
     }
   }, [activeProjectCount, hasPremiumAccess, isCreate, isReady, router]);
 
+  // Fill the form once per project. A new project reference from sync or a
+  // store update must not overwrite what the user is typing.
+  const initializedProjectIdRef = React.useRef<string | null>(null);
   React.useEffect(() => {
-    if (!project) return;
+    if (!project || initializedProjectIdRef.current === project.id) return;
+    initializedProjectIdRef.current = project.id;
     setName(project.name);
     setDescription(project.description ?? '');
     setIcon(project.icon ?? DEFAULT_PROJECT_ICON);
@@ -225,7 +230,7 @@ export default function ProjectEditScreen() {
     router.back();
   }, [color, description, icon, id, name, router, selectedEmoji, setProjects]);
 
-  const onDelete = React.useCallback(() => {
+  const deleteProject = React.useCallback(() => {
     if (!id) return;
     const now = Date.now();
 
@@ -241,6 +246,15 @@ export default function ProjectEditScreen() {
       router.replace('/(tabs)/explore');
     });
   }, [id, router, setProjects, setTasks]);
+
+  const onDelete = React.useCallback(() => {
+    if (!id) return;
+    // Deleting a project also moves all of its tasks to the trash, so ask first.
+    Alert.alert(t('projectEdit.alert.deleteTitle'), t('projectEdit.alert.deleteBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('common.delete'), style: 'destructive', onPress: deleteProject },
+    ]);
+  }, [deleteProject, id]);
 
   const onBackdropPress = React.useCallback(() => {
     router.back();

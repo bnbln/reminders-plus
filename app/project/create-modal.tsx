@@ -198,8 +198,10 @@ export default function ProjectCreateModal() {
     router.back();
   }, [color, description, icon, name, router, selectedEmoji, setProjects]);
 
+  // Guards against a double tap creating the project twice before the sheet closes.
+  const hasSubmittedRef = React.useRef(false);
   const onCreate = React.useCallback(() => {
-    if (!name.trim()) return;
+    if (!name.trim() || hasSubmittedRef.current) return;
 
     if (
       shouldRouteToProjectLimitGate({
@@ -212,6 +214,7 @@ export default function ProjectCreateModal() {
       return;
     }
 
+    hasSubmittedRef.current = true;
     createProject();
   }, [activeProjectCount, createProject, hasPremiumAccess, isReady, name, router]);
 

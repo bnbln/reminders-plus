@@ -48,7 +48,9 @@ export default function DatePickerScreen() {
 
     const [dueDraft, setDueDraft] = React.useState<Date>(initialDate);
     const [dueHasTimeDraft, setDueHasTimeDraft] = React.useState(task?.dueHasTime ?? true);
-    const [isCleared, setIsCleared] = React.useState(false);
+    // A task without a due date starts in the "No date" state, so tapping Done
+    // without touching the picker keeps it undated instead of saving today.
+    const [isCleared, setIsCleared] = React.useState(() => !(task?.dueAt && task.dueAt > 0));
 
     // Initialize state
     React.useEffect(() => {

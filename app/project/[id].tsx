@@ -80,10 +80,11 @@ const AnimatedBoardScrollView = Animated.createAnimatedComponent(GHScrollView);
 
 // Updated Order: Upcoming -> Today -> Completed
 const SECTIONS: SectionId[] = ["upcoming", "today", "completed"];
-const SECTION_TITLES: Record<SectionId, string> = {
-  today: t("common.today"),
-  upcoming: t("common.upcoming"),
-  completed: t("common.completed"),
+// Resolved at render time so an in-app language change applies without a restart.
+const SECTION_TITLE_KEYS: Record<SectionId, string> = {
+  today: "common.today",
+  upcoming: "common.upcoming",
+  completed: "common.completed",
 };
 
 type ThemeName = keyof typeof Colors;
@@ -422,7 +423,7 @@ function KanbanColumn({
         showCompactSubtasks={showCompactSubtasks}
         header={
           <View style={styles.columnHeader}>
-            <Text style={styles.columnTitle}>{SECTION_TITLES[section]}</Text>
+            <Text style={styles.columnTitle}>{t(SECTION_TITLE_KEYS[section])}</Text>
             <GlassSurface
               style={styles.countBadge}
               glassEffectStyle="regular"
