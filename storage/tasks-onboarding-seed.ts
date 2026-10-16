@@ -9,6 +9,63 @@ const STORAGE_KEYS = {
   seeded: "reminds.tasks.onboardingSeeded.v2",
 } as const;
 
+const ONBOARDING_PROJECT_TRANSLATION_KEYS = {
+  "p-work": "seed.project.work",
+  "p-home": "seed.project.home",
+  "p-selfcare": "seed.project.selfcare",
+} as const;
+
+const ONBOARDING_TASK_TRANSLATIONS = [
+  {
+    suffix: "-swipe-left",
+    titleKey: "seed.task.swipeLeft.title",
+    subtitleKey: "seed.task.swipeLeft.subtitle",
+  },
+  {
+    suffix: "-swipe-right",
+    titleKey: "seed.task.swipeRight.title",
+    subtitleKey: "seed.task.swipeRight.subtitle",
+  },
+  {
+    suffix: "-dragdrop",
+    titleKey: "seed.task.drag.title",
+    subtitleKey: "seed.task.drag.subtitle",
+  },
+  {
+    suffix: "-details",
+    titleKey: "seed.task.details.title",
+    subtitleKey: "seed.task.details.subtitle",
+  },
+  {
+    suffix: "-inbox-overdue",
+    titleKey: "seed.task.inboxOverdue.title",
+    subtitleKey: "seed.task.inboxOverdue.subtitle",
+  },
+  {
+    suffix: "-inbox-without-date",
+    titleKey: "seed.task.inboxWithoutDate.title",
+    subtitleKey: "seed.task.inboxWithoutDate.subtitle",
+  },
+  {
+    suffix: "-favorite-color",
+    titleKey: "seed.task.favoriteColor.title",
+    subtitleKey: "seed.task.favoriteColor.subtitle",
+  },
+  {
+    suffix: "-more-features",
+    titleKey: "seed.task.moreFeatures.title",
+    subtitleKey: "seed.task.moreFeatures.subtitle",
+  },
+] as const;
+
+function getOnboardingTaskTranslation(taskId: string) {
+  if (!taskId.startsWith("t-seed-")) return null;
+  return (
+    ONBOARDING_TASK_TRANSLATIONS.find((entry) => taskId.endsWith(entry.suffix)) ??
+    null
+  );
+}
+
 export async function hasCompletedOnboardingSeed(): Promise<boolean> {
   try {
     if (Platform.OS === "web") return true;
@@ -218,4 +275,56 @@ export function createOnboardingSeedData(): {
   ];
 
   return { projects, tasks };
+}
+
+export function localizeExistingOnboardingSeedData(
+  tasks: Task[],
+  projects: Project[],
+): {
+  tasks: Task[];
+  projects: Project[];
+  changed: boolean;
+} {
+  let projectsChanged = false;
+  const localizedProjects = projects.map((project) => {
+    const translationKey =
+      ONBOARDING_PROJECT_TRANSLATION_KEYS[
+        project.id as keyof typeof ONBOARDING_PROJECT_TRANSLATION_KEYS
+      ];
+    if (!translationKey) return project;
+
+    const nextName = t(translationKey);
+    if (project.name === nextName) return project;
+
+    projectsChanged = true;
+    return {
+      ...project,
+      name: nextName,
+    };
+  });
+
+  let tasksChanged = false;
+  const localizedTasks = tasks.map((task) => {
+    const translation = getOnboardingTaskTranslation(task.id);
+    if (!translation) return task;
+
+    const nextTitle = t(translation.titleKey);
+    const nextSubtitle = t(translation.subtitleKey);
+    if (task.title === nextTitle && task.subtitle === nextSubtitle) {
+      return task;
+    }
+
+    tasksChanged = true;
+    return {
+      ...task,
+      title: nextTitle,
+      subtitle: nextSubtitle,
+    };
+  });
+
+  return {
+    tasks: tasksChanged ? localizedTasks : tasks,
+    projects: projectsChanged ? localizedProjects : projects,
+    changed: tasksChanged || projectsChanged,
+  };
 }

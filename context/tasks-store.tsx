@@ -776,6 +776,8 @@ type TasksContextValue = {
   projects: Project[];
   setProjects: React.Dispatch<React.SetStateAction<Project[]>>;
   completionHistory: CompletionHistory;
+  /** True once the on-disk snapshot has been loaded (or found missing). */
+  hasHydrated: boolean;
 };
 
 const TasksContext = React.createContext<TasksContextValue | null>(null);
@@ -844,6 +846,7 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
   const hydratedRef = React.useRef(false);
+  const [hasHydrated, setHasHydrated] = React.useState(false);
   const persistEnabledRef = React.useRef(false);
   const dayAnchorRef = React.useRef(getStartOfLocalDayMs());
   const tasksRef = React.useRef<Task[]>([]);
@@ -991,6 +994,7 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
       } finally {
         if (!cancelled) {
           hydratedRef.current = true;
+          setHasHydrated(true);
           const nowMs = Date.now();
           dayAnchorRef.current = getStartOfLocalDayMs(nowMs);
           setTasks((prev) => prev);
@@ -1176,8 +1180,15 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
   ]);
 
   const value = React.useMemo(
-    () => ({ tasks, setTasks, projects, setProjects, completionHistory }),
-    [completionHistory, projects, setProjects, setTasks, tasks],
+    () => ({
+      tasks,
+      setTasks,
+      projects,
+      setProjects,
+      completionHistory,
+      hasHydrated,
+    }),
+    [completionHistory, hasHydrated, projects, setProjects, setTasks, tasks],
   );
   return (
     <TasksContext.Provider value={value}>{children}</TasksContext.Provider>

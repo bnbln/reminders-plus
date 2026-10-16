@@ -13,13 +13,14 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { HeaderCloseButton } from '@/components/ui/header-close-button';
+import { useSheetHeaderActions } from '@/components/navigation/sheet-header-actions';
 import { withAlpha } from '@/components/ui/glass-surface';
-import { HeaderIconButton } from '@/components/ui/header-icon-button';
 import { Colors } from '@/constants/theme';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
+import { ripple } from "@/components/ui/ripple";
+import { m3InputProps } from '@/components/ui/m3-input';
 
 export default function LocationPickerScreen() {
   const router = useRouter();
@@ -114,6 +115,7 @@ export default function LocationPickerScreen() {
   }, [applyLocationAndClose]);
 
   const isLocationEmpty = (locationDraft ?? '').trim().length === 0;
+  const sheetHeaderActions = useSheetHeaderActions({ onClose: handleCancel, onDone: handleSave });
 
   return (
     <View style={styles.container}>
@@ -121,14 +123,7 @@ export default function LocationPickerScreen() {
         options={
           {
             title: t('locationPicker.title'),
-            headerLeft: () => (
-              <HeaderCloseButton onPress={handleCancel} color={Colors[theme].text} />
-            ),
-            headerRight: () => (
-              <HeaderIconButton onPress={handleSave}>
-                <MaterialIcons name="check" size={24} color={Colors[theme].text} />
-              </HeaderIconButton>
-            ),
+            ...sheetHeaderActions,
             headerShown: true,
             headerStyle: {
               backgroundColor: isDark ? '#000000' : '#F2F2F7',
@@ -146,6 +141,7 @@ export default function LocationPickerScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <Pressable
+            android_ripple={ripple()}
             onPress={handleUseCurrentLocation}
             style={({ pressed }) => [
               styles.optionRow,
@@ -172,6 +168,7 @@ export default function LocationPickerScreen() {
           </Pressable>
 
           <Pressable
+            android_ripple={ripple()}
             onPress={() => applyLocationAndClose(undefined)}
             style={({ pressed }) => [
               styles.optionRow,
@@ -205,6 +202,7 @@ export default function LocationPickerScreen() {
                 style={styles.inputIcon}
               />
               <TextInput
+                {...m3InputProps()}
                 value={locationDraft ?? ''}
                 onChangeText={setLocationDraft}
                 placeholder={t('locationPicker.placeholder.custom')}

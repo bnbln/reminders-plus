@@ -1,4 +1,7 @@
+import { TaskWorkspace } from "@/components/tasks/task-workspace";
+import { useOpenTask } from "@/context/task-workspace-context";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
+import { useHeaderHeight } from "expo-router/react-navigation";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import {
@@ -28,6 +31,7 @@ import {
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
 import { isIOS26OrNewer } from "@/utils/ios-version";
+import { ripple } from '@/components/ui/ripple';
 import {
   deriveActiveSectionFromDueAt,
   hasValidDueAt,
@@ -109,13 +113,20 @@ function adjustTaskForInboxSection(
 }
 
 export default function InboxScreen() {
+  return <TaskWorkspace title={t("common.inbox")}><InboxContent /></TaskWorkspace>;
+}
+
+function InboxContent() {
+  const openTask = useOpenTask();
+  const headerHeight = useHeaderHeight();
   const router = useRouter();
   const theme = useColorScheme() ?? "light";
   const isDark = theme === "dark";
   const showFloatingAddButton = Platform.OS === "ios" && !isIOS26OrNewer();
   const params = useLocalSearchParams<{ withSubtasks?: string }>();
 
-  const { enabledTags, showTagIcons, showCompactSubtasks } = useHomeFilters();
+  const { enabledTags, showTagIcons, showProjectNames, showCompactSubtasks } =
+    useHomeFilters();
   const withSubtasksEnabled =
     params.withSubtasks === undefined
       ? showCompactSubtasks
@@ -158,8 +169,8 @@ export default function InboxScreen() {
   );
   const rowLayoutSeed = React.useMemo(
     () =>
-      `${enabledTagsSeed}|icons:${showTagIcons ? 1 : 0}|subtasks:${withSubtasksEnabled ? 1 : 0}`,
-    [enabledTagsSeed, showTagIcons, withSubtasksEnabled],
+      `${enabledTagsSeed}|icons:${showTagIcons ? 1 : 0}|projects:${showProjectNames ? 1 : 0}|subtasks:${withSubtasksEnabled ? 1 : 0}`,
+    [enabledTagsSeed, showProjectNames, showTagIcons, withSubtasksEnabled],
   );
   const getRowDataKey = React.useCallback(
     (task: Task) =>
@@ -254,13 +265,21 @@ export default function InboxScreen() {
           finalOrder.forEach((taskId, index) => {
             const currentTask = nextById.get(taskId);
             if (!currentTask) return;
-            const nextTask = reorderedVisibleSet.has(taskId)
-              ? adjustTaskForInboxSection(currentTask, sectionId, nowReference)
-              : currentTask;
-            nextById.set(taskId, {
-              ...nextTask,
-              orderRank: (index + 1) * 1000,
-            });
+            const nextTask =
+              reorderedVisibleSet.has(taskId) &&
+              deriveInboxSection(currentTask, nowReference) !== sectionId
+                ? adjustTaskForInboxSection(currentTask, sectionId, nowReference)
+                : currentTask;
+            const nextOrderRank = (index + 1) * 1000;
+            // Keep untouched tasks referentially stable so their rows skip
+            // re-rendering in the drop commit.
+            if (
+              nextTask === currentTask &&
+              currentTask.orderRank === nextOrderRank
+            ) {
+              return;
+            }
+            nextById.set(taskId, { ...nextTask, orderRank: nextOrderRank });
           });
         }
 
@@ -272,9 +291,9 @@ export default function InboxScreen() {
 
   const onPressTask = React.useCallback(
     (taskId: string) => {
-      router.push({ pathname: "/task/[id]", params: { id: taskId } });
+      openTask(taskId);
     },
-    [router],
+    [openTask],
   );
 
   const toggleComplete = React.useCallback(
@@ -402,6 +421,7 @@ export default function InboxScreen() {
       return (
         <View style={styles.sectionHeader}>
           <Pressable
+            android_ripple={ripple()}
             accessibilityRole="button"
             accessibilityState={{ expanded: !isCollapsed }}
             onPress={() => toggleSectionCollapsed(id)}
@@ -491,7 +511,11 @@ export default function InboxScreen() {
         projectsById={projectsById}
         rowStyles={styles}
         itemSpacing={HOME_TASK_ITEM_SPACING}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          // Header is transparent; iOS insets automatically, Android does not.
+          Platform.OS === "android" ? { paddingTop: headerHeight } : null,
+        ]}
         containerStyle={{ backgroundColor: "transparent" }}
         contentInsetAdjustmentBehavior="automatic"
         animateDataLayoutChanges={false}
@@ -505,6 +529,7 @@ export default function InboxScreen() {
         }
         enabledTags={enabledTags}
         showTaskIcons={showTagIcons}
+        showProjectNames={showProjectNames}
         showCompactSubtasks={withSubtasksEnabled}
         showOverdueDatePrefix={true}
         onPressTask={onPressTask}
@@ -634,7 +659,7 @@ const createStyles = (theme: keyof typeof Colors) => {
       alignSelf: "stretch",
     },
     underlay: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
     },
     actionSlot: {
       position: "absolute",

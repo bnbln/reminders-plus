@@ -1,0 +1,134 @@
+diff --git a/node_modules/expo-widgets/ios/WidgetsStorage.swift b/node_modules/expo-widgets/ios/WidgetsStorage.swift
+index 86f9d6c..849e8e3 100644
+--- a/node_modules/expo-widgets/ios/WidgetsStorage.swift
++++ b/node_modules/expo-widgets/ios/WidgetsStorage.swift
+@@ -1,58 +1,102 @@
++import Foundation
++
++/**
++ Shared storage between the app and the widget extension.
++
++ Values are persisted as property list files in the app group container instead of
++ `UserDefaults`. The app and the widget extension run in separate processes, and the
++ extension's `UserDefaults` cache can lag behind writes made by the other process —
++ a reload right after a widget button press (or a timeline update from the app) then
++ renders the previous state. Files are read fresh on every access, so every reload
++ sees the latest write. `UserDefaults` is kept as a read fallback for values that were
++ stored before this change.
++ */
+ public enum WidgetsStorage {
+   public static var appGroupIdentifier: String? = Bundle.main.object(forInfoDictionaryKey: "ExpoWidgetsAppGroupIdentifier") as? String
+   static let defaults = UserDefaults(suiteName: appGroupIdentifier)
+ 
+-  static func set(_ value: [String: Any], forKey key: String) {
+-    guard let defaults else { return }
++  private static let valueKey = "value"
++
++  private static let directory: URL? = {
++    guard let appGroupIdentifier,
++          let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) else {
++      return nil
++    }
++    let directory = container.appendingPathComponent("ExpoWidgetsStorage", isDirectory: true)
++    try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
++    return directory
++  }()
++
++  private static func fileURL(forKey key: String) -> URL? {
++    let safeKey = key.replacingOccurrences(of: "/", with: "_")
++    return directory?.appendingPathComponent("\(safeKey).plist")
++  }
+ 
+-    defaults.set(value, forKey: key)
++  private static func write(_ value: Any, forKey key: String) {
++    guard let url = fileURL(forKey: key),
++          let data = try? PropertyListSerialization.data(
++            fromPropertyList: [valueKey: value],
++            format: .binary,
++            options: 0
++          ) else {
++      defaults?.set(value, forKey: key)
++      return
++    }
++    do {
++      try data.write(to: url, options: .atomic)
++      // Drop the legacy copy so a stale value can never shadow the file.
++      defaults?.removeObject(forKey: key)
++    } catch {
++      defaults?.set(value, forKey: key)
++    }
+   }
+ 
+-  static func set(_ value: [[String: Any]], forKey key: String) {
+-    guard let defaults else { return }
++  private static func read(forKey key: String) -> Any? {
++    if let url = fileURL(forKey: key),
++       let data = try? Data(contentsOf: url),
++       let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any],
++       let value = plist[valueKey] {
++      return value
++    }
++    return defaults?.object(forKey: key)
++  }
+ 
+-    defaults.set(value, forKey: key)
++  static func set(_ value: [String: Any], forKey key: String) {
++    write(value, forKey: key)
+   }
+ 
+-  static func set(_ value: String, forKey key: String) {
+-    guard let defaults else { return }
++  static func set(_ value: [[String: Any]], forKey key: String) {
++    write(value, forKey: key)
++  }
+ 
+-    defaults.set(value, forKey: key)
++  static func set(_ value: String, forKey key: String) {
++    write(value, forKey: key)
+   }
+ 
+   static func set(_ value: Data, forKey key: String) {
+-    guard let defaults else { return }
+-
+-    defaults.set(value, forKey: key)
++    write(value, forKey: key)
+   }
+ 
+   public static func getDictionary(forKey key: String) -> [String: Any]? {
+-    guard let defaults else { return nil }
+-
+-    return defaults.dictionary(forKey: key)
++    return read(forKey: key) as? [String: Any]
+   }
+ 
+   public static func getArray(forKey key: String) -> [Any]? {
+-    guard let defaults else { return nil }
+-
+-    return defaults.array(forKey: key)
++    return read(forKey: key) as? [Any]
+   }
+ 
+   public static func getData(forKey key: String) -> Data? {
+-    guard let defaults else { return nil }
+-
+-    return defaults.data(forKey: key)
++    return read(forKey: key) as? Data
+   }
+ 
+   public static func getString(forKey key: String) -> String? {
+-    guard let defaults else { return nil }
+-
+-    return defaults.string(forKey: key)
++    return read(forKey: key) as? String
+   }
+ 
+   static func removeObject(forKey key: String) {
+-    guard let defaults else { return }
+-
+-    defaults.removeObject(forKey: key)
++    if let url = fileURL(forKey: key) {
++      try? FileManager.default.removeItem(at: url)
++    }
++    defaults?.removeObject(forKey: key)
+   }
+ }

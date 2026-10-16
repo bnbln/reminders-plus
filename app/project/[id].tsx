@@ -1,3 +1,9 @@
+import { TaskWorkspace } from "@/components/tasks/task-workspace";
+import { useOpenTask } from "@/context/task-workspace-context";
+import {
+  usePageDimensions,
+  useVerticalBarActive,
+} from "@/components/navigation/vertical-bar-safe-area";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
@@ -6,7 +12,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useWindowDimensions,
 } from "react-native";
 import {
   GestureHandlerRootView,
@@ -14,13 +19,18 @@ import {
 } from "react-native-gesture-handler";
 import Animated, {
   useAnimatedScrollHandler,
+  useAnimatedStyle,
   useSharedValue,
+  withTiming,
 } from "react-native-reanimated";
 
 import type { SwipeTaskRowStyles } from "@/components/tasks/swipe-task-row";
 import {
   TaskSwipeDraggableList,
+  type TaskDragDropParams,
   type TaskDragGestureUpdateParams,
+  type TaskListLanding,
+  type TaskSwipeDraggableListHandle,
 } from "@/components/tasks/task-swipe-draggable-list";
 import { FloatingAddButton } from "@/components/ui/floating-add-button";
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
@@ -37,6 +47,7 @@ import {
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
+import { triggerSelectionHaptic } from "@/utils/haptics";
 import { isIOS26OrNewer } from "@/utils/ios-version";
 import {
   alignDueAtToLocalDay,
@@ -57,6 +68,10 @@ const EDGE_AUTO_SCROLL_ZONE = 112;
 const EDGE_AUTO_SCROLL_MAX_STEP = 20;
 const EDGE_AUTO_SCROLL_MIN_STEP = 2;
 const PROJECT_ROW_SWIPE_ACTIVATION_THRESHOLD = 10;
+// Fallback in case a landing row never reports back (e.g. reduce motion).
+const LANDING_CLEAR_TIMEOUT_MS = 900;
+const DROP_HIGHLIGHT_IN_MS = 140;
+const DROP_HIGHLIGHT_OUT_MS = 260;
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
@@ -72,6 +87,148 @@ const SECTION_TITLES: Record<SectionId, string> = {
 };
 
 type ThemeName = keyof typeof Colors;
+type BoardLanding = TaskListLanding & { section: SectionId };
+
+const sortIdsByOrderRank = (tasks: Task[]) =>
+  [...tasks]
+    .sort((a, b) => (a.orderRank ?? 0) - (b.orderRank ?? 0))
+    .map((task) => task.id);
+
+/**
+ * Moves a task into another board column, adapting its due date / completion
+ * to the new column and re-ranking both columns.
+ */
+function moveTaskAcrossSections(
+  prev: Task[],
+  {
+    projectId,
+    taskId,
+    sourceSection,
+    dropSection,
+    sourceOrderedIds,
+    insertIndex,
+  }: {
+    projectId: string;
+    taskId: string;
+    sourceSection: SectionId;
+    dropSection: SectionId;
+    /** Source column order without the moved task; defaults to the stored order. */
+    sourceOrderedIds?: string[];
+    /** Position in the destination column; defaults to the top. */
+    insertIndex?: number;
+  },
+): Task[] {
+  const movedTask = prev.find(
+    (candidate) =>
+      candidate.id === taskId &&
+      candidate.projectId === projectId &&
+      !candidate.deletedAt,
+  );
+  if (!movedTask) {
+    return prev;
+  }
+
+  const inProject = (candidate: Task) =>
+    candidate.projectId === projectId &&
+    !candidate.deletedAt &&
+    candidate.id !== taskId;
+  const sourceIds =
+    sourceOrderedIds?.filter((id) => id !== taskId) ??
+    sortIdsByOrderRank(
+      prev.filter((c) => inProject(c) && c.section === sourceSection),
+    );
+  const targetIds = sortIdsByOrderRank(
+    prev.filter((c) => inProject(c) && c.section === dropSection),
+  );
+  targetIds.splice(clamp(insertIndex ?? 0, 0, targetIds.length), 0, taskId);
+
+  const sourceOrderIndex = new Map(
+    sourceIds.map((id, idx) => [id, idx] as const),
+  );
+  const targetOrderIndex = new Map(
+    targetIds.map((id, idx) => [id, idx] as const),
+  );
+  const completionTimestamp = Date.now();
+  const targetDayStartMs = getStartOfLocalDayMs();
+  let completedRoutineEntry: Task | null = null;
+  const existingTaskIds = new Set(prev.map((candidate) => candidate.id));
+
+  const next: Task[] = prev.map((task): Task => {
+    if (task.id === taskId) {
+      const nextOrderRank = ((targetOrderIndex.get(task.id) ?? 0) + 1) * 1000;
+      if (dropSection === "completed") {
+        const routineTransition = createRoutineCompletionTransition(
+          task,
+          completionTimestamp,
+          existingTaskIds,
+        );
+        if (routineTransition) {
+          completedRoutineEntry = {
+            ...routineTransition.completedTask,
+            orderRank: nextOrderRank,
+          };
+          return {
+            ...routineTransition.nextTask,
+            orderRank: completionTimestamp,
+          };
+        }
+        return {
+          ...task,
+          section: "completed",
+          completedAt: completionTimestamp,
+          orderRank: nextOrderRank,
+        };
+      }
+
+      if (dropSection === "today") {
+        const keepTime =
+          task.dueHasTime === true ||
+          (task.dueHasTime !== false && hasValidDueAt(task.dueAt));
+        const nextDueAt = alignDueAtToLocalDay(targetDayStartMs, {
+          sourceDueAt: task.dueAt,
+          keepTime,
+        });
+        return {
+          ...task,
+          section: deriveActiveSectionFromDueAt(nextDueAt),
+          dueAt: nextDueAt,
+          dueHasTime: keepTime,
+          completedAt: undefined,
+          orderRank: nextOrderRank,
+        };
+      }
+
+      return {
+        ...task,
+        section: "upcoming",
+        dueAt: 0,
+        dueHasTime: false,
+        completedAt: undefined,
+        orderRank: nextOrderRank,
+      };
+    }
+
+    if (task.projectId !== projectId || task.deletedAt) {
+      return task;
+    }
+
+    if (task.section === sourceSection) {
+      const sourceIdx = sourceOrderIndex.get(task.id);
+      if (sourceIdx === undefined) return task;
+      return { ...task, orderRank: (sourceIdx + 1) * 1000 };
+    }
+
+    if (task.section === dropSection) {
+      const targetIdx = targetOrderIndex.get(task.id);
+      if (targetIdx === undefined) return task;
+      return { ...task, orderRank: (targetIdx + 1) * 1000 };
+    }
+
+    return task;
+  });
+
+  return completedRoutineEntry ? [...next, completedRoutineEntry] : next;
+}
 
 const getBoardLayoutMetrics = ({
   viewportWidth,
@@ -125,6 +282,11 @@ function KanbanColumn({
   columnWidth,
   isDragSource,
   isDropTarget,
+  isLandingTarget,
+  listRef,
+  landing,
+  onLandingEnd,
+  onDragDrop,
   dropTargetAccentColor,
   columnBackgroundColor,
   columnBottomPadding,
@@ -136,6 +298,7 @@ function KanbanColumn({
   dragTranslateXCompensation,
   enabledTags,
   showTagIcons,
+  showProjectNames,
   showCompactSubtasks,
   projectsById,
   toggleComplete,
@@ -145,6 +308,7 @@ function KanbanColumn({
   onDragStateChange,
   onDragGestureUpdate,
   onSwipeStateChange,
+  onRowTouchStateChange,
   shrinkToContentWhenShort,
 }: {
   section: SectionId;
@@ -152,6 +316,11 @@ function KanbanColumn({
   columnWidth: number;
   isDragSource: boolean;
   isDropTarget: boolean;
+  isLandingTarget: boolean;
+  listRef: (handle: TaskSwipeDraggableListHandle | null) => void;
+  landing: TaskListLanding | null;
+  onLandingEnd: (taskId: string) => void;
+  onDragDrop: (params: TaskDragDropParams) => boolean;
   dropTargetAccentColor: string;
   columnBackgroundColor: string;
   columnBottomPadding: number;
@@ -163,6 +332,7 @@ function KanbanColumn({
   dragTranslateXCompensation: number;
   enabledTags: Set<TagId>;
   showTagIcons: boolean;
+  showProjectNames: boolean;
   showCompactSubtasks: boolean;
   projectsById: Map<string, Project>;
   toggleComplete: (taskId: string) => void;
@@ -172,6 +342,7 @@ function KanbanColumn({
   onDragStateChange: (isDragging: boolean) => void;
   onDragGestureUpdate: (params: TaskDragGestureUpdateParams) => void;
   onSwipeStateChange: (isSwiping: boolean) => void;
+  onRowTouchStateChange: (isTouchingRow: boolean) => void;
   shrinkToContentWhenShort: boolean;
 }) {
   const enabledTagsSeed = React.useMemo(
@@ -180,8 +351,8 @@ function KanbanColumn({
   );
   const rowLayoutSeed = React.useMemo(
     () =>
-      `${enabledTagsSeed}|icons:${showTagIcons ? 1 : 0}|subtasks:${showCompactSubtasks ? 1 : 0}`,
-    [enabledTagsSeed, showCompactSubtasks, showTagIcons],
+      `${enabledTagsSeed}|icons:${showTagIcons ? 1 : 0}|projects:${showProjectNames ? 1 : 0}|subtasks:${showCompactSubtasks ? 1 : 0}`,
+    [enabledTagsSeed, showCompactSubtasks, showProjectNames, showTagIcons],
   );
   const keyForTask = React.useCallback(
     (task: Task) =>
@@ -195,42 +366,46 @@ function KanbanColumn({
     [rowLayoutSeed],
   );
 
+  const dropHighlight = useSharedValue(0);
+  React.useEffect(() => {
+    dropHighlight.value = withTiming(isDropTarget ? 1 : 0, {
+      duration: isDropTarget ? DROP_HIGHLIGHT_IN_MS : DROP_HIGHLIGHT_OUT_MS,
+    });
+  }, [dropHighlight, isDropTarget]);
+  const dropHighlightStyle = useAnimatedStyle(() => ({
+    opacity: dropHighlight.value,
+  }));
+  const isRaised = isDragSource || isLandingTarget;
+
   return (
     <View
       style={[
         styles.column,
-        isDropTarget ? styles.columnDropTarget : null,
-        isDropTarget
-          ? {
-              borderColor: dropTargetAccentColor,
-              backgroundColor: withAlpha(
-                dropTargetAccentColor,
-                theme === "dark" ? 0.2 : 0.12,
-              ),
-              shadowColor: dropTargetAccentColor,
-            }
-          : null,
         {
           width: columnWidth,
           backgroundColor: columnBackgroundColor,
-          zIndex: isDragSource ? 60 : 1,
-          elevation: isDragSource ? 60 : 0,
+          overflow: isRaised || isDropTarget ? "visible" : "hidden",
+          zIndex: isRaised ? 60 : 1,
+          elevation: isRaised ? 60 : 0,
         },
       ]}
     >
-      <View style={styles.columnHeader}>
-        <Text style={styles.columnTitle}>{SECTION_TITLES[section]}</Text>
-        <GlassSurface
-          style={styles.countBadge}
-          glassEffectStyle="regular"
-          tintColor={withAlpha(Colors[theme].text, 0.1)}
-          fallbackBackgroundColor={withAlpha(Colors[theme].text, 0.1)}
-        >
-          <Text style={styles.countText}>{tasks.length}</Text>
-        </GlassSurface>
-      </View>
-
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.columnDropHighlight,
+          {
+            borderColor: dropTargetAccentColor,
+            backgroundColor: withAlpha(
+              dropTargetAccentColor,
+              theme === "dark" ? 0.2 : 0.12,
+            ),
+          },
+          dropHighlightStyle,
+        ]}
+      />
       <TaskSwipeDraggableList
+        ref={listRef}
         renderMode="auto"
         animateDataLayoutChanges={false}
         theme={theme}
@@ -243,7 +418,21 @@ function KanbanColumn({
         scrollRef={boardScrollRef}
         enabledTags={enabledTags}
         showTaskIcons={showTagIcons}
+        showProjectNames={showProjectNames}
         showCompactSubtasks={showCompactSubtasks}
+        header={
+          <View style={styles.columnHeader}>
+            <Text style={styles.columnTitle}>{SECTION_TITLES[section]}</Text>
+            <GlassSurface
+              style={styles.countBadge}
+              glassEffectStyle="regular"
+              tintColor={withAlpha(Colors[theme].text, 0.1)}
+              fallbackBackgroundColor={withAlpha(Colors[theme].text, 0.1)}
+            >
+              <Text style={styles.countText}>{tasks.length}</Text>
+            </GlassSurface>
+          </View>
+        }
         followHorizontalDrag
         dragTranslateXCompensation={dragTranslateXCompensation}
         rowSwipeActivationThreshold={PROJECT_ROW_SWIPE_ACTIVATION_THRESHOLD}
@@ -268,7 +457,11 @@ function KanbanColumn({
         onDragBeginTask={onDragBeginTask}
         onDragStateChange={onDragStateChange}
         onDragGestureUpdate={onDragGestureUpdate}
+        onDragDrop={onDragDrop}
+        landing={landing}
+        onLandingEnd={onLandingEnd}
         onSwipeStateChange={onSwipeStateChange}
+        onRowTouchStateChange={onRowTouchStateChange}
       />
     </View>
   );
@@ -276,10 +469,19 @@ function KanbanColumn({
 
 export default function ProjectDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { projects } = useTasksStore();
+  const project = projects.find(project => project.id === id);
+  return <TaskWorkspace showBack title={project?.name ?? t("common.project")} projectId={id}><ProjectDetailContent /></TaskWorkspace>;
+}
+
+function ProjectDetailContent() {
+  const openTask = useOpenTask();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const theme = (useColorScheme() ?? "light") as ThemeName;
   const isDark = theme === "dark";
-  const { width: viewportWidth } = useWindowDimensions();
+  const { width: viewportWidth } = usePageDimensions();
+  const hasVerticalBar = useVerticalBarActive();
   const isTabletLayout =
     Platform.OS === "ios" && viewportWidth >= TABLET_LAYOUT_MIN_WIDTH;
   const { columnWidth, maxOffset: maxBoardOffset, snapOffsets } =
@@ -296,7 +498,8 @@ export default function ProjectDetailScreen() {
   const showFloatingAddButton = Platform.OS === "ios" && !isIOS26Plus;
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const rowStyles = React.useMemo(() => createRowStyles(theme), [theme]);
-  const { enabledTags, showTagIcons, showCompactSubtasks } = useHomeFilters();
+  const { enabledTags, showTagIcons, showProjectNames, showCompactSubtasks } =
+    useHomeFilters();
   const { projects, tasks, setTasks } = useTasksStore();
   const boardScrollRef = React.useRef<GHScrollView | null>(null);
   const boardOffsetXRef = React.useRef<number>(todaySnapOffset);
@@ -318,6 +521,7 @@ export default function ProjectDetailScreen() {
     sourceSection: SectionId;
   } | null>(null);
   const swipingSectionsRef = React.useRef(new Set<SectionId>());
+  const touchingRowSectionsRef = React.useRef(new Set<SectionId>());
   const boardScrollLockedRef = React.useRef(false);
   const [isBoardScrollLocked, setIsBoardScrollLocked] = React.useState(false);
   const [activeDragSourceSection, setActiveDragSourceSection] =
@@ -326,6 +530,23 @@ export default function ProjectDetailScreen() {
     React.useState<SectionId | null>(null);
   const [dragTranslateXCompensation, setDragTranslateXCompensation] =
     React.useState(0);
+  const listRefs = React.useRef<
+    Partial<Record<SectionId, TaskSwipeDraggableListHandle | null>>
+  >({});
+  const listRefCallbacks = React.useMemo(
+    () =>
+      Object.fromEntries(
+        SECTIONS.map((section) => [
+          section,
+          (handle: TaskSwipeDraggableListHandle | null) => {
+            listRefs.current[section] = handle;
+          },
+        ]),
+      ) as Record<SectionId, (handle: TaskSwipeDraggableListHandle | null) => void>,
+    [],
+  );
+  const landingTokenRef = React.useRef(0);
+  const [landing, setLanding] = React.useState<BoardLanding | null>(null);
 
   const projectsById = React.useMemo(
     () => new Map(projects.map((p) => [p.id, p] as const)),
@@ -359,12 +580,16 @@ export default function ProjectDetailScreen() {
     }
     return grouped;
   }, [projectTasks]);
+  const tasksBySectionRef = React.useRef(tasksBySection);
+  React.useLayoutEffect(() => {
+    tasksBySectionRef.current = tasksBySection;
+  }, [tasksBySection]);
 
   const onPressTask = React.useCallback(
     (taskId: string) => {
-      router.push({ pathname: "/task/[id]", params: { id: taskId } });
+      openTask(taskId);
     },
-    [router],
+    [openTask],
   );
 
   const onEditProject = React.useCallback(() => {
@@ -372,7 +597,11 @@ export default function ProjectDetailScreen() {
   }, [id, router]);
 
   const updateHoverSection = React.useCallback((next: SectionId | null) => {
-    if (dragHoverSectionRef.current === next) return;
+    const previous = dragHoverSectionRef.current;
+    if (previous === next) return;
+    if (previous !== null && next !== null && dragContextRef.current) {
+      triggerSelectionHaptic();
+    }
     dragHoverSectionRef.current = next;
     dragDropSectionRef.current = next;
     setActiveDropSection((current) => (current === next ? current : next));
@@ -486,7 +715,8 @@ export default function ProjectDetailScreen() {
     const shouldLock =
       isTabletLayout ||
       isBoardDraggingRef.current ||
-      swipingSectionsRef.current.size > 0;
+      swipingSectionsRef.current.size > 0 ||
+      touchingRowSectionsRef.current.size > 0;
     applyBoardScrollLock(shouldLock);
   }, [applyBoardScrollLock, isTabletLayout]);
 
@@ -494,6 +724,19 @@ export default function ProjectDetailScreen() {
     (section: SectionId, isSwiping: boolean) => {
       const set = swipingSectionsRef.current;
       if (isSwiping) {
+        set.add(section);
+      } else {
+        set.delete(section);
+      }
+      syncBoardScrollLock();
+    },
+    [syncBoardScrollLock],
+  );
+
+  const handleSectionRowTouchStateChange = React.useCallback(
+    (section: SectionId, isTouchingRow: boolean) => {
+      const set = touchingRowSectionsRef.current;
+      if (isTouchingRow) {
         set.add(section);
       } else {
         set.delete(section);
@@ -636,6 +879,19 @@ export default function ProjectDetailScreen() {
     ],
   );
 
+  const finishBoardDrag = React.useCallback(() => {
+    dragContextRef.current = null;
+    dragDropSectionRef.current = null;
+    dragPointerXRef.current = null;
+    dragTranslationXRef.current = 0;
+    updateHoverSection(null);
+    stopAutoScroll();
+    isBoardDraggingRef.current = false;
+    syncBoardScrollLock();
+    setActiveDragSourceSection(null);
+    setDragTranslateXCompensation(0);
+  }, [stopAutoScroll, syncBoardScrollLock, updateHoverSection]);
+
   const onReorderSection = React.useCallback(
     (section: SectionId, orderedTaskIds: string[]) => {
       const dropSection = (() => {
@@ -677,154 +933,143 @@ export default function ProjectDetailScreen() {
             return { ...t, orderRank: (idx + 1) * 1000 };
           }),
         );
-        dragContextRef.current = null;
-        dragDropSectionRef.current = null;
-        dragPointerXRef.current = null;
-        dragTranslationXRef.current = 0;
-        updateHoverSection(null);
-        stopAutoScroll();
-        isBoardDraggingRef.current = false;
-        syncBoardScrollLock();
-        setActiveDragSourceSection(null);
-        setDragTranslateXCompensation(0);
+        finishBoardDrag();
         return;
       }
 
-      setTasks((prev) => {
-        const movedTask = prev.find(
-          (candidate) =>
-            candidate.id === draggedTaskId &&
-            candidate.projectId === id &&
-            !candidate.deletedAt,
-        );
-        if (!movedTask) {
-          return prev;
-        }
-
-        const sourceIds = orderedTaskIds.filter(
-          (taskId) => taskId !== draggedTaskId,
-        );
-        const targetIds = prev
-          .filter(
-            (candidate) =>
-              candidate.projectId === id &&
-              !candidate.deletedAt &&
-              candidate.section === dropSection &&
-              candidate.id !== draggedTaskId,
-          )
-          .sort((a, b) => (a.orderRank ?? 0) - (b.orderRank ?? 0))
-          .map((candidate) => candidate.id);
-
-        const sourceOrderIndex = new Map(
-          sourceIds.map((taskId, idx) => [taskId, idx] as const),
-        );
-        const targetOrderIndex = new Map(
-          [draggedTaskId, ...targetIds].map(
-            (taskId, idx) => [taskId, idx] as const,
-          ),
-        );
-        const completionTimestamp = Date.now();
-        const targetDayStartMs = getStartOfLocalDayMs();
-        let completedRoutineEntry: Task | null = null;
-        const existingTaskIds = new Set(prev.map((candidate) => candidate.id));
-
-        const next: Task[] = prev.map((task): Task => {
-          if (task.id === draggedTaskId) {
-            const nextOrderRank = ((targetOrderIndex.get(task.id) ?? 0) + 1) * 1000;
-            if (dropSection === "completed") {
-              const routineTransition = createRoutineCompletionTransition(
-                task,
-                completionTimestamp,
-                existingTaskIds,
-              );
-              if (routineTransition) {
-                completedRoutineEntry = {
-                  ...routineTransition.completedTask,
-                  orderRank: nextOrderRank,
-                };
-                return {
-                  ...routineTransition.nextTask,
-                  orderRank: completionTimestamp,
-                };
-              }
-              return {
-                ...task,
-                section: "completed",
-                completedAt: completionTimestamp,
-                orderRank: nextOrderRank,
-              };
-            }
-
-            if (dropSection === "today") {
-              const keepTime =
-                task.dueHasTime === true ||
-                (task.dueHasTime !== false && hasValidDueAt(task.dueAt));
-              const nextDueAt = alignDueAtToLocalDay(targetDayStartMs, {
-                sourceDueAt: task.dueAt,
-                keepTime,
-              });
-              return {
-                ...task,
-                section: deriveActiveSectionFromDueAt(nextDueAt),
-                dueAt: nextDueAt,
-                dueHasTime: keepTime,
-                completedAt: undefined,
-                orderRank: nextOrderRank,
-              };
-            }
-
-            return {
-              ...task,
-              section: "upcoming",
-              dueAt: 0,
-              dueHasTime: false,
-              completedAt: undefined,
-              orderRank: nextOrderRank,
-            };
-          }
-
-          if (task.projectId !== id || task.deletedAt) {
-            return task;
-          }
-
-          if (task.section === section) {
-            const sourceIdx = sourceOrderIndex.get(task.id);
-            if (sourceIdx === undefined) return task;
-            return { ...task, orderRank: (sourceIdx + 1) * 1000 };
-          }
-
-          if (task.section === dropSection) {
-            const targetIdx = targetOrderIndex.get(task.id);
-            if (targetIdx === undefined) return task;
-            return { ...task, orderRank: (targetIdx + 1) * 1000 };
-          }
-
-          return task;
-        });
-
-        return completedRoutineEntry ? [...next, completedRoutineEntry] : next;
-      });
-      dragContextRef.current = null;
-      dragDropSectionRef.current = null;
-      dragPointerXRef.current = null;
-      dragTranslationXRef.current = 0;
-      updateHoverSection(null);
-      stopAutoScroll();
-      isBoardDraggingRef.current = false;
-      syncBoardScrollLock();
-      setActiveDragSourceSection(null);
-      setDragTranslateXCompensation(0);
+      // Fallback: cross-column drops are normally committed on release via
+      // handleDragDrop, before the list reports its (source-only) reorder.
+      setTasks((prev) =>
+        moveTaskAcrossSections(prev, {
+          projectId: id,
+          taskId: draggedTaskId,
+          sourceSection: section,
+          dropSection,
+          sourceOrderedIds: orderedTaskIds,
+        }),
+      );
+      finishBoardDrag();
     },
     [
+      finishBoardDrag,
       id,
       resolveSectionFromBoardContentX,
       resolveSectionFromTranslationX,
       setTasks,
-      syncBoardScrollLock,
-      stopAutoScroll,
-      updateHoverSection,
     ],
   );
+
+  const handleDragDrop = React.useCallback(
+    (sourceSection: SectionId, params: TaskDragDropParams): boolean => {
+      const dragContext = dragContextRef.current;
+      if (
+        !dragContext ||
+        dragContext.taskId !== params.taskId ||
+        dragContext.sourceSection !== sourceSection
+      ) {
+        return false;
+      }
+      const dropSection = dragDropSectionRef.current ?? sourceSection;
+      if (dropSection === sourceSection) return false;
+
+      const taskId = params.taskId;
+      const targetIds = tasksBySectionRef.current[dropSection]
+        .map((task) => task.id)
+        .filter((candidateId) => candidateId !== taskId);
+      const hasRowFrame =
+        Number.isFinite(params.rowX) &&
+        Number.isFinite(params.rowY) &&
+        Number.isFinite(params.rowHeight) &&
+        params.rowHeight > 0;
+
+      const commit = (insertIndex: number) => {
+        if (hasRowFrame) {
+          landingTokenRef.current += 1;
+          setLanding({
+            section: dropSection,
+            x: params.rowX,
+            y: params.rowY,
+            token: landingTokenRef.current,
+            excludeTaskIds: new Set(targetIds),
+          });
+        }
+        setTasks((prev) =>
+          moveTaskAcrossSections(prev, {
+            projectId: id,
+            taskId,
+            sourceSection,
+            dropSection,
+            insertIndex,
+          }),
+        );
+        finishBoardDrag();
+      };
+
+      const targetList = listRefs.current[dropSection];
+      if (!targetList || !hasRowFrame || targetIds.length === 0) {
+        commit(0);
+        return true;
+      }
+
+      // Insert where the row was released rather than always at the top.
+      const dropCenterY = params.rowY + params.rowHeight / 2;
+      void targetList
+        .measureTaskRows()
+        .catch(() => new Map())
+        .then((frames) => {
+          if (frames.size === 0) {
+            commit(0);
+            return;
+          }
+          let insertIndex = targetIds.length;
+          for (let index = 0; index < targetIds.length; index += 1) {
+            const frame = frames.get(targetIds[index]);
+            if (!frame) continue;
+            if (dropCenterY < frame.y + frame.height / 2) {
+              insertIndex = index;
+              break;
+            }
+          }
+          commit(insertIndex);
+        });
+      return true;
+    },
+    [finishBoardDrag, id, setTasks],
+  );
+
+  const handleLandingEnd = React.useCallback(() => {
+    setLanding(null);
+  }, []);
+
+  React.useEffect(() => {
+    if (!landing) return;
+    const timeout = setTimeout(() => {
+      setLanding((current) =>
+        current?.token === landing.token ? null : current,
+      );
+    }, LANDING_CLEAR_TIMEOUT_MS);
+    return () => clearTimeout(timeout);
+  }, [landing]);
+
+  const landingSection = landing?.section ?? null;
+  const landingToken = landing?.token ?? null;
+  React.useEffect(() => {
+    // Bring the destination column into view once its row has landed in place.
+    if (landingSection === null || landingToken === null || isTabletLayout) {
+      return;
+    }
+    const targetOffsetX = snapOffsets[SECTIONS.indexOf(landingSection)];
+    if (typeof targetOffsetX !== "number") return;
+    if (Math.abs(boardOffsetXShared.value - targetOffsetX) < 1) return;
+    boardOffsetXRef.current = targetOffsetX;
+    boardScrollRef.current?.scrollTo({ x: targetOffsetX, animated: true });
+  }, [
+    boardOffsetXShared,
+    isTabletLayout,
+    landingSection,
+    landingToken,
+    snapOffsets,
+  ]);
 
   const toggleComplete = React.useCallback(
     (taskId: string) => {
@@ -1061,6 +1306,7 @@ export default function ProjectDetailScreen() {
           options={{
             title: project.name,
             headerLargeTitle: false,
+            headerTransparent: false,
             headerShadowVisible: false,
             headerBackButtonDisplayMode: "minimal",
             gestureEnabled: false,
@@ -1069,19 +1315,33 @@ export default function ProjectDetailScreen() {
             headerTitleAlign: "left",
             headerTitleStyle: { color: Colors[theme].text },
             headerStyle: { backgroundColor: Colors[theme].background },
-            headerRight: () => (
-              <HeaderIconButton
-                onPress={onEditProject}
-                accessibilityRole="button"
-                accessibilityLabel={t("projectEdit.editProject")}
-              >
-                <MaterialIcons
-                  name="edit"
-                  size={24}
-                  color={Colors[theme].text}
-                />
-              </HeaderIconButton>
-            ),
+            contentStyle: { backgroundColor: Colors[theme].background },
+            headerRight: hasVerticalBar
+              ? undefined
+              : () => (
+                  <HeaderIconButton
+                    onPress={onEditProject}
+                    accessibilityRole="button"
+                    accessibilityLabel={t("projectEdit.editProject")}
+                  >
+                    <MaterialIcons
+                      name="edit"
+                      size={24}
+                      color={Colors[theme].text}
+                    />
+                  </HeaderIconButton>
+                ),
+            // Custom header views never move into the vertical bar.
+            unstable_headerRightItems: hasVerticalBar
+              ? () => [
+                  {
+                    type: "button",
+                    label: t("projectEdit.editProject"),
+                    icon: { type: "sfSymbol", name: "pencil" },
+                    onPress: onEditProject,
+                  },
+                ]
+              : undefined,
           }}
         />
 
@@ -1133,8 +1393,14 @@ export default function ProjectDetailScreen() {
               isDragSource={activeDragSourceSection === section}
               isDropTarget={
                 activeDragSourceSection !== null &&
+                activeDragSourceSection !== section &&
                 activeDropSection === section
               }
+              isLandingTarget={landingSection === section}
+              listRef={listRefCallbacks[section]}
+              landing={landing?.section === section ? landing : null}
+              onLandingEnd={handleLandingEnd}
+              onDragDrop={(params) => handleDragDrop(section, params)}
               dropTargetAccentColor={project.color}
               columnBackgroundColor={columnBackgroundColor}
               columnBottomPadding={columnBottomPadding}
@@ -1150,6 +1416,7 @@ export default function ProjectDetailScreen() {
               }
               enabledTags={enabledTags}
               showTagIcons={showTagIcons}
+              showProjectNames={showProjectNames}
               showCompactSubtasks={showCompactSubtasks}
               projectsById={projectsById}
               toggleComplete={toggleComplete}
@@ -1186,6 +1453,9 @@ export default function ProjectDetailScreen() {
               onDragGestureUpdate={handleBoardDragGestureUpdate}
               onSwipeStateChange={(isSwiping) =>
                 handleSectionSwipeStateChange(section, isSwiping)
+              }
+              onRowTouchStateChange={(isTouchingRow) =>
+                handleSectionRowTouchStateChange(section, isTouchingRow)
               }
               shrinkToContentWhenShort={!isTabletLayout}
             />
@@ -1231,13 +1501,12 @@ const createStyles = (theme: ThemeName) => {
       padding: 12,
       height: "100%",
       position: "relative",
-      overflow: "visible",
+      overflow: "hidden",
     },
-    columnDropTarget: {
+    columnDropHighlight: {
+      ...StyleSheet.absoluteFill,
+      borderRadius: 16,
       borderWidth: 2,
-      shadowOpacity: theme === "dark" ? 0.34 : 0.2,
-      shadowRadius: 14,
-      shadowOffset: { width: 0, height: 8 },
     },
     columnHeader: {
       position: "relative",
@@ -1360,7 +1629,7 @@ const createRowStyles = (theme: ThemeName): SwipeTaskRowStyles => {
       alignSelf: "stretch",
     },
     underlay: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
     },
     actionSlot: {
       position: "absolute",

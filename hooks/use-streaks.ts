@@ -1,5 +1,7 @@
 import { useTasksStore } from "@/context/tasks-store";
+import { useAppSettings } from "@/context/settings-store";
 import { getIntlLocale } from "@/i18n";
+import { getFakeStatsDataset } from "@/utils/fake-stats";
 import { useMemo } from "react";
 
 export type ChartDataPoint = {
@@ -42,13 +44,18 @@ function parseLocalISODate(dateStr: string): Date {
 
 export function useStreaks(): StreakStats {
   const { completionHistory } = useTasksStore();
+  const { fakeStatsEnabled } = useAppSettings();
+  const shouldUseFakeStats = __DEV__ && fakeStatsEnabled;
 
   return useMemo(() => {
     const intlLocale = getIntlLocale();
     const weekdayShortFormatter = new Intl.DateTimeFormat(intlLocale, { weekday: "short" });
     const monthShortFormatter = new Intl.DateTimeFormat(intlLocale, { month: "short" });
+    const effectiveCompletionHistory = shouldUseFakeStats
+      ? getFakeStatsDataset().completionHistory
+      : completionHistory;
     const completionsByDate = new Map<string, number>(
-      Object.entries(completionHistory).filter(
+      Object.entries(effectiveCompletionHistory).filter(
         ([, count]) => typeof count === "number" && Number.isFinite(count) && count > 0,
       ),
     );
@@ -206,5 +213,5 @@ export function useStreaks(): StreakStats {
       mostTasksInOneDay,
       getChartData,
     };
-  }, [completionHistory]);
+  }, [completionHistory, shouldUseFakeStats]);
 }

@@ -1,18 +1,22 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import {
-  MenuView,
   type MenuAction,
   type MenuComponentRef,
 } from "@react-native-menu/menu";
 import { useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import React from "react";
-import { Platform, Pressable } from "react-native";
+import { Platform } from "react-native";
 
+import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { Colors } from "@/constants/theme";
 import { usePremium } from "@/context/premium-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
+import {
+  IS_ASSIST_SUPPORTED,
+  IS_CLOUD_SYNC_SUPPORTED,
+} from "@/utils/assist-availability";
 
 type ProfileMenuActionId =
   | "profile"
@@ -37,7 +41,14 @@ function ProfileMenuIcon({ theme }: { theme: keyof typeof Colors }) {
     );
   }
 
-  return <MaterialIcons name="person-outline" size={20} color={color} />;
+  // This trigger doesn't open a profile/account screen — it's the same
+  // Status/Streaks/Routines/Archive/Settings menu as iOS's person icon, just
+  // rendered as a Material dropdown (see DropdownMenu). Material's own
+  // convention for a content-only overflow menu like this is the kebab, not
+  // an avatar — an avatar in Android apps (Gmail, Drive, Photos) implies an
+  // actual account switcher, which this isn't. Match the search icon's
+  // weight (size 24) so the header reads as one consistent icon set.
+  return <MaterialIcons name="more-vert" size={24} color={color} />;
 }
 
 export function ProfileHeaderMenuButton() {
@@ -84,19 +95,31 @@ export function ProfileHeaderMenuButton() {
       title: "",
       displayInline: true,
       subactions: [
-        {
-          id: "assist",
-          title: t("screen.assist"),
-          image:
-            Platform.OS === "ios" ? "message.badge.waveform.fill" : undefined,
-          imageColor: Platform.OS === "ios" ? "#0A84FF" : undefined,
-        },
-        {
-          id: "cloudSync",
-          title: t("screen.cloudSync"),
-          image: Platform.OS === "ios" ? "icloud.fill" : undefined,
-          imageColor: Platform.OS === "ios" ? "#0A84FF" : undefined,
-        },
+        // Assist is Apple-only; see `IS_ASSIST_SUPPORTED`.
+        ...(IS_ASSIST_SUPPORTED
+          ? [
+              {
+                id: "assist",
+                title: t("screen.assist"),
+                image:
+                  Platform.OS === "ios"
+                    ? "message.badge.waveform.fill"
+                    : undefined,
+                imageColor: Platform.OS === "ios" ? "#0A84FF" : undefined,
+              } satisfies MenuAction,
+            ]
+          : []),
+        // Cloud Sync is CloudKit-only; see `IS_CLOUD_SYNC_SUPPORTED`.
+        ...(IS_CLOUD_SYNC_SUPPORTED
+          ? [
+              {
+                id: "cloudSync",
+                title: t("screen.cloudSync"),
+                image: Platform.OS === "ios" ? "icloud.fill" : undefined,
+                imageColor: Platform.OS === "ios" ? "#0A84FF" : undefined,
+              } satisfies MenuAction,
+            ]
+          : []),
       ],
     };
 
@@ -113,7 +136,17 @@ export function ProfileHeaderMenuButton() {
       ],
     };
 
-    return [mainGroup, premiumGroup, settingsGroup];
+    const groups = [mainGroup, premiumGroup, settingsGroup];
+
+    // `displayInline` maps to a UIMenu inline section on iOS. Android's PopupMenu
+    // has no such concept, so each group renders as a *submenu* row labelled with
+    // its (deliberately empty) title — an unreadable menu of blank arrows. Flatten
+    // to a single level there; the grouping is purely visual anyway.
+    if (Platform.OS === "android") {
+      return groups.flatMap((group) => group.subactions ?? []);
+    }
+
+    return groups;
   }, [theme]);
 
   const onPressAction = React.useCallback(
@@ -141,6 +174,7 @@ export function ProfileHeaderMenuButton() {
       }
 
       if (actionId === "assist") {
+        if (!IS_ASSIST_SUPPORTED) return;
         if (!isReady || hasPremiumAccess) {
           router.push("/assist");
           return;
@@ -151,6 +185,7 @@ export function ProfileHeaderMenuButton() {
       }
 
       if (actionId === "cloudSync") {
+        if (!IS_CLOUD_SYNC_SUPPORTED) return;
         if (!isReady || hasPremiumAccess) {
           router.push("/cloud-sync");
           return;
@@ -173,33 +208,24 @@ export function ProfileHeaderMenuButton() {
   );
 
   return (
-    <MenuView
+    <DropdownMenu
       ref={menuRef}
       themeVariant={Platform.OS === "ios" ? theme : undefined}
-      isAnchoredToRight={Platform.OS === "android" ? false : undefined}
+      isAnchoredToRight={Platform.OS === "android" ? true : undefined}
       actions={actions}
       onPressAction={onPressAction}
       shouldOpenOnLongPress={false}
       style={{
-        width: 36,
-        height: 36,
+        // 32 matches SearchHeaderButton's HeaderIconButton box so the two
+        // header icons read as the same size on Android.
+        width: Platform.OS === "android" ? 32 : 36,
+        height: Platform.OS === "android" ? 32 : 36,
         alignItems: "center",
         justifyContent: "center",
         backgroundColor: "transparent",
       }}
     >
-      {Platform.OS === "android" ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t("profile.menu.accessibility")}
-          style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
-          onPress={() => menuRef.current?.show?.()}
-        >
-          <ProfileMenuIcon theme={theme} />
-        </Pressable>
-      ) : (
-        <ProfileMenuIcon theme={theme} />
-      )}
-    </MenuView>
+      <ProfileMenuIcon theme={theme} />
+    </DropdownMenu>
   );
 }

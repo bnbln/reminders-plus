@@ -1,13 +1,14 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import Constants from "expo-constants";
-import { Tabs, useGlobalSearchParams, useSegments } from "expo-router";
-import { NativeTabs } from "expo-router/unstable-native-tabs";
+import { useGlobalSearchParams, useSegments } from "expo-router";
+import { Tabs } from "expo-router/js-tabs";
+import { NativeTabs } from "expo-router/native-tabs";
 import React from "react";
 import { DynamicColorIOS, NativeModules, Platform, StyleSheet, View } from "react-native";
 
+import { CreateTaskFab } from "@/components/ui/create-task-fab";
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { preloadStreakAccentBackgroundAssets } from "@/components/ui/streak-accent-background";
 import { Colors, LIGHT_ACCENT_SCREEN_BACKGROUND } from "@/constants/theme";
 import { useTaskCreateContext } from "@/context/task-create-context";
 import { TabBarMinimizeProvider } from "@/context/tabbar-minimize-store";
@@ -38,10 +39,6 @@ export default function TabLayout() {
   const { projects } = useTasksStore();
   const accessoryBridge = NativeModules
     .TaskAccessoryContextBridge as TaskAccessoryContextBridge | undefined;
-
-  React.useEffect(() => {
-    void preloadStreakAccentBackgroundAssets();
-  }, []);
 
   const routeProjectId = React.useMemo(() => {
     const rawRouteId = Array.isArray(routeIdParam) ? routeIdParam[0] : routeIdParam;
@@ -319,53 +316,6 @@ export default function TabLayout() {
             })}
           </NativeTabs.Trigger>
 
-          {isIOS26Plus ? (
-            <NativeTabs.Trigger
-              name="search"
-              role="search"
-              contentStyle={{ backgroundColor: "transparent" }}
-            >
-              <NativeTabs.Trigger.Label>{t("tabs.search")}</NativeTabs.Trigger.Label>
-              {Platform.select({
-                ios: (
-                  <NativeTabs.Trigger.Icon
-                    sf={{
-                      default: "magnifyingglass",
-                      selected: "magnifyingglass",
-                    }}
-                  />
-                ),
-                android: (
-                  <NativeTabs.Trigger.Icon
-                    src={<NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="search" />}
-                  />
-                ),
-              })}
-            </NativeTabs.Trigger>
-          ) : (
-            <NativeTabs.Trigger
-              name="search"
-              contentStyle={{ backgroundColor: "transparent" }}
-            >
-              <NativeTabs.Trigger.Label>{t("tabs.search")}</NativeTabs.Trigger.Label>
-              {Platform.select({
-                ios: (
-                  <NativeTabs.Trigger.Icon
-                    sf={{
-                      default: "magnifyingglass",
-                      selected: "magnifyingglass",
-                    }}
-                  />
-                ),
-                android: (
-                  <NativeTabs.Trigger.Icon
-                    src={<NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="search" />}
-                  />
-                ),
-              })}
-            </NativeTabs.Trigger>
-          )}
-
           <NativeTabs.Trigger
             name="explore"
             contentStyle={{ backgroundColor: "transparent" }}
@@ -396,8 +346,64 @@ export default function TabLayout() {
               ),
             })}
           </NativeTabs.Trigger>
+
+          {isIOS26Plus ? (
+            <NativeTabs.Trigger
+              name="search"
+              role="search"
+              contentStyle={{ backgroundColor: "transparent" }}
+            >
+              <NativeTabs.Trigger.Label>{t("tabs.search")}</NativeTabs.Trigger.Label>
+              {Platform.select({
+                ios: (
+                  <NativeTabs.Trigger.Icon
+                    sf={{
+                      default: "magnifyingglass",
+                      selected: "magnifyingglass",
+                    }}
+                  />
+                ),
+                android: (
+                  <NativeTabs.Trigger.Icon
+                    src={<NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="search" />}
+                  />
+                ),
+              })}
+            </NativeTabs.Trigger>
+          ) : (
+            // Keep the hidden Android route and the older tab renderer's
+            // iOS search item at the end of the native tab declaration.
+            <NativeTabs.Trigger
+              name="search"
+              hidden={Platform.OS === "android"}
+              contentStyle={{ backgroundColor: "transparent" }}
+            >
+              <NativeTabs.Trigger.Label>{t("tabs.search")}</NativeTabs.Trigger.Label>
+              {Platform.select({
+                ios: (
+                  <NativeTabs.Trigger.Icon
+                    sf={{
+                      default: "magnifyingglass",
+                      selected: "magnifyingglass",
+                    }}
+                  />
+                ),
+                android: (
+                  <NativeTabs.Trigger.Icon
+                    src={<NativeTabs.Trigger.VectorIcon family={MaterialIcons} name="search" />}
+                  />
+                ),
+              })}
+            </NativeTabs.Trigger>
+          )}
         </NativeTabs>
       </TabBarMinimizeProvider>
+      {/*
+        iOS gets this button as a native UITabAccessory attached to the tab bar
+        (see AppDelegate.swift). Android has no such affordance, so the same
+        action is surfaced as the Material 3 primary action button.
+      */}
+      {Platform.OS === "android" ? <CreateTaskFab /> : null}
     </View>
   );
 }

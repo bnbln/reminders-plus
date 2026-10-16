@@ -2,5 +2,12 @@
   "expo.jsEngine": "hermes",
   "EX_DEV_CLIENT_NETWORK_INSPECTOR": "true",
   "newArchEnabled": "true",
-  "ios.buildReactNativeFromSource": "true"
+  "ios.buildReactNativeFromSource": "false",
+  "ios.deploymentTarget": "16.4",
+  "expo.inlineModules.watchedDirectories": "[]",
+  "expo.inlineModules.xcodeProjectTargets": "{\"mainTarget\":\"reminds\",\"targets\":[]}",
+  "ios.forceStaticLinking": "[]",
+  "apple.privacyManifestAggregationEnabled": "true",
+  "EXPO_USE_PRECOMPILED_MODULES": "true",
+  "expo-image.disable-libdav1d": "false"
 }

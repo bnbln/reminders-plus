@@ -1,14 +1,13 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Stack, useRouter } from 'expo-router';
 import React from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, View, Platform } from 'react-native';
 
-import { HeaderCloseButton } from '@/components/ui/header-close-button';
-import { HeaderIconButton } from '@/components/ui/header-icon-button';
+import { useSheetHeaderActions } from '@/components/navigation/sheet-header-actions';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
+import { TextField } from '@/components/ui/text-field';
 
 export default function ModalScreen() {
   const theme = useColorScheme() ?? 'light';
@@ -27,19 +26,18 @@ export default function ModalScreen() {
     router.back();
   };
 
+  const sheetHeaderActions = useSheetHeaderActions({
+    onClose: handleCancel,
+    onDone: handleAdd,
+    doneDisabled: !canSubmit,
+  });
+
   return (
     <ThemedView style={[styles.container, { backgroundColor: theme === 'dark' ? '#000000' : '#F2F2F7' }]}>
       <Stack.Screen
         options={{
           title: t('modal.newTask'),
-          headerLeft: () => (
-            <HeaderCloseButton onPress={handleCancel} color={Colors[theme].text} />
-          ),
-          headerRight: () => (
-            <HeaderIconButton onPress={handleAdd} disabled={!canSubmit}>
-              <MaterialIcons name="check" size={24} color={canSubmit ? Colors[theme].text : Colors[theme].icon} />
-            </HeaderIconButton>
-          ),
+          ...sheetHeaderActions,
           headerLargeTitle: false,
           headerShown: true,
           headerStyle: {
@@ -50,7 +48,7 @@ export default function ModalScreen() {
       />
 
       <View style={styles.content}>
-        <TextInput
+        <TextField
           value={title}
           onChangeText={setTitle}
           placeholder={t('modal.placeholder.title')}
@@ -60,7 +58,13 @@ export default function ModalScreen() {
             styles.input,
             {
               color: Colors[theme].text,
-              backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+              // Android draws the M3 filled container itself.
+              backgroundColor:
+                Platform.OS === 'android'
+                  ? 'transparent'
+                  : theme === 'dark'
+                    ? 'rgba(255,255,255,0.1)'
+                    : 'rgba(0,0,0,0.05)',
             },
           ]}
         />

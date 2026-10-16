@@ -1,6 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getMaterial3Theme, type Material3Theme } from "@pchmn/expo-material3-theme";
 import React from "react";
-import { Appearance, Platform, type ColorSchemeName } from "react-native";
+import { AccessibilityInfo, Appearance, Platform, type ColorSchemeName } from "react-native";
+
+import { type AppLocale, setLocale } from "@/i18n";
 
 export type AppearanceMode = "adaptive" | "alwaysLight" | "alwaysDark";
 
@@ -19,7 +22,16 @@ export const ACCENT_COLORS = [
   { id: "indigo", value: "#5856D6", label: "Indigo" },
 ] as const;
 
-export type AccentColorId = (typeof ACCENT_COLORS)[number]["id"];
+// Android-only: derives the accent (and, via `getMaterial3Scheme`, the rest
+// of the M3 surface palette) from the system's Material You wallpaper theme
+// instead of a fixed swatch. `@pchmn/expo-material3-theme` has no iOS native
+// module (see its expo-module.config.json), so this id is meaningless there.
+export const MATERIAL_YOU_ACCENT_ID = "material" as const;
+export const IS_MATERIAL_YOU_SUPPORTED = Platform.OS === "android";
+
+export type AccentColorId =
+  | (typeof ACCENT_COLORS)[number]["id"]
+  | typeof MATERIAL_YOU_ACCENT_ID;
 
 export type AppBadgeMode =
   | "dueToday"
@@ -44,10 +56,13 @@ type PersistedSettings = {
   accentColor: AccentColorId;
   hapticsEnabled: boolean;
   reduceMotionEnabled: boolean;
+  streakCelebrationEnabled: boolean;
+  localeOverride: AppLocale | null;
   appBadgeMode: AppBadgeMode;
   dailySummaryEnabled: boolean;
   dailySummaryMinutes: number;
   cloudSyncEnabled: boolean;
+  fakeStatsEnabled: boolean;
 };
 
 type SettingsSnapshot = PersistedSettings & {
@@ -61,16 +76,45 @@ const DEFAULT_SETTINGS: PersistedSettings = {
   accentColor: "blue",
   hapticsEnabled: true,
   reduceMotionEnabled: false,
+  streakCelebrationEnabled: false,
+  localeOverride: null,
   appBadgeMode: DEFAULT_APP_BADGE_MODE,
   dailySummaryEnabled: false,
   dailySummaryMinutes: DEFAULT_DAILY_SUMMARY_MINUTES,
   cloudSyncEnabled: false,
+  fakeStatsEnabled: false,
 };
 
 const ACCENT_COLOR_VALUE_BY_ID = ACCENT_COLORS.reduce(
   (acc, color) => ({ ...acc, [color.id]: color.value }),
-  {} as Record<AccentColorId, string>,
+  {} as Partial<Record<AccentColorId, string>>,
 );
+
+// `@material/material-color-utilities`'s own default M3 seed (deep purple);
+// used only as the very first paint before the native call below resolves,
+// and as the non-Android/error fallback.
+const MATERIAL_YOU_FALLBACK_SEED = "#6750A4";
+
+let cachedMaterialTheme: Material3Theme | null | undefined;
+
+function getMaterialYouTheme(): Material3Theme | null {
+  if (cachedMaterialTheme !== undefined) return cachedMaterialTheme;
+  if (!IS_MATERIAL_YOU_SUPPORTED) {
+    cachedMaterialTheme = null;
+    return cachedMaterialTheme;
+  }
+  try {
+    cachedMaterialTheme = getMaterial3Theme(MATERIAL_YOU_FALLBACK_SEED);
+  } catch {
+    cachedMaterialTheme = null;
+  }
+  return cachedMaterialTheme;
+}
+
+/** The current Material You scheme's full M3 palette (light or dark), or null off-Android. */
+export function getMaterialYouScheme(scheme: "light" | "dark" = "light") {
+  return getMaterialYouTheme()?.[scheme] ?? null;
+}
 
 let snapshot: SettingsSnapshot = {
   ...DEFAULT_SETTINGS,
@@ -94,11 +138,46 @@ function isAppearanceMode(value: unknown): value is AppearanceMode {
 }
 
 function isAccentColorId(value: unknown): value is AccentColorId {
-  return ACCENT_COLORS.some((color) => color.id === value);
+  return (
+    ACCENT_COLORS.some((color) => color.id === value) ||
+    value === MATERIAL_YOU_ACCENT_ID
+  );
 }
 
 function isAppBadgeMode(value: unknown): value is AppBadgeMode {
   return APP_BADGE_MODES.some((mode) => mode === value);
+}
+
+const APP_LOCALES: readonly AppLocale[] = [
+  "de",
+  "en",
+  "es",
+  "fr",
+  "pt",
+  "hi",
+  "zh",
+  "ja",
+  "it",
+  "sv",
+  "da",
+  "fi",
+  "pl",
+  "nl",
+  "tr",
+  "cs",
+  "hu",
+  "ro",
+  "el",
+  "id",
+  "vi",
+  "ko",
+  "uk",
+  "ru",
+  "ar",
+] as const;
+
+function isAppLocale(value: unknown): value is AppLocale {
+  return typeof value === "string" && APP_LOCALES.includes(value as AppLocale);
 }
 
 function normalizeDailySummaryMinutes(value: unknown): number {
@@ -117,6 +196,10 @@ function sanitizeStoredSettings(value: unknown): PersistedSettings | null {
   const hapticsEnabled = (value as { hapticsEnabled?: unknown }).hapticsEnabled;
   const reduceMotionEnabled = (value as { reduceMotionEnabled?: unknown })
     .reduceMotionEnabled;
+  const streakCelebrationEnabled = (value as {
+    streakCelebrationEnabled?: unknown;
+  }).streakCelebrationEnabled;
+  const localeOverride = (value as { localeOverride?: unknown }).localeOverride;
   const appBadgeMode = (value as { appBadgeMode?: unknown }).appBadgeMode;
   const dailySummaryEnabled = (value as { dailySummaryEnabled?: unknown })
     .dailySummaryEnabled;
@@ -124,6 +207,8 @@ function sanitizeStoredSettings(value: unknown): PersistedSettings | null {
     .dailySummaryMinutes;
   const cloudSyncEnabled = (value as { cloudSyncEnabled?: unknown })
     .cloudSyncEnabled;
+  const fakeStatsEnabled = (value as { fakeStatsEnabled?: unknown })
+    .fakeStatsEnabled;
   return {
     appearanceMode: isAppearanceMode(appearanceMode)
       ? appearanceMode
@@ -139,6 +224,16 @@ function sanitizeStoredSettings(value: unknown): PersistedSettings | null {
       typeof reduceMotionEnabled === "boolean"
         ? reduceMotionEnabled
         : DEFAULT_SETTINGS.reduceMotionEnabled,
+    streakCelebrationEnabled:
+      typeof streakCelebrationEnabled === "boolean"
+        ? streakCelebrationEnabled
+        : DEFAULT_SETTINGS.streakCelebrationEnabled,
+    localeOverride:
+      localeOverride === null
+        ? null
+        : isAppLocale(localeOverride)
+          ? localeOverride
+          : DEFAULT_SETTINGS.localeOverride,
     appBadgeMode: isAppBadgeMode(appBadgeMode)
       ? appBadgeMode
       : DEFAULT_SETTINGS.appBadgeMode,
@@ -151,6 +246,10 @@ function sanitizeStoredSettings(value: unknown): PersistedSettings | null {
       typeof cloudSyncEnabled === "boolean"
         ? cloudSyncEnabled
         : DEFAULT_SETTINGS.cloudSyncEnabled,
+    fakeStatsEnabled:
+      __DEV__ && typeof fakeStatsEnabled === "boolean"
+        ? fakeStatsEnabled
+        : false,
   };
 }
 
@@ -211,6 +310,10 @@ function applyAppearanceMode(mode: AppearanceMode) {
   }
 }
 
+function applyLocaleOverride(localeOverride: AppLocale | null) {
+  setLocale(localeOverride);
+}
+
 async function hydrateSettings() {
   if (snapshot.hasHydrated) return;
   if (!hydrationPromise) {
@@ -236,6 +339,7 @@ async function hydrateSettings() {
       if (snapshot.appearanceMode !== "adaptive") {
         applyAppearanceMode(snapshot.appearanceMode);
       }
+      applyLocaleOverride(snapshot.localeOverride);
       notifyListeners();
     })();
   }
@@ -249,15 +353,19 @@ function updateSettings(next: PersistedSettings) {
     snapshot.accentColor !== next.accentColor ||
     snapshot.hapticsEnabled !== next.hapticsEnabled ||
     snapshot.reduceMotionEnabled !== next.reduceMotionEnabled ||
+    snapshot.streakCelebrationEnabled !== next.streakCelebrationEnabled ||
+    snapshot.localeOverride !== next.localeOverride ||
     snapshot.appBadgeMode !== next.appBadgeMode ||
     snapshot.dailySummaryEnabled !== next.dailySummaryEnabled ||
     snapshot.dailySummaryMinutes !== next.dailySummaryMinutes ||
     snapshot.cloudSyncEnabled !== next.cloudSyncEnabled ||
+    snapshot.fakeStatsEnabled !== next.fakeStatsEnabled ||
     !snapshot.hasHydrated;
   if (!hasChanged) return;
 
   localMutationRevision += 1;
   const previousAppearanceMode = snapshot.appearanceMode;
+  const previousLocaleOverride = snapshot.localeOverride;
   snapshot = {
     ...snapshot,
     ...next,
@@ -266,6 +374,9 @@ function updateSettings(next: PersistedSettings) {
 
   if (previousAppearanceMode !== next.appearanceMode) {
     applyAppearanceMode(next.appearanceMode);
+  }
+  if (previousLocaleOverride !== next.localeOverride) {
+    applyLocaleOverride(next.localeOverride);
   }
 
   notifyListeners();
@@ -281,6 +392,12 @@ function patchSettings(partial: Partial<PersistedSettings>) {
     hapticsEnabled: partial.hapticsEnabled ?? snapshot.hapticsEnabled,
     reduceMotionEnabled:
       partial.reduceMotionEnabled ?? snapshot.reduceMotionEnabled,
+    streakCelebrationEnabled:
+      partial.streakCelebrationEnabled ?? snapshot.streakCelebrationEnabled,
+    localeOverride:
+      partial.localeOverride !== undefined
+        ? partial.localeOverride
+        : snapshot.localeOverride,
     appBadgeMode: partial.appBadgeMode ?? snapshot.appBadgeMode,
     dailySummaryEnabled:
       partial.dailySummaryEnabled ?? snapshot.dailySummaryEnabled,
@@ -289,6 +406,9 @@ function patchSettings(partial: Partial<PersistedSettings>) {
         ? normalizeDailySummaryMinutes(partial.dailySummaryMinutes)
         : snapshot.dailySummaryMinutes,
     cloudSyncEnabled: partial.cloudSyncEnabled ?? snapshot.cloudSyncEnabled,
+    fakeStatsEnabled: __DEV__
+      ? partial.fakeStatsEnabled ?? snapshot.fakeStatsEnabled
+      : false,
   });
 }
 
@@ -314,9 +434,20 @@ export function resolveThemeFromAppearanceMode(
 }
 
 export function getAccentColorValue(accentColorId: AccentColorId): string {
+  if (accentColorId === MATERIAL_YOU_ACCENT_ID) {
+    // No theme is threaded through this call site by design (see the many
+    // callers below) — read the scheme Appearance is *currently* resolved
+    // to. applyAppearanceMode() forces this via Appearance.setColorScheme()
+    // for alwaysLight/alwaysDark, so this already matches what `useColorScheme()`
+    // returns elsewhere in the same render pass.
+    const scheme = Appearance.getColorScheme() === "dark" ? "dark" : "light";
+    return (
+      getMaterialYouScheme(scheme)?.primary ?? MATERIAL_YOU_FALLBACK_SEED
+    );
+  }
   return (
     ACCENT_COLOR_VALUE_BY_ID[accentColorId] ??
-    ACCENT_COLOR_VALUE_BY_ID[DEFAULT_SETTINGS.accentColor]
+    (ACCENT_COLOR_VALUE_BY_ID[DEFAULT_SETTINGS.accentColor] as string)
   );
 }
 
@@ -329,6 +460,24 @@ export function useAppSettings() {
 
   React.useEffect(() => {
     void hydrateSettings();
+  }, []);
+
+  const [systemReduceMotion, setSystemReduceMotion] = React.useState(false);
+  React.useEffect(() => {
+    let mounted = true;
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((enabled) => {
+        if (mounted) setSystemReduceMotion(enabled);
+      })
+      .catch(() => undefined);
+    const subscription = AccessibilityInfo.addEventListener(
+      "reduceMotionChanged",
+      setSystemReduceMotion,
+    );
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
   }, []);
 
   const setAppearanceMode = React.useCallback((appearanceMode: AppearanceMode) => {
@@ -346,6 +495,20 @@ export function useAppSettings() {
   const setReduceMotionEnabled = React.useCallback(
     (reduceMotionEnabled: boolean) => {
       patchSettings({ reduceMotionEnabled });
+    },
+    [],
+  );
+
+  const setStreakCelebrationEnabled = React.useCallback(
+    (streakCelebrationEnabled: boolean) => {
+      patchSettings({ streakCelebrationEnabled });
+    },
+    [],
+  );
+
+  const setLocaleOverride = React.useCallback(
+    (localeOverride: AppLocale | null) => {
+      patchSettings({ localeOverride });
     },
     [],
   );
@@ -372,15 +535,34 @@ export function useAppSettings() {
     patchSettings({ cloudSyncEnabled });
   }, []);
 
+  const setFakeStatsEnabled = React.useCallback(
+    (fakeStatsEnabled: boolean) => {
+      if (!__DEV__) {
+        patchSettings({ fakeStatsEnabled: false });
+        return;
+      }
+      patchSettings({ fakeStatsEnabled });
+    },
+    [],
+  );
+
   return {
     ...state,
+    // The OS-level Reduce Motion setting always wins (WCAG 2.3.3 / EN 301 549);
+    // the in-app toggle can only add to it. `reduceMotionPreference` is the raw
+    // in-app value for the settings switch.
+    reduceMotionPreference: state.reduceMotionEnabled,
+    reduceMotionEnabled: state.reduceMotionEnabled || systemReduceMotion,
     setAppearanceMode,
     setAccentColor,
     setHapticsEnabled,
     setReduceMotionEnabled,
+    setStreakCelebrationEnabled,
+    setLocaleOverride,
     setAppBadgeMode,
     setDailySummaryEnabled,
     setDailySummaryMinutes,
     setCloudSyncEnabled,
+    setFakeStatsEnabled,
   };
 }

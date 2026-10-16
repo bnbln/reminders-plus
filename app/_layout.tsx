@@ -2,21 +2,23 @@ import {
   DarkTheme,
   DefaultTheme,
   ThemeProvider,
-} from "@react-navigation/native";
-import { Stack, useSegments } from "expo-router";
+} from "expo-router";
+import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React from "react";
 import { I18nManager, Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "react-native-reanimated";
 
-import {
-  preloadStreakAccentBackgroundAssets,
-  StreakAccentBackground,
-} from "@/components/ui/streak-accent-background";
+import { VerticalBarSafeAreaProvider, verticalBarScreenLayout } from "@/components/navigation/vertical-bar-safe-area";
+import { StreakAccentBackground } from "@/components/ui/streak-accent-background";
+import { WidgetSync } from "@/components/widgets/widget-sync";
 import { Colors } from "@/constants/theme";
 import { HomeFiltersProvider } from "@/context/home-filters-store";
 import { PremiumProvider } from "@/context/premium-store";
+import { useAppSettings } from "@/context/settings-store";
+import { SnackbarProvider } from "@/context/snackbar-store";
+import { StreakCelebrationProvider } from "@/context/streak-celebration-store";
 import { TaskCreateProvider } from "@/context/task-create-context";
 import { TasksProvider } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -29,8 +31,11 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const { localeOverride } = useAppSettings();
   const theme = colorScheme ?? "light";
+  const router = useRouter();
   const segments = useSegments();
+  const searchBarRef = React.useRef<any>(null);
   const showSettingsAccentBackground =
     segments[0] === "settings" || segments[0] === "cloud-sync";
   const themedContentStyle = React.useMemo(
@@ -53,7 +58,8 @@ export default function RootLayout() {
       contentStyle: themedContentStyle,
       headerBackButtonDisplayMode: "minimal" as const,
       headerLargeTitle: Platform.OS === "ios",
-      headerTransparent: Platform.OS === "ios",
+      // Transparent so the page background runs behind the top app bar.
+      headerTransparent: true,
       headerShadowVisible: false,
       headerTintColor: Colors[theme].text,
       headerTitleAlign: "left" as const,
@@ -76,11 +82,7 @@ export default function RootLayout() {
         console.info("RTL wurde aktualisiert. Bitte die App neu starten.");
       }
     }
-  }, []);
-
-  React.useEffect(() => {
-    void preloadStreakAccentBackgroundAssets();
-  }, []);
+  }, [localeOverride]);
 
   return (
     <GestureHandlerRootView
@@ -88,9 +90,13 @@ export default function RootLayout() {
     >
       <PremiumProvider>
         <TasksProvider>
+          <WidgetSync />
+          <StreakCelebrationProvider>
           <TaskCreateProvider>
             <HomeFiltersProvider>
+              <SnackbarProvider>
               <ThemeProvider value={navigationTheme}>
+                <VerticalBarSafeAreaProvider>
                 <View
                   style={{ flex: 1, backgroundColor: Colors[theme].background }}
                 >
@@ -99,6 +105,7 @@ export default function RootLayout() {
                     enabled={showSettingsAccentBackground}
                   />
                   <Stack
+                    screenLayout={verticalBarScreenLayout}
                     screenOptions={{
                       contentStyle: themedContentStyle,
                     }}
@@ -226,6 +233,14 @@ export default function RootLayout() {
                     }}
                   />
                   <Stack.Screen
+                    name="legal"
+                    options={{
+                      ...tabLikeHeaderOptions,
+                      headerLargeTitle: false,
+                      title: t("screen.legal"),
+                    }}
+                  />
+                  <Stack.Screen
                     name="cloud-sync"
                     options={{
                       ...tabLikeHeaderOptions,
@@ -241,12 +256,36 @@ export default function RootLayout() {
                       headerLargeTitle: false,
                     }}
                   />
+                  <Stack.Screen
+                    name="global-search"
+                    options={{
+                      ...tabLikeHeaderOptions,
+                      title: t("tabs.search"),
+                      headerLargeTitle: false,
+                      headerSearchBarOptions: {
+                        placement: "automatic",
+                        placeholder: t("search.placeholder"),
+                        cancelButtonText: t("taskDetail.alert.cancel"),
+                        autoFocus: true,
+                        ref: searchBarRef,
+                        hideWhenScrolling: false,
+                        onChangeText: (event: any) => {
+                          router.setParams({
+                            q: String(event?.nativeEvent?.text ?? ""),
+                          });
+                        },
+                      },
+                    }}
+                  />
                   </Stack>
                 </View>
                 <StatusBar style={theme === "dark" ? "light" : "dark"} />
+              </VerticalBarSafeAreaProvider>
               </ThemeProvider>
+              </SnackbarProvider>
             </HomeFiltersProvider>
           </TaskCreateProvider>
+          </StreakCelebrationProvider>
         </TasksProvider>
       </PremiumProvider>
     </GestureHandlerRootView>

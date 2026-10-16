@@ -1,3 +1,5 @@
+import { TaskWorkspace } from "@/components/tasks/task-workspace";
+import { useOpenTask } from "@/context/task-workspace-context";
 import {
   Host as ExpoSwiftUIHost,
   Picker as ExpoSwiftUIPicker,
@@ -30,6 +32,7 @@ import {
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
+import { ripple } from '@/components/ui/ripple';
 import {
   deriveActiveSectionFromDueAt,
   hasValidDueAt,
@@ -44,13 +47,19 @@ const HOME_TASK_ROW_SURFACE_LIGHT = IOS_LIGHT_ELEVATED_SURFACE;
 const HOME_TASK_ROW_SURFACE_DARK = "rgba(35, 35, 35, 0.2)";
 
 export default function ArchiveScreen() {
+  return <TaskWorkspace showBack title={t("archive.title")}><ArchiveContent /></TaskWorkspace>;
+}
+
+function ArchiveContent() {
+  const openTask = useOpenTask();
   const router = useRouter();
   const theme = useColorScheme() ?? "light";
   const isDark = theme === "dark";
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const shouldUseNativeExpoSegmentedPicker = Platform.OS === "ios";
 
-  const { enabledTags, showTagIcons, showCompactSubtasks } = useHomeFilters();
+  const { enabledTags, showTagIcons, showProjectNames, showCompactSubtasks } =
+    useHomeFilters();
   const { tasks, setTasks, projects } = useTasksStore();
 
   const projectsById = React.useMemo(
@@ -84,9 +93,9 @@ export default function ArchiveScreen() {
 
   const onPressTask = React.useCallback(
     (taskId: string) => {
-      router.push({ pathname: "/task/[id]", params: { id: taskId } });
+      openTask(taskId);
     },
-    [router],
+    [openTask],
   );
 
   const moveCompletedBackToToday = React.useCallback(
@@ -168,8 +177,8 @@ export default function ArchiveScreen() {
   );
   const rowLayoutSeed = React.useMemo(
     () =>
-      `${enabledTagsSeed}|icons:${showTagIcons ? 1 : 0}|subtasks:${showCompactSubtasks ? 1 : 0}`,
-    [enabledTagsSeed, showCompactSubtasks, showTagIcons],
+      `${enabledTagsSeed}|icons:${showTagIcons ? 1 : 0}|projects:${showProjectNames ? 1 : 0}|subtasks:${showCompactSubtasks ? 1 : 0}`,
+    [enabledTagsSeed, showCompactSubtasks, showProjectNames, showTagIcons],
   );
   const keyForTask = React.useCallback(
     (task: Task) =>
@@ -212,6 +221,7 @@ export default function ArchiveScreen() {
       <View style={styles.header}>
         <View style={styles.segmentWrap}>
           <Pressable
+            android_ripple={ripple()}
             accessibilityRole="button"
             accessibilityLabel={t("archive.tab.completed")}
             onPress={() => setTab("completed")}
@@ -231,6 +241,7 @@ export default function ArchiveScreen() {
             </Text>
           </Pressable>
           <Pressable
+            android_ripple={ripple()}
             accessibilityRole="button"
             accessibilityLabel={t("archive.tab.trash")}
             onPress={() => setTab("trash")}
@@ -302,6 +313,7 @@ export default function ArchiveScreen() {
           }
           enabledTags={enabledTags}
           showTaskIcons={showTagIcons}
+          showProjectNames={showProjectNames}
           showCompactSubtasks={showCompactSubtasks}
           onPressTask={onPressTask}
           toggleComplete={
@@ -394,7 +406,7 @@ const createStyles = (theme: keyof typeof Colors) => {
       alignSelf: "stretch",
     },
     underlay: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
     },
     actionSlot: {
       position: "absolute",

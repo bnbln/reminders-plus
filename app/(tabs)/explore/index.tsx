@@ -1,3 +1,8 @@
+import {
+  useIsRegularWidth,
+  usePageDimensions,
+} from "@/components/navigation/vertical-bar-safe-area";
+import { useHeaderHeight } from "expo-router/react-navigation";
 import { useRouter } from "expo-router";
 import React from "react";
 import {
@@ -10,7 +15,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useWindowDimensions,
 } from "react-native";
 
 import { FloatingAddButton } from "@/components/ui/floating-add-button";
@@ -21,18 +25,21 @@ import { Colors } from "@/constants/theme";
 import { usePremium } from "@/context/premium-store";
 import { Project, useTasksStore } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { t } from "@/i18n";
+import { getIntlLocale, t } from "@/i18n";
 import {
   triggerImpactHaptic,
   triggerSelectionHaptic,
 } from "@/utils/haptics";
 import { isIOS26OrNewer } from "@/utils/ios-version";
 import { shouldRouteToProjectLimitGate } from "@/utils/project-creation-gate";
+import { ripple, rippleClip } from '@/components/ui/ripple';
 
 type ThemeName = keyof typeof Colors;
 const GRID_HORIZONTAL_PADDING = 16;
 const GRID_GAP = 16;
-const GRID_COLUMNS = 2;
+// Even column counts keep a vertical fold (iPhone Duo) between tiles.
+const COMPACT_GRID_COLUMNS = 2;
+const REGULAR_GRID_COLUMNS = 4;
 const PROJECT_TILE_HEIGHT = 124;
 const DRAG_SCALE_ACTIVE = 1.03;
 const IOS_LIGHT_ELEVATED_SURFACE = "#FFFFFF";
@@ -79,7 +86,13 @@ const createExploreTheme = (theme: ThemeName): ExploreTheme => {
   };
 };
 
-const createStyles = (palette: ExploreTheme, tileWidth: number) => {
+const createStyles = (
+  palette: ExploreTheme,
+  tileWidth: number,
+  gridColumns: number,
+) => {
+  // Four narrower tiles on regular width: tighter padding and title.
+  const isDenseGrid = gridColumns > COMPACT_GRID_COLUMNS;
   return StyleSheet.create({
     container: {
       flex: 1,
@@ -95,7 +108,7 @@ const createStyles = (palette: ExploreTheme, tileWidth: number) => {
     },
     grid: {
       position: "relative",
-      width: tileWidth * GRID_COLUMNS + GRID_GAP,
+      width: tileWidth * gridColumns + GRID_GAP * (gridColumns - 1),
       alignSelf: "center",
     },
     tileShell: {
@@ -124,8 +137,8 @@ const createStyles = (palette: ExploreTheme, tileWidth: number) => {
       elevation: 24,
     },
     tileInner: {
-      paddingHorizontal: 20,
-      paddingVertical: 20,
+      paddingHorizontal: isDenseGrid ? 16 : 20,
+      paddingVertical: isDenseGrid ? 16 : 20,
       gap: 8,
       flex: 1,
       justifyContent: "space-between",
@@ -160,8 +173,8 @@ const createStyles = (palette: ExploreTheme, tileWidth: number) => {
       justifyContent: "center",
     },
     tileTitle: {
-      fontSize: 28,
-      lineHeight: 30,
+      fontSize: isDenseGrid ? 22 : 28,
+      lineHeight: isDenseGrid ? 26 : 30,
       fontWeight: "700",
       color: palette.primaryText,
       letterSpacing: -0.4,
@@ -200,7 +213,7 @@ function ProjectTileCard({
   const tasksLabel = t(
     taskCount === 1 ? "explore.taskCount.one" : "explore.taskCount.other",
     { count: taskCount },
-  );
+  ).toLocaleUpperCase(getIntlLocale());
 
   return (
     <GlassSurface
@@ -279,6 +292,7 @@ function ProjectTile({
 
   return (
     <Pressable
+      android_ripple={ripple()}
       accessibilityRole="button"
       accessibilityLabel={t("explore.tileAccessibility", {
         project: project.name,
@@ -289,6 +303,7 @@ function ProjectTile({
       onPress={handlePress}
       style={({ pressed }) => [
         styles.tilePressable,
+        rippleClip(24),
         pressed && !isDragging ? { opacity: 0.94 } : null,
       ]}
     >
@@ -304,24 +319,31 @@ function ProjectTile({
 }
 
 export default function ExploreScreen() {
+  const headerHeight = useHeaderHeight();
   const router = useRouter();
   const theme = useColorScheme() ?? "light";
-  const { width: viewportWidth } = useWindowDimensions();
+  const { width: viewportWidth } = usePageDimensions();
+  const gridColumns = useIsRegularWidth()
+    ? REGULAR_GRID_COLUMNS
+    : COMPACT_GRID_COLUMNS;
   const showFloatingAddButton = Platform.OS === "ios" && !isIOS26OrNewer();
   const palette = React.useMemo(() => createExploreTheme(theme), [theme]);
   const tileWidth = React.useMemo(
     () =>
       Math.max(
         0,
-        (viewportWidth - GRID_HORIZONTAL_PADDING * 2 - GRID_GAP) / GRID_COLUMNS,
+        (viewportWidth -
+          GRID_HORIZONTAL_PADDING * 2 -
+          GRID_GAP * (gridColumns - 1)) /
+          gridColumns,
       ),
-    [viewportWidth],
+    [gridColumns, viewportWidth],
   );
   const tileStrideX = tileWidth + GRID_GAP;
   const tileStrideY = PROJECT_TILE_HEIGHT + GRID_GAP;
   const styles = React.useMemo(
-    () => createStyles(palette, tileWidth),
-    [palette, tileWidth],
+    () => createStyles(palette, tileWidth, gridColumns),
+    [gridColumns, palette, tileWidth],
   );
 
   const { projects, setProjects, tasks } = useTasksStore();
@@ -370,10 +392,10 @@ export default function ExploreScreen() {
 
   const getLayoutForIndex = React.useCallback(
     (index: number): ProjectTileLayout => ({
-      x: (index % GRID_COLUMNS) * tileStrideX,
-      y: Math.floor(index / GRID_COLUMNS) * tileStrideY,
+      x: (index % gridColumns) * tileStrideX,
+      y: Math.floor(index / gridColumns) * tileStrideY,
     }),
-    [tileStrideX, tileStrideY],
+    [gridColumns, tileStrideX, tileStrideY],
   );
 
   const ensureTilePosition = React.useCallback(
@@ -465,10 +487,10 @@ export default function ExploreScreen() {
   );
 
   const gridHeight = React.useMemo(() => {
-    const rowCount = Math.ceil(orderedProjects.length / GRID_COLUMNS);
+    const rowCount = Math.ceil(orderedProjects.length / gridColumns);
     if (rowCount === 0) return 0;
     return rowCount * PROJECT_TILE_HEIGHT + (rowCount - 1) * GRID_GAP;
-  }, [orderedProjects.length]);
+  }, [gridColumns, orderedProjects.length]);
 
   const measureGridOrigin = React.useCallback(() => {
     gridRef.current?.measureInWindow((x, y) => {
@@ -485,15 +507,15 @@ export default function ExploreScreen() {
       const column = clamp(
         Math.floor((centerX + tileStrideX / 2) / tileStrideX),
         0,
-        GRID_COLUMNS - 1,
+        gridColumns - 1,
       );
       const row = Math.max(
         0,
         Math.floor((centerY + tileStrideY / 2) / tileStrideY),
       );
-      return clamp(row * GRID_COLUMNS + column, 0, itemCount - 1);
+      return clamp(row * gridColumns + column, 0, itemCount - 1);
     },
-    [tileStrideX, tileStrideY, tileWidth],
+    [gridColumns, tileStrideX, tileStrideY, tileWidth],
   );
 
   const commitProjectOrder = React.useCallback(
@@ -555,7 +577,7 @@ export default function ExploreScreen() {
       const projectId = draggingProjectIdRef.current;
       if (!projectId) return;
 
-      const maxX = Math.max(0, tileStrideX * (GRID_COLUMNS - 1));
+      const maxX = Math.max(0, tileStrideX * (gridColumns - 1));
       const maxY = Math.max(0, gridHeight - PROJECT_TILE_HEIGHT);
       const left = clamp(
         pageX - gridOriginRef.current.x - dragTouchOffsetRef.current.x,
@@ -588,6 +610,7 @@ export default function ExploreScreen() {
     [
       ensureTilePosition,
       getTargetIndexFromPoint,
+      gridColumns,
       gridHeight,
       tileStrideX,
     ],
@@ -658,7 +681,11 @@ export default function ExploreScreen() {
         style={styles.scroll}
         scrollEnabled={!draggingProjectId}
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          // Header is transparent; iOS insets automatically, Android does not.
+          Platform.OS === "android" ? { paddingTop: headerHeight } : null,
+        ]}
         alwaysBounceVertical
         showsVerticalScrollIndicator={false}
         onLayout={measureGridOrigin}

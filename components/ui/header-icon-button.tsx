@@ -1,5 +1,7 @@
 import React from 'react';
-import { Pressable, StyleSheet, View, type Insets, type PressableProps } from 'react-native';
+import { Platform, Pressable, StyleSheet, View, type Insets, type PressableProps } from 'react-native';
+
+import { rippleBorderless } from '@/components/ui/ripple';
 
 type HeaderIconButtonProps = Omit<PressableProps, 'style'> & {
   children: React.ReactNode;
@@ -28,7 +30,13 @@ export function HeaderIconButton({
       <Pressable
         {...pressableProps}
         hitSlop={hitSlop}
-        style={({ pressed }) => [styles.pressable, shapeStyle, { opacity: pressed ? 0.6 : 1 }]}
+        android_ripple={rippleBorderless(size / 2)}
+        style={({ pressed }) => [
+          styles.pressable,
+          shapeStyle,
+          // Android shows the ripple instead; dimming on top of it reads muddy.
+          { opacity: pressed && Platform.OS !== 'android' ? 0.6 : 1 },
+        ]}
       >
         {children}
       </Pressable>

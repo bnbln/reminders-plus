@@ -1,0 +1,12 @@
+{
+  "widgets": [
+    {
+      "name": "StreakWidget",
+      "initialLayout": "widgets/streak-widget.tsx"
+    },
+    {
+      "name": "TasksWidget",
+      "initialLayout": "widgets/tasks-widget.tsx"
+    }
+  ]
+}

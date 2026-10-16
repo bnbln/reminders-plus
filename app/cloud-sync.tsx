@@ -6,7 +6,7 @@ import {
   View,
   type ViewStyle,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { Redirect, useRouter } from "expo-router";
 
 import {
   PremiumBackupBlock,
@@ -15,6 +15,7 @@ import {
   usePremiumSyncBackupController,
 } from "@/components/settings/premium-sync-backup";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { IS_CLOUD_SYNC_SUPPORTED } from "@/utils/assist-availability";
 import { t } from "@/i18n";
 
 function Section({
@@ -35,6 +36,15 @@ function Section({
 }
 
 export default function CloudSyncScreen() {
+  // Reachable by deep link even though the menu entry is hidden on Android.
+  if (!IS_CLOUD_SYNC_SUPPORTED) {
+    return <Redirect href="/settings" />;
+  }
+
+  return <CloudSyncScreenContent />;
+}
+
+function CloudSyncScreenContent() {
   const router = useRouter();
   const theme = (useColorScheme() ?? "light") as ThemeName;
   const isDark = theme === "dark";

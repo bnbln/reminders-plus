@@ -1,4 +1,6 @@
-import { useFocusEffect } from '@react-navigation/native';
+import { TaskWorkspace } from "@/components/tasks/task-workspace";
+import { useOpenTask } from "@/context/task-workspace-context";
+import { useFocusEffect } from "expo-router";
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 import { NativeModules, Platform, StyleSheet, Text, View } from 'react-native';
@@ -44,6 +46,11 @@ function isDueToday(task: Task, startOfDayMs: number, endOfDayMs: number) {
 }
 
 export default function TodayScreen() {
+  return <TaskWorkspace title={t('common.today')} homeFilters><TodayContent /></TaskWorkspace>;
+}
+
+function TodayContent() {
+  const openTask = useOpenTask();
   const router = useRouter();
   const theme = useColorScheme() ?? 'light';
   const accessoryBridge = NativeModules
@@ -53,7 +60,7 @@ export default function TodayScreen() {
   const params = useLocalSearchParams<{ withNotes?: string; withSubtasks?: string }>();
   const withNotesEnabled = params.withNotes === '1';
 
-  const { enabledTags, showTagIcons, showCompactSubtasks } = useHomeFilters();
+  const { enabledTags, showTagIcons, showProjectNames, showCompactSubtasks } = useHomeFilters();
   const withSubtasksEnabled =
     params.withSubtasks === undefined
       ? showCompactSubtasks
@@ -111,9 +118,9 @@ export default function TodayScreen() {
 
   const onPressTask = React.useCallback(
     (taskId: string) => {
-      router.push({ pathname: '/task/[id]', params: { id: taskId } });
+      openTask(taskId);
     },
-    [router]
+    [openTask]
   );
 
   const toggleComplete = React.useCallback(
@@ -217,6 +224,7 @@ export default function TodayScreen() {
         }
         enabledTags={enabledTags}
         showTaskIcons={showTagIcons}
+        showProjectNames={showProjectNames}
         showCompactSubtasks={withSubtasksEnabled}
         onPressTask={onPressTask}
         toggleComplete={toggleComplete}

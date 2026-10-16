@@ -1,14 +1,14 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import {
-  MenuView,
   type MenuAction,
   type MenuComponentRef,
 } from "@react-native-menu/menu";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import React from "react";
-import { Platform, Pressable } from "react-native";
+import { Platform } from "react-native";
 
+import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { Colors } from "@/constants/theme";
 import {
   getTagTitle,
@@ -100,6 +100,7 @@ export function FilterMenuButton({
     setShowTagIcons,
     showCompactSubtasks,
     setShowCompactSubtasks,
+    setShowProjectNames,
     showCompletedTasks,
     setShowCompletedTasks,
     showProjectTasks,
@@ -217,12 +218,7 @@ export function FilterMenuButton({
               title: t("tags.project"),
               image: Platform.OS === "ios" ? "folder.fill" : undefined,
               imageColor: Platform.OS === "ios" ? iconColor : undefined,
-              state:
-                Platform.OS === "ios"
-                  ? showProjectTasks
-                    ? "on"
-                    : "off"
-                  : undefined,
+              state: showProjectTasks ? "on" : "off",
             } satisfies MenuAction,
           ]
         : []),
@@ -233,12 +229,7 @@ export function FilterMenuButton({
               title: t("taskDetail.property.routine"),
               image: Platform.OS === "ios" ? "repeat" : undefined,
               imageColor: Platform.OS === "ios" ? iconColor : undefined,
-              state:
-                Platform.OS === "ios"
-                  ? showRoutineTasks
-                    ? "on"
-                    : "off"
-                  : undefined,
+              state: showRoutineTasks ? "on" : "off",
             } satisfies MenuAction,
           ]
         : []),
@@ -249,12 +240,7 @@ export function FilterMenuButton({
               title: t("home.filter.completedTasks"),
               image: Platform.OS === "ios" ? "checkmark.circle" : undefined,
               imageColor: Platform.OS === "ios" ? iconColor : undefined,
-              state:
-                Platform.OS === "ios"
-                  ? showCompletedTasks
-                    ? "on"
-                    : "off"
-                  : undefined,
+              state: showCompletedTasks ? "on" : "off",
             } satisfies MenuAction,
           ]
         : []),
@@ -265,20 +251,14 @@ export function FilterMenuButton({
         title: t("home.filter.icons"),
         image: Platform.OS === "ios" ? "app.dashed" : undefined,
         imageColor: Platform.OS === "ios" ? iconColor : undefined,
-        state:
-          Platform.OS === "ios" ? (showTagIcons ? "on" : "off") : undefined,
+        state: showTagIcons ? "on" : "off",
       },
       {
         id: "toggleCompactSubtasks",
         title: t("home.filter.subtasks"),
         image: Platform.OS === "ios" ? "checkmark.square" : undefined,
         imageColor: Platform.OS === "ios" ? iconColor : undefined,
-        state:
-          Platform.OS === "ios"
-            ? showCompactSubtasks
-              ? "on"
-              : "off"
-            : undefined,
+        state: showCompactSubtasks ? "on" : "off",
       },
       ...availableTags.map((tag) => {
         const on = scopedEnabledTags.has(tag);
@@ -287,7 +267,7 @@ export function FilterMenuButton({
           title: getTagTitle(tag),
           image: Platform.OS === "ios" ? TAG_DEFS[tag].iosSymbol : undefined,
           imageColor: Platform.OS === "ios" ? iconColor : undefined,
-          state: Platform.OS === "ios" ? (on ? "on" : "off") : undefined,
+          state: on ? "on" : "off",
         } satisfies MenuAction;
       }),
     ];
@@ -345,6 +325,7 @@ export function FilterMenuButton({
           return setsEqual(prev, next) ? prev : next;
         });
         setShowCompactSubtasks(true);
+        setShowProjectNames(true);
         router.setParams({
           tags: serializeTagsParam(nextScoped),
           withSubtasks: "1",
@@ -360,6 +341,7 @@ export function FilterMenuButton({
           return setsEqual(prev, next) ? prev : next;
         });
         setShowCompactSubtasks(false);
+        setShowProjectNames(false);
         router.setParams({ tags: undefined, withSubtasks: "0" });
         scheduleReopen();
         return;
@@ -426,6 +408,7 @@ export function FilterMenuButton({
       setEnabledTags,
       setShowCompactSubtasks,
       setShowCompletedTasks,
+      setShowProjectNames,
       setShowProjectTasks,
       setShowRoutineTasks,
       setShowTagIcons,
@@ -441,7 +424,7 @@ export function FilterMenuButton({
   );
 
   return (
-    <MenuView
+    <DropdownMenu
       ref={menuRef}
       themeVariant={Platform.OS === "ios" ? theme : undefined}
       isAnchoredToRight={Platform.OS === "android" ? true : undefined}
@@ -456,18 +439,7 @@ export function FilterMenuButton({
         backgroundColor: "transparent",
       }}
     >
-      {Platform.OS === "android" ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t("common.filter")}
-          style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
-          onPress={() => menuRef.current?.show?.()}
-        >
-          <FilterIcon theme={theme} />
-        </Pressable>
-      ) : (
-        <FilterIcon theme={theme} />
-      )}
-    </MenuView>
+      <FilterIcon theme={theme} />
+    </DropdownMenu>
   );
 }

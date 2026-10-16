@@ -1,5 +1,9 @@
+import {
+  useIsRegularWidth,
+  usePageDimensions,
+} from "@/components/navigation/vertical-bar-safe-area";
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import SegmentedControl from '@react-native-segmented-control/segmented-control';
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import React, { useMemo, useState } from 'react';
 import {
   Platform,
@@ -7,7 +11,6 @@ import {
   StyleSheet,
   Text,
   View,
-  useWindowDimensions,
 } from 'react-native';
 
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
@@ -20,11 +23,16 @@ import {
   useStatusStats,
 } from '@/hooks/use-status-stats';
 import { t } from '@/i18n';
+import { useHeaderHeight } from "expo-router/react-navigation";
 
 type ThemeName = keyof typeof Colors;
 type RangeOption = StatusRangeOption;
 
-const createStyles = (theme: ThemeName, compact: boolean) => {
+const createStyles = (
+  theme: ThemeName,
+  compact: boolean,
+  regular: boolean,
+) => {
   const isDark = theme === 'dark';
   const text = Colors[theme].text;
   const cardBorder = isDark ? 'rgba(255,255,255,0.09)' : 'rgba(17,24,28,0.09)';
@@ -75,12 +83,13 @@ const createStyles = (theme: ThemeName, compact: boolean) => {
     },
     quickGrid: {
       flexDirection: 'row',
-      flexWrap: 'wrap',
+      // Regular width: all four tiles in one row instead of 2 × 2.
+      flexWrap: regular ? 'nowrap' : 'wrap',
       gap: 10,
     },
-    quickTilePressable: {
-      width: '48.5%',
-    },
+    quickTilePressable: regular
+      ? { flexGrow: 1, flexBasis: 0 }
+      : { width: '48.5%' },
     quickTile: {
       borderRadius: 24,
       borderWidth: StyleSheet.hairlineWidth,
@@ -189,7 +198,7 @@ function ChartBar({
   const isZero = item.totalCount === 0;
   const barHeight = !isZero ? `${Math.max(8, heightPercent)}%` : '0%';
   const barColor = item.isToday ? '#22C55E' : withAlpha(textColor, 0.6);
-  const styles = createStyles(isDark ? 'dark' : 'light', false);
+  const styles = createStyles(isDark ? 'dark' : 'light', false, false);
 
   return (
     <View style={styles.barContainer}>
@@ -285,11 +294,16 @@ function formatRatioValue({
 }
 
 export default function StatusScreen() {
-  const { width } = useWindowDimensions();
+  const headerHeight = useHeaderHeight();
+  const { width } = usePageDimensions();
   const theme = useColorScheme() ?? 'light';
   const isDark = theme === 'dark';
   const compact = width < 390;
-  const styles = useMemo(() => createStyles(theme, compact), [compact, theme]);
+  const regular = useIsRegularWidth();
+  const styles = useMemo(
+    () => createStyles(theme, compact, regular),
+    [compact, regular, theme],
+  );
 
   const {
     todayCompletedCount,
@@ -369,7 +383,11 @@ export default function StatusScreen() {
       style={styles.container}
       contentInsetAdjustmentBehavior="automatic"
       alwaysBounceVertical
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[
+          styles.content,
+          // Header is transparent; iOS insets automatically, Android does not.
+          Platform.OS === "android" ? { paddingTop: headerHeight } : null,
+        ]}
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.hero}>

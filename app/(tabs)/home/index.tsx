@@ -1,6 +1,10 @@
+import { TaskWorkspace } from "@/components/tasks/task-workspace";
+import { useOpenTask } from "@/context/task-workspace-context";
+import { usePageDimensions } from "@/components/navigation/vertical-bar-safe-area";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { type MenuAction } from "@react-native-menu/menu";
-import { useFocusEffect } from "@react-navigation/native";
+import { useHeaderHeight } from "expo-router/react-navigation";
+import { useFocusEffect } from "expo-router";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import React from "react";
 import {
@@ -19,7 +23,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
 } from "react-native";
 
@@ -29,8 +32,11 @@ import {
 } from "@expo/ui/swift-ui";
 import { datePickerStyle as expoSwiftDatePickerStyleModifier } from "@expo/ui/swift-ui/modifiers";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import DateTimePicker, {
+  DateTimePickerAndroid,
+} from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
+import MaskedView from "@react-native-masked-view/masked-view";
 
 import {
   type TaskDragGestureUpdateParams,
@@ -43,7 +49,7 @@ import { FloatingAddButton } from "@/components/ui/floating-add-button";
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { SFSymbol } from "@/components/ui/sfsymbol";
 import { StreakAccentBackground } from "@/components/ui/streak-accent-background";
-import { Colors, LIGHT_ACCENT_SCREEN_BACKGROUND } from "@/constants/theme";
+import { Colors } from "@/constants/theme";
 import {
   parseShowCompletedTasksParam,
   parseShowProjectTasksParam,
@@ -62,9 +68,10 @@ import {
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useStreaks } from "@/hooks/use-streaks";
-import { t } from "@/i18n";
+import { getIntlLocale, t } from "@/i18n";
 import { triggerSelectionHaptic } from "@/utils/haptics";
 import { isIOS26OrNewer } from "@/utils/ios-version";
+import { ripple, rippleBorderless } from "@/components/ui/ripple";
 import {
   alignDueAtToLocalDay,
   deriveActiveSectionFromDueAt,
@@ -350,11 +357,15 @@ function HomeMetricsGrid({
 }) {
   const statusLabel = t("screen.status");
   const streakLabel = t("home.quick.streaks");
+  const upperLocale = getIntlLocale();
+  const statusLabelUpper = statusLabel.toLocaleUpperCase(upperLocale);
+  const streakLabelUpper = streakLabel.toLocaleUpperCase(upperLocale);
 
   return (
     <View style={styles.metricsGridWrap}>
       <View style={styles.metricsGrid}>
         <Pressable
+          android_ripple={ripple()}
           accessibilityRole="button"
           accessibilityLabel={`${statusLabel}: ${metrics.completionPercentage}%`}
           onPress={metrics.onPressStatus}
@@ -386,7 +397,7 @@ function HomeMetricsGrid({
                     { color: theme.mutedText },
                   ]}
                 >
-                  {statusLabel}
+                  {statusLabelUpper}
                 </Text>
               </View>
               <AnimatedNumber
@@ -404,6 +415,7 @@ function HomeMetricsGrid({
         </Pressable>
 
         <Pressable
+          android_ripple={ripple()}
           accessibilityRole="button"
           accessibilityLabel={`${streakLabel}: ${metrics.currentStreak}`}
           onPress={metrics.onPressStreak}
@@ -430,7 +442,7 @@ function HomeMetricsGrid({
                     { color: theme.mutedText },
                   ]}
                 >
-                  {streakLabel}
+                  {streakLabelUpper}
                 </Text>
               </View>
               <AnimatedNumber
@@ -617,7 +629,7 @@ const createStyles = (
       borderRadius: RADIUS_TILE,
     },
     streakProgressLabelsRow: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       flexDirection: "row",
       alignItems: "center",
     },
@@ -658,21 +670,13 @@ const createStyles = (
       borderRadius: 12,
       backgroundColor: CALENDAR_ACCENT,
     },
-    dateRailFadeLeft: {
-      position: "absolute",
-      left: 0,
-      top: 0,
-      bottom: 0,
-      width: DATE_RAIL_FADE_WIDTH,
-      zIndex: 10,
+    dateRailMask: {
+      height: 64,
+      overflow: "hidden",
     },
-    dateRailFadeRight: {
-      position: "absolute",
-      right: 0,
-      top: 0,
-      bottom: 0,
-      width: DATE_RAIL_FADE_WIDTH,
-      zIndex: 10,
+    dateRailMaskedContent: {
+      flex: 1,
+      position: "relative",
     },
     dateRailTitleHost: {
       position: "relative",
@@ -1062,7 +1066,7 @@ const createStyles = (
       alignSelf: "stretch",
     },
     underlay: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
     },
     actionSlot: {
       position: "absolute",
@@ -1256,7 +1260,7 @@ const createStyles = (
       zIndex: 1000,
     },
     calendarPickerOverlay: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: "rgba(0,0,0,0.4)",
     },
     calendarPickerContent: {
@@ -1280,21 +1284,24 @@ const createStyles = (
 };
 
 export default function HomeScreen() {
+  return <TaskWorkspace title={t("common.today")} homeFilters><HomeContent /></TaskWorkspace>;
+}
+
+function HomeContent() {
+  const openTask = useOpenTask();
   const navigation = useNavigation();
   const router = useRouter();
+  const headerHeight = useHeaderHeight();
   const theme = useColorScheme() ?? "light";
   const isDark = theme === "dark";
   const useAppleLightPalette = !isDark && Platform.OS === "ios";
-  const screenBackground = isDark
-    ? Colors[theme].background
-    : LIGHT_ACCENT_SCREEN_BACKGROUND;
   const accessoryBridge = NativeModules.TaskAccessoryContextBridge as
     | TaskAccessoryContextBridge
     | undefined;
   const { setMode, setPresetDateStart, queueTaskPopIn } =
     useTaskCreateContext();
   const { accentColor, reduceMotionEnabled } = useAppSettings();
-  const { width: viewportWidth, height: viewportHeight } = useWindowDimensions();
+  const { width: viewportWidth, height: viewportHeight } = usePageDimensions();
   const isScreenFocusedRef = React.useRef(false);
 
   const [isCalendarPickerOpen, setIsCalendarPickerOpen] = React.useState(false);
@@ -1340,6 +1347,7 @@ export default function HomeScreen() {
     enabledTags,
     showTagIcons,
     showCompactSubtasks,
+    showProjectNames,
     showCompletedTasks,
     showProjectTasks,
     showRoutineTasks,
@@ -3463,7 +3471,9 @@ export default function HomeScreen() {
       for (const task of tasksBySection[sectionId]) {
         data.push({
           type: "task",
-          key: `task-${task.id}:${sectionId}:${task.completedAt ?? 0}:${
+          // No section in the key: a row dragged into another section must
+          // keep its cell, otherwise it remounts (and flashes) on drop.
+          key: `task-${task.id}:${task.completedAt ?? 0}:${
             task.deletedAt ?? 0
           }`,
           taskId: task.id,
@@ -3622,7 +3632,13 @@ export default function HomeScreen() {
             const moved = shouldAdjustSectionData
               ? adjustDueAtOnSectionChange(existing, sectionId, listDateStart)
               : existing;
-            nextById.set(id, { ...moved, orderRank: (index + 1) * 1000 });
+            const nextOrderRank = (index + 1) * 1000;
+            // Keep untouched tasks referentially stable so their rows skip
+            // re-rendering in the drop commit.
+            if (moved === existing && existing.orderRank === nextOrderRank) {
+              return;
+            }
+            nextById.set(id, { ...moved, orderRank: nextOrderRank });
           });
         }
 
@@ -3774,9 +3790,9 @@ export default function HomeScreen() {
 
   const handlePressTask = React.useCallback(
     (taskId: string) => {
-      router.push({ pathname: "/task/[id]", params: { id: taskId } });
+      openTask(taskId);
     },
-    [router],
+    [openTask],
   );
 
   const getToggleCompleteTargetSection = React.useCallback(
@@ -3997,6 +4013,7 @@ export default function HomeScreen() {
 
       const headerButton = (
         <Pressable
+          android_ripple={ripple()}
           accessibilityRole={isCollapsible ? "button" : undefined}
           accessibilityLabel={
             isCollapsible
@@ -4090,6 +4107,20 @@ export default function HomeScreen() {
 
   const dateRailPanel = React.useMemo(() => {
     if (firstVisibleSection !== "today") return null;
+    const edgeFade = Math.min(
+      0.38,
+      Math.max(0.12, DATE_RAIL_FADE_WIDTH / Math.max(dateRailContainerWidth, 1)),
+    );
+    const edgeFadeLocations: [number, number, ...number[]] = [
+      0,
+      edgeFade * 0.28,
+      edgeFade * 0.68,
+      edgeFade,
+      1 - edgeFade,
+      1 - edgeFade * 0.68,
+      1 - edgeFade * 0.28,
+      1,
+    ];
     const isPreparingTitleTransition =
       dateRailTitleTransitionState.phase === "preparing";
     const outgoingTitleOpacity = dateRailTitleMotion.interpolate({
@@ -4192,10 +4223,11 @@ export default function HomeScreen() {
                   isInteractive={true}
                 >
                   <Pressable
+                    android_ripple={rippleBorderless(16)}
                     accessibilityRole="button"
                     accessibilityLabel={t("home.jumpToToday")}
                     hitSlop={16}
-                    style={StyleSheet.absoluteFillObject}
+                    style={StyleSheet.absoluteFill}
                     onPress={() => {
                       handleJumpToToday("press");
                     }}
@@ -4223,10 +4255,37 @@ export default function HomeScreen() {
                   isInteractive={true}
                 >
                   <Pressable
+                    android_ripple={rippleBorderless(16)}
                     accessibilityRole="button"
+                    accessibilityLabel={t("a11y.home.pickDate")}
                     hitSlop={16}
-                    style={StyleSheet.absoluteFillObject}
+                    style={StyleSheet.absoluteFill}
                     onPress={() => {
+                      // Android's DateTimePicker has no real inline/embed
+                      // mode: rendering it as a JSX child (any `display`)
+                      // still pops its own native dialog, which stacked on
+                      // top of our custom glass popover as two overlapping
+                      // modals. Use the imperative API to show just the one
+                      // native dialog Android actually has.
+                      if (Platform.OS === "android") {
+                        DateTimePickerAndroid.open({
+                          value: new Date(selectedDateStart),
+                          mode: "date",
+                          onChange: (event, date) => {
+                            if (event.type !== "set" || !date) return;
+                            const nextDateStart = getStartOfDay(
+                              date.getTime(),
+                            );
+                            scrollDateRailToDateStart(
+                              nextDateStart,
+                              true,
+                              true,
+                            );
+                            handleSelectDate(nextDateStart, "picker");
+                          },
+                        });
+                        return;
+                      }
                       setIsCalendarPickerOpen((prev) => !prev);
                     }}
                   >
@@ -4259,7 +4318,7 @@ export default function HomeScreen() {
             {/* Backdrop */}
             <Pressable
               style={[
-                StyleSheet.absoluteFillObject,
+                StyleSheet.absoluteFill,
                 { backgroundColor: "transparent" },
               ]}
               onPress={() => setIsCalendarPickerOpen(false)}
@@ -4283,6 +4342,7 @@ export default function HomeScreen() {
               >
                 <View style={styles.calendarQuickActionsRow}>
                   <Pressable
+                    android_ripple={ripple()}
                     style={styles.calendarQuickActionButton}
                     onPress={() => {
                       handleJumpToToday("picker");
@@ -4294,6 +4354,7 @@ export default function HomeScreen() {
                     </Text>
                   </Pressable>
                   <Pressable
+                    android_ripple={ripple()}
                     style={styles.calendarQuickActionButton}
                     onPress={() => {
                       const tomorrowDateStart = addDays(getStartOfToday(), 1);
@@ -4361,13 +4422,28 @@ export default function HomeScreen() {
             onTouchEnd={handleGlobalDragTouchEnd}
             onTouchCancel={handleGlobalDragTouchCancel}
           >
-            <LinearGradient
-              colors={[screenBackground, withAlpha(screenBackground, 0)]}
-              start={{ x: 0, y: 0.5 }}
-              end={{ x: 1, y: 0.5 }}
-              style={styles.dateRailFadeLeft}
-              pointerEvents="none"
-            />
+            <MaskedView
+              style={styles.dateRailMask}
+              maskElement={
+                <LinearGradient
+                  colors={[
+                    "rgba(0,0,0,0)",
+                    "rgba(0,0,0,0.08)",
+                    "rgba(0,0,0,0.42)",
+                    "#000000",
+                    "#000000",
+                    "rgba(0,0,0,0.42)",
+                    "rgba(0,0,0,0.08)",
+                    "rgba(0,0,0,0)",
+                  ]}
+                  locations={edgeFadeLocations}
+                  start={{ x: 0, y: 0.5 }}
+                  end={{ x: 1, y: 0.5 }}
+                  style={StyleSheet.absoluteFill}
+                />
+              }
+            >
+              <View style={styles.dateRailMaskedContent}>
             <Animated.FlatList
               ref={dateRailRef}
               data={dateRailDays}
@@ -4398,6 +4474,7 @@ export default function HomeScreen() {
 
                 return (
                   <Pressable
+                    android_ripple={ripple()}
                     accessibilityRole="button"
                     accessibilityLabel={`${day.weekday} ${day.dayOfMonth}`}
                     onPress={() => {
@@ -4512,13 +4589,8 @@ export default function HomeScreen() {
                 </Animated.View>
               </View>
             </View>
-            <LinearGradient
-              colors={[withAlpha(screenBackground, 0), screenBackground]}
-              start={{ x: 0, y: 0.5 }}
-              end={{ x: 1, y: 0.5 }}
-              style={styles.dateRailFadeRight}
-              pointerEvents="none"
-            />
+              </View>
+            </MaskedView>
           </View>
         </View>
       </View>
@@ -4553,7 +4625,6 @@ export default function HomeScreen() {
     isDark,
     measureDateRailBounds,
     measureDateRailListBounds,
-    screenBackground,
     selectedDateStart,
     scheduleDateRailSyncToSelectedDate,
     styles,
@@ -4622,6 +4693,7 @@ export default function HomeScreen() {
         ]}
       >
         <Pressable
+          android_ripple={ripple()}
           accessibilityRole="button"
           accessibilityLabel={t("home.openArchive")}
           onPress={() => router.push("/home/archive")}
@@ -4673,6 +4745,7 @@ export default function HomeScreen() {
         itemSpacing={HOME_TASK_ITEM_SPACING}
         enabledTags={enabledTags}
         showTaskIcons={showTagIcons}
+        showProjectNames={showProjectNames}
         showCompactSubtasks={withSubtasksEnabled}
         dragCompactPreview={isDragOverCalendarHeader}
         followHorizontalDrag={isDragOverCalendarHeader}
@@ -4702,7 +4775,15 @@ export default function HomeScreen() {
         revealTranslateX={48}
         containerStyle={{ backgroundColor: "transparent" }}
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={styles.taskListContent}
+        contentContainerStyle={[
+          styles.taskListContent,
+          // The header is transparent so the page background shows through it.
+          // iOS insets the content automatically; Android needs it spelled out
+          // or the first card slides under the title.
+          Platform.OS === "android"
+            ? { paddingTop: headerHeight + 8 }
+            : null,
+        ]}
         header={
           <>
             {listHeader}

@@ -1,5 +1,7 @@
 import { useTasksStore } from '@/context/tasks-store';
+import { useAppSettings } from '@/context/settings-store';
 import { getIntlLocale } from '@/i18n';
+import { getFakeStatsDataset } from '@/utils/fake-stats';
 import { hasValidDueAt } from '@/utils/task-dates';
 import { useMemo } from 'react';
 
@@ -68,6 +70,8 @@ function getCompletionRate(completedCount: number, totalCount: number): number {
 
 export function useStatusStats(): StatusStats {
   const { tasks } = useTasksStore();
+  const { fakeStatsEnabled } = useAppSettings();
+  const shouldUseFakeStats = __DEV__ && fakeStatsEnabled;
 
   return useMemo(() => {
     const intlLocale = getIntlLocale();
@@ -78,29 +82,42 @@ export function useStatusStats(): StatusStats {
       month: 'short',
     });
 
-    const activeTasks = tasks.filter((task) => !task.deletedAt);
     const totalsByDate = new Map<string, number>();
     const completionsByDate = new Map<string, number>();
+    const activeTasks = tasks.filter((task) => !task.deletedAt);
 
-    for (const task of activeTasks) {
-      const dueDate = hasValidDueAt(task.dueAt) ? toLocalISODate(task.dueAt) : null;
-      const completedDate = hasValidDueAt(task.completedAt)
-        ? toLocalISODate(task.completedAt)
-        : null;
+    if (shouldUseFakeStats) {
+      const fakeDataset = getFakeStatsDataset();
 
-      const plannedDates = new Set<string>();
-      if (dueDate) plannedDates.add(dueDate);
-      if (completedDate) plannedDates.add(completedDate);
-
-      for (const dateKey of plannedDates) {
-        totalsByDate.set(dateKey, (totalsByDate.get(dateKey) ?? 0) + 1);
+      for (const [dateKey, bucket] of Object.entries(fakeDataset.statusByDate)) {
+        if (bucket.totalCount > 0) {
+          totalsByDate.set(dateKey, bucket.totalCount);
+        }
+        if (bucket.completedCount > 0) {
+          completionsByDate.set(dateKey, bucket.completedCount);
+        }
       }
+    } else {
+      for (const task of activeTasks) {
+        const dueDate = hasValidDueAt(task.dueAt) ? toLocalISODate(task.dueAt) : null;
+        const completedDate = hasValidDueAt(task.completedAt)
+          ? toLocalISODate(task.completedAt)
+          : null;
 
-      if (completedDate) {
-        completionsByDate.set(
-          completedDate,
-          (completionsByDate.get(completedDate) ?? 0) + 1,
-        );
+        const plannedDates = new Set<string>();
+        if (dueDate) plannedDates.add(dueDate);
+        if (completedDate) plannedDates.add(completedDate);
+
+        for (const dateKey of plannedDates) {
+          totalsByDate.set(dateKey, (totalsByDate.get(dateKey) ?? 0) + 1);
+        }
+
+        if (completedDate) {
+          completionsByDate.set(
+            completedDate,
+            (completionsByDate.get(completedDate) ?? 0) + 1,
+          );
+        }
       }
     }
 
@@ -143,10 +160,17 @@ export function useStatusStats(): StatusStats {
       last7DaysTotalCount,
     );
 
-    const overallTasksCount = activeTasks.length;
-    const overallCompletedCount = activeTasks.reduce((sum, task) => {
-      return hasValidDueAt(task.completedAt) ? sum + 1 : sum;
-    }, 0);
+    const overallTasksCount = shouldUseFakeStats
+      ? Array.from(totalsByDate.values()).reduce((sum, count) => sum + count, 0)
+      : activeTasks.length;
+    const overallCompletedCount = shouldUseFakeStats
+      ? Array.from(completionsByDate.values()).reduce(
+          (sum, count) => sum + count,
+          0,
+        )
+      : activeTasks.reduce((sum, task) => {
+          return hasValidDueAt(task.completedAt) ? sum + 1 : sum;
+        }, 0);
     const overallCompletionRate = getCompletionRate(
       overallCompletedCount,
       overallTasksCount,
@@ -286,5 +310,5 @@ export function useStatusStats(): StatusStats {
       bestDayCompletionRate,
       getChartData,
     };
-  }, [tasks]);
+  }, [tasks, shouldUseFakeStats]);
 }

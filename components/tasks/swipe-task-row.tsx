@@ -1,32 +1,35 @@
+import { useTaskWorkspace } from "@/context/task-workspace-context";
+import { usePageDimensions } from "@/components/navigation/vertical-bar-safe-area";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as Haptics from "expo-haptics";
+import { SymbolView } from "expo-symbols";
 import React from "react";
 import {
   Animated,
   Easing,
   LayoutChangeEvent,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
-  useWindowDimensions,
   View,
   type StyleProp,
   type ViewStyle,
 } from "react-native";
 import SwipeableItem, {
   OpenDirection,
-  type UnderlayParams,
   type SwipeableItemImperativeRef,
+  type UnderlayParams,
 } from "react-native-swipeable-item";
 import Reanimated, {
   Extrapolation,
   interpolate,
-  interpolateColor,
   useAnimatedStyle,
 } from "react-native-reanimated";
 
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
+import { rippleBorderless } from "@/components/ui/ripple";
 import {
   type TagId,
 } from "@/context/home-filters-store";
@@ -42,7 +45,6 @@ const SWIPE_TRIGGER_SNAP = 152;
 const SWIPE_ACTIVATION_THRESHOLD = 10;
 const SWIPE_DAMPING = 7;
 const SWIPE_OVER_SWIPE = 480;
-const SWIPE_SNAP_PROGRESS = SWIPE_STOP / SWIPE_TRIGGER_SNAP;
 const COMPACT_SUBTASK_ICON_SIZE = 18;
 const COMPACT_SUBTASK_TEXT_SIZE = 14;
 const DRAG_LONG_PRESS_DELAY_MS = 260;
@@ -52,6 +54,32 @@ const SWIPE_COMMIT_EXIT_DURATION_MS = 118;
 const SWIPE_COMMIT_EXIT_FADE_DURATION_MS = 96;
 const SWIPE_COMMIT_COLLAPSE_DURATION_MS = 164;
 const TASK_ROW_HEIGHT_CACHE = new Map<string, number>();
+// Cross-list drop "landing": the row mounts in its new list and springs from
+// the spot where the finger released it into its final slot.
+const TASK_LANDING_START_SCALE = 1.03;
+const TASK_LANDING_SPRING = {
+  damping: 24,
+  stiffness: 280,
+  mass: 0.9,
+  restDisplacementThreshold: 0.5,
+  restSpeedThreshold: 0.5,
+} as const;
+
+export type TaskRowWindowFrame = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+export type TaskRowMeasure = (
+  callback: (frame: TaskRowWindowFrame | null) => void,
+) => void;
+export type TaskRowLanding = {
+  /** Window position of the row's top-left corner at the moment of the drop. */
+  x: number;
+  y: number;
+  token: number;
+};
 
 /** Convert a hex color to an rgba pastel tint. */
 function hexToPastel(
@@ -84,118 +112,91 @@ type TagChipModel = {
 
 type SwipeActionUnderlayProps = {
   params: UnderlayParams<Task>;
-  styles: SwipeTaskRowStyles;
   side: "left" | "right";
   backgroundColor: string;
   icon: React.ComponentProps<typeof MaterialIcons>["name"];
   onPress: () => void;
 };
 
+// percentOpen is relative to SWIPE_TRIGGER_SNAP, so SWIPE_STOP sits at 0.5.
+const UNDERLAY_FILL_IN_END = 0.42;
+const UNDERLAY_ICON_IN_START = 0.06;
+const UNDERLAY_ICON_IN_END = 0.36;
+
 function SwipeActionUnderlay({
   params,
-  styles,
   side,
   backgroundColor,
   icon,
   onPress,
 }: SwipeActionUnderlayProps) {
-  const underlayColorStops = React.useMemo(
-    () => ({
-      soft: withAlpha(backgroundColor, 0.18),
-      medium: withAlpha(backgroundColor, 0.58),
-    }),
-    [backgroundColor],
-  );
-
+  // Fade the solid action color in via opacity instead of interpolating
+  // colors, so the fill never passes through muddy in-between tints and the
+  // left/right underlays hand over cleanly at 0.
   const fillAnimatedStyle = useAnimatedStyle(() => {
-    const progress = Math.max(0, Math.min(1.08, params.percentOpen.value));
-    return {
-      backgroundColor: interpolateColor(
-        progress,
-        [0, 0.12, 0.28, SWIPE_SNAP_PROGRESS],
-        [
-          "rgba(0,0,0,0)",
-          underlayColorStops.soft,
-          underlayColorStops.medium,
-          backgroundColor,
-        ],
-      ),
-    };
-  }, [
-    backgroundColor,
-    params.percentOpen,
-    underlayColorStops.medium,
-    underlayColorStops.soft,
-  ]);
+    const progress = params.percentOpen.value;
+    const t = interpolate(
+      progress,
+      [0, UNDERLAY_FILL_IN_END],
+      [0, 1],
+      Extrapolation.CLAMP,
+    );
+    return { opacity: t * (2 - t) };
+  }, [params.percentOpen]);
 
-  const actionAnimatedStyle = useAnimatedStyle(() => {
-    const progress = Math.max(0, Math.min(1.12, params.percentOpen.value));
-    const directionOffset = side === "left" ? 14 : -14;
+  const iconAnimatedStyle = useAnimatedStyle(() => {
+    const progress = params.percentOpen.value;
+    const t = interpolate(
+      progress,
+      [UNDERLAY_ICON_IN_START, UNDERLAY_ICON_IN_END],
+      [0, 1],
+      Extrapolation.CLAMP,
+    );
+    const eased = 1 - (1 - t) * (1 - t) * (1 - t);
+    const directionOffset = side === "left" ? -8 : 8;
     return {
-      opacity: interpolate(
-        progress,
-        [0, 0.08, 0.16, SWIPE_SNAP_PROGRESS],
-        [0, 0.22, 0.92, 1],
-        Extrapolation.CLAMP,
-      ),
+      opacity: eased,
       transform: [
-        {
-          translateX: interpolate(
-            progress,
-            [0, 1],
-            [0, directionOffset],
-            Extrapolation.CLAMP,
-          ),
-        },
+        { translateX: (1 - eased) * directionOffset },
+        { scale: 0.6 + 0.4 * eased },
       ],
     };
   }, [params.percentOpen, side]);
 
   return (
-    <View style={styles.underlay} pointerEvents="box-none">
+    <Pressable
+      style={{
+        flex: 1,
+        width: "100%",
+        justifyContent: "center",
+        alignItems: side === "left" ? "flex-start" : "flex-end",
+        paddingLeft: side === "left" ? 20 : 0,
+        paddingRight: side === "right" ? 20 : 0,
+      }}
+      onPress={onPress}
+      hitSlop={10}
+    >
       <Reanimated.View
         pointerEvents="none"
-        style={[StyleSheet.absoluteFillObject, fillAnimatedStyle]}
-      />
-      <Pressable
         style={[
-          styles.actionSlot,
-          {
-            left: 0,
-            right: 0,
-            paddingLeft: side === "left" ? 18 : 0,
-            paddingRight: side === "right" ? 18 : 0,
-            alignItems: side === "left" ? "flex-start" : "flex-end",
-          },
+          StyleSheet.absoluteFill,
+          { backgroundColor },
+          fillAnimatedStyle,
         ]}
-        onPress={onPress}
-        hitSlop={10}
-      >
-        <Reanimated.View
-          style={[
-            {
-              width: 36,
-              height: 36,
-              alignItems: "center",
-              justifyContent: "center",
-              alignSelf: side === "left" ? "flex-start" : "flex-end",
-            },
-            actionAnimatedStyle,
-          ]}
-        >
-          <MaterialIcons
-            name={icon}
-            size={28}
-            color="#FFFFFF"
-            style={{
-              textShadowColor: "rgba(0,0,0,0.12)",
-              textShadowOffset: { width: 0, height: 1 },
-              textShadowRadius: 4,
-            }}
+      />
+      <Reanimated.View pointerEvents="none" style={iconAnimatedStyle}>
+        {Platform.OS === "ios" ? (
+          <SymbolView
+            name={icon === "delete" ? "trash.fill" : icon === "undo" ? "arrow.uturn.backward" : "checkmark"}
+            tintColor="#FFFFFF"
+            weight="semibold"
+            style={{ width: 22, height: 22 }}
           />
-        </Reanimated.View>
-      </Pressable>
-    </View>
+        ) : (
+          <MaterialIcons name={icon} size={24} color="#FFFFFF" />
+        )}
+      </Reanimated.View>
+    </Pressable>
   );
 }
 
@@ -306,7 +307,6 @@ export type SwipeTaskRowProps = {
   isActive: boolean;
   styles: SwipeTaskRowStyles;
   isDark: boolean;
-  isLast?: boolean;
   itemSpacing?: number;
   emojiTint: string;
   emojiFallback: string;
@@ -326,6 +326,7 @@ export type SwipeTaskRowProps = {
   };
   enabledTags: Set<TagId>;
   showTaskIcons: boolean;
+  showProjectNames?: boolean;
   showCompactSubtasks?: boolean;
   beginSwipe: (taskId: string) => void;
   endSwipe: (taskId: string) => void;
@@ -358,6 +359,11 @@ export type SwipeTaskRowProps = {
     | null;
   followHorizontalDrag?: boolean;
   swipeActivationThreshold?: number;
+  /** When set on mount, the row springs from this window position into its slot. */
+  landingFrom?: TaskRowLanding | null;
+  onLandingEnd?: (taskId: string) => void;
+  /** Lets the owning list measure this row in window coordinates. */
+  registerMeasure?: (taskId: string, measure: TaskRowMeasure) => () => void;
 };
 
 export const SwipeTaskRow = React.memo(function SwipeTaskRow({
@@ -367,7 +373,6 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   isActive,
   styles,
   isDark,
-  isLast = false,
   itemSpacing = 0,
   emojiTint,
   emojiFallback,
@@ -377,6 +382,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   rightAction,
   enabledTags,
   showTaskIcons,
+  showProjectNames = false,
   showCompactSubtasks = false,
   beginSwipe,
   endSwipe,
@@ -399,8 +405,13 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   revealTranslateX = null,
   followHorizontalDrag = false,
   swipeActivationThreshold,
+  landingFrom = null,
+  onLandingEnd,
+  registerMeasure,
 }: SwipeTaskRowProps) {
-  const { width: viewportWidth } = useWindowDimensions();
+  const { width: viewportWidth } = usePageDimensions();
+  const workspace = useTaskWorkspace();
+  const isSelected = workspace?.selectedTaskId === task.id;
   const swipeRef = React.useRef<SwipeableItemImperativeRef | null>(null);
   const longPressTriggeredRef = React.useRef(false);
   const committedSwipeActionDirectionRef = React.useRef<OpenDirection | null>(
@@ -438,6 +449,17 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   const longPressTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const landingWrapperRef = React.useRef<View | null>(null);
+  const [landingTranslateX] = React.useState(() => new Animated.Value(0));
+  const [landingTranslateY] = React.useState(() => new Animated.Value(0));
+  const [landingScale] = React.useState(() => new Animated.Value(1));
+  // Hidden until measured so the row never flashes in its final slot first.
+  const [landingOpacity] = React.useState(
+    () => new Animated.Value(landingFrom ? 0 : 1),
+  );
+  const landingTokenRef = React.useRef<number | null>(null);
+  const landingAnimationRef =
+    React.useRef<Animated.CompositeAnimation | null>(null);
   const canUseCompactDragPreview =
     showTaskIcons && !!task.emoji && task.emoji.trim().length > 0;
   const shouldUseCompactDragPreview =
@@ -489,8 +511,102 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       popInAnimationRef.current?.stop();
       swipeCommitExitAnimationRef.current?.stop();
       swipeCommitCollapseAnimationRef.current?.stop();
+      landingAnimationRef.current?.stop();
     };
   }, []);
+
+  const measureInWindow = React.useCallback<TaskRowMeasure>((callback) => {
+    const node = landingWrapperRef.current;
+    if (!node || typeof node.measureInWindow !== "function") {
+      callback(null);
+      return;
+    }
+    node.measureInWindow((x, y, width, height) => {
+      if (
+        !Number.isFinite(x) ||
+        !Number.isFinite(y) ||
+        !Number.isFinite(height) ||
+        height <= 0
+      ) {
+        callback(null);
+        return;
+      }
+      callback({ x, y, width, height });
+    });
+  }, []);
+
+  React.useEffect(() => {
+    if (!registerMeasure) return;
+    return registerMeasure(task.id, measureInWindow);
+  }, [measureInWindow, registerMeasure, task.id]);
+
+  React.useLayoutEffect(() => {
+    if (!landingFrom) return;
+    if (landingTokenRef.current === landingFrom.token) return;
+    landingTokenRef.current = landingFrom.token;
+    landingAnimationRef.current?.stop();
+
+    measureInWindow((frame) => {
+      if (!isMountedRef.current) return;
+      if (!frame) {
+        landingOpacity.setValue(1);
+        onLandingEnd?.(task.id);
+        return;
+      }
+
+      landingTranslateX.setValue(landingFrom.x - frame.x);
+      landingTranslateY.setValue(landingFrom.y - frame.y);
+      landingScale.setValue(TASK_LANDING_START_SCALE);
+      landingOpacity.setValue(1);
+
+      const animation = Animated.parallel([
+        Animated.spring(landingTranslateX, {
+          toValue: 0,
+          ...TASK_LANDING_SPRING,
+          useNativeDriver: true,
+        }),
+        Animated.spring(landingTranslateY, {
+          toValue: 0,
+          ...TASK_LANDING_SPRING,
+          useNativeDriver: true,
+        }),
+        Animated.spring(landingScale, {
+          toValue: 1,
+          ...TASK_LANDING_SPRING,
+          useNativeDriver: true,
+        }),
+      ]);
+      landingAnimationRef.current = animation;
+      animation.start(() => {
+        if (landingAnimationRef.current === animation) {
+          landingAnimationRef.current = null;
+        }
+        if (!isMountedRef.current) return;
+        onLandingEnd?.(task.id);
+      });
+    });
+  }, [
+    landingFrom,
+    landingOpacity,
+    landingScale,
+    landingTranslateX,
+    landingTranslateY,
+    measureInWindow,
+    onLandingEnd,
+    task.id,
+  ]);
+
+  const landingMotionStyle = React.useMemo(
+    () => ({
+      opacity: landingOpacity,
+      transform: [
+        { translateX: landingTranslateX },
+        { translateY: landingTranslateY },
+        { scale: landingScale },
+      ],
+    }),
+    [landingOpacity, landingScale, landingTranslateX, landingTranslateY],
+  );
 
   React.useEffect(() => {
     return () => {
@@ -942,11 +1058,14 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       itemSpacerStyle,
       measuredRowHeight > 0 ? { minHeight: measuredRowHeight } : null,
       {
-        marginBottom: isLast ? 0 : itemSpacing,
+        // Same spacing on every row (including the last): the drag list
+        // measures cells with their margin, so a smaller last cell made
+        // neighbours shift too little while dragging and jump after the drop.
+        marginBottom: itemSpacing,
         overflow: "visible" as const,
       },
     ],
-    [isLast, itemSpacing, itemSpacerStyle, measuredRowHeight, styles.itemSpacer],
+    [itemSpacing, itemSpacerStyle, measuredRowHeight, styles.itemSpacer],
   );
   const swipeCommitSpacerStyle = React.useMemo(() => {
     if (!shouldApplySwipeCommitState) return null;
@@ -955,11 +1074,10 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       minHeight: 0,
       marginBottom: swipeCommitCollapseProgress.interpolate({
         inputRange: [0, 1],
-        outputRange: [0, isLast ? 0 : itemSpacing],
+        outputRange: [0, itemSpacing],
       }),
     };
   }, [
-    isLast,
     itemSpacing,
     shouldApplySwipeCommitState,
     swipeCommitCollapseProgress,
@@ -980,11 +1098,10 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       minHeight: 0,
       marginBottom: popInExpandProgress.interpolate({
         inputRange: [0, 1],
-        outputRange: [0, isLast ? 0 : itemSpacing],
+        outputRange: [0, itemSpacing],
       }),
     };
   }, [
-    isLast,
     itemSpacing,
     measuredRowHeight,
     popInExpandProgress,
@@ -1033,11 +1150,42 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     shouldApplyPopInLayoutState,
   ]);
 
+  // dragRow styles drop the hairline border; keep its width (just hide it) so
+  // lifting/dropping a row never changes its height by a sub-pixel amount,
+  // which would re-measure the cell mid-drag and nudge the row on release.
+  const dragRowBorderLock = React.useMemo(() => {
+    const base = StyleSheet.flatten(styles.row) ?? {};
+    const lock: ViewStyle = {};
+    const widthKeys = [
+      "borderWidth",
+      "borderTopWidth",
+      "borderBottomWidth",
+      "borderLeftWidth",
+      "borderRightWidth",
+    ] as const;
+    let hasBorder = false;
+    for (const key of widthKeys) {
+      const value = base[key];
+      if (typeof value === "number" && value > 0) {
+        lock[key] = value;
+        hasBorder = true;
+      }
+    }
+    if (!hasBorder) return null;
+    lock.borderColor = "transparent";
+    lock.borderTopColor = "transparent";
+    lock.borderBottomColor = "transparent";
+    lock.borderLeftColor = "transparent";
+    lock.borderRightColor = "transparent";
+    return lock;
+  }, [styles.row]);
   const rowContentStyle = React.useMemo(
     () => [
       styles.row,
       rowStyle,
+      isSelected ? { borderColor: isDark ? "#64D2FF" : "#007AFF", borderWidth: 1 } : undefined,
       isActive ? styles.dragRow : undefined,
+      isActive ? dragRowBorderLock : undefined,
       shouldUseCompactDragPreview
         ? {
             width: DRAG_COMPACT_PREVIEW_SIZE,
@@ -1051,8 +1199,11 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
         : undefined,
     ],
     [
+      dragRowBorderLock,
       isActive,
       rowStyle,
+      isSelected,
+      isDark,
       shouldUseCompactDragPreview,
       styles.dragRow,
       styles.row,
@@ -1188,7 +1339,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
 
   const tagChips = React.useMemo<TagChipModel[]>(() => {
     const chips: TagChipModel[] = [];
-    if (project) {
+    if (showProjectNames && project) {
       chips.push({
         key: `proj-${project.id}`,
         label: project.name,
@@ -1206,6 +1357,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   }, [
     enabledTags,
     project,
+    showProjectNames,
     task.location,
   ]);
 
@@ -1239,6 +1391,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
         <Pressable
           key={subtask.id}
           disabled={!toggleSubtask}
+          android_ripple={rippleBorderless(16)}
           onPress={(event) => {
             event.stopPropagation();
             if (!toggleSubtask) return;
@@ -1409,7 +1562,6 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     (params: UnderlayParams<Task>) => (
       <SwipeActionUnderlay
         params={params}
-        styles={styles}
         side="right"
         backgroundColor={rightAction?.backgroundColor ?? swipeDeleteBg}
         icon={rightAction?.icon ?? "delete"}
@@ -1429,7 +1581,6 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     (params: UnderlayParams<Task>) => (
       <SwipeActionUnderlay
         params={params}
-        styles={styles}
         side="left"
         backgroundColor={leftAction?.backgroundColor ?? swipeCompleteBg}
         icon={
@@ -1449,123 +1600,157 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   );
 
   return (
-    <Animated.View style={[spacerStyle, popInSpacerStyle, swipeCommitSpacerStyle]}>
-      <Animated.View style={[clipStyle, popInClipStyle, swipeCommitClipStyle]}>
-        <SwipeableItem
-          ref={swipeRef}
-          item={task}
-          swipeEnabled={!isActive && !shouldApplySwipeCommitState}
-          activationThreshold={
-            typeof swipeActivationThreshold === "number"
-              ? swipeActivationThreshold
-              : SWIPE_ACTIVATION_THRESHOLD
-          }
-          swipeDamping={SWIPE_DAMPING}
-          overSwipe={SWIPE_OVER_SWIPE}
-          snapPointsLeft={[SWIPE_STOP, SWIPE_TRIGGER_SNAP]}
-          snapPointsRight={[SWIPE_STOP, SWIPE_TRIGGER_SNAP]}
-          onTriggerStateChange={handleSwipeTriggerStateChange}
-          onWillChange={handleSwipeWillChange}
-          onChange={handleSwipeChange}
-          renderUnderlayLeft={renderUnderlayLeft}
-          renderUnderlayRight={renderUnderlayRight}
-        >
-          <Animated.View style={contentMotionStyle}>
-            <TouchableOpacity
-              onLongPress={handleLongPressDrag}
-              delayLongPress={DRAG_LONG_PRESS_DELAY_MS}
-              activeOpacity={0.9}
-              disabled={shouldApplySwipeCommitState}
-              onLayout={handleRowLayout}
-              style={
-                shouldUseCompactDragPreview
-                  ? {
-                      width: DRAG_COMPACT_PREVIEW_SIZE,
-                      alignSelf: "flex-start",
-                    }
-                  : { width: "100%", alignSelf: "stretch" }
-              }
-              onPressIn={(event) => {
-                const localX = event.nativeEvent.locationX;
-                setDragPressInLocalX(
-                  Number.isFinite(localX) ? localX : null,
-                );
-                onTouchInteractionChange?.(task.id, true);
-                armLongPressDrag();
-              }}
-              onPressOut={() => {
-                clearLongPressDrag();
-                onTouchInteractionChange?.(task.id, false);
-              }}
-              onPress={() => {
-                if (longPressTriggeredRef.current) {
-                  longPressTriggeredRef.current = false;
-                  return;
+    <Animated.View
+      ref={landingWrapperRef}
+      collapsable={false}
+      style={landingMotionStyle}
+    >
+      <Animated.View style={[spacerStyle, popInSpacerStyle, swipeCommitSpacerStyle]}>
+        <Animated.View style={[clipStyle, popInClipStyle, swipeCommitClipStyle]}>
+          <SwipeableItem
+            ref={swipeRef}
+            item={task}
+            swipeEnabled={!isActive && !shouldApplySwipeCommitState}
+            activationThreshold={
+              typeof swipeActivationThreshold === "number"
+                ? swipeActivationThreshold
+                : SWIPE_ACTIVATION_THRESHOLD
+            }
+            swipeDamping={SWIPE_DAMPING}
+            overSwipe={SWIPE_OVER_SWIPE}
+            snapPointsLeft={[SWIPE_STOP, SWIPE_TRIGGER_SNAP]}
+            snapPointsRight={[SWIPE_STOP, SWIPE_TRIGGER_SNAP]}
+            onTriggerStateChange={handleSwipeTriggerStateChange}
+            onWillChange={handleSwipeWillChange}
+            onChange={handleSwipeChange}
+            renderUnderlayLeft={renderUnderlayLeft}
+            renderUnderlayRight={renderUnderlayRight}
+          >
+            <Animated.View style={contentMotionStyle}>
+              <TouchableOpacity
+                accessibilityState={{ selected: isSelected }}
+                testID={`task-row-${task.id}`}
+                accessibilityActions={[
+                  {
+                    name: "activate",
+                  },
+                  {
+                    name: "complete",
+                    label:
+                      task.section === "completed"
+                        ? t("a11y.task.reopen")
+                        : t("a11y.task.complete"),
+                  },
+                  { name: "delete", label: t("common.delete") },
+                ]}
+                onAccessibilityAction={(event) => {
+                  switch (event.nativeEvent.actionName) {
+                    case "complete":
+                      onPressComplete();
+                      break;
+                    case "delete":
+                      onPressDelete();
+                      break;
+                    case "activate":
+                      onPressTask(task.id);
+                      break;
+                  }
+                }}
+                onLongPress={handleLongPressDrag}
+                delayLongPress={DRAG_LONG_PRESS_DELAY_MS}
+                activeOpacity={0.9}
+                disabled={shouldApplySwipeCommitState}
+                onLayout={handleRowLayout}
+                style={
+                  shouldUseCompactDragPreview
+                    ? {
+                        width: DRAG_COMPACT_PREVIEW_SIZE,
+                        alignSelf: "flex-start",
+                      }
+                    : { width: "100%", alignSelf: "stretch" }
                 }
-                onPressTask(task.id);
-              }}
-            >
-              <GlassSurface
-                style={rowContentStyle}
-                glassEffectStyle="regular"
-                tintColor={rowTintColor}
-                fallbackBackgroundColor={rowFallbackBackgroundColor}
-                isInteractive
+                onPressIn={(event) => {
+                  const localX = event.nativeEvent.locationX;
+                  setDragPressInLocalX(
+                    Number.isFinite(localX) ? localX : null,
+                  );
+                  onTouchInteractionChange?.(task.id, true);
+                  armLongPressDrag();
+                }}
+                onPressOut={() => {
+                  clearLongPressDrag();
+                  onTouchInteractionChange?.(task.id, false);
+                }}
+                onPress={() => {
+                  if (longPressTriggeredRef.current) {
+                    longPressTriggeredRef.current = false;
+                    return;
+                  }
+                  onPressTask(task.id);
+                }}
               >
-                <Animated.View style={surfaceContentMotionStyle}>
-                  <View
-                    style={[
-                      styles.rowInner,
-                      completedContentStyle,
-                      shouldUseCompactDragPreview
-                        ? {
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: 0,
-                          }
-                        : !hasExtraInfo
-                          ? { alignItems: "center" }
-                          : null,
-                    ]}
-                  >
-                    {emojiTileView}
-                    {shouldUseCompactDragPreview ? null : (
-                      <View
-                        style={[
-                          styles.textStack,
-                          !hasExtraInfo ? { justifyContent: "center" } : null,
-                        ]}
-                      >
-                        <View style={styles.titleRow}>
-                          <Text
-                            style={[styles.rowTitle, completedTitleStyle]}
-                            numberOfLines={1}
-                          >
-                            {task.title}
-                          </Text>
-                          {rightMetaView}
+                <GlassSurface
+                  style={rowContentStyle}
+                  glassEffectStyle="regular"
+                  tintColor={rowTintColor}
+                  fallbackBackgroundColor={rowFallbackBackgroundColor}
+                  isInteractive
+                >
+                  <Animated.View style={surfaceContentMotionStyle}>
+                    <View
+                      style={[
+                        styles.rowInner,
+                        completedContentStyle,
+                        shouldUseCompactDragPreview
+                          ? {
+                              alignItems: "center",
+                              justifyContent: "center",
+                              gap: 0,
+                            }
+                          : !hasExtraInfo
+                            ? { alignItems: "center" }
+                            : null,
+                      ]}
+                    >
+                      {emojiTileView}
+                      {shouldUseCompactDragPreview ? null : (
+                        <View
+                          style={[
+                            styles.textStack,
+                            !hasExtraInfo ? { justifyContent: "center" } : null,
+                          ]}
+                        >
+                          <View style={styles.titleRow}>
+                            <Text
+                              style={[styles.rowTitle, completedTitleStyle]}
+                              numberOfLines={1}
+                            >
+                              {task.title}
+                            </Text>
+                            {rightMetaView}
+                          </View>
+                          {task.subtitle ? (
+                            <Text
+                              style={[
+                                styles.rowSubtitle,
+                                completedTitleStyle,
+                                completedMetaStyle,
+                              ]}
+                            >
+                              {task.subtitle}
+                            </Text>
+                          ) : null}
+                          {tagsView}
+                          {compactSubtasksView}
                         </View>
-                        {task.subtitle ? (
-                          <Text
-                            style={[
-                              styles.rowSubtitle,
-                              completedTitleStyle,
-                              completedMetaStyle,
-                            ]}
-                          >
-                            {task.subtitle}
-                          </Text>
-                        ) : null}
-                        {tagsView}
-                        {compactSubtasksView}
-                      </View>
-                    )}
-                  </View>
-                </Animated.View>
-              </GlassSurface>
-            </TouchableOpacity>
-          </Animated.View>
-        </SwipeableItem>
+                      )}
+                    </View>
+                  </Animated.View>
+                </GlassSurface>
+              </TouchableOpacity>
+            </Animated.View>
+          </SwipeableItem>
+        </Animated.View>
       </Animated.View>
     </Animated.View>
   );

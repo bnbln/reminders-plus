@@ -1,6 +1,7 @@
 import type { TranslationDict } from "../types";
 
 export const DE_TRANSLATIONS: TranslationDict = {
+  "taskWorkspace.selectTask": "Aufgabe auswählen",
   "tabs.tasks": "Aufgaben",
   "tabs.search": "Suche",
   "tabs.projects": "Projekte",
@@ -210,6 +211,9 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "streaks.range.1m": "1 M",
   "streaks.range.1y": "1 J",
   "streaks.range.max": "Max",
+  "widgets.streak.start": "Heute starten",
+  "widgets.tasks.allDone": "Alles erledigt",
+  "widgets.tasks.more": "+{{count}} weitere",
   "status.hero.withTasks": "{{done}} von {{total}} erledigt",
   "status.hero.empty": "Noch keine Aufgaben für heute",
   "status.stats.today": "Heute",
@@ -304,6 +308,7 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "common.off": "Aus",
   "common.cancel": "Abbrechen",
   "common.close": "Schließen",
+  "common.done": "Fertig",
   "common.delete": "Löschen",
   "common.ok": "OK",
   "common.planChecking": "Wird geprüft...",
@@ -348,8 +353,14 @@ export const DE_TRANSLATIONS: TranslationDict = {
 
   "projectLimit.loading": "Prüfe gerade deinen Reminders+ Status...",
   "projectLimit.title": "Mehr als {{count}} Projekte brauchen Reminders+.",
+  "common.undo": "Rückgängig",
+  "taskDetail.snackbar.deleted": "Aufgabe gelöscht",
+  "projectEdit.snackbar.deleted": "Projekt gelöscht",
   "projectLimit.body":
     "Dein Free-Plan enthält bis zu {{count}} aktive Projekte. Mit Reminders+ bekommst du unbegrenzte Projekte, AI-Assist und die Cloud-Sync-Freischaltung.",
+  // Android-Variante: AI-Assist gibt es dort nicht und wird deshalb nicht beworben.
+  "projectLimit.body.noAssist":
+    "Dein Free-Plan enthält bis zu {{count}} aktive Projekte. Mit Reminders+ bekommst du unbegrenzte Projekte.",
   "projectLimit.action.later": "Später",
   "projectLimit.action.openPlus": "Reminders+ ansehen",
 
@@ -441,6 +452,8 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "settings.section.interactions": "Interaktionen",
   "settings.remindsPlus.helper":
     "AI-Assist, mehr als 4 Projekte und die Cloud-Sync-Freischaltung für Apple-Geräte.",
+  "settings.remindsPlus.helper.noAssist":
+    "Mit Reminders+ bekommst du mehr als 4 Projekte.",
   "settings.remindsPlus.action.showOptions": "Kaufoptionen anzeigen",
   "settings.remindsPlus.action.openOffer": "Angebot öffnen",
   "settings.appearance.mode": "Farbmodus",
@@ -457,6 +470,13 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "settings.notifications.dailySummary": "Tägliche Zusammenfassung",
   "settings.interactions.haptics": "Haptik aktivieren",
   "settings.interactions.reduceMotion": "Bewegung reduzieren",
+  "settings.interactions.streakCelebration": "Streak-Feier",
+  "settings.interactions.streakCelebrationHint":
+    "Vollbild-Flamme, sobald du die erste Aufgabe des Tages erledigst.",
+  "settings.interactions.streakCelebrationPreview": "Vorschau abspielen",
+  "streakCelebration.continue": "Weiter",
+  "streakCelebration.record": "Neuer Rekord",
+  "streakCelebration.a11y": "Streak verlängert: {{count}} Tage",
   "settings.import.unavailableTitle": "Nicht verfügbar",
   "settings.import.unavailableBody":
     "Apple Kalender/Erinnerungen sind nur auf iOS verfügbar.",
@@ -488,6 +508,8 @@ export const DE_TRANSLATIONS: TranslationDict = {
     "Cloud Sync und alle Pro-Features direkt über Apple aktivieren.",
   "plus.source.default":
     "AI-Assist, mehr Projekte und Cloud Sync direkt über Apple aktivieren.",
+  "plus.source.default.noAssist":
+    "Mit Reminders+ mehr Projekte freischalten.",
   "plus.alert.debugUnlock.title": "Debug-Freischaltung aktiv",
   "plus.alert.debugUnlock.bodyMonthly":
     "Reminders+ wurde lokal für diesen Debug-Build freigeschaltet, weil kein gültiges Store-Produkt verfügbar war.",
@@ -521,6 +543,8 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "plus.legal.hide": "Verfügbarkeitshinweise ausblenden",
   "plus.legal.disclaimer":
     "Cloud Sync funktioniert nur zwischen Apple-Geräten, die mit derselben Apple-ID in iCloud angemeldet sind. AI-Assist ist nur auf Geräten verfügbar, die Apple für Apple Intelligence unterstützt.",
+  "plus.legal.disclaimer.noAssist":
+    "Käufe werden über den App-Store auf deinem Gerät abgewickelt.",
   "plus.action.restorePurchases": "Käufe wiederherstellen",
   "plus.action.reloadProducts": "Produkte neu laden",
 
@@ -613,6 +637,25 @@ export const DE_TRANSLATIONS: TranslationDict = {
     "Beispiele: Finde alle Routinen mit Standort. Erstelle Task morgen 14:00 im Projekt Arbeit. Verschiebe Einkauf nach Privat.",
   "assist.input.placeholder":
     "z.B. Erstelle Task heute 18:00 mit Standort Supermarkt",
+  "screen.legal": "Rechtliches & Barrierefreiheit",
+  "settings.section.legal": "Rechtliches",
+  "settings.legal.open": "Rechtliches & Barrierefreiheit",
+  "legal.section.documents": "Dokumente",
+  "legal.privacy": "Datenschutzerklärung",
+  "legal.imprint": "Impressum",
+  "legal.terms": "Nutzungsbedingungen (EULA)",
+  "legal.opensInBrowser": "Öffnet im Browser",
+  "legal.openFailed": "Der Link konnte nicht geöffnet werden.",
+  "legal.section.accessibility": "Barrierefreiheit",
+  "legal.accessibility.body": "Wir möchten, dass Reminders+ für alle nutzbar ist, und orientieren uns an der Europäischen Norm EN 301 549 (WCAG 2.1 AA) sowie dem Barrierefreiheitsstärkungsgesetz. Die App unterstützt VoiceOver/TalkBack, Dynamic Type, den Dunkelmodus und die Einstellung „Bewegung reduzieren“. Die Anforderungen sind bereits weitgehend umgesetzt; an einzelnen Stellen, etwa bei Screenreader-Beschriftungen, arbeiten wir noch an Verbesserungen.",
+  "legal.accessibility.feedback": "Barrieren melden",
+  "legal.section.ai": "KI-Hinweis",
+  "legal.ai.body": "AI Assist nutzt Apple Intelligence direkt auf deinem Gerät. Antworten werden automatisch von einer KI erzeugt, können Fehler enthalten und sollten vor dem Übernehmen geprüft werden.",
+  "a11y.task.complete": "Als erledigt markieren",
+  "a11y.task.reopen": "Wieder öffnen",
+  "a11y.settings.dailySummaryTime": "Uhrzeit der täglichen Zusammenfassung",
+  "a11y.task.changeEmoji": "Emoji ändern",
+  "a11y.home.pickDate": "Datum auswählen",
 };
 
 export default DE_TRANSLATIONS;

@@ -1,19 +1,36 @@
+import {
+  useVerticalBarActive,
+  verticalBarTabScreenLayout,
+} from "@/components/navigation/vertical-bar-safe-area";
+import {
+  useNativeFilterHeaderItems,
+  useNativeProfileHeaderActionItems,
+} from "@/components/navigation/native-header-action-items";
 import { Stack } from "expo-router";
 import React from "react";
 import { Platform, StyleSheet, View } from "react-native";
 
+import { HeaderActions } from "@/components/navigation/header-actions";
 import { HeaderTrailingActions } from "@/components/navigation/header-trailing-actions";
-import { ProfileHeaderMenuButton } from "@/components/navigation/profile-header-menu-button";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
 
 export default function HomeLayout() {
   const theme = useColorScheme() ?? "light";
+  const hasVerticalBar = useVerticalBarActive();
+  const nativeHomeFilterActions = useNativeFilterHeaderItems({
+    showCompletedTasksToggle: true,
+    showProjectTasksToggle: true,
+    showRoutineTasksToggle: true,
+  });
+  const nativeFilterActions = useNativeFilterHeaderItems();
+  const nativeProfileActions = useNativeProfileHeaderActionItems();
   const headerTitleAlign: "left" | "center" = "left";
 
   return (
     <Stack
+      screenLayout={verticalBarTabScreenLayout}
       screenOptions={{
         headerLargeTitle: Platform.OS === "ios",
         headerShadowVisible: false,
@@ -28,15 +45,26 @@ export default function HomeLayout() {
         name="index"
         options={{
           title: t("common.today"),
-          headerLeft: () => (
-            <HeaderTrailingActions
-              theme={theme}
-              showCompletedTasksToggle={true}
-              showProjectTasksToggle={true}
-              showRoutineTasksToggle={true}
-            />
-          ),
-          headerRight: () => <ProfileHeaderMenuButton />,
+          // Let the page's gradient background run behind the header.
+          headerTransparent: true,
+          headerStyle: { backgroundColor: "transparent" },
+          headerLeft: hasVerticalBar
+            ? undefined
+            : () => (
+                <HeaderTrailingActions
+                  theme={theme}
+                  showCompletedTasksToggle={true}
+                  showProjectTasksToggle={true}
+                  showRoutineTasksToggle={true}
+                />
+              ),
+          headerRight: () => <HeaderActions />,
+          unstable_headerLeftItems: hasVerticalBar
+            ? () => nativeHomeFilterActions
+            : undefined,
+          unstable_headerRightItems: hasVerticalBar
+            ? () => nativeProfileActions
+            : undefined,
         }}
       />
       <Stack.Screen
@@ -44,7 +72,10 @@ export default function HomeLayout() {
         options={{
           title: t("archive.title"),
           headerTransparent: Platform.OS === "ios",
-          headerRight: () => <ProfileHeaderMenuButton />,
+          headerRight: () => <HeaderActions />,
+          unstable_headerRightItems: hasVerticalBar
+            ? () => nativeProfileActions
+            : undefined,
         }}
       />
 
@@ -55,7 +86,10 @@ export default function HomeLayout() {
           headerLargeTitle: false,
           headerBackButtonDisplayMode: "minimal",
           headerTransparent: Platform.OS === "ios",
-          headerRight: () => <ProfileHeaderMenuButton />,
+          headerRight: () => <HeaderActions />,
+          unstable_headerRightItems: hasVerticalBar
+            ? () => nativeProfileActions
+            : undefined,
         }}
       />
       <Stack.Screen
@@ -65,8 +99,16 @@ export default function HomeLayout() {
           headerLargeTitle: false,
           headerBackButtonDisplayMode: "minimal",
           headerTransparent: Platform.OS === "ios",
-          headerLeft: () => <HeaderTrailingActions theme={theme} />,
-          headerRight: () => <ProfileHeaderMenuButton />,
+          headerLeft: hasVerticalBar
+            ? undefined
+            : () => <HeaderTrailingActions theme={theme} />,
+          headerRight: () => <HeaderActions />,
+          unstable_headerLeftItems: hasVerticalBar
+            ? () => nativeFilterActions
+            : undefined,
+          unstable_headerRightItems: hasVerticalBar
+            ? () => nativeProfileActions
+            : undefined,
         }}
       />
       <Stack.Screen
@@ -79,9 +121,15 @@ export default function HomeLayout() {
           headerRight: () => (
             <View style={styles.headerRightRow}>
               <HeaderTrailingActions theme={theme} />
-              <ProfileHeaderMenuButton />
+              <HeaderActions />
             </View>
           ),
+          unstable_headerLeftItems: hasVerticalBar
+            ? () => nativeFilterActions
+            : undefined,
+          unstable_headerRightItems: hasVerticalBar
+            ? () => nativeProfileActions
+            : undefined,
         }}
       />
       <Stack.Screen
@@ -91,8 +139,16 @@ export default function HomeLayout() {
           headerLargeTitle: false,
           headerBackButtonDisplayMode: "minimal",
           headerTransparent: Platform.OS === "ios",
-          headerLeft: () => <HeaderTrailingActions theme={theme} />,
-          headerRight: () => <ProfileHeaderMenuButton />,
+          headerLeft: hasVerticalBar
+            ? undefined
+            : () => <HeaderTrailingActions theme={theme} />,
+          headerRight: () => <HeaderActions />,
+          unstable_headerLeftItems: hasVerticalBar
+            ? () => nativeFilterActions
+            : undefined,
+          unstable_headerRightItems: hasVerticalBar
+            ? () => nativeProfileActions
+            : undefined,
         }}
       />
     </Stack>

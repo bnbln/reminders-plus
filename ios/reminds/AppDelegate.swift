@@ -16,8 +16,8 @@ private extension UIColor {
   }
 }
 
-@UIApplicationMain
-class AppDelegate: ExpoAppDelegate {
+@main
+class AppDelegate: ExpoAppDelegate, ExpoReactNativeFactoryProvider {
   var window: UIWindow?
 
   var reactNativeDelegate: ExpoReactNativeFactoryDelegate?
@@ -36,46 +36,28 @@ class AppDelegate: ExpoAppDelegate {
     reactNativeFactory = factory
 
 #if os(iOS) || os(tvOS)
-    window = UIWindow(frame: UIScreen.main.bounds)
-    factory.startReactNative(
-      withModuleName: "main",
-      in: window,
-      launchOptions: launchOptions)
-    window?.backgroundColor = UIColor.remindsAppBackground
-    window?.rootViewController?.view.backgroundColor = UIColor.remindsAppBackground
-    applyReactRootViewBackground()
     CloudSyncCoordinator.shared.start()
     application.registerForRemoteNotifications()
-
-    if #available(iOS 26.0, *) {
-      let coordinator = TabBarAccessoryCoordinator(windowProvider: { [weak self] in
-        self?.window
-      })
-      coordinator.start()
-      tabBarAccessoryCoordinator = coordinator
-    }
 #endif
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
-  // Linking API
-  override func application(
-    _ app: UIApplication,
-    open url: URL,
-    options: [UIApplication.OpenURLOptionsKey: Any] = [:]
-  ) -> Bool {
-    return super.application(app, open: url, options: options) || RCTLinkingManager.application(app, open: url, options: options)
-  }
+  // Expo starts React Native in the scene's window. Apply our native customizations
+  // after that window exists, including when reconnecting a scene on iPhone Duo.
+  func configureSceneWindow(_ window: UIWindow) {
+    self.window = window
+    window.backgroundColor = UIColor.remindsAppBackground
+    window.rootViewController?.view.backgroundColor = UIColor.remindsAppBackground
+    applyReactRootViewBackground()
 
-  // Universal Links
-  override func application(
-    _ application: UIApplication,
-    continue userActivity: NSUserActivity,
-    restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void
-  ) -> Bool {
-    let result = RCTLinkingManager.application(application, continue: userActivity, restorationHandler: restorationHandler)
-    return super.application(application, continue: userActivity, restorationHandler: restorationHandler) || result
+    if #available(iOS 26.0, *) {
+      let coordinator = TabBarAccessoryCoordinator(windowProvider: { [weak window] in
+        window
+      })
+      coordinator.start()
+      tabBarAccessoryCoordinator = coordinator
+    }
   }
 
   override func application(

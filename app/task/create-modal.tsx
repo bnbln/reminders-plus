@@ -1,5 +1,5 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused } from "expo-router";
 import * as ExpoGlassEffect from "expo-glass-effect";
 import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
 import { LinearGradient } from "expo-linear-gradient";
@@ -19,6 +19,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
+import { usePageInsets } from "@/components/navigation/vertical-bar-safe-area";
 import { Colors, LIGHT_ACCENT_SCREEN_BACKGROUND } from "@/constants/theme";
 import { getAccentColorValue, useAppSettings } from "@/context/settings-store";
 import { useTaskCreateContext } from "@/context/task-create-context";
@@ -28,8 +29,11 @@ import {
   type SectionId,
   type Task,
 } from "@/context/tasks-store";
+import { useSnackbar } from "@/context/snackbar-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { formatDate, t } from "@/i18n";
+import { ripple } from "@/components/ui/ripple";
+import { m3InputProps } from '@/components/ui/m3-input';
 import {
   alignDueAtToLocalDay,
   deriveActiveSectionFromDueAt,
@@ -172,6 +176,7 @@ const formatComposerTimeLabel = (dueAt: number) => {
 };
 
 export default function CreateTaskModal() {
+  const { showSnackbar } = useSnackbar();
   const router = useRouter();
   const {
     projectId: projectIdParam,
@@ -187,6 +192,7 @@ export default function CreateTaskModal() {
   const theme = useColorScheme() ?? "light";
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
+  const pageInsets = usePageInsets();
   const isFocused = useIsFocused();
   const {
     projectId: focusedProjectId,
@@ -1240,10 +1246,16 @@ export default function CreateTaskModal() {
   const onCreate = React.useCallback(() => {
     setMenuExpanded(false);
     if (!hasTitle) {
-      Alert.alert(
-        t("taskCreate.titleMissingTitle"),
-        t("taskCreate.titleMissingBody"),
-      );
+      // A validation hint needs no decision from the user, so Android gets a
+      // snackbar rather than a modal dialog it has to dismiss.
+      if (Platform.OS === "android") {
+        showSnackbar({ message: t("taskCreate.titleMissingBody") });
+      } else {
+        Alert.alert(
+          t("taskCreate.titleMissingTitle"),
+          t("taskCreate.titleMissingBody"),
+        );
+      }
       return;
     }
     if (requiresRoutineInterval && !hasRoutineInterval) {
@@ -1375,6 +1387,7 @@ export default function CreateTaskModal() {
     setTasks,
     shouldPresetRoutine,
     trimmed,
+    showSnackbar,
   ]);
 
   const close = React.useCallback(() => {
@@ -1433,7 +1446,15 @@ export default function CreateTaskModal() {
   const sendTint = withAlpha(accentColorValue, isDark ? 0.88 : 0.78);
   const sendFallback = accentColorValue;
   const sendIconColor = "white";
-  const composerBottom = Math.max(14, insets.bottom - 16);
+  // iOS's home indicator inset (~34pt) already carries enough clearance that
+  // subtracting 16 still clears it. Android's gesture-nav/button-nav inset is
+  // much smaller, so the same formula left the composer sitting flush against
+  // the nav bar — add a full Material-style 16dp gap on top of the inset
+  // instead of eating into it.
+  const composerBottom =
+    Platform.OS === "android"
+      ? insets.bottom + 16
+      : Math.max(14, insets.bottom - 16);
   const menuBottom = 66;
   const lightBackdropGradient = React.useMemo(
     () =>
@@ -1448,7 +1469,10 @@ export default function CreateTaskModal() {
   return (
     <View style={styles.root}>
       <Pressable
-        style={styles.backdrop}
+        style={[
+          styles.backdrop,
+          { left: -pageInsets.leftInset, right: -pageInsets.rightInset },
+        ]}
         accessibilityRole="button"
         accessibilityLabel={t("taskCreate.close")}
         onPress={onBackdropPress}
@@ -1460,7 +1484,7 @@ export default function CreateTaskModal() {
             locations={[0, 0.56, 1]}
             start={{ x: 0.5, y: 0 }}
             end={{ x: 0.5, y: 1 }}
-            style={StyleSheet.absoluteFillObject}
+            style={StyleSheet.absoluteFill}
           />
         ) : null}
       </Pressable>
@@ -1493,6 +1517,7 @@ export default function CreateTaskModal() {
                 >
                   {actions.map((action) => (
                     <Pressable
+                      android_ripple={ripple()}
                       key={action.id}
                       accessibilityRole="button"
                       accessibilityLabel={action.title}
@@ -1560,6 +1585,7 @@ export default function CreateTaskModal() {
                 >
                   {actions.map((action) => (
                     <Pressable
+                      android_ripple={ripple()}
                       key={action.id}
                       accessibilityRole="button"
                       accessibilityLabel={action.title}
@@ -1603,6 +1629,7 @@ export default function CreateTaskModal() {
             <View style={styles.selectedTagsWrap}>
               {selectedTags.map((tag) => (
                 <Pressable
+                  android_ripple={ripple()}
                   key={tag.key}
                   accessibilityRole="button"
                   accessibilityLabel={tag.label}
@@ -1632,6 +1659,7 @@ export default function CreateTaskModal() {
                       </Text>
                       {tag.removable ? (
                         <Pressable
+                          android_ripple={ripple()}
                           accessibilityRole="button"
                           accessibilityLabel={t("common.removeTag", {
                             tag: tag.label,
@@ -1680,6 +1708,7 @@ export default function CreateTaskModal() {
                       </Text>
                       {tag.removable ? (
                         <Pressable
+                          android_ripple={ripple()}
                           accessibilityRole="button"
                           accessibilityLabel={t("common.removeTag", {
                             tag: tag.label,
@@ -1716,6 +1745,7 @@ export default function CreateTaskModal() {
             <View pointerEvents="none" style={styles.composerShadowLayer} />
             <View style={styles.composer}>
               <Pressable
+                android_ripple={ripple()}
                 accessibilityRole="button"
                 accessibilityLabel={
                   isMenuExpanded ? t("taskCreate.close") : t("taskCreate.more")
@@ -1779,6 +1809,7 @@ export default function CreateTaskModal() {
                   isInteractive
                 >
                   <TextInput
+                    {...m3InputProps()}
                     ref={(r) => {
                       inputRef.current = r;
                     }}
@@ -1809,6 +1840,7 @@ export default function CreateTaskModal() {
                   isInteractive
                 >
                   <TextInput
+                    {...m3InputProps()}
                     ref={(r) => {
                       inputRef.current = r;
                     }}
@@ -1833,6 +1865,7 @@ export default function CreateTaskModal() {
               )}
 
               <Pressable
+                android_ripple={ripple()}
                 onPress={onCreate}
                 disabled={!canSubmit}
                 accessibilityRole="button"
@@ -1896,7 +1929,7 @@ const createStyles = (theme: keyof typeof Colors) => {
       backgroundColor: "transparent",
     },
     backdrop: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       backgroundColor: isDark ? "rgba(0,0,0,0.58)" : "transparent",
     },
     keyboard: {

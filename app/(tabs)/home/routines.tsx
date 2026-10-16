@@ -1,8 +1,9 @@
+import { usePageDimensions } from "@/components/navigation/vertical-bar-safe-area";
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect } from "expo-router";
 import { useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
-import { NativeModules, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { NativeModules, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { FloatingAddButton } from '@/components/ui/floating-add-button';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
@@ -14,6 +15,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { countLabel, getIntlLocale, t } from '@/i18n';
 import { isIOS26OrNewer } from '@/utils/ios-version';
 import { hasValidDueAt } from '@/utils/task-dates';
+import { ripple, rippleClip } from '@/components/ui/ripple';
 
 type ThemeName = keyof typeof Colors;
 type RoutineStatsBucket = 'daily' | 'weekly' | 'monthlyPlus';
@@ -338,7 +340,7 @@ function StatTile({
 }
 
 export default function RoutinesScreen() {
-  const { width } = useWindowDimensions();
+  const { width } = usePageDimensions();
   const theme = useColorScheme() ?? 'light';
   const isDark = theme === 'dark';
   const compact = width < 390;
@@ -505,8 +507,10 @@ export default function RoutinesScreen() {
 
                 return (
                   <Pressable
+                    android_ripple={ripple()}
                     key={routine.id}
                     onPress={() => router.push(`/task/${routine.id}`)}
+                    style={rippleClip(24)}
                   >
                     <GlassSurface
                       style={styles.routineCard}

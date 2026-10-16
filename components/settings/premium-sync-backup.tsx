@@ -5,16 +5,16 @@ import { useRouter } from "expo-router";
 import React from "react";
 import {
   Alert,
-  Button,
   Platform,
   Share,
   StyleSheet,
-  Switch,
   Text,
   View,
 } from "react-native";
 
 import { type PremiumPlan } from "@/constants/premium";
+import { SettingsButton } from "@/components/ui/settings-button";
+import { SettingsSwitch } from "@/components/ui/settings-switch";
 import { Colors } from "@/constants/theme";
 import {
   TAG_ORDER,
@@ -66,6 +66,7 @@ type AppBackupPayload = {
   homeFilters: {
     enabledTags: TagId[];
     showTagIcons: boolean;
+    showProjectNames: boolean;
     showCompactSubtasks: boolean;
   };
   persistedValues: Record<string, string>;
@@ -77,6 +78,7 @@ const BACKUP_PERSISTED_KEYS = [
   "reminds.settings.v1",
   "reminds.homeFilters.tags",
   "reminds.homeFilters.tagIcons",
+  "reminds.homeFilters.projectNames",
   "reminds.homeFilters.compactSubtasks",
   "reminds.tasks.onboardingSeeded.v1",
   "reminds.home.onboarding.gestures.v1",
@@ -345,6 +347,10 @@ function parseBackupPayload(rawJson: string): AppBackupPayload {
         typeof homeFilters.showTagIcons === "boolean"
           ? homeFilters.showTagIcons
           : true,
+      showProjectNames:
+        typeof homeFilters.showProjectNames === "boolean"
+          ? homeFilters.showProjectNames
+          : false,
       showCompactSubtasks:
         typeof homeFilters.showCompactSubtasks === "boolean"
           ? homeFilters.showCompactSubtasks
@@ -384,6 +390,8 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
     setEnabledTags,
     showTagIcons,
     setShowTagIcons,
+    showProjectNames,
+    setShowProjectNames,
     showCompactSubtasks,
     setShowCompactSubtasks,
   } = useHomeFilters();
@@ -600,6 +608,7 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
         homeFilters: {
           enabledTags: TAG_ORDER.filter((tagId) => enabledTags.has(tagId)),
           showTagIcons,
+          showProjectNames,
           showCompactSubtasks,
         },
         persistedValues,
@@ -628,6 +637,7 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
     projects,
     reduceMotionEnabled,
     showCompactSubtasks,
+    showProjectNames,
     showTagIcons,
     tasks,
   ]);
@@ -666,6 +676,7 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
       const nextEnabledTags = new Set<TagId>(backup.homeFilters.enabledTags);
       setEnabledTags(() => nextEnabledTags);
       setShowTagIcons(backup.homeFilters.showTagIcons);
+      setShowProjectNames(backup.homeFilters.showProjectNames);
       setShowCompactSubtasks(backup.homeFilters.showCompactSubtasks);
 
       Alert.alert(
@@ -693,6 +704,7 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
     setProjects,
     setReduceMotionEnabled,
     setShowCompactSubtasks,
+    setShowProjectNames,
     setShowTagIcons,
     setTasks,
   ]);
@@ -763,11 +775,10 @@ export function PremiumCloudSyncBlock({
             {controller.effectiveCloudSyncEnabled ? t("common.active") : t("common.off")}
           </Text>
         </View>
-        <Switch
+        <SettingsSwitch
           value={Platform.OS === "ios" ? controller.cloudSyncEnabled : false}
           onValueChange={controller.onToggleCloudSync}
           disabled={blockDisabled || controller.isCloudSyncBusy}
-          trackColor={{ false: "#7A7A7A", true: "#34C759" }}
         />
       </View>
 
@@ -778,7 +789,7 @@ export function PremiumCloudSyncBlock({
       </Text>
 
       <View style={styles.buttonRow}>
-        <Button
+        <SettingsButton
           title={
             Platform.OS !== "ios"
               ? t("cloudSync.action.onlyMobileApple")
@@ -820,7 +831,7 @@ export function PremiumBackupBlock({
       </Text>
 
       <View style={styles.buttonStack}>
-        <Button
+        <SettingsButton
           title={
             controller.isExportingBackup
               ? t("backup.action.exporting")
@@ -833,7 +844,7 @@ export function PremiumBackupBlock({
             controller.isRestoringBackup
           }
         />
-        <Button
+        <SettingsButton
           title={
             controller.isRestoringBackup
               ? t("backup.action.restoring")

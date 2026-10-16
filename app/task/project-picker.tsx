@@ -4,7 +4,7 @@ import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { HeaderCloseButton } from '@/components/ui/header-close-button';
+import { useSheetHeaderActions } from '@/components/navigation/sheet-header-actions';
 import { withAlpha } from '@/components/ui/glass-surface';
 import { SFSymbol } from '@/components/ui/sfsymbol';
 import { usePremium } from '@/context/premium-store';
@@ -13,6 +13,7 @@ import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
 import { shouldRouteToProjectLimitGate } from '@/utils/project-creation-gate';
+import { ripple, rippleClip } from "@/components/ui/ripple";
 
 export default function ProjectPickerScreen() {
     const router = useRouter();
@@ -53,6 +54,7 @@ export default function ProjectPickerScreen() {
     const handleCancel = React.useCallback(() => {
         router.back();
     }, [router]);
+    const sheetHeaderActions = useSheetHeaderActions({ onClose: handleCancel });
 
     const handleCreateProject = React.useCallback(() => {
         // Navigate to create project modal
@@ -74,9 +76,7 @@ export default function ProjectPickerScreen() {
             <Stack.Screen
                 options={{
                     title: t('projectPicker.title'),
-                    headerLeft: () => (
-                        <HeaderCloseButton onPress={handleCancel} color={Colors[theme].text} />
-                    ),
+                    ...sheetHeaderActions,
                     headerShown: true,
                     headerStyle: {
                         backgroundColor: isDark ? '#000000' : '#F2F2F7',
@@ -93,8 +93,9 @@ export default function ProjectPickerScreen() {
                 >
                     {/* New Project Button */}
                     <Pressable
+                      android_ripple={ripple()}
                         onPress={handleCreateProject}
-                        style={[styles.optionRow, { marginBottom: 24, justifyContent: 'center' }]}
+                        style={[styles.optionRow, rippleClip(14), { marginBottom: 24, justifyContent: 'center' }]}
                     >
                         <MaterialIcons name="add" size={20} color={Colors[theme].tint} style={{ marginRight: 8 }} />
                         <Text style={[styles.optionLabel, { color: Colors[theme].tint }]}>{t('projectPicker.newProject')}</Text>
@@ -102,8 +103,9 @@ export default function ProjectPickerScreen() {
 
                     {/* No Project Option */}
                     <Pressable
+                      android_ripple={ripple()}
                         onPress={() => applyProjectSelectionAndClose(null)}
-                        style={[styles.optionRow, (selectedProjectId ?? null) === null && styles.optionRowActive]}
+                        style={[styles.optionRow, rippleClip(14), (selectedProjectId ?? null) === null && styles.optionRowActive]}
                     >
                         <View style={[styles.optionIcon, { backgroundColor: withAlpha(Colors[theme].text, isDark ? 0.15 : 0.1) }]}>
                             <MaterialIcons name="folder-off" size={20} color={withAlpha(Colors[theme].text, 0.6)} />
@@ -121,9 +123,10 @@ export default function ProjectPickerScreen() {
                         const isActive = selectedProjectId === p.id;
                         return (
                             <Pressable
+                              android_ripple={ripple()}
                                 key={p.id}
                                 onPress={() => applyProjectSelectionAndClose(p.id)}
-                                style={[styles.optionRow, isActive && styles.optionRowActive]}
+                                style={[styles.optionRow, rippleClip(14), isActive && styles.optionRowActive]}
                             >
                                 <View style={[styles.optionIcon, { backgroundColor: withAlpha(p.color, 0.15) }]}>
                                     {p.emoji ? (

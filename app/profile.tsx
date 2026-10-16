@@ -1,12 +1,14 @@
+import { useHeaderHeight } from "expo-router/react-navigation";
 import { useRouter } from "expo-router";
 import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View, Platform } from 'react-native';
 
 import { getPremiumPlanLabel } from "@/constants/premium";
 import { Colors } from "@/constants/theme";
 import { usePremium } from "@/context/premium-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
+import { ripple } from '@/components/ui/ripple';
 
 type ThemeName = keyof typeof Colors;
 
@@ -78,6 +80,7 @@ const createStyles = (theme: ThemeName) => {
 };
 
 export default function ProfileScreen() {
+  const headerHeight = useHeaderHeight();
   const router = useRouter();
   const theme = (useColorScheme() ?? "light") as ThemeName;
   const styles = React.useMemo(() => createStyles(theme), [theme]);
@@ -86,7 +89,11 @@ export default function ProfileScreen() {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[
+          styles.content,
+          // Header is transparent; iOS insets automatically, Android does not.
+          Platform.OS === "android" ? { paddingTop: headerHeight } : null,
+        ]}
       contentInsetAdjustmentBehavior="automatic"
       alwaysBounceVertical
       showsVerticalScrollIndicator={false}
@@ -114,6 +121,7 @@ export default function ProfileScreen() {
           </Text>
         </View>
         <Pressable
+          android_ripple={ripple()}
           accessibilityRole="button"
           onPress={() => router.push("/plus")}
           style={({ pressed }) => [

@@ -1,3 +1,4 @@
+import { usePageDimensions } from "@/components/navigation/vertical-bar-safe-area";
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import React from 'react';
 import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View, ViewStyle } from 'react-native';
@@ -89,7 +90,7 @@ export function FloatingAddPillButton({
 }: PillProps) {
   const theme = useColorScheme() ?? 'light';
   const insets = useSafeAreaInsets();
-  const { width: screenWidth } = useWindowDimensions();
+  const { width: screenWidth } = usePageDimensions();
 
   const resolvedTabBarHeight =
     tabBarHeight ?? Platform.select({ ios: DEFAULT_TAB_BAR_HEIGHT.ios, android: DEFAULT_TAB_BAR_HEIGHT.android, default: 0 });

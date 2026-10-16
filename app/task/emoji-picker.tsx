@@ -1,14 +1,17 @@
+import { usePageDimensions } from "@/components/navigation/vertical-bar-safe-area";
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { HeaderCloseButton } from '@/components/ui/header-close-button';
+import { useSheetHeaderActions } from '@/components/navigation/sheet-header-actions';
 import { withAlpha } from '@/components/ui/glass-surface';
 import { Colors } from '@/constants/theme';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
+import { ripple } from "@/components/ui/ripple";
+import { m3InputProps } from '@/components/ui/m3-input';
 import {
     filterTaskStyleEmojiOptions,
     TASK_STYLE_COLOR_SWATCHES,
@@ -17,7 +20,7 @@ import {
 export default function EmojiPickerScreen() {
     const router = useRouter();
     const { taskId } = useLocalSearchParams<{ taskId: string }>();
-    const { width: windowWidth } = useWindowDimensions();
+    const { width: windowWidth } = usePageDimensions();
     const theme = useColorScheme() ?? 'light';
     const isDark = theme === 'dark';
     const styles = React.useMemo(() => createStyles(theme), [theme]);
@@ -38,7 +41,8 @@ export default function EmojiPickerScreen() {
         const minTileSize = 56;
         const availableWidth = Math.max(0, windowWidth - horizontalPadding);
         const computedColumns = Math.floor((availableWidth + gridGap) / (minTileSize + gridGap));
-        const columns = Math.max(4, computedColumns);
+        // Even column counts keep a vertical fold (iPhone Duo) between tiles.
+        const columns = Math.max(4, computedColumns - (computedColumns % 2));
 
         return {
             emojiColumns: columns,
@@ -63,15 +67,14 @@ export default function EmojiPickerScreen() {
     const handleCancel = React.useCallback(() => {
         router.back();
     }, [router]);
+    const sheetHeaderActions = useSheetHeaderActions({ onClose: handleCancel });
 
     return (
         <View style={styles.container}>
             <Stack.Screen
                 options={{
                     title: t('emojiPicker.title'),
-                    headerLeft: () => (
-                        <HeaderCloseButton onPress={handleCancel} color={Colors[theme].text} />
-                    ),
+                    ...sheetHeaderActions,
                     headerShown: true,
                     headerStyle: {
                         backgroundColor: isDark ? '#000000' : '#F2F2F7',
@@ -88,6 +91,7 @@ export default function EmojiPickerScreen() {
                     keyExtractor={(item) => item.emoji}
                     renderItem={({ item }) => (
                         <Pressable
+                          android_ripple={ripple()}
                             onPress={() => applyStyleAndClose(item.emoji, selectedColor)}
                             accessibilityLabel={`${item.emoji} ${item.label}`}
                             style={[
@@ -112,6 +116,7 @@ export default function EmojiPickerScreen() {
                             <View style={styles.colorGrid}>
                                 {TASK_STYLE_COLOR_SWATCHES.map((color) => (
                                     <Pressable
+                                      android_ripple={ripple()}
                                         key={color}
                                         onPress={() => applyStyleAndClose(selectedEmoji, color)}
                                         style={[
@@ -125,6 +130,7 @@ export default function EmojiPickerScreen() {
 
                             {selectedColor && (
                                 <Pressable
+                                  android_ripple={ripple()}
                                     onPress={() => applyStyleAndClose(selectedEmoji, undefined)}
                                     style={styles.resetButton}
                                 >
@@ -135,6 +141,7 @@ export default function EmojiPickerScreen() {
                             <Text style={[styles.sectionTitle, styles.emojiSectionTitle]}>{t('emojiPicker.emoji')}</Text>
                             <View style={styles.searchShell}>
                                 <TextInput
+                                  {...m3InputProps()}
                                     value={query}
                                     onChangeText={setQuery}
                                     placeholder={t('emojiPicker.searchPlaceholder')}

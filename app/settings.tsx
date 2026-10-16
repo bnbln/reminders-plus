@@ -3,6 +3,9 @@ import {
   APP_BADGE_MODES,
   type AppBadgeMode,
   APPEARANCE_MODES,
+  getAccentColorValue,
+  IS_MATERIAL_YOU_SUPPORTED,
+  MATERIAL_YOU_ACCENT_ID,
   useAppSettings,
 } from "@/context/settings-store";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
@@ -12,20 +15,18 @@ import DateTimePicker, {
 import {
   type MenuAction,
   type MenuComponentRef,
-  MenuView,
 } from "@react-native-menu/menu";
-import SegmentedControl from "@react-native-segmented-control/segmented-control";
-import * as Calendar from "expo-calendar";
+import { SegmentedControl } from "@/components/ui/segmented-control";
+import * as Calendar from "expo-calendar/legacy";
+import { useHeaderHeight } from "expo-router/react-navigation";
 import { useRouter } from "expo-router";
 import React from "react";
 import {
   Alert,
-  Button,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   View,
   type ViewStyle,
@@ -45,8 +46,18 @@ import {
   useTasksStore,
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { t } from "@/i18n";
+import { type AppLocale, t } from "@/i18n";
+import {
+  assistCopyKey,
+  IS_CLOUD_SYNC_SUPPORTED,
+} from "@/utils/assist-availability";
+import { DropdownMenu } from "@/components/ui/dropdown-menu";
+import { SettingsButton } from "@/components/ui/settings-button";
+import { SettingsSwitch } from "@/components/ui/settings-switch";
+import { useStreakCelebration } from "@/context/streak-celebration-store";
+import { localizeExistingOnboardingSeedData } from "@/storage/tasks-onboarding-seed";
 import { deriveActiveSectionFromDueAt } from "@/utils/task-dates";
+import { ripple } from "@/components/ui/ripple";
 
 const APPEARANCE_LABEL_KEYS = [
   "settings.appearance.option.adaptive",
@@ -63,6 +74,39 @@ const APP_BADGE_LABEL_KEYS: Record<AppBadgeMode, string> = {
 };
 
 const SHOW_APPLE_IMPORT_SECTION = false;
+
+const DEV_LANGUAGE_OPTIONS: readonly {
+  id: "system" | AppLocale;
+  locale: AppLocale | null;
+  label: string;
+}[] = [
+  { id: "system", locale: null, label: "System" },
+  { id: "de", locale: "de", label: "Deutsch" },
+  { id: "en", locale: "en", label: "English" },
+  { id: "es", locale: "es", label: "Espanol" },
+  { id: "fr", locale: "fr", label: "Francais" },
+  { id: "pt", locale: "pt", label: "Portugues" },
+  { id: "hi", locale: "hi", label: "Hindi" },
+  { id: "zh", locale: "zh", label: "Chinese" },
+  { id: "ja", locale: "ja", label: "Japanese" },
+  { id: "it", locale: "it", label: "Italian" },
+  { id: "sv", locale: "sv", label: "Swedish" },
+  { id: "da", locale: "da", label: "Danish" },
+  { id: "fi", locale: "fi", label: "Finnish" },
+  { id: "pl", locale: "pl", label: "Polish" },
+  { id: "nl", locale: "nl", label: "Dutch" },
+  { id: "tr", locale: "tr", label: "Turkish" },
+  { id: "cs", locale: "cs", label: "Czech" },
+  { id: "hu", locale: "hu", label: "Hungarian" },
+  { id: "ro", locale: "ro", label: "Romanian" },
+  { id: "el", locale: "el", label: "Greek" },
+  { id: "id", locale: "id", label: "Indonesian" },
+  { id: "vi", locale: "vi", label: "Vietnamese" },
+  { id: "ko", locale: "ko", label: "Korean" },
+  { id: "uk", locale: "uk", label: "Ukrainian" },
+  { id: "ru", locale: "ru", label: "Russian" },
+  { id: "ar", locale: "ar", label: "Arabic" },
+] as const;
 
 function isAppBadgeMode(value: unknown): value is AppBadgeMode {
   return APP_BADGE_MODES.some((mode) => mode === value);
@@ -117,37 +161,59 @@ function Section({
 }) {
   return (
     <View style={{ gap: 8 }}>
-      <Text style={styles.sectionTitle}>{title}</Text>
+      <Text accessibilityRole="header" style={styles.sectionTitle}>
+        {title}
+      </Text>
       <View style={[styles.sectionCard, cardStyle]}>{children}</View>
     </View>
   );
 }
 
 export default function SettingsScreen() {
+  const headerHeight = useHeaderHeight();
   const router = useRouter();
   const theme = (useColorScheme() ?? "light") as ThemeName;
   const isDark = theme === "dark";
   const menuRef = React.useRef<MenuComponentRef>(null);
+  const devLanguageMenuRef = React.useRef<MenuComponentRef>(null);
   const { tasks, setTasks, projects, setProjects } = useTasksStore();
   const {
     accentColor,
     appearanceMode,
     hapticsEnabled,
-    reduceMotionEnabled,
+    reduceMotionPreference,
+    streakCelebrationEnabled,
+    localeOverride,
     appBadgeMode,
     dailySummaryEnabled,
     dailySummaryMinutes,
+    fakeStatsEnabled,
     setAccentColor,
     setAppearanceMode,
     setHapticsEnabled,
     setReduceMotionEnabled,
+    setStreakCelebrationEnabled,
+    setLocaleOverride,
     setAppBadgeMode,
     setDailySummaryEnabled,
     setDailySummaryMinutes,
+    setFakeStatsEnabled,
   } = useAppSettings();
+  const { playPreview: playStreakCelebrationPreview } = useStreakCelebration();
   const premiumController = usePremiumSyncBackupController();
   const remindersPlusDisabled =
     !premiumController.isPremiumReady || !premiumController.hasPremiumAccess;
+
+  const isMaterialYouSelected = accentColor === MATERIAL_YOU_ACCENT_ID;
+  const materialYouAccentValue = React.useMemo(
+    () =>
+      IS_MATERIAL_YOU_SUPPORTED
+        ? getAccentColorValue(MATERIAL_YOU_ACCENT_ID)
+        : undefined,
+    // `isDark` isn't read directly, but the Material You scheme depends on
+    // the resolved theme the same way `theme` below does — recompute together.
+    [isDark],
+  );
 
   const dailySummaryTime = React.useMemo(() => {
     const initial = new Date();
@@ -187,6 +253,24 @@ export default function SettingsScreen() {
     () => APPEARANCE_LABEL_KEYS.map((key) => t(key)),
     [],
   );
+  const devLanguageActions = React.useMemo<MenuAction[]>(() => {
+    return DEV_LANGUAGE_OPTIONS.map((option) => ({
+      id: option.id,
+      title: option.label,
+      state:
+        Platform.OS === "ios"
+          ? localeOverride === option.locale
+            ? "on"
+            : "off"
+          : undefined,
+    }));
+  }, [localeOverride]);
+  const selectedDevLanguageLabel = React.useMemo(() => {
+    return (
+      DEV_LANGUAGE_OPTIONS.find((option) => option.locale === localeOverride)
+        ?.label ?? "System"
+    );
+  }, [localeOverride]);
 
   const onPressBadgeAction = React.useCallback(
     ({ nativeEvent: { event } }: any) => {
@@ -203,6 +287,29 @@ export default function SettingsScreen() {
       setAppearanceMode(next);
     },
     [setAppearanceMode],
+  );
+
+  const onPressDevLanguageAction = React.useCallback(
+    ({ nativeEvent: { event } }: any) => {
+      const nextOption =
+        DEV_LANGUAGE_OPTIONS.find((option) => option.id === event) ?? null;
+      if (!nextOption || localeOverride === nextOption.locale) return;
+
+      setLocaleOverride(nextOption.locale);
+      const localized = localizeExistingOnboardingSeedData(tasks, projects);
+      if (localized.changed) {
+        setProjects(localized.projects);
+        setTasks(localized.tasks);
+      }
+    },
+    [
+      localeOverride,
+      projects,
+      setLocaleOverride,
+      setProjects,
+      setTasks,
+      tasks,
+    ],
   );
 
   const onChangeSummaryTime = React.useCallback(
@@ -525,7 +632,11 @@ export default function SettingsScreen() {
     <View style={{ flex: 1, backgroundColor: "transparent" }}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          // Header is transparent; iOS insets automatically, Android does not.
+          Platform.OS === "android" ? { paddingTop: headerHeight } : null,
+        ]}
         contentInsetAdjustmentBehavior="automatic"
         alwaysBounceVertical
         showsVerticalScrollIndicator={false}
@@ -546,18 +657,25 @@ export default function SettingsScreen() {
           <View style={[styles.separator, { backgroundColor: borderColor }]} />
 
           <Text style={[styles.helperText, { color: muted }]}>
-            {t("settings.remindsPlus.helper")}
+            {t(assistCopyKey("settings.remindsPlus.helper"))}
           </Text>
 
-          <View style={[styles.separator, { backgroundColor: borderColor }]} />
+          {/* Cloud Sync is CloudKit-only; hidden rather than shown disabled. */}
+          {IS_CLOUD_SYNC_SUPPORTED ? (
+            <>
+              <View
+                style={[styles.separator, { backgroundColor: borderColor }]}
+              />
 
-          <PremiumCloudSyncBlock
-            controller={premiumController}
-            theme={theme}
-            borderColor={borderColor}
-            muted={muted}
-            disabled={remindersPlusDisabled}
-          />
+              <PremiumCloudSyncBlock
+                controller={premiumController}
+                theme={theme}
+                borderColor={borderColor}
+                muted={muted}
+                disabled={remindersPlusDisabled}
+              />
+            </>
+          ) : null}
 
           <View style={[styles.separator, { backgroundColor: borderColor }]} />
 
@@ -572,7 +690,8 @@ export default function SettingsScreen() {
           <View style={[styles.separator, { backgroundColor: borderColor }]} />
 
           <View style={styles.buttonRow}>
-            <Button
+            <SettingsButton
+              variant="filled"
               title={
                 premiumController.hasPremiumAccess
                   ? t("settings.remindsPlus.action.showOptions")
@@ -600,9 +719,12 @@ export default function SettingsScreen() {
                 const selected = accentColor === color.id;
                 return (
                   <Pressable
+                    android_ripple={ripple()}
                     key={color.id}
                     accessibilityRole="button"
                     accessibilityLabel={color.label}
+                    accessibilityState={{ selected }}
+                    hitSlop={7}
                     onPress={() => setAccentColor(color.id)}
                     style={[
                       styles.colorButton,
@@ -623,6 +745,34 @@ export default function SettingsScreen() {
                   </Pressable>
                 );
               })}
+              {IS_MATERIAL_YOU_SUPPORTED ? (
+                <Pressable
+                  android_ripple={ripple()}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("settings.appearance.materialYou")}
+                  accessibilityState={{ selected: isMaterialYouSelected }}
+                  hitSlop={7}
+                  onPress={() => setAccentColor(MATERIAL_YOU_ACCENT_ID)}
+                  style={[
+                    styles.colorButton,
+                    {
+                      backgroundColor: materialYouAccentValue,
+                      borderColor: isMaterialYouSelected
+                        ? Colors[theme].text
+                        : isDark
+                          ? "rgba(255,255,255,0.24)"
+                          : "rgba(17,24,28,0.18)",
+                      borderWidth: isMaterialYouSelected ? 2 : 1,
+                    },
+                  ]}
+                >
+                  <MaterialIcons
+                    name={isMaterialYouSelected ? "check" : "auto-awesome"}
+                    size={14}
+                    color="#fff"
+                  />
+                </Pressable>
+              ) : null}
             </View>
           </View>
 
@@ -645,7 +795,7 @@ export default function SettingsScreen() {
         {SHOW_APPLE_IMPORT_SECTION ? (
           <Section title={t("settings.section.import")} cardStyle={sectionCardStyle}>
             <View style={styles.buttonRow}>
-              <Button
+              <SettingsButton
                 title={
                   isImportingAppleData
                     ? t("settings.import.action.loading")
@@ -664,7 +814,7 @@ export default function SettingsScreen() {
               {t("settings.badge.title")}
             </Text>
 
-            <MenuView
+            <DropdownMenu
               ref={menuRef}
               actions={appBadgeActions}
               onPressAction={onPressBadgeAction}
@@ -673,39 +823,17 @@ export default function SettingsScreen() {
               isAnchoredToRight={Platform.OS === "android" ? true : undefined}
               style={styles.badgeMenuAnchor}
             >
-              {Platform.OS === "android" ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={t("settings.badge.select")}
-                  onPress={() => menuRef.current?.show?.()}
-                  style={styles.badgeMenuTrigger}
-                >
-                  <Text
-                    style={[styles.badgeValue, { color: Colors[theme].text }]}
-                  >
-                    {t(APP_BADGE_LABEL_KEYS[appBadgeMode])}
-                  </Text>
-                  <MaterialIcons
-                    name="keyboard-arrow-down"
-                    size={18}
-                    color={muted}
-                  />
-                </Pressable>
-              ) : (
-                <View style={styles.badgeMenuTrigger}>
-                  <Text
-                    style={[styles.badgeValue, { color: Colors[theme].text }]}
-                  >
-                    {t(APP_BADGE_LABEL_KEYS[appBadgeMode])}
-                  </Text>
-                  <MaterialIcons
-                    name="keyboard-arrow-down"
-                    size={18}
-                    color={muted}
-                  />
-                </View>
-              )}
-            </MenuView>
+              <View style={styles.badgeMenuTrigger}>
+                <Text style={[styles.badgeValue, { color: Colors[theme].text }]}>
+                  {t(APP_BADGE_LABEL_KEYS[appBadgeMode])}
+                </Text>
+                <MaterialIcons
+                  name="keyboard-arrow-down"
+                  size={18}
+                  color={muted}
+                />
+              </View>
+            </DropdownMenu>
           </View>
 
           <View style={[styles.separator, { backgroundColor: borderColor }]} />
@@ -714,13 +842,13 @@ export default function SettingsScreen() {
             <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
               {t("settings.notifications.dailySummary")}
             </Text>
-            <Switch
+            <SettingsSwitch
+              accessibilityLabel={t("settings.notifications.dailySummary")}
               value={dailySummaryEnabled}
               onValueChange={(enabled) => {
                 setDailySummaryEnabled(enabled);
                 if (!enabled) setShowDailySummaryPicker(false);
               }}
-              trackColor={{ false: "#7A7A7A", true: "#34C759" }}
             />
           </View>
 
@@ -736,7 +864,15 @@ export default function SettingsScreen() {
               {t("common.time")}
             </Text>
             <Pressable
+              android_ripple={ripple()}
               disabled={!dailySummaryEnabled}
+              accessibilityRole="button"
+              accessibilityLabel={`${t("a11y.settings.dailySummaryTime")}: ${formatTime(dailySummaryTime)}`}
+              accessibilityState={{
+                disabled: !dailySummaryEnabled,
+                expanded: showDailySummaryPicker,
+              }}
+              hitSlop={8}
               onPress={() => setShowDailySummaryPicker((current) => !current)}
               style={styles.timeButton}
             >
@@ -777,10 +913,10 @@ export default function SettingsScreen() {
             <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
               {t("settings.interactions.haptics")}
             </Text>
-            <Switch
+            <SettingsSwitch
+              accessibilityLabel={t("settings.interactions.haptics")}
               value={hapticsEnabled}
               onValueChange={setHapticsEnabled}
-              trackColor={{ false: "#7A7A7A", true: "#34C759" }}
             />
           </View>
 
@@ -790,13 +926,111 @@ export default function SettingsScreen() {
             <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
               {t("settings.interactions.reduceMotion")}
             </Text>
-            <Switch
-              value={reduceMotionEnabled}
+            <SettingsSwitch
+              accessibilityLabel={t("settings.interactions.reduceMotion")}
+              value={reduceMotionPreference}
               onValueChange={setReduceMotionEnabled}
-              trackColor={{ false: "#7A7A7A", true: "#34C759" }}
             />
           </View>
+
+          <View style={[styles.separator, { backgroundColor: borderColor }]} />
+
+          <View style={styles.switchRow}>
+            <View style={styles.switchLabelWrap}>
+              <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
+                {t("settings.interactions.streakCelebration")}
+              </Text>
+              <Text style={[styles.helperInlineText, { color: muted }]}>
+                {t("settings.interactions.streakCelebrationHint")}
+              </Text>
+            </View>
+            <SettingsSwitch
+              accessibilityLabel={t("settings.interactions.streakCelebration")}
+              value={streakCelebrationEnabled}
+              onValueChange={setStreakCelebrationEnabled}
+            />
+          </View>
+
+          <View style={[styles.separator, { backgroundColor: borderColor }]} />
+
+          <Pressable
+            android_ripple={ripple()}
+            accessibilityRole="button"
+            accessibilityLabel={t("settings.interactions.streakCelebrationPreview")}
+            onPress={playStreakCelebrationPreview}
+            style={styles.linkRow}
+          >
+            <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
+              {t("settings.interactions.streakCelebrationPreview")}
+            </Text>
+            <MaterialIcons name="local-fire-department" size={22} color="#FF7A1F" />
+          </Pressable>
         </Section>
+
+        <Section title={t("settings.section.legal")} cardStyle={sectionCardStyle}>
+          <Pressable
+            android_ripple={ripple()}
+            accessibilityRole="button"
+            accessibilityLabel={t("settings.legal.open")}
+            onPress={() => router.push("/legal" as never)}
+            style={styles.linkRow}
+          >
+            <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
+              {t("settings.legal.open")}
+            </Text>
+            <MaterialIcons name="chevron-right" size={22} color={muted} />
+          </Pressable>
+        </Section>
+
+        {__DEV__ ? (
+          <Section title="Developer" cardStyle={sectionCardStyle}>
+            <View style={styles.rowBlock}>
+              <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
+                App Language
+              </Text>
+
+              <DropdownMenu
+                ref={devLanguageMenuRef}
+                actions={devLanguageActions}
+                onPressAction={onPressDevLanguageAction}
+                shouldOpenOnLongPress={false}
+                themeVariant={Platform.OS === "ios" ? theme : undefined}
+                isAnchoredToRight={Platform.OS === "android" ? true : undefined}
+                style={styles.badgeMenuAnchor}
+              >
+                <View style={styles.badgeMenuTrigger}>
+                  <Text
+                    style={[styles.badgeValue, { color: Colors[theme].text }]}
+                  >
+                    {selectedDevLanguageLabel}
+                  </Text>
+                  <MaterialIcons
+                    name="keyboard-arrow-down"
+                    size={18}
+                    color={muted}
+                  />
+                </View>
+              </DropdownMenu>
+            </View>
+
+            <View style={[styles.separator, { backgroundColor: borderColor }]} />
+
+            <View style={styles.switchRow}>
+              <View style={styles.switchLabelWrap}>
+                <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
+                  Fake Stats (Screenshots)
+                </Text>
+                <Text style={[styles.helperInlineText, { color: muted }]}>
+                  Uses simulated streak and status history for App Store screenshots.
+                </Text>
+              </View>
+              <SettingsSwitch
+                value={fakeStatsEnabled}
+                onValueChange={setFakeStatsEnabled}
+              />
+            </View>
+          </Section>
+        ) : null}
 
         {/* <View
         style={[
@@ -830,7 +1064,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     letterSpacing: 0.2,
-    color: "#6B7280",
+    color: "#5B6270",
     paddingHorizontal: 2,
   },
   sectionCard: {
@@ -844,6 +1078,14 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   switchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  linkRow: {
+    minHeight: 48,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
