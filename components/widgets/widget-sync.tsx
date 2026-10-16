@@ -37,7 +37,7 @@ function getWidgets(): WidgetsModule | null {
  * Renders nothing — mount it once inside `TasksProvider`.
  */
 export function WidgetSync() {
-  const { tasks, projects, completionHistory, setTasks } = useTasksStore();
+  const { tasks, projects, completionHistory, setTasks, hasHydrated } = useTasksStore();
   const { accentColor } = useAppSettings();
   const accent = getAccentColorValue(accentColor);
 
@@ -118,12 +118,15 @@ export function WidgetSync() {
     }
   }, [completeTasks]);
 
-  // Push a new timeline whenever the data behind the widgets changes.
+  // Push a new timeline whenever the data behind the widgets changes. A push
+  // clears the widget's `doneIds`, so hold it until the store has hydrated and
+  // the first drain has adopted those taps (`pushRequest` > 0); otherwise a cold
+  // start would wipe completions that could not be applied to an empty store.
   React.useEffect(() => {
-    if (!IS_SUPPORTED) return;
+    if (!IS_SUPPORTED || !hasHydrated || pushRequest === 0) return;
     const handle = setTimeout(push, PUSH_DEBOUNCE_MS);
     return () => clearTimeout(handle);
-  }, [accent, completionHistory, projects, push, pushRequest, tasks]);
+  }, [accent, completionHistory, hasHydrated, projects, push, pushRequest, tasks]);
 
   // A tap in the widget while the app is alive: complete it right away.
   React.useEffect(() => {
@@ -138,15 +141,16 @@ export function WidgetSync() {
     return () => subscription.remove();
   }, [completeTasks]);
 
-  // …and taps that happened while it was not.
+  // …and taps that happened while it was not. Wait for the store to hydrate:
+  // before that `tasks` is empty and every completion would be dropped.
   React.useEffect(() => {
-    if (!IS_SUPPORTED) return;
+    if (!IS_SUPPORTED || !hasHydrated) return;
     void drainWidgetCompletions();
     const subscription = AppState.addEventListener('change', (state) => {
       if (state === 'active') void drainWidgetCompletions();
     });
     return () => subscription.remove();
-  }, [drainWidgetCompletions]);
+  }, [drainWidgetCompletions, hasHydrated]);
 
   return null;
 }
