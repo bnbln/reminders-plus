@@ -264,6 +264,11 @@ export type TaskSwipeDraggableListProps = {
   syncDataDuringDrag?: boolean;
   /** Disable internal list layout animations when parent drives its own transition. */
   animateDataLayoutChanges?: boolean;
+  /**
+   * Let a Reanimated layout transition apply the reordered cell positions and
+   * the reset of the drag offsets in the same frame (drop flicker prototype).
+   */
+  dropLayoutHandoff?: boolean;
   /** Optional section reveal progress (0..1 expanded) for staggered task entry animation. */
   revealProgress?: Animated.Value | Animated.AnimatedInterpolation<number>;
   revealPhase?: 'enter' | 'exit';
@@ -329,6 +334,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     sortByOrderRank,
     syncDataDuringDrag = true,
     animateDataLayoutChanges = true,
+    dropLayoutHandoff = false,
     revealProgress,
     revealPhase = 'enter',
     revealStaggerStep = 0.055,
@@ -1423,6 +1429,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       autoscrollSpeed={LIST_AUTOSCROLL_SPEED}
       animationConfig={reduceMotionEnabled ? undefined : LIST_ANIMATION_CONFIG}
       dragItemOverflow
+      dropLayoutHandoff={dropLayoutHandoff}
       onDragBegin={handleDragBegin}
       onPlaceholderIndexChange={(index) => {
         placeholderIndexRef.current = index;

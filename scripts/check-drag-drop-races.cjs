@@ -10,7 +10,8 @@ const start = list.indexOf('  const dataKeys =');
 assert(start >= 0, 'Expected commit-scoped data reset patch');
 const end = list.indexOf('\n  useEffect(', start);
 const evaluateReset = new Function('props', 'keyExtractor', 'useRef', 'useLayoutEffect',
-  'globalThis', 'setTimeout', 'reset', 'activeKey', list.slice(start, end) + '\nreturn activeKey;');
+  'globalThis', 'setTimeout', 'reset', 'activeKey', 'dropHandoffActive', 'scheduleDropHandoffDetach',
+  list.slice(start, end) + '\nreturn activeKey;');
 let ref, effects, idle = [], resets = 0, active = null;
 function commit(keys) {
   effects = [];
@@ -19,7 +20,7 @@ function commit(keys) {
     callback => effects.push(callback),
     {requestIdleCallback: callback => idle.push(callback)},
     callback => idle.push(callback),
-    () => { resets++; active = null; }, active);
+    () => { resets++; active = null; }, active, false, () => {});
   effects.forEach(callback => callback());
   return rendered;
 }
@@ -116,10 +117,10 @@ assert(indexCommitCallback,'Index layout effect not found');
 const lastIndex={current:0}, nativeWrites=[]; let syncCalls=0;
 held.value=80;
 const commitIndex = new Function('lastIndexRef','index','isWeb','runOnUISync',
-  'heldTanslate','setNativeProps','viewRef','horizontalAnim',
+  'heldTanslate','setNativeProps','viewRef','horizontalAnim','handoffMode',
   'return ('+cell.slice(indexCommitCallback.start,indexCommitCallback.end)+');')
   (lastIndex,1,false,fn=>{syncCalls++;fn();},held,
-   (_ref,style)=>nativeWrites.push(style),{}, {value:false});
+   (_ref,style)=>nativeWrites.push(style),{}, {value:false}, false);
 commitIndex();
 assert.equal(held.value,0);
 assert.equal(syncCalls,1);
@@ -128,3 +129,51 @@ held.value=10;
 commitIndex();
 assert.equal(held.value,10,'An unchanged index must not reset a new drag');
 console.log('PASS: index commit synchronously clears retained and native transforms once');
+
+// Drop handoff transition: holds old position + old offset in the mount frame,
+// then moves position and offset together; disarmed cells jump immediately.
+let handoffFactory;
+traverse(parser.parse(cell,{sourceType:'module',plugins:['typescript','jsx']}), {
+  VariableDeclarator(path) {
+    if (path.node.id.name === 'dropHandoffTransition') handoffFactory = path.node.init.arguments[0];
+  }
+});
+assert(handoffFactory, 'Drop handoff transition not found');
+const handoffSource = cell.slice(handoffFactory.start, handoffFactory.end)
+  .replace('<LayoutAnimationFunction>', '').replace(/\(to: number\)/g, '(to)');
+const timing = (to, cfg) => ({kind:'timing', to, duration: cfg.duration});
+const delay = (ms, a) => ({kind:'delay', ms, a});
+const sequence = (...a) => ({kind:'sequence', a});
+const finalOf = a => a.kind === 'timing' ? a.to : a.kind === 'delay' ? finalOf(a.a) : finalOf(a.a[a.a.length-1]);
+const firstStepOf = a => a.kind === 'sequence' ? firstStepOf(a.a[0]) : a;
+const makeTransition = (heldValue, armed) => {
+  const heldSv = {value: heldValue}, armedSv = {value: armed};
+  const fn = new Function('heldTanslate','handoffArmed','horizontalAnim','withTiming','withDelay',
+    'withSequence','DROP_HANDOFF_HOLD_MS','return ('+handoffSource+')();')
+    (heldSv, armedSv, {value:false}, timing, delay, sequence, 150);
+  return {fn, heldSv, armedSv};
+};
+const values = {currentOriginX:0,currentOriginY:60,currentWidth:300,currentHeight:54,
+  targetOriginX:0,targetOriginY:0,targetWidth:300,targetHeight:54};
+{
+  const {fn, heldSv, armedSv} = makeTransition(-60, true);
+  const r = fn(values);
+  assert.equal(r.initialValues.originY, 60, 'Mount frame keeps the old position');
+  assert.deepEqual(r.initialValues.transform, [{translateY:-60}], 'Mount frame keeps the old offset');
+  assert.equal(finalOf(r.animations.originY), 0);
+  assert.equal(finalOf(r.animations.transform[0].translateY), 0);
+  const a = firstStepOf(r.animations.originY), b = firstStepOf(r.animations.transform[0].translateY);
+  assert.equal(a.kind, 'delay'); assert.deepEqual(a, {...b, a: {...b.a, to: a.a.to}},
+    'Position and offset must change on the same step');
+  assert.equal(heldSv.value, 0, 'Retained offset is cleared for the animated style');
+  assert.equal(armedSv.value, false, 'Handoff is consumed once');
+  assert.equal(fn(values).initialValues.originY, 0, 'A second layout change jumps directly');
+}
+{
+  const {fn, heldSv} = makeTransition(-60, false);
+  const r = fn(values);
+  assert.equal(r.initialValues.originY, 0, 'Layout changes during a drag are not held');
+  assert.equal(r.initialValues.transform, undefined);
+  assert.equal(heldSv.value, -60, 'A running drag keeps its offset');
+}
+console.log('PASS: drop handoff moves position and offset in one step, only once after a drag');

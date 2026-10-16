@@ -4768,6 +4768,7 @@ function HomeContent() {
         renderMode="auto"
         syncDataDuringDrag={false}
         animateDataLayoutChanges={false}
+        dropLayoutHandoff
         revealProgress={homeTaskListRevealProgress}
         revealPhase={homeTaskListRevealPhase}
         revealStaggerStep={0.035}
