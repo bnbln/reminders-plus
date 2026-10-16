@@ -75,3 +75,15 @@ Der Widget-Persistenzpatch ist auf `patches/expo-widgets+58.0.12.patch` übertra
 Prüfung: Expo-Abhängigkeiten aktuell; TypeScript erfolgreich; iOS-/Android-JS-Export erfolgreich; Release-iOS-Build einschließlich Widget-Target erfolgreich. Expo Doctor besteht 19 von 20 Prüfungen: die verbleibende Warnung betrifft die bewusst manuell gepflegte native Konfiguration. Vollständiger Repository-Lint hat bekannte Altbefunde; gezielter Lint der neuen Workspace-Dateien hat keine Fehler. Simulator-Details siehe [task-split-view-implementation.md](task-split-view-implementation.md).
 
 58.0.3 liegt bei npm unter `next`, während `latest` weiterhin 57.0.26 ist (live geprüft am 3. Oktober). React Native bleibt RC. Dieses Update wird deshalb nicht als vollständig stabile SDK-Kombination bezeichnet.
+
+## Aktualisierung 16. Oktober 2026: offizieller Release
+
+Expo SDK 58 wurde am 15. Oktober veröffentlicht. Die final geprüfte Kombination wird jetzt im Checkout gespeichert: Expo `~58.0.13`, React Native `0.88.0`, Router `~58.0.22`, Screens `~4.30.0`, Safe Area Context `~5.10.1`, Gesture Handler `~3.3.0`, Reanimated `4.7.1` sowie UI/Widgets `~58.0.20`. Die weiteren Expo-Pakete folgen dem SDK-Abgleich; React bleibt `19.3.0`.
+
+Die Peer-Auflösung funktioniert ohne die Beta-Ausnahme; `.npmrc` setzt nun `legacy-peer-deps=false`. Der weiterhin nötige Widget-Speicherpatch ist als `patches/expo-widgets+58.0.20.patch` gespeichert. Die RN-TypeScript-Übergangsbedingung bleibt: Ohne sie scheitert die Prüfung weiterhin mit 69 Typfehlern.
+
+Die finale Paketkombination bestand in einer temporären Kopie Paketabgleich, Patch-Anwendung, TypeScript und iOS-JavaScript-Export; Expo Doctor meldete allein den bekannten Hinweis zum manuell gepflegten nativen Projekt. Der zuvor erfolgreich gebaute und auf drei Simulatoren gestartete native Stand verwendete noch die älteren RC-Pakete. Ein neuer nativer Build mit den aktualisierten Pods und die vollständige Interaktionsprüfung bleiben separat offen.
+
+Im Checkout anschließend verifiziert: sauberes `npm ci` ohne Peer-Ausnahme, alle vier Patches ohne Versionswarnung, TypeScript und Expo-Paketabgleich erfolgreich. Der native Lockstand wurde mit `pod update --no-repo-update` aufgelöst; Installation aller 130 Pods erfolgreich, `Podfile.lock` und `Pods/Manifest.lock` identisch. Expo Doctor steht bei 19/20 mit dem bekannten Config-Sync-Hinweis. Eigenen AppDelegate, SceneDelegate und Bridges unverändert erhalten; kein Prebuild durchgeführt.
+
+Ausführlicher [Release-Abgleich](expo58-release-audit-2026-10-16.md), priorisierte [offene Aufgaben](offene-aufgaben.md). Die zuletzt gewünschte Zentrierung von „Aufgabe hinzufügen“ unter der linken Liste ist dort als nächste UI-Aufgabe erfasst.
