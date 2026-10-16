@@ -8,6 +8,7 @@ Gespeicherter Paketstand: Expo `58.0.13`, React Native `0.88.0`, Router `58.0.22
 
 - [ ] **Ruckeln beim horizontalen Ziehen beheben.** Nutzerbeobachtung: Das Verschieben zwischen Tagen nach links und rechts wirkt leicht fehlerhaft und ruckelig. Langsames Ziehen, schnelles Wischen und Richtungswechsel getrennt prüfen.
 - [ ] **Sichtbare Animation bei Tag-Tap ergänzen.** Ein Tipp auf einen anderen Tag soll die Aktivierung nachvollziehbar animieren, statt direkt zur neuen Auswahl zu springen. Slider, aktive Markierung und zugehöriger Tagesinhalt sollen eine zusammenhängende Rückmeldung geben; schnelle aufeinanderfolgende Tipps berücksichtigen. „Bewegung reduzieren“ respektieren.
+- [ ] **Mehr Tage trotz seitlichem Fade sichtbar machen.** Den vorhandenen Fade links und rechts beibehalten, den Verlauf aber so weiter zu den Seiten ausstrecken bzw. abstimmen, dass mehr benachbarte Tage deutlich lesbar bleiben. Der weiche Ausblendeffekt soll erhalten bleiben. Die Alphamaske und `edgeFadeLocations` in `app/(tabs)/home/index.tsx` auf schmalen und breiten Ansichten visuell abstimmen.
 - [ ] Scroll-, Auswahl- und Synchronisationspfade in `app/(tabs)/home/index.tsx` zusammen prüfen: `handleSelectDate`, `selectDateWithTransition`, `handleDateRailScroll`, Momentum-/Drag-Ende und `syncDateRailToSelectedDate`. Letzterer setzt Offset und Animated.Value unmittelbar und verwendet `animated: false`; prüfen, ob dieser Synchronisationspfad eine gewünschte Tap-Animation überschreibt oder beim Ziehen eingreift. Ursache noch nicht bestätigt.
 - [ ] Abnahme auf dem Gerät: beide Richtungen flüssig, keine nachträglichen Sprünge, Tippen mit verständlicher Aktivierungsanimation und anschließend genau der gewählte Tag aktiv. Auch im schmalen Fenster und nach Größenwechsel prüfen.
 
@@ -24,6 +25,28 @@ Gespeicherter Paketstand: Expo `58.0.13`, React Native `0.88.0`, Router `58.0.22
 - [ ] Abnahme mit mindestens 30 wiederholten Drops je relevantem Listenaufbau dokumentieren; Flackern und Sprünge zählen, einschließlich unveränderter Ablageposition, geänderter Reihenfolge und externer Drop-Ziele. Heute, Inbox und Projektlisten sowie Swipe links/rechts gegenprüfen. Einen erfolgreichen Einzelversuch nicht als Behebung werten.
 
 **Vergleichsstand vom 16. Oktober:** lokaler `master` = `6199d56`, geprüfter SDK-58-Stand = `befbf59`. Die drei betroffenen App-Dateien unterscheiden sich zusammen um 836 Einfügungen und 319 Löschungen; zusätzlich unterscheiden sich die Bibliothekspatches. Der Vergleich wurde lokal durchgeführt. Die gemeldeten Symptome wurden dabei nicht erneut im Simulator gemessen.
+
+## Aufgabenerstellung: Overlay und Tastatur gemeinsam animieren
+
+**Nutzerbeobachtung:** Nach „Aufgabe hinzufügen“ erscheint zuerst die Tastatur; das neue Aufgaben-Textfeld mit den übrigen Bedienelementen klappt erst anschließend dahinter auf. Die zwei versetzten Bewegungen wirken wie getrennte Animationen.
+
+- [ ] Overlay und Tastatur beim Öffnen synchron bewegen, sodass die gesamte Eingabefläche unmittelbar mitkommt und an der Tastaturkante bleibt.
+- [ ] Prüfen, ob sich Position und Fortschritt des Overlays direkt an die tatsächliche Tastaturposition bzw. deren Animationsverlauf koppeln lassen. Timing, Easing und Layout-Anpassung in `app/task/create-modal.tsx` gemeinsam betrachten; keine bloß geschätzte Verzögerung als Synchronisation verwenden.
+- [ ] Den kompletten Ablauf prüfen: erster und erneuter Aufruf, Schließen, interaktives Tastatur-Ausblenden, Hardwaretastatur sowie iPhone, Duo und iPad. Kein zweites nachlaufendes Aufklappen und kein zusätzlicher Positionssprung durch konkurrierende Layout-Animationen.
+
+## Streak Celebration: flachere Flamme und natürlichere Bewegung
+
+- [ ] Die bestehende animierte Flamme beibehalten, ihre Darstellung aber deutlich flacher gestalten. Schatten und räumliche Schattierung drastisch reduzieren; die zwei Flächen dürfen weiterhin Orange und Gelb verwenden.
+- [ ] Den **Light Sweep entfernen**.
+- [ ] Oberhalb der Flamme einen horizontal zentrierten, mittig ausgerichteten Motivationstext vorsehen. Mit unterschiedlichen Textlängen und Übersetzungen prüfen.
+- [ ] Die Anfangsanimation natürlicher gestalten: Die Flamme soll sich organisch wie eine Flamme aufbauen bzw. bewegen. Das aktuelle nacheinander erfolgende Größerwerden der beiden Flächen ersetzen.
+- [ ] `components/streak-celebration/streak-flame.tsx`, `streak-celebration-overlay.tsx` und die verwendeten Flammen-Assets gemeinsam prüfen. Abnahme: klare flache Orange-/Gelb-Flächen, deutlich weniger Schatten, kein Light Sweep, lesbarer mittiger Text und ein zusammenhängender natürlicher Auftakt. „Bewegung reduzieren“ berücksichtigen.
+
+## Status ohne Aufgaben: Textbreite und Umbruch begrenzen
+
+- [ ] Die lange Leerzustandsmeldung bei fehlendem Status bzw. fehlenden Aufgaben in der Breite begrenzen und rechtzeitig umbrechen lassen.
+- [ ] Verhindern, dass der Text die Prozentanzeige nach links verdrängt. Sowohl **0 % als auch 100 %** müssen stabil positioniert und vollständig sichtbar bleiben.
+- [ ] Die betroffene Statusanzeige/-kachel in `app/status.tsx` und auf der Heute-Seite prüfen; lange Übersetzungen, schmale Fenster und große Schrift einbeziehen. Umbruch und Prozentwert dürfen sich nicht überlagern.
 
 ## Vor dem Release entscheiden: Duo-/iPad-Split-Details zurückstellen
 
