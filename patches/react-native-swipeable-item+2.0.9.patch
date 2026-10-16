@@ -1,5 +1,5 @@
 diff --git a/node_modules/react-native-swipeable-item/lib/typescript/index.d.ts b/node_modules/react-native-swipeable-item/lib/typescript/index.d.ts
-index 178fa42..109f676 100644
+index 178fa42..3d74232 100644
 --- a/node_modules/react-native-swipeable-item/lib/typescript/index.d.ts
 +++ b/node_modules/react-native-swipeable-item/lib/typescript/index.d.ts
 @@ -39,6 +39,15 @@ declare type Props<T> = {
@@ -18,16 +18,8 @@ index 178fa42..109f676 100644
      overSwipe?: number;
      animationConfig?: Partial<WithSpringConfig>;
      activationThreshold?: number;
-@@ -46,6 +55,7 @@ declare type Props<T> = {
-     snapPointsLeft?: number[];
-     snapPointsRight?: number[];
-     swipeDamping?: number;
-+    underlayHeight?: number;
- };
- export declare type SwipeableItemImperativeRef = {
-     open: (openDirection: OpenDirection, snapPoint?: number, options?: OpenCloseOptions) => Promise<void>;
 diff --git a/node_modules/react-native-swipeable-item/src/index.tsx b/node_modules/react-native-swipeable-item/src/index.tsx
-index 3fb030b..1dd5cbb 100644
+index 3fb030b..7049ce6 100644
 --- a/node_modules/react-native-swipeable-item/src/index.tsx
 +++ b/node_modules/react-native-swipeable-item/src/index.tsx
 @@ -78,6 +78,15 @@ type Props<T> = {
@@ -46,26 +38,16 @@ index 3fb030b..1dd5cbb 100644
    overSwipe?: number;
    animationConfig?: Partial<WithSpringConfig>;
    activationThreshold?: number;
-@@ -85,6 +94,7 @@ type Props<T> = {
-   snapPointsLeft?: number[];
-   snapPointsRight?: number[];
-   swipeDamping?: number;
-+  underlayHeight?: number;
- };
- 
- export type SwipeableItemImperativeRef = {
-@@ -112,7 +122,10 @@ function SwipeableItem<T>(
-     activationThreshold = 20,
+@@ -113,6 +122,8 @@ function SwipeableItem<T>(
      overSwipe = 20,
      swipeDamping = 10,
-+    underlayHeight,
      onChange = () => {},
 +    onWillChange = () => {},
 +    onTriggerStateChange = () => {},
      animationConfig = {},
    } = props;
  
-@@ -130,6 +143,8 @@ function SwipeableItem<T>(
+@@ -130,6 +141,8 @@ function SwipeableItem<T>(
  
    const animStatePos = useSharedValue(0);
    const isGestureActive = useSharedValue(false);
@@ -74,16 +56,7 @@ index 3fb030b..1dd5cbb 100644
  
    const swipingLeft = useDerivedValue(
      () => animStatePos.value < 0,
-@@ -196,7 +211,7 @@ function SwipeableItem<T>(
-     const transform = [{ translateX: animStatePos.value }];
-     const zIndex = MAX_Z_INDEX;
- 
--    return isWeb ? { transform, zIndex } : { transform };
-+    return { transform, zIndex };
-   }, [animStatePos]);
- 
-   const openLeft: OpenPromiseFn = (snapPoint, options) => {
-@@ -288,6 +303,18 @@ function SwipeableItem<T>(
+@@ -288,6 +301,18 @@ function SwipeableItem<T>(
      }
    }
  
@@ -102,7 +75,7 @@ index 3fb030b..1dd5cbb 100644
    const startX = useSharedValue(0);
  
    const gesture = Gesture.Pan()
-@@ -302,6 +329,14 @@ function SwipeableItem<T>(
+@@ -302,6 +327,14 @@ function SwipeableItem<T>(
      .onStart(() => {
        startX.value = animStatePos.value;
        isGestureActive.value = true;
@@ -117,7 +90,7 @@ index 3fb030b..1dd5cbb 100644
      })
      .onUpdate((evt) => {
        const rawVal = evt.translationX + startX.value;
-@@ -312,6 +347,34 @@ function SwipeableItem<T>(
+@@ -312,6 +345,34 @@ function SwipeableItem<T>(
          Extrapolate.CLAMP
        );
        animStatePos.value = clampedVal;
@@ -152,7 +125,7 @@ index 3fb030b..1dd5cbb 100644
      })
      .onEnd((evt) => {
        isGestureActive.value = false;
-@@ -335,15 +398,23 @@ function SwipeableItem<T>(
+@@ -335,15 +396,23 @@ function SwipeableItem<T>(
          return diff < prevDiff ? cur : acc;
        }, Infinity);
  
@@ -183,21 +156,3 @@ index 3fb030b..1dd5cbb 100644
        };
        if (animStatePos.value === closestSnapPoint) onComplete();
        else
-@@ -433,7 +504,7 @@ function SwipeableItem<T>(
-     <OverlayContext.Provider value={overlayParams}>
-       <Animated.View
-         animatedProps={animPropsLeft}
--        style={[styles.underlay, leftStyle]}
-+        style={[styles.underlay, underlayHeight ? { height: underlayHeight } : null, leftStyle]}
-       >
-         <UnderlayContext.Provider value={underlayLeftParams}>
-           {renderUnderlayLeft(underlayLeftParams)}
-@@ -441,7 +512,7 @@ function SwipeableItem<T>(
-       </Animated.View>
-       <Animated.View
-         animatedProps={animPropsRight}
--        style={[styles.underlay, rightStyle]}
-+        style={[styles.underlay, underlayHeight ? { height: underlayHeight } : null, rightStyle]}
-       >
-         <UnderlayContext.Provider value={underlayRightParams}>
-           {renderUnderlayRight(underlayRightParams)}

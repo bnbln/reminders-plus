@@ -1,13 +1,11 @@
 import { usePageDimensions } from "@/components/navigation/vertical-bar-safe-area";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as Haptics from "expo-haptics";
-import { SymbolView } from "expo-symbols";
 import React from "react";
 import {
   Animated,
   Easing,
   LayoutChangeEvent,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -24,6 +22,7 @@ import SwipeableItem, {
 import Reanimated, {
   Extrapolation,
   interpolate,
+  interpolateColor,
   useAnimatedStyle,
 } from "react-native-reanimated";
 
@@ -44,6 +43,7 @@ const SWIPE_TRIGGER_SNAP = 152;
 const SWIPE_ACTIVATION_THRESHOLD = 10;
 const SWIPE_DAMPING = 7;
 const SWIPE_OVER_SWIPE = 480;
+const SWIPE_SNAP_PROGRESS = SWIPE_STOP / SWIPE_TRIGGER_SNAP;
 const COMPACT_SUBTASK_ICON_SIZE = 18;
 const COMPACT_SUBTASK_TEXT_SIZE = 14;
 const DRAG_LONG_PRESS_DELAY_MS = 260;
@@ -111,91 +111,118 @@ type TagChipModel = {
 
 type SwipeActionUnderlayProps = {
   params: UnderlayParams<Task>;
+  styles: SwipeTaskRowStyles;
   side: "left" | "right";
   backgroundColor: string;
   icon: React.ComponentProps<typeof MaterialIcons>["name"];
   onPress: () => void;
 };
 
-// percentOpen is relative to SWIPE_TRIGGER_SNAP, so SWIPE_STOP sits at 0.5.
-const UNDERLAY_FILL_IN_END = 0.42;
-const UNDERLAY_ICON_IN_START = 0.06;
-const UNDERLAY_ICON_IN_END = 0.36;
-
 function SwipeActionUnderlay({
   params,
+  styles,
   side,
   backgroundColor,
   icon,
   onPress,
 }: SwipeActionUnderlayProps) {
-  // Fade the solid action color in via opacity instead of interpolating
-  // colors, so the fill never passes through muddy in-between tints and the
-  // left/right underlays hand over cleanly at 0.
-  const fillAnimatedStyle = useAnimatedStyle(() => {
-    const progress = params.percentOpen.value;
-    const t = interpolate(
-      progress,
-      [0, UNDERLAY_FILL_IN_END],
-      [0, 1],
-      Extrapolation.CLAMP,
-    );
-    return { opacity: t * (2 - t) };
-  }, [params.percentOpen]);
+  const underlayColorStops = React.useMemo(
+    () => ({
+      soft: withAlpha(backgroundColor, 0.18),
+      medium: withAlpha(backgroundColor, 0.58),
+    }),
+    [backgroundColor],
+  );
 
-  const iconAnimatedStyle = useAnimatedStyle(() => {
-    const progress = params.percentOpen.value;
-    const t = interpolate(
-      progress,
-      [UNDERLAY_ICON_IN_START, UNDERLAY_ICON_IN_END],
-      [0, 1],
-      Extrapolation.CLAMP,
-    );
-    const eased = 1 - (1 - t) * (1 - t) * (1 - t);
-    const directionOffset = side === "left" ? -8 : 8;
+  const fillAnimatedStyle = useAnimatedStyle(() => {
+    const progress = Math.max(0, Math.min(1.08, params.percentOpen.value));
     return {
-      opacity: eased,
+      backgroundColor: interpolateColor(
+        progress,
+        [0, 0.12, 0.28, SWIPE_SNAP_PROGRESS],
+        [
+          "rgba(0,0,0,0)",
+          underlayColorStops.soft,
+          underlayColorStops.medium,
+          backgroundColor,
+        ],
+      ),
+    };
+  }, [
+    backgroundColor,
+    params.percentOpen,
+    underlayColorStops.medium,
+    underlayColorStops.soft,
+  ]);
+
+  const actionAnimatedStyle = useAnimatedStyle(() => {
+    const progress = Math.max(0, Math.min(1.12, params.percentOpen.value));
+    const directionOffset = side === "left" ? 14 : -14;
+    return {
+      opacity: interpolate(
+        progress,
+        [0, 0.08, 0.16, SWIPE_SNAP_PROGRESS],
+        [0, 0.22, 0.92, 1],
+        Extrapolation.CLAMP,
+      ),
       transform: [
-        { translateX: (1 - eased) * directionOffset },
-        { scale: 0.6 + 0.4 * eased },
+        {
+          translateX: interpolate(
+            progress,
+            [0, 1],
+            [0, directionOffset],
+            Extrapolation.CLAMP,
+          ),
+        },
       ],
     };
   }, [params.percentOpen, side]);
 
   return (
-    <Pressable
-      style={{
-        flex: 1,
-        width: "100%",
-        justifyContent: "center",
-        alignItems: side === "left" ? "flex-start" : "flex-end",
-        paddingLeft: side === "left" ? 20 : 0,
-        paddingRight: side === "right" ? 20 : 0,
-      }}
-      onPress={onPress}
-      hitSlop={10}
-    >
+    <View style={styles.underlay} pointerEvents="box-none">
       <Reanimated.View
         pointerEvents="none"
-        style={[
-          StyleSheet.absoluteFill,
-          { backgroundColor },
-          fillAnimatedStyle,
-        ]}
+        style={[StyleSheet.absoluteFill, fillAnimatedStyle]}
       />
-      <Reanimated.View pointerEvents="none" style={iconAnimatedStyle}>
-        {Platform.OS === "ios" ? (
-          <SymbolView
-            name={icon === "delete" ? "trash.fill" : icon === "undo" ? "arrow.uturn.backward" : "checkmark"}
-            tintColor="#FFFFFF"
-            weight="semibold"
-            style={{ width: 22, height: 22 }}
+      <Pressable
+        style={[
+          styles.actionSlot,
+          {
+            left: 0,
+            right: 0,
+            paddingLeft: side === "left" ? 18 : 0,
+            paddingRight: side === "right" ? 18 : 0,
+            alignItems: side === "left" ? "flex-start" : "flex-end",
+          },
+        ]}
+        onPress={onPress}
+        hitSlop={10}
+      >
+        <Reanimated.View
+          style={[
+            {
+              width: 36,
+              height: 36,
+              alignItems: "center",
+              justifyContent: "center",
+              alignSelf: side === "left" ? "flex-start" : "flex-end",
+            },
+            actionAnimatedStyle,
+          ]}
+        >
+          <MaterialIcons
+            name={icon}
+            size={28}
+            color="#FFFFFF"
+            style={{
+              textShadowColor: "rgba(0,0,0,0.12)",
+              textShadowOffset: { width: 0, height: 1 },
+              textShadowRadius: 4,
+            }}
           />
-        ) : (
-          <MaterialIcons name={icon} size={24} color="#FFFFFF" />
-        )}
-      </Reanimated.View>
-    </Pressable>
+        </Reanimated.View>
+      </Pressable>
+    </View>
   );
 }
 
@@ -1556,6 +1583,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     (params: UnderlayParams<Task>) => (
       <SwipeActionUnderlay
         params={params}
+        styles={styles}
         side="right"
         backgroundColor={rightAction?.backgroundColor ?? swipeDeleteBg}
         icon={rightAction?.icon ?? "delete"}
@@ -1575,6 +1603,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     (params: UnderlayParams<Task>) => (
       <SwipeActionUnderlay
         params={params}
+        styles={styles}
         side="left"
         backgroundColor={leftAction?.backgroundColor ?? swipeCompleteBg}
         icon={
