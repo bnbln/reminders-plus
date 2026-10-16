@@ -38,7 +38,14 @@ RCT_EXPORT_MODULE()
   return @{@"hasVerticalBar": @(hasVerticalBar), @"isRegularWidth": @(isRegularWidth)};
 }
 
-- (NSDictionary *)constantsToExport { return self.layoutState; }
+- (NSDictionary *)constantsToExport
+{
+  BOOL supportsVerticalBar = NO;
+  if (@available(iOS 27.1, *)) supportsVerticalBar = YES;
+  NSMutableDictionary *constants = [self.layoutState mutableCopy];
+  constants[@"supportsVerticalBar"] = @(supportsVerticalBar);
+  return constants;
+}
 
 - (void)observeWindow
 {
