@@ -7,12 +7,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useSheetHeaderActions } from '@/components/navigation/sheet-header-actions';
 import { withAlpha } from '@/components/ui/glass-surface';
-import { Colors } from '@/constants/theme';
+import { Colors, contrastAlpha } from '@/constants/theme';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
 import { deriveActiveSectionFromDueAt } from '@/utils/task-dates';
 import { ripple, rippleClip } from "@/components/ui/ripple";
+import { useThemedStyles } from "@/hooks/use-themed-styles";
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
@@ -33,7 +34,7 @@ export default function DatePickerScreen() {
     const { taskId } = useLocalSearchParams<{ taskId: string }>();
     const theme = useColorScheme() ?? 'light';
     const isDark = theme === 'dark';
-    const styles = React.useMemo(() => createStyles(theme), [theme]);
+    const styles = useThemedStyles(() => createStyles(theme), [theme]);
     const insets = useSafeAreaInsets();
 
     const { tasks, setTasks } = useTasksStore();
@@ -145,8 +146,8 @@ export default function DatePickerScreen() {
                         onPress={handleClear}
                         style={[styles.optionRow, rippleClip(14), isCleared && styles.optionRowActive]}
                     >
-                        <View style={[styles.optionIcon, { backgroundColor: withAlpha(Colors[theme].text, isDark ? 0.15 : 0.1) }]}>
-                            <MaterialIcons name="event-busy" size={20} color={withAlpha(Colors[theme].text, 0.6)} />
+                        <View style={[styles.optionIcon, { backgroundColor: withAlpha(Colors[theme].text, contrastAlpha(isDark ? 0.15 : 0.1)) }]}>
+                            <MaterialIcons name="event-busy" size={20} color={withAlpha(Colors[theme].text, contrastAlpha(0.6))} />
                         </View>
                         <View style={styles.optionBody}>
                             <Text style={styles.optionLabel}>{t('datePicker.noDate')}</Text>
@@ -230,7 +231,7 @@ const createStyles = (theme: keyof typeof Colors) => {
             marginBottom: 8,
             borderWidth: StyleSheet.hairlineWidth,
             borderColor: hairline,
-            backgroundColor: withAlpha(text, isDark ? 0.04 : 0.03),
+            backgroundColor: withAlpha(text, contrastAlpha(isDark ? 0.04 : 0.03)),
         },
         optionRowActive: {
             borderWidth: StyleSheet.hairlineWidth,
@@ -271,7 +272,7 @@ const createStyles = (theme: keyof typeof Colors) => {
             marginVertical: 16,
         },
         pickerContainer: {
-            backgroundColor: withAlpha(text, isDark ? 0.04 : 0.03),
+            backgroundColor: withAlpha(text, contrastAlpha(isDark ? 0.04 : 0.03)),
             borderRadius: 14,
             marginBottom: 16,
             overflow: 'hidden',

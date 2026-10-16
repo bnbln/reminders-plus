@@ -5,12 +5,14 @@
 
 import { Platform } from 'react-native';
 
+import { isHighContrastEnabled } from '@/context/high-contrast-store';
+
 const tintColorLight = '#0a7ea4';
 const tintColorDark = '#fff';
 
 export const LIGHT_ACCENT_SCREEN_BACKGROUND = '#E5E5EA';
 
-export const Colors = {
+const BaseColors = {
   light: {
     text: '#11181C',
     background: '#fff',
@@ -28,6 +30,54 @@ export const Colors = {
     tabIconSelected: tintColorDark,
   },
 };
+
+// Used while the OS "Increase Contrast" setting is on. Every pair reaches at
+// least 7:1 against its background.
+const HighContrastColors: typeof BaseColors = {
+  light: {
+    text: '#000000',
+    background: '#FFFFFF',
+    tint: '#005C7A',
+    icon: '#3D4247',
+    tabIconDefault: '#3D4247',
+    tabIconSelected: '#005C7A',
+  },
+  dark: {
+    text: '#FFFFFF',
+    background: '#000000',
+    tint: '#FFFFFF',
+    icon: '#D1D5D9',
+    tabIconDefault: '#D1D5D9',
+    tabIconSelected: '#FFFFFF',
+  },
+};
+
+/**
+ * Theme colors for `Colors[theme]`. The getters switch to the high-contrast
+ * palette while "Increase Contrast" is on. The screens remount when that
+ * setting flips (see app/_layout.tsx); memoized style factories should use
+ * `useThemedStyles` so they also recompute without a remount.
+ */
+export const Colors = {
+  get light() {
+    return isHighContrastEnabled() ? HighContrastColors.light : BaseColors.light;
+  },
+  get dark() {
+    return isHighContrastEnabled() ? HighContrastColors.dark : BaseColors.dark;
+  },
+};
+
+/**
+ * Raises the opacity of text and icon colors derived with `withAlpha` while
+ * "Increase Contrast" is on: secondary and tertiary text move to at least 70 %,
+ * faint fills and hairlines get noticeably stronger. Returns `alpha` unchanged
+ * otherwise.
+ */
+export function contrastAlpha(alpha: number): number {
+  if (!isHighContrastEnabled() || alpha >= 1) return alpha;
+  if (alpha < 0.2) return Math.min(0.3, alpha * 1.6);
+  return 0.7 + (alpha - 0.2) * 0.375;
+}
 
 export const Fonts = Platform.select({
   ios: {

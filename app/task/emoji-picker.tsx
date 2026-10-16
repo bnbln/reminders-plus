@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useSheetHeaderActions } from '@/components/navigation/sheet-header-actions';
 import { withAlpha } from '@/components/ui/glass-surface';
-import { Colors } from '@/constants/theme';
+import { Colors, contrastAlpha } from '@/constants/theme';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
@@ -16,6 +16,7 @@ import {
     filterTaskStyleEmojiOptions,
     TASK_STYLE_COLOR_SWATCHES,
 } from '@/utils/task-style-emoji';
+import { useThemedStyles } from "@/hooks/use-themed-styles";
 
 export default function EmojiPickerScreen() {
     const router = useRouter();
@@ -23,7 +24,7 @@ export default function EmojiPickerScreen() {
     const { width: windowWidth } = usePageDimensions();
     const theme = useColorScheme() ?? 'light';
     const isDark = theme === 'dark';
-    const styles = React.useMemo(() => createStyles(theme), [theme]);
+    const styles = useThemedStyles(() => createStyles(theme), [theme]);
     const insets = useSafeAreaInsets();
 
     const { tasks, setTasks } = useTasksStore();
@@ -209,8 +210,8 @@ const createStyles = (theme: keyof typeof Colors) => {
             minHeight: 46,
             borderRadius: 14,
             borderWidth: StyleSheet.hairlineWidth,
-            borderColor: withAlpha(text, isDark ? 0.14 : 0.1),
-            backgroundColor: withAlpha(text, isDark ? 0.05 : 0.04),
+            borderColor: withAlpha(text, contrastAlpha(isDark ? 0.14 : 0.1)),
+            backgroundColor: withAlpha(text, contrastAlpha(isDark ? 0.05 : 0.04)),
             paddingHorizontal: 14,
             justifyContent: 'center',
             marginBottom: 14,
@@ -233,7 +234,7 @@ const createStyles = (theme: keyof typeof Colors) => {
             borderRadius: 16,
             alignItems: 'center',
             justifyContent: 'center',
-            backgroundColor: withAlpha(text, isDark ? 0.05 : 0.04),
+            backgroundColor: withAlpha(text, contrastAlpha(isDark ? 0.05 : 0.04)),
         },
         emojiText: {
             fontSize: 28,
@@ -254,12 +255,12 @@ const createStyles = (theme: keyof typeof Colors) => {
         },
         resetText: {
             fontSize: 15,
-            color: withAlpha(text, 0.6),
+            color: withAlpha(text, contrastAlpha(0.6)),
         },
         emptyState: {
             marginTop: 18,
             fontSize: 14,
-            color: withAlpha(text, 0.58),
+            color: withAlpha(text, contrastAlpha(0.58)),
             textAlign: 'center',
         },
     });

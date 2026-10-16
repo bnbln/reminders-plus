@@ -35,7 +35,7 @@ import {
 import { FloatingAddButton } from "@/components/ui/floating-add-button";
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { HeaderIconButton } from "@/components/ui/header-icon-button";
-import { Colors } from "@/constants/theme";
+import { Colors, contrastAlpha } from "@/constants/theme";
 import { useHomeFilters, type TagId } from "@/context/home-filters-store";
 import {
   createRoutineCompletionTransition,
@@ -55,6 +55,7 @@ import {
   getStartOfLocalDayMs,
   hasValidDueAt,
 } from "@/utils/task-dates";
+import { useThemedStyles } from "@/hooks/use-themed-styles";
 
 const PHONE_COLUMN_WIDTH_RATIO = 0.78; // Narrower to show peers
 const COLUMN_GAP = 12; // Slightly smaller gap
@@ -426,8 +427,8 @@ function KanbanColumn({
             <GlassSurface
               style={styles.countBadge}
               glassEffectStyle="regular"
-              tintColor={withAlpha(Colors[theme].text, 0.1)}
-              fallbackBackgroundColor={withAlpha(Colors[theme].text, 0.1)}
+              tintColor={withAlpha(Colors[theme].text, contrastAlpha(0.1))}
+              fallbackBackgroundColor={withAlpha(Colors[theme].text, contrastAlpha(0.1))}
             >
               <Text style={styles.countText}>{tasks.length}</Text>
             </GlassSurface>
@@ -496,8 +497,8 @@ function ProjectDetailContent() {
   const todaySnapOffset = isTabletLayout ? 0 : (snapOffsets[1] ?? 0);
   const isIOS26Plus = Platform.OS === "ios" && isIOS26OrNewer();
   const showFloatingAddButton = Platform.OS === "ios" && !isIOS26Plus;
-  const styles = React.useMemo(() => createStyles(theme), [theme]);
-  const rowStyles = React.useMemo(() => createRowStyles(theme), [theme]);
+  const styles = useThemedStyles(() => createStyles(theme), [theme]);
+  const rowStyles = useThemedStyles(() => createRowStyles(theme), [theme]);
   const { enabledTags, showTagIcons, showProjectNames, showCompactSubtasks } =
     useHomeFilters();
   const { projects, tasks, setTasks } = useTasksStore();
@@ -1483,7 +1484,7 @@ const createStyles = (theme: ThemeName) => {
     descriptionText: {
       fontSize: 14,
       lineHeight: 20,
-      color: withAlpha(Colors[theme].text, 0.65),
+      color: withAlpha(Colors[theme].text, contrastAlpha(0.65)),
     },
     boardContent: {
       paddingTop: 8,
@@ -1532,7 +1533,7 @@ const createStyles = (theme: ThemeName) => {
     countText: {
       fontSize: 13,
       fontWeight: "500",
-      color: withAlpha(Colors[theme].text, 0.6),
+      color: withAlpha(Colors[theme].text, contrastAlpha(0.6)),
     },
     columnContent: {
       gap: 0,
@@ -1577,14 +1578,14 @@ const createStyles = (theme: ThemeName) => {
     cardSubtitle: {
       fontSize: 12,
       fontWeight: "600",
-      color: withAlpha(Colors[theme].text, 0.7),
+      color: withAlpha(Colors[theme].text, contrastAlpha(0.7)),
     },
     emptyState: {
       padding: 20,
       alignItems: "center",
     },
     emptyText: {
-      color: withAlpha(Colors[theme].text, 0.4),
+      color: withAlpha(Colors[theme].text, contrastAlpha(0.4)),
       fontStyle: "italic",
     },
   });
@@ -1609,7 +1610,7 @@ const createRowStyles = (theme: ThemeName): SwipeTaskRowStyles => {
     : useAppleLightPalette
       ? "rgba(60,60,67,0.18)"
       : "rgba(17,24,28,0.09)";
-  const rowMetaText = withAlpha(text, ALPHA_3);
+  const rowMetaText = withAlpha(text, contrastAlpha(ALPHA_3));
   const dangerBg = isDark ? "rgba(255,69,58,0.18)" : "rgba(255,59,48,0.14)";
   const dangerBorder = isDark ? "rgba(255,69,58,0.32)" : "rgba(255,59,48,0.26)";
 
@@ -1725,7 +1726,7 @@ const createRowStyles = (theme: ThemeName): SwipeTaskRowStyles => {
       fontSize: 12,
       lineHeight: 16,
       fontWeight: WEIGHT_SUBTLE,
-      color: withAlpha(text, 0.32),
+      color: withAlpha(text, contrastAlpha(0.32)),
     },
 
     tagRow: {
@@ -1759,7 +1760,7 @@ const createRowStyles = (theme: ThemeName): SwipeTaskRowStyles => {
       fontWeight: WEIGHT_HEADING,
       letterSpacing: 0.2,
       textTransform: "uppercase",
-      color: isDark ? withAlpha(text, 0.7) : withAlpha(text, 0.5),
+      color: isDark ? withAlpha(text, contrastAlpha(0.7)) : withAlpha(text, contrastAlpha(0.5)),
       maxWidth: 220,
     },
   }) as unknown as SwipeTaskRowStyles;

@@ -49,7 +49,7 @@ import { FloatingAddButton } from "@/components/ui/floating-add-button";
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { SFSymbol } from "@/components/ui/sfsymbol";
 import { StreakAccentBackground } from "@/components/ui/streak-accent-background";
-import { Colors } from "@/constants/theme";
+import { Colors, contrastAlpha } from "@/constants/theme";
 import {
   parseShowCompletedTasksParam,
   parseShowProjectTasksParam,
@@ -79,6 +79,9 @@ import {
   hasValidDueAt,
   isSameLocalDay,
 } from "@/utils/task-dates";
+import { useHighContrast } from "@/context/high-contrast-store";
+import { configureLayoutAnimation, motionSpring, motionTiming } from "@/utils/motion";
+import { useThemedStyles } from "@/hooks/use-themed-styles";
 
 type ThemeName = keyof typeof Colors;
 type TaskAccessoryContextBridge = {
@@ -168,7 +171,7 @@ async function markOnboardingSeen(key: string): Promise<void> {
 
 const configureSmoothListLayoutTransition = (enabled: boolean = true) => {
   if (!enabled) return;
-  LayoutAnimation.configureNext({
+  configureLayoutAnimation({
     duration: 280,
     create: {
       type: LayoutAnimation.Types.easeInEaseOut,
@@ -488,10 +491,10 @@ const createStyles = (
   // ───────────────────────────────────────────────────
 
   const hairline = isDark
-    ? withAlpha(text, ALPHA_4)
+    ? withAlpha(text, contrastAlpha(ALPHA_4))
     : useAppleLightPalette
       ? IOS_LIGHT_SEPARATOR
-      : withAlpha(text, ALPHA_4);
+      : withAlpha(text, contrastAlpha(ALPHA_4));
   const rowCardSurface = isDark
     ? HOME_TASK_ROW_SURFACE_DARK
     : HOME_TASK_ROW_SURFACE_LIGHT;
@@ -500,11 +503,11 @@ const createStyles = (
     : useAppleLightPalette
       ? IOS_LIGHT_INSET_SURFACE
       : "rgba(0,0,0,0.04)";
-  const tagBg = withAlpha(text, isDark ? 0.1 : 0.08);
-  const tagText = withAlpha(text, ALPHA_2);
+  const tagBg = withAlpha(text, contrastAlpha(isDark ? 0.1 : 0.08));
+  const tagText = withAlpha(text, contrastAlpha(ALPHA_2));
   const dangerBg = isDark ? "rgba(255,69,58,0.18)" : "rgba(255,59,48,0.14)";
   const dangerBorder = isDark ? "rgba(255,69,58,0.32)" : "rgba(255,59,48,0.26)";
-  const rowMetaText = withAlpha(text, ALPHA_3);
+  const rowMetaText = withAlpha(text, contrastAlpha(ALPHA_3));
   const dayBubbleSize = Math.max(30, Math.min(40, dateRailItemWidth - 14));
   const heroCardBorder = isDark
     ? "rgba(255,255,255,0.09)"
@@ -598,7 +601,7 @@ const createStyles = (
       lineHeight: 16,
       fontWeight: WEIGHT_BODY,
       letterSpacing: 0.2,
-      opacity: ALPHA_3,
+      opacity: contrastAlpha(ALPHA_3),
       flexShrink: 1,
       textAlign: "right",
     },
@@ -802,7 +805,7 @@ const createStyles = (
       lineHeight: 16,
       fontWeight: WEIGHT_HEADING,
       color: text,
-      opacity: ALPHA_2,
+      opacity: contrastAlpha(ALPHA_2),
     },
     calendarPickerBody: {
       flex: 1,
@@ -874,7 +877,7 @@ const createStyles = (
       color: CALENDAR_ACCENT,
     },
     dateRailDayNumWeekend: {
-      color: withAlpha(text, ALPHA_3),
+      color: withAlpha(text, contrastAlpha(ALPHA_3)),
     },
     dateRailDayNumDropCandidate: {
       color: withAlpha(CALENDAR_ACCENT, 0.98),
@@ -900,7 +903,7 @@ const createStyles = (
       color: "#FFFFFF",
     },
     dateRailDowWeekend: {
-      color: withAlpha(text, ALPHA_3),
+      color: withAlpha(text, contrastAlpha(ALPHA_3)),
     },
     dateRailEventIndicator: {
       position: "absolute",
@@ -1027,10 +1030,10 @@ const createStyles = (
       fontWeight: WEIGHT_HEADING,
       //letterSpacing: 0.8,
       color: text,
-      opacity: ALPHA_3,
+      opacity: contrastAlpha(ALPHA_3),
     },
     sectionChevron: {
-      opacity: ALPHA_3,
+      opacity: contrastAlpha(ALPHA_3),
     },
     sectionCountBadge: {
       minWidth: 22,
@@ -1039,15 +1042,15 @@ const createStyles = (
       paddingHorizontal: 4,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: withAlpha(text, isDark ? 0.18 : 0.1),
+      backgroundColor: withAlpha(text, contrastAlpha(isDark ? 0.18 : 0.1)),
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: withAlpha(text, isDark ? 0.34 : 0.2),
+      borderColor: withAlpha(text, contrastAlpha(isDark ? 0.34 : 0.2)),
     },
     sectionCountBadgeText: {
       fontSize: 12,
       lineHeight: 14,
       fontWeight: WEIGHT_HEADING,
-      color: withAlpha(text, isDark ? 0.84 : 0.66),
+      color: withAlpha(text, contrastAlpha(isDark ? 0.84 : 0.66)),
       textAlign: "center",
     },
     itemSpacer: {
@@ -1159,7 +1162,7 @@ const createStyles = (
       fontSize: 12,
       lineHeight: 16,
       fontWeight: WEIGHT_SUBTLE,
-      color: withAlpha(text, 0.32),
+      color: withAlpha(text, contrastAlpha(0.32)),
     },
     tagRow: {
       flexDirection: "row",
@@ -1192,7 +1195,7 @@ const createStyles = (
       fontWeight: WEIGHT_HEADING,
       letterSpacing: 0.2,
       textTransform: "uppercase" as const,
-      color: isDark ? withAlpha(text, 0.7) : withAlpha(text, 0.5),
+      color: isDark ? withAlpha(text, contrastAlpha(0.7)) : withAlpha(text, contrastAlpha(0.5)),
       maxWidth: 220,
     },
     emptyState: {
@@ -1214,7 +1217,7 @@ const createStyles = (
       fontSize: 14,
       lineHeight: 18,
       fontWeight: WEIGHT_BODY,
-      color: withAlpha(text, ALPHA_3),
+      color: withAlpha(text, contrastAlpha(ALPHA_3)),
     },
     archivePillFooter: {
       paddingTop: HOME_ARCHIVE_PILL_TOP_GAP,
@@ -1239,7 +1242,7 @@ const createStyles = (
       lineHeight: 18,
       fontWeight: WEIGHT_BODY,
       color: text,
-      opacity: ALPHA_2,
+      opacity: contrastAlpha(ALPHA_2),
     },
     minimizeProbeWrap: {
       marginTop: 0,
@@ -1272,7 +1275,7 @@ const createStyles = (
       paddingHorizontal: 12,
       paddingVertical: 8,
       borderRadius: RADIUS_PILL,
-      backgroundColor: withAlpha(text, 0.1),
+      backgroundColor: withAlpha(text, contrastAlpha(0.1)),
     },
     calendarPickerButtonText: {
       fontSize: 14,
@@ -1333,11 +1336,13 @@ function HomeContent() {
     0,
     (dateRailContainerWidth - dateRailItemWidth) / 2,
   );
+  const highContrast = useHighContrast();
   const calendarActiveColor = React.useMemo(
     () => getAccentColorValue(accentColor),
-    [accentColor],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- highContrast isn't read directly; getAccentColorValue returns the accessible variant while it is on.
+    [accentColor, highContrast],
   );
-  const styles = React.useMemo(
+  const styles = useThemedStyles(
     () => createStyles(theme, dateRailItemWidth, calendarActiveColor),
     [calendarActiveColor, dateRailItemWidth, theme],
   );
@@ -1570,7 +1575,7 @@ function HomeContent() {
       }
 
       homeTaskListRevealProgress.setValue(0);
-      const animation = Animated.timing(homeTaskListRevealProgress, {
+      const animation = motionTiming(homeTaskListRevealProgress, {
         toValue: 1,
         duration,
         easing:
@@ -2101,7 +2106,7 @@ function HomeContent() {
     }
 
     stopDateRailTitleAnimation();
-    const animation = Animated.timing(dateRailTitleMotion, {
+    const animation = motionTiming(dateRailTitleMotion, {
       toValue: 1,
       duration,
       easing: Easing.inOut(Easing.cubic),
@@ -2911,7 +2916,7 @@ function HomeContent() {
         animationRef.current = null;
         return;
       }
-      const animation = Animated.spring(value, {
+      const animation = motionSpring(value, {
         toValue: toCollapsed ? 1 : 0,
         friction: 10,
         tension: 120,
@@ -3513,7 +3518,7 @@ function HomeContent() {
         <MaterialIcons
           name="event-busy"
           size={32}
-          color={withAlpha(Colors[theme].text, 0.36)}
+          color={withAlpha(Colors[theme].text, contrastAlpha(0.36))}
           style={styles.emptyStateIcon}
         />
         <Text style={styles.emptyText}>{t("home.empty.noTasks")}</Text>
@@ -3834,7 +3839,7 @@ function HomeContent() {
       }
 
       if (!reduceMotionEnabled) {
-        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        configureLayoutAnimation(LayoutAnimation.Presets.easeInEaseOut);
       }
       setTasks((prev) => {
         const task = prev.find((t) => t.id === taskId);
@@ -3927,7 +3932,7 @@ function HomeContent() {
   const handleDeleteTask = React.useCallback(
     (taskId: string) => {
       if (!reduceMotionEnabled) {
-        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        configureLayoutAnimation(LayoutAnimation.Presets.easeInEaseOut);
       }
       setTasks((prev) => {
         const task = prev.find((t) => t.id === taskId);
@@ -4080,7 +4085,7 @@ function HomeContent() {
                   <MaterialIcons
                     name="chevron-right"
                     size={18}
-                    color={withAlpha(Colors[theme].text, 0.48)}
+                    color={withAlpha(Colors[theme].text, contrastAlpha(0.48))}
                     style={[styles.sectionChevron, { opacity: 0.48 }]}
                   />
                 </Animated.View>

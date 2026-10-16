@@ -8,7 +8,7 @@ import { NativeModules, Platform, Pressable, ScrollView, StyleSheet, Text, View 
 import { FloatingAddButton } from '@/components/ui/floating-add-button';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { StreakAccentBackground } from '@/components/ui/streak-accent-background';
-import { Colors } from '@/constants/theme';
+import { Colors, contrastAlpha } from '@/constants/theme';
 import { useTaskCreateContext } from '@/context/task-create-context';
 import { Task, useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -16,6 +16,7 @@ import { countLabel, getIntlLocale, t } from '@/i18n';
 import { isIOS26OrNewer } from '@/utils/ios-version';
 import { hasValidDueAt } from '@/utils/task-dates';
 import { ripple, rippleClip } from '@/components/ui/ripple';
+import { useThemedStyles } from "@/hooks/use-themed-styles";
 
 type ThemeName = keyof typeof Colors;
 type RoutineStatsBucket = 'daily' | 'weekly' | 'monthlyPlus';
@@ -134,7 +135,7 @@ const createStyles = (theme: ThemeName, compact: boolean) => {
   const text = Colors[theme].text;
   const cardBorder = isDark ? 'rgba(255,255,255,0.09)' : 'rgba(17,24,28,0.09)';
   const cardBg = isDark ? '#1C1C1E' : '#F2F2F7';
-  const subtitleColor = withAlpha(text, 0.62);
+  const subtitleColor = withAlpha(text, contrastAlpha(0.62));
 
   return StyleSheet.create({
     container: {
@@ -348,7 +349,7 @@ export default function RoutinesScreen() {
   const accessoryBridge = NativeModules
     .TaskAccessoryContextBridge as TaskAccessoryContextBridge | undefined;
   const showFloatingAddButton = Platform.OS === 'ios' && !isIOS26OrNewer();
-  const styles = useMemo(() => createStyles(theme, compact), [compact, theme]);
+  const styles = useThemedStyles(() => createStyles(theme, compact), [compact, theme]);
   const constrainedTaskContentStyle = React.useMemo(() => {
     if (width < TASK_LIST_WIDE_LAYOUT_BREAKPOINT) return null;
     return {
@@ -493,7 +494,7 @@ export default function RoutinesScreen() {
           <Text style={styles.sectionTitle}>{t('routines.section.all')}</Text>
           {routineTasks.length === 0 ? (
             <View style={styles.emptyState}>
-              <MaterialIcons name="loop" size={40} color={withAlpha(textColor, 0.25)} />
+              <MaterialIcons name="loop" size={40} color={withAlpha(textColor, contrastAlpha(0.25))} />
               <Text style={styles.emptyText}>
                 {t('routines.empty.title')}{'\n'}{t('routines.empty.subtitle')}
               </Text>
@@ -529,7 +530,7 @@ export default function RoutinesScreen() {
                             {nextDueLabel ? <Text style={styles.nextDueText}>{nextDueLabel}</Text> : null}
                           </View>
                         </View>
-                        <MaterialIcons name="chevron-right" size={20} color={withAlpha(textColor, 0.4)} />
+                        <MaterialIcons name="chevron-right" size={20} color={withAlpha(textColor, contrastAlpha(0.4))} />
                       </View>
                     </GlassSurface>
                   </Pressable>

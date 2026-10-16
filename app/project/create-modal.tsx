@@ -17,7 +17,7 @@ import { DropdownMenu } from '@/components/ui/dropdown-menu';
 import { usePageInsets } from '@/components/navigation/vertical-bar-safe-area';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { SFSymbol } from '@/components/ui/sfsymbol';
-import { Colors } from '@/constants/theme';
+import { Colors, contrastAlpha } from '@/constants/theme';
 import { getAccentColorValue, useAppSettings } from '@/context/settings-store';
 import { usePremium } from '@/context/premium-store';
 import { useTasksStore } from '@/context/tasks-store';
@@ -26,6 +26,7 @@ import { t } from '@/i18n';
 import { shouldRouteToProjectLimitGate } from '@/utils/project-creation-gate';
 import { ripple } from "@/components/ui/ripple";
 import { m3InputProps } from '@/components/ui/m3-input';
+import { useThemedStyles } from "@/hooks/use-themed-styles";
 
 type ThemeName = keyof typeof Colors;
 
@@ -123,7 +124,7 @@ export default function ProjectCreateModal() {
   const router = useRouter();
   const theme = useColorScheme() ?? 'light';
   const isDark = theme === 'dark';
-  const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const styles = useThemedStyles(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   const pageInsets = usePageInsets();
   const { accentColor } = useAppSettings();
@@ -417,7 +418,7 @@ export default function ProjectCreateModal() {
                     <SFSymbol name={icon} size={14} color={color} />
                   )}
                   <Text style={styles.pickerLabel} numberOfLines={1}>{t('projectEdit.icon')}</Text>
-                  <MaterialIcons name="expand-more" size={14} color={withAlpha(Colors[theme].text, 0.62)} />
+                  <MaterialIcons name="expand-more" size={14} color={withAlpha(Colors[theme].text, contrastAlpha(0.62))} />
                 </View>
               </GlassSurface>
             </DropdownMenu>
@@ -441,7 +442,7 @@ export default function ProjectCreateModal() {
                 <View style={styles.pickerContentRow} onTouchStart={keepKeyboardOpen}>
                   <View style={[styles.colorDot, { backgroundColor: color }]} />
                   <Text style={styles.pickerLabel} numberOfLines={1}>{t('projectEdit.color')}</Text>
-                  <MaterialIcons name="expand-more" size={14} color={withAlpha(Colors[theme].text, 0.62)} />
+                  <MaterialIcons name="expand-more" size={14} color={withAlpha(Colors[theme].text, contrastAlpha(0.62))} />
                 </View>
               </GlassSurface>
             </DropdownMenu>
@@ -464,7 +465,7 @@ export default function ProjectCreateModal() {
                 <MaterialIcons
                   name="arrow-upward"
                   size={18}
-                  color={canSubmit ? 'white' : withAlpha(Colors[theme].text, 0.45)}
+                  color={canSubmit ? 'white' : withAlpha(Colors[theme].text, contrastAlpha(0.45))}
                 />
               </GlassSurface>
             </Pressable>

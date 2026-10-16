@@ -28,6 +28,7 @@ import { useAppSettings } from '@/context/settings-store';
 import { useTaskCreateContext } from '@/context/task-create-context';
 import type { Project, Task } from '@/context/tasks-store';
 import { triggerImpactHaptic } from '@/utils/haptics';
+import { configureLayoutAnimation, motionSpring } from "@/utils/motion";
 
 type ThemeName = keyof typeof Colors;
 // DraggableFlatList wraps the whole list (including its ListHeaderComponent,
@@ -129,7 +130,7 @@ const areListItemsEqual = (
 
 const configureDropLayoutAnimation = () => {
   // Only move surviving rows; the dropped row runs its own landing animation.
-  LayoutAnimation.configureNext({
+  configureLayoutAnimation({
     duration: 320,
     update: {
       type: LayoutAnimation.Types.spring,
@@ -139,7 +140,7 @@ const configureDropLayoutAnimation = () => {
 };
 
 const configureListDataLayoutAnimation = () => {
-  LayoutAnimation.configureNext({
+  configureLayoutAnimation({
     duration: 220,
     create: {
       type: LayoutAnimation.Types.easeInEaseOut,
@@ -436,7 +437,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       activeDragTranslationX.setValue(0);
       return;
     }
-    Animated.spring(activeDragTranslationX, {
+    motionSpring(activeDragTranslationX, {
       toValue: 0,
       ...DRAG_TRANSLATE_X_SETTLE_SPRING,
       useNativeDriver: false,

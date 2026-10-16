@@ -15,12 +15,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useSheetHeaderActions } from '@/components/navigation/sheet-header-actions';
 import { withAlpha } from '@/components/ui/glass-surface';
-import { Colors } from '@/constants/theme';
+import { Colors, contrastAlpha } from '@/constants/theme';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
 import { ripple } from "@/components/ui/ripple";
 import { m3InputProps } from '@/components/ui/m3-input';
+import { useThemedStyles } from "@/hooks/use-themed-styles";
 
 export default function LocationPickerScreen() {
   const router = useRouter();
@@ -32,7 +33,7 @@ export default function LocationPickerScreen() {
   }, [taskIdParam]);
   const theme = useColorScheme() ?? 'light';
   const isDark = theme === 'dark';
-  const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const styles = useThemedStyles(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
 
   const { tasks, setTasks } = useTasksStore();
@@ -163,7 +164,7 @@ export default function LocationPickerScreen() {
             {isLocating ? (
               <ActivityIndicator size="small" color={Colors[theme].tint} />
             ) : (
-              <MaterialIcons name="chevron-right" size={20} color={withAlpha(Colors[theme].text, 0.45)} />
+              <MaterialIcons name="chevron-right" size={20} color={withAlpha(Colors[theme].text, contrastAlpha(0.45))} />
             )}
           </Pressable>
 
@@ -179,10 +180,10 @@ export default function LocationPickerScreen() {
             <View
               style={[
                 styles.optionIcon,
-                { backgroundColor: withAlpha(Colors[theme].text, isDark ? 0.15 : 0.1) },
+                { backgroundColor: withAlpha(Colors[theme].text, contrastAlpha(isDark ? 0.15 : 0.1)) },
               ]}
             >
-              <MaterialIcons name="location-off" size={20} color={withAlpha(Colors[theme].text, 0.6)} />
+              <MaterialIcons name="location-off" size={20} color={withAlpha(Colors[theme].text, contrastAlpha(0.6))} />
             </View>
             <View style={styles.optionBody}>
               <Text style={styles.optionLabel}>{t('locationPicker.noLocation')}</Text>
@@ -198,7 +199,7 @@ export default function LocationPickerScreen() {
               <MaterialIcons
                 name="place"
                 size={18}
-                color={withAlpha(Colors[theme].text, isLocationEmpty ? 0.45 : 0.75)}
+                color={withAlpha(Colors[theme].text, contrastAlpha(isLocationEmpty ? 0.45 : 0.75))}
                 style={styles.inputIcon}
               />
               <TextInput
@@ -206,7 +207,7 @@ export default function LocationPickerScreen() {
                 value={locationDraft ?? ''}
                 onChangeText={setLocationDraft}
                 placeholder={t('locationPicker.placeholder.custom')}
-                placeholderTextColor={withAlpha(Colors[theme].text, 0.42)}
+                placeholderTextColor={withAlpha(Colors[theme].text, contrastAlpha(0.42))}
                 returnKeyType="done"
                 autoCapitalize="words"
                 autoCorrect
@@ -250,7 +251,7 @@ const createStyles = (theme: keyof typeof Colors) => {
       marginBottom: 8,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: hairline,
-      backgroundColor: withAlpha(text, isDark ? 0.04 : 0.03),
+      backgroundColor: withAlpha(text, contrastAlpha(isDark ? 0.04 : 0.03)),
     },
     optionRowActive: {
       borderWidth: StyleSheet.hairlineWidth,
@@ -278,7 +279,7 @@ const createStyles = (theme: keyof typeof Colors) => {
     },
     optionSubLabel: {
       fontSize: 12,
-      color: withAlpha(text, 0.55),
+      color: withAlpha(text, contrastAlpha(0.55)),
     },
     iconButton: {
       width: 32,
@@ -303,7 +304,7 @@ const createStyles = (theme: keyof typeof Colors) => {
     inputLabel: {
       fontSize: 13,
       fontWeight: '700',
-      color: withAlpha(text, 0.72),
+      color: withAlpha(text, contrastAlpha(0.72)),
       textTransform: 'uppercase',
       letterSpacing: 0.4,
     },
@@ -312,7 +313,7 @@ const createStyles = (theme: keyof typeof Colors) => {
       borderRadius: 14,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: hairline,
-      backgroundColor: withAlpha(text, isDark ? 0.04 : 0.03),
+      backgroundColor: withAlpha(text, contrastAlpha(isDark ? 0.04 : 0.03)),
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: 12,

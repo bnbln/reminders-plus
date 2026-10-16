@@ -33,6 +33,8 @@ import {
 import { isIOS26OrNewer } from "@/utils/ios-version";
 import { shouldRouteToProjectLimitGate } from "@/utils/project-creation-gate";
 import { ripple, rippleClip } from '@/components/ui/ripple';
+import { configureLayoutAnimation, motionSpring } from "@/utils/motion";
+import { useThemedStyles } from "@/hooks/use-themed-styles";
 
 type ThemeName = keyof typeof Colors;
 const GRID_HORIZONTAL_PADDING = 16;
@@ -327,7 +329,7 @@ export default function ExploreScreen() {
     ? REGULAR_GRID_COLUMNS
     : COMPACT_GRID_COLUMNS;
   const showFloatingAddButton = Platform.OS === "ios" && !isIOS26OrNewer();
-  const palette = React.useMemo(() => createExploreTheme(theme), [theme]);
+  const palette = useThemedStyles(() => createExploreTheme(theme), [theme]);
   const tileWidth = React.useMemo(
     () =>
       Math.max(
@@ -420,14 +422,14 @@ export default function ExploreScreen() {
         const layout = getLayoutForIndex(index);
         const position = ensureTilePosition(projectId, layout);
         Animated.parallel([
-          Animated.spring(position.x, {
+          motionSpring(position.x, {
             toValue: layout.x,
             useNativeDriver: true,
             damping: 26,
             stiffness: 280,
             mass: 0.25,
           }),
-          Animated.spring(position.y, {
+          motionSpring(position.y, {
             toValue: layout.y,
             useNativeDriver: true,
             damping: 26,
@@ -520,7 +522,7 @@ export default function ExploreScreen() {
 
   const commitProjectOrder = React.useCallback(
     (orderedIds: string[]) => {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      configureLayoutAnimation(LayoutAnimation.Presets.easeInEaseOut);
       setProjects((prev) => {
         const nextVisibleProjects = orderedIds
           .map((projectId) => visibleProjectsById.get(projectId))
@@ -551,14 +553,14 @@ export default function ExploreScreen() {
     commitProjectOrder(finalOrder);
 
     Animated.parallel([
-      Animated.spring(position.x, {
+      motionSpring(position.x, {
         toValue: finalLayout.x,
         useNativeDriver: true,
         damping: 28,
         stiffness: 320,
         mass: 0.24,
       }),
-      Animated.spring(position.y, {
+      motionSpring(position.y, {
         toValue: finalLayout.y,
         useNativeDriver: true,
         damping: 28,

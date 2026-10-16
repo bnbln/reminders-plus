@@ -37,6 +37,7 @@ import {
   triggerImpactHaptic,
   triggerNotificationHaptic,
 } from "@/utils/haptics";
+import { motionSpring, motionTiming } from "@/utils/motion";
 
 const SWIPE_STOP = 76;
 const SWIPE_TRIGGER_SNAP = 152;
@@ -584,17 +585,17 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       landingOpacity.setValue(1);
 
       const animation = Animated.parallel([
-        Animated.spring(landingTranslateX, {
+        motionSpring(landingTranslateX, {
           toValue: 0,
           ...TASK_LANDING_SPRING,
           useNativeDriver: true,
         }),
-        Animated.spring(landingTranslateY, {
+        motionSpring(landingTranslateY, {
           toValue: 0,
           ...TASK_LANDING_SPRING,
           useNativeDriver: true,
         }),
-        Animated.spring(landingScale, {
+        motionSpring(landingScale, {
           toValue: 1,
           ...TASK_LANDING_SPRING,
           useNativeDriver: true,
@@ -672,7 +673,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       if (!isMountedRef.current) return;
       if (popInAppearanceKeyRef.current !== taskAppearanceKey) return;
 
-      popInAnimationRef.current = Animated.timing(popInExpandProgress, {
+      popInAnimationRef.current = motionTiming(popInExpandProgress, {
         toValue: 1,
         duration: TASK_POP_IN_DURATION_MS,
         easing: Easing.out(Easing.cubic),
@@ -846,19 +847,19 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       swipeCommitExitAnimationRef.current?.stop();
       swipeCommitCollapseAnimationRef.current?.stop();
       swipeCommitExitAnimationRef.current = Animated.parallel([
-        Animated.timing(swipeCommitTranslateX, {
+        motionTiming(swipeCommitTranslateX, {
           toValue: translateTarget,
           duration: SWIPE_COMMIT_EXIT_DURATION_MS,
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
-        Animated.timing(swipeCommitOpacity, {
+        motionTiming(swipeCommitOpacity, {
           toValue: 0,
           duration: SWIPE_COMMIT_EXIT_FADE_DURATION_MS,
           easing: Easing.out(Easing.quad),
           useNativeDriver: true,
         }),
-        Animated.timing(swipeCommitScale, {
+        motionTiming(swipeCommitScale, {
           toValue: 0.985,
           duration: SWIPE_COMMIT_EXIT_DURATION_MS,
           easing: Easing.out(Easing.quad),
@@ -888,7 +889,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
           return;
         }
 
-        swipeCommitCollapseAnimationRef.current = Animated.timing(
+        swipeCommitCollapseAnimationRef.current = motionTiming(
           swipeCommitCollapseProgress,
           {
             toValue: 0,
