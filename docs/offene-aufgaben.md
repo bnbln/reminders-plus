@@ -42,12 +42,14 @@ Gespeicherter Paketstand: Expo `58.0.13`, React Native `0.88.0`, Router `58.0.22
 - [ ] Oberhalb der Flamme einen horizontal zentrierten, mittig ausgerichteten Motivationstext vorsehen. Mit unterschiedlichen Textlängen und Übersetzungen prüfen.
 - [ ] Die Anfangsanimation natürlicher gestalten: Die Flamme soll sich organisch wie eine Flamme aufbauen bzw. bewegen. Das aktuelle nacheinander erfolgende Größerwerden der beiden Flächen ersetzen.
 - [ ] `components/streak-celebration/streak-flame.tsx`, `streak-celebration-overlay.tsx` und die verwendeten Flammen-Assets gemeinsam prüfen. Abnahme: klare flache Orange-/Gelb-Flächen, deutlich weniger Schatten, kein Light Sweep, lesbarer mittiger Text und ein zusammenhängender natürlicher Auftakt. „Bewegung reduzieren“ berücksichtigen.
+- **Code-Fix in Arbeit (Draft-PR):** Flamme als flache Vektorflächen aus den bestehenden Konturen (`streak-flame-paths.ts`, erzeugt von `scripts/generate-streak-flame-paths.js`); vorgerenderte PNGs, Glanzlicht, 3D-Drehung und Schattierung entfernt, nur ein schwacher Bodenschatten bleibt. Auftakt: Flamme wächst von der Basis als schmale Zunge hoch, gelber Kern folgt, beide flackern gegeneinander und gehen in ruhiges Brennen über. Motivationstext (Start, Standard, Rekord, Meilenstein; de/en) zentriert über der Flamme. Geräteabnahme steht aus.
 
 ## Status ohne Aufgaben: Textbreite und Umbruch begrenzen
 
 - [ ] Die lange Leerzustandsmeldung bei fehlendem Status bzw. fehlenden Aufgaben in der Breite begrenzen und rechtzeitig umbrechen lassen.
 - [ ] Verhindern, dass der Text die Prozentanzeige nach links verdrängt. Sowohl **0 % als auch 100 %** müssen stabil positioniert und vollständig sichtbar bleiben.
 - [ ] Die betroffene Statusanzeige/-kachel in `app/status.tsx` und auf der Heute-Seite prüfen; lange Übersetzungen, schmale Fenster und große Schrift einbeziehen. Umbruch und Prozentwert dürfen sich nicht überlagern.
+- **Code-Fix in Arbeit (Draft-PR):** Ursache in `app/status.tsx`: Der zentrierte Hero-Block wurde so breit wie der Untertitel, dadurch rückte die Prozentzahl nach links, und 0 % und 100 % waren unterschiedlich breit. Die Textspalte hat jetzt eine feste Breite (unsichtbarer „100 %“-Platzhalter, mindestens 170/190 pt, höchstens die verfügbare Breite), der Untertitel bricht darin um. Die Kachel auf der Heute-Seite zeigt keinen Leertext und ist nicht betroffen. Geräteabnahme steht aus.
 
 ## Entschieden: Duo-/iPad-Split-Details für diesen Release zurückgestellt
 

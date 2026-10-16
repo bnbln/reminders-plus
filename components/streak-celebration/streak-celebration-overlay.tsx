@@ -14,7 +14,6 @@ import Animated, {
   Easing,
   runOnJS,
   useAnimatedStyle,
-  useDerivedValue,
   useFrameCallback,
   useSharedValue,
   withDelay,
@@ -29,7 +28,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StreakFlame } from "@/components/streak-celebration/streak-flame";
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { SFSymbol } from "@/components/ui/sfsymbol";
-import { Colors, Fonts } from "@/constants/theme";
+import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
 import {
@@ -55,13 +54,15 @@ type StreakCelebrationOverlayProps = {
 
 // ---------------------------------------------------------------------------
 // Choreography (ms from mount). The background stays still; all of the
-// excitement lives in the flame: the back piece pops in with a half turn, the
-// front piece drops onto it, a glint sweeps across — then the card and the
-// button settle in underneath.
+// excitement lives in the flame: it catches at its base and shoots up as a
+// narrow tongue, the yellow core rises inside it a beat later, and both
+// flicker fast before calming into a slow burn. The message, the card and the
+// button settle in around it.
 // ---------------------------------------------------------------------------
 const T_OUTER = 180;
-const T_INNER = 520;
-const T_SWEEP = 760;
+const T_INNER = 330;
+const T_TEXT = 620;
+const T_IDLE = 1100;
 const T_CARD = 720;
 const T_ROLL = 880;
 const T_DOTS = 960;
@@ -72,6 +73,13 @@ const MILESTONES = new Set([7, 14, 21, 30, 50, 75, 100, 150, 200, 250, 300, 365,
 
 export function isStreakMilestone(streak: number) {
   return MILESTONES.has(streak) || (streak > 1000 && streak % 100 === 0);
+}
+
+function motivationMessage(streak: number, isRecord: boolean, milestone: boolean) {
+  if (streak <= 1) return t("streakCelebration.message.start");
+  if (milestone) return t("streakCelebration.message.milestone", { count: streak });
+  if (isRecord) return t("streakCelebration.message.record");
+  return t("streakCelebration.message.default");
 }
 
 // Same streak orange the Streaks screen uses for its flame symbol.
@@ -162,14 +170,15 @@ function scheduleHaptics(reduceMotion: boolean) {
   if (reduceMotion) {
     return [setTimeout(() => triggerNotificationHaptic(), 200)];
   }
-  const { Light, Medium, Heavy, Rigid, Soft } = Haptics.ImpactFeedbackStyle;
+  const { Light, Medium, Heavy, Soft } = Haptics.ImpactFeedbackStyle;
   const steps: [number, () => void][] = [
-    // Back piece pops in and lands.
-    [T_OUTER, () => triggerImpactHaptic(Medium)],
-    [T_OUTER + 170, () => triggerImpactHaptic(Rigid)],
-    // Front piece drops on top — the main hit.
-    [T_INNER + 60, () => triggerImpactHaptic(Heavy)],
-    [T_INNER + 130, () => triggerNotificationHaptic()],
+    // The flame catches and flickers up.
+    [T_OUTER, () => triggerImpactHaptic(Soft)],
+    [T_OUTER + 80, () => triggerImpactHaptic(Light)],
+    [T_OUTER + 150, () => triggerImpactHaptic(Medium)],
+    // The core rises inside it: the main hit.
+    [T_INNER + 120, () => triggerImpactHaptic(Heavy)],
+    [T_INNER + 200, () => triggerNotificationHaptic()],
     [T_ROLL + 120, () => triggerImpactHaptic(Light)],
   ];
   for (let i = 0; i < 7; i++) {
@@ -203,15 +212,16 @@ export function StreakCelebrationOverlay({
 
   const buttonBottom = Math.max(insets.bottom - 8, 16);
   const cardBottom = buttonBottom + BAR_HEIGHT + 14;
-  const flameH = Math.min(height * 0.36, 340, width * 0.95);
+  const flameH = Math.min(height * 0.28, 280, width * 0.7);
+  const message = motivationMessage(streak, isRecord, milestone);
 
   const clock = useSharedValue(0);
   const reveal = useSharedValue(0);
   const outerIn = useSharedValue(reduceMotion ? 1 : 0);
   const innerIn = useSharedValue(reduceMotion ? 1 : 0);
-  const spin = useSharedValue(reduceMotion ? 0 : 1);
+  const flicker = useSharedValue(0);
   const idle = useSharedValue(0);
-  const sweep = useSharedValue(0);
+  const textIn = useSharedValue(reduceMotion ? 1 : 0);
   const cardIn = useSharedValue(reduceMotion ? 1 : 0);
   const roll = useSharedValue(reduceMotion ? 1 : 0);
   const buttonIn = useSharedValue(reduceMotion ? 1 : 0);
@@ -233,14 +243,17 @@ export function StreakCelebrationOverlay({
     }
 
     reveal.value = withTiming(1, { duration: 320, easing: Easing.out(Easing.cubic) });
-    outerIn.value = withDelay(T_OUTER, withSpring(1, { damping: 9, stiffness: 170, mass: 0.8 }));
-    spin.value = withDelay(T_OUTER, withSpring(0, { damping: 10, stiffness: 90 }));
-    innerIn.value = withDelay(T_INNER, withSpring(1, { damping: 9, stiffness: 240, mass: 0.7 }));
-    sweep.value = withDelay(
-      T_SWEEP,
-      withTiming(1, { duration: 950, easing: Easing.inOut(Easing.cubic) }),
+    outerIn.value = withDelay(T_OUTER, withSpring(1, { damping: 10, stiffness: 120, mass: 0.9 }));
+    innerIn.value = withDelay(T_INNER, withSpring(1, { damping: 9, stiffness: 150, mass: 0.8 }));
+    flicker.value = withDelay(
+      T_OUTER,
+      withSequence(
+        withTiming(1, { duration: 120 }),
+        withTiming(0, { duration: 1300, easing: Easing.out(Easing.quad) }),
+      ),
     );
-    idle.value = withDelay(T_SWEEP + 400, withTiming(1, { duration: 1200 }));
+    idle.value = withDelay(T_IDLE, withTiming(1, { duration: 1200 }));
+    textIn.value = withDelay(T_TEXT, withSpring(1, { damping: 18, stiffness: 160 }));
     cardIn.value = withDelay(T_CARD, withSpring(1, { damping: 18, stiffness: 160 }));
     roll.value = withDelay(T_ROLL, withSpring(1, { damping: 13, stiffness: 170 }));
     buttonIn.value = withDelay(T_BUTTON, withSpring(1, { damping: 18, stiffness: 170 }));
@@ -259,12 +272,6 @@ export function StreakCelebrationOverlay({
       }),
     );
   }, [closing, onClose, reveal]);
-
-  // Half-turn settle on entry, then a slow idle sway and float.
-  const tilt = useDerivedValue(
-    () => spin.value * 0.6 + idle.value * 0.12 * Math.sin(clock.value * 0.9),
-  );
-  const bob = useDerivedValue(() => idle.value * 4 * Math.sin(clock.value * 1.3));
 
   const backdropStyle = useAnimatedStyle(() => ({ opacity: reveal.value }));
   const fadeStyle = useAnimatedStyle(() => ({ opacity: reveal.value }));
@@ -310,13 +317,27 @@ export function StreakCelebrationOverlay({
           ]}
           pointerEvents="box-none"
         >
+          <Rise
+            progress={textIn}
+            distance={12}
+            // The flame canvas keeps headroom for its stretch; pull the
+            // message into it so it reads as one group with the flame.
+            style={[styles.messageWrap, { marginBottom: -flameH * 0.14 }]}
+          >
+            <Text
+              style={[styles.message, { color: text }]}
+              maxFontSizeMultiplier={1.6}
+            >
+              {message}
+            </Text>
+          </Rise>
           <StreakFlame
             height={flameH}
-            backIn={outerIn}
-            frontIn={innerIn}
-            tilt={tilt}
-            bob={bob}
-            sweep={sweep}
+            outerIn={outerIn}
+            innerIn={innerIn}
+            time={clock}
+            flicker={flicker}
+            idle={idle}
             milestone={milestone}
             isDark={isDark}
             reduceMotion={reduceMotion}
@@ -385,13 +406,17 @@ export function StreakCelebrationOverlay({
             accessibilityRole="button"
             accessibilityLabel={t("streakCelebration.continue")}
             onPress={handleClose}
-            style={({ pressed }) => pressed && { transform: [{ scale: 0.98 }] }}
+            style={({ pressed }) => [
+              styles.buttonPressable,
+              pressed && { transform: [{ scale: 0.98 }] },
+            ]}
           >
+            {/* Same glass as the card: interactive glass renders almost clear
+                here, so the press feedback comes from the scale instead. */}
             <GlassSurface
               style={[styles.button, { borderColor: hairline }]}
               glassEffectStyle="regular"
-              fallbackBackgroundColor={isDark ? "#2C2C2E" : "#FFFFFF"}
-              isInteractive
+              fallbackBackgroundColor={isDark ? "#1C1C1E" : "#FFFFFF"}
             >
               <Text style={[styles.buttonText, { color: text }]}>
                 {t("streakCelebration.continue")}
@@ -414,6 +439,19 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: BAR_SIDE_INSET + 8,
+  },
+  messageWrap: {
+    width: "100%",
+    maxWidth: 360,
+    alignItems: "center",
+  },
+  message: {
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: "800",
+    letterSpacing: -0.3,
+    textAlign: "center",
   },
   cardWrap: {
     position: "absolute",
@@ -445,7 +483,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     top: 0,
-    fontFamily: Fonts?.rounded,
     fontSize: 34,
     lineHeight: 40,
     fontWeight: "900",
@@ -497,6 +534,12 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: BAR_SIDE_INSET,
     right: BAR_SIDE_INSET,
+    alignItems: "center",
+  },
+  // Matches the card's width, so the button does not stretch across an iPad.
+  buttonPressable: {
+    width: "100%",
+    maxWidth: 480,
   },
   button: {
     height: BAR_HEIGHT,

@@ -477,6 +477,10 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "streakCelebration.continue": "Weiter",
   "streakCelebration.record": "Neuer Rekord",
   "streakCelebration.a11y": "Streak verlängert: {{count}} Tage",
+  "streakCelebration.message.start": "Der erste Funke. Morgen wird ein Feuer daraus.",
+  "streakCelebration.message.default": "Stark! Dein Feuer brennt weiter.",
+  "streakCelebration.message.record": "Neuer Rekord! So lange hat dein Feuer noch nie gebrannt.",
+  "streakCelebration.message.milestone": "{{count}} Tage am Stück. Ein echter Meilenstein!",
   "settings.import.unavailableTitle": "Nicht verfügbar",
   "settings.import.unavailableBody":
     "Apple Kalender/Erinnerungen sind nur auf iOS verfügbar.",
