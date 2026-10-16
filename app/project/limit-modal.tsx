@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { usePageInsets } from "@/components/navigation/vertical-bar-safe-area";
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { FREE_PROJECT_LIMIT } from "@/constants/premium";
 import { Colors } from "@/constants/theme";
@@ -27,6 +28,7 @@ export default function ProjectLimitModal() {
   const isDark = theme === "dark";
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
+  const pageInsets = usePageInsets();
   const { hasPremiumAccess, isReady } = usePremium();
   const { projects } = useTasksStore();
 
@@ -65,7 +67,10 @@ export default function ProjectLimitModal() {
       />
 
       <Pressable
-        style={styles.backdrop}
+        style={[
+          styles.backdrop,
+          { left: -pageInsets.leftInset, right: -pageInsets.rightInset },
+        ]}
         accessibilityRole="button"
         accessibilityLabel={t("taskCreate.close")}
         onPress={onClose}
