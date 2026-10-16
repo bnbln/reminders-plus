@@ -8,14 +8,20 @@ import React from "react";
 import {
   Alert,
   Animated,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
+  type StyleProp,
+  type ViewStyle,
 } from "react-native";
+import Reanimated, {
+  interpolate,
+  useAnimatedKeyboard,
+  useAnimatedStyle,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
@@ -1489,11 +1495,7 @@ export default function CreateTaskModal() {
         ) : null}
       </Pressable>
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={Platform.OS === "ios" ? -10 : 0}
-        style={styles.keyboard}
-      >
+      <KeyboardLiftView style={styles.keyboard}>
         <View
           style={[styles.composerWrap, { paddingBottom: composerBottom }]}
           pointerEvents="box-none"
@@ -1915,10 +1917,46 @@ export default function CreateTaskModal() {
             </View>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardLiftView>
     </View>
   );
 }
+
+// Follows the keyboard frame by frame on the UI thread, so the composer rides
+// on the keyboard edge instead of catching up in a second animation
+// (KeyboardAvoidingView only reacted after layout and an async height lookup).
+// Also tracks interactive dismissal and the hardware keyboard bar.
+function IosKeyboardLiftView({
+  style,
+  children,
+}: React.PropsWithChildren<{ style: StyleProp<ViewStyle> }>) {
+  const keyboard = useAnimatedKeyboard();
+  const liftStyle = useAnimatedStyle(() => {
+    const height = keyboard.height.value;
+    // Keeps the former 10pt gap above an open keyboard, blended in over the
+    // first points of travel so a closed keyboard leaves no offset.
+    const gap = interpolate(height, [0, 40], [0, 10], "clamp");
+    return { transform: [{ translateY: -(height + gap) }] };
+  });
+  return (
+    <Reanimated.View style={[style, liftStyle]}>
+      {children}
+    </Reanimated.View>
+  );
+}
+
+// Android keeps its previous behaviour: the window handles the keyboard.
+const KeyboardLiftView =
+  Platform.OS === "ios"
+    ? IosKeyboardLiftView
+    : ({
+        style,
+        children,
+      }: React.PropsWithChildren<{ style: StyleProp<ViewStyle> }>) => (
+        <View style={style}>
+          {children}
+        </View>
+      );
 
 const createStyles = (theme: keyof typeof Colors) => {
   const isDark = theme === "dark";
