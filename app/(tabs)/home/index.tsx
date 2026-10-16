@@ -98,7 +98,7 @@ const DATE_RAIL_PAST_DAYS = 119;
 const DATE_RAIL_FUTURE_DAYS = 365;
 const DATE_RAIL_MIN_ITEM_WIDTH = 40;
 const DATE_RAIL_ITEM_GAP = 6;
-const DATE_RAIL_FADE_WIDTH = 96;
+const DATE_RAIL_FADE_WIDTH = 64;
 const STREAK_PROGRESS_DAYS = 7;
 const HOME_TASK_ITEM_SPACING = 8;
 const HOME_METRICS_BOTTOM_GAP = 16;
@@ -301,7 +301,6 @@ type DateRailDay = {
   timestamp: number;
   dayOfMonth: string;
   weekday: string;
-  isSelected: boolean;
   isToday: boolean;
   isWeekend: boolean;
   eventCount: number;
@@ -1857,7 +1856,6 @@ function HomeContent() {
   React.useLayoutEffect(() => {
     navigation.setOptions({ title: t("common.today") });
   }, [navigation]);
-  const activeDateSelectionStart = dragHoveredDateStart ?? selectedDateStart;
 
   const dateRailInitialIndex = DATE_RAIL_PAST_DAYS;
   const dateRailSnapInterval = React.useMemo(
@@ -1882,7 +1880,6 @@ function HomeContent() {
             .format(timestamp)
             .replace(".", "")
             .toUpperCase(),
-          isSelected: isSameLocalDay(timestamp, activeDateSelectionStart),
           isToday: isSameLocalDay(timestamp, todayStart),
           isWeekend:
             new Date(timestamp).getDay() === 0 ||
@@ -1892,7 +1889,6 @@ function HomeContent() {
       },
     );
   }, [
-    activeDateSelectionStart,
     dateRailRangeStart,
     dayEventCountByStart,
     dayLabelFormatter,
@@ -2656,6 +2652,8 @@ function HomeContent() {
     [handleSelectDate, scrollDateRailToDateStart],
   );
   const syncDateRailToSelectedDate = React.useCallback(() => {
+    // Never fight an active drag or fling; the rail already tracks the finger.
+    if (dateRailDraggedRef.current || dateRailMomentumActiveRef.current) return;
     const targetIndex = getDateRailIndexForDateStart(selectedDateStartRef.current);
     const targetOffset = targetIndex * dateRailSnapInterval;
     dateRailSelectionLockTargetIndexRef.current = null;
@@ -3291,9 +3289,10 @@ function HomeContent() {
   const shiftSelectedDateBySwipe = React.useCallback(
     (delta: 1 | -1) => {
       const next = addDays(selectedDateStartRef.current, delta);
+      scrollDateRailToDateStart(next, !reduceMotionEnabled, true);
       selectDateWithTransition(next, delta > 0 ? 1 : -1, "swipe");
     },
-    [selectDateWithTransition],
+    [reduceMotionEnabled, scrollDateRailToDateStart, selectDateWithTransition],
   );
 
   const onListTouchStart = React.useCallback((event: GestureResponderEvent) => {
@@ -4105,11 +4104,52 @@ function HomeContent() {
     ],
   );
 
+  // The highlighted copy of every rail day is static between day changes;
+  // rebuilding it on each selection made dragging across days expensive.
+  const dateRailCenterIndicatorDays = React.useMemo(
+    () =>
+      dateRailDays.map((day) => {
+        const isToday = day.isToday;
+        const dayNumStyle = [
+          styles.dateRailDayNum,
+          day.isWeekend ? styles.dateRailDayNumWeekend : null,
+          isToday ? styles.dateRailDayNumToday : null,
+          { color: "#FFFFFF" },
+        ];
+        const dayDowStyle = [
+          styles.dateRailDow,
+          day.isWeekend ? styles.dateRailDowWeekend : null,
+          { color: "#FFFFFF" },
+        ];
+        return (
+          <View
+            key={day.key}
+            style={[
+              styles.dateRailDay,
+              { backgroundColor: "transparent" },
+            ]}
+          >
+            <Text style={dayDowStyle}>{day.weekday}</Text>
+            <Text style={dayNumStyle}>{day.dayOfMonth}</Text>
+            {day.eventCount > 0 && (
+              <View
+                style={[
+                  styles.dateRailEventIndicator,
+                  { backgroundColor: "#FFFFFF" },
+                ]}
+              />
+            )}
+          </View>
+        );
+      }),
+    [dateRailDays, styles],
+  );
+
   const dateRailPanel = React.useMemo(() => {
     if (firstVisibleSection !== "today") return null;
     const edgeFade = Math.min(
-      0.38,
-      Math.max(0.12, DATE_RAIL_FADE_WIDTH / Math.max(dateRailContainerWidth, 1)),
+      0.22,
+      Math.max(0.06, DATE_RAIL_FADE_WIDTH / Math.max(dateRailContainerWidth, 1)),
     );
     const edgeFadeLocations: [number, number, ...number[]] = [
       0,
@@ -4428,12 +4468,12 @@ function HomeContent() {
                 <LinearGradient
                   colors={[
                     "rgba(0,0,0,0)",
-                    "rgba(0,0,0,0.08)",
-                    "rgba(0,0,0,0.42)",
+                    "rgba(0,0,0,0.38)",
+                    "rgba(0,0,0,0.82)",
                     "#000000",
                     "#000000",
-                    "rgba(0,0,0,0.42)",
-                    "rgba(0,0,0,0.08)",
+                    "rgba(0,0,0,0.82)",
+                    "rgba(0,0,0,0.38)",
                     "rgba(0,0,0,0)",
                   ]}
                   locations={edgeFadeLocations}
@@ -4480,8 +4520,11 @@ function HomeContent() {
                     onPress={() => {
                       dateRailDraggedRef.current = false;
                       closeAnyOpen();
-                      triggerSelectionHaptic();
-                      scrollDateRailToDateStart(day.timestamp, true, true);
+                      scrollDateRailToDateStart(
+                        day.timestamp,
+                        !reduceMotionEnabled,
+                        true,
+                      );
                       handleSelectDate(day.timestamp, "press");
                     }}
                     style={({ pressed }) => [
@@ -4552,40 +4595,7 @@ function HomeContent() {
                     ],
                   }}
                 >
-                  {dateRailDays.map((day) => {
-                    const isToday = day.isToday;
-                    const dayNumStyle = [
-                      styles.dateRailDayNum,
-                      day.isWeekend ? styles.dateRailDayNumWeekend : null,
-                      isToday ? styles.dateRailDayNumToday : null,
-                      { color: "#FFFFFF" },
-                    ];
-                    const dayDowStyle = [
-                      styles.dateRailDow,
-                      day.isWeekend ? styles.dateRailDowWeekend : null,
-                      { color: "#FFFFFF" },
-                    ];
-                    return (
-                      <View
-                        key={day.key}
-                        style={[
-                          styles.dateRailDay,
-                          { backgroundColor: "transparent" },
-                        ]}
-                      >
-                        <Text style={dayDowStyle}>{day.weekday}</Text>
-                        <Text style={dayNumStyle}>{day.dayOfMonth}</Text>
-                        {day.eventCount > 0 && (
-                          <View
-                            style={[
-                              styles.dateRailEventIndicator,
-                              { backgroundColor: "#FFFFFF" },
-                            ]}
-                          />
-                        )}
-                      </View>
-                    );
-                  })}
+                  {dateRailCenterIndicatorDays}
                 </Animated.View>
               </View>
             </View>
@@ -4597,6 +4607,7 @@ function HomeContent() {
     );
   }, [
     closeAnyOpen,
+    dateRailCenterIndicatorDays,
     dateRailDays,
     dateRailSidePadding,
     dateRailSnapInterval,
@@ -4625,6 +4636,7 @@ function HomeContent() {
     isDark,
     measureDateRailBounds,
     measureDateRailListBounds,
+    reduceMotionEnabled,
     selectedDateStart,
     scheduleDateRailSyncToSelectedDate,
     styles,
