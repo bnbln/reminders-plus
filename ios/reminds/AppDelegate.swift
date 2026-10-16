@@ -306,8 +306,14 @@ private final class TabBarAccessoryCoordinator: NSObject {
       return
     }
 
-    let scrollView = Self.findBestScrollableView(in: rootView)
     let hostChanged = observedScrollHostViewController !== selectedHost
+    // The task list turns scrolling off for the whole of a drag. Without this, a
+    // rebind during the drag skipped the list and handed the navigation and tab
+    // bars a different scroll view, so the large title and list jumped.
+    let scrollView = Self.findBestScrollableView(
+      in: rootView,
+      treatingAsScrollable: hostChanged ? nil : observedScrollView
+    )
     let scrollChanged = observedScrollView !== scrollView
 
     guard hostChanged || scrollChanged else {
@@ -491,7 +497,10 @@ private final class TabBarAccessoryCoordinator: NSObject {
     return viewController
   }
 
-  private static func findBestScrollableView(in rootView: UIView) -> UIScrollView? {
+  private static func findBestScrollableView(
+    in rootView: UIView,
+    treatingAsScrollable pinnedScrollView: UIScrollView? = nil
+  ) -> UIScrollView? {
     var queue: [UIView] = [rootView]
     var candidates: [UIScrollView] = []
 
@@ -499,7 +508,7 @@ private final class TabBarAccessoryCoordinator: NSObject {
       let view = queue.removeFirst()
 
       if let scrollView = view as? UIScrollView,
-         scrollView.isScrollEnabled,
+         scrollView.isScrollEnabled || scrollView === pinnedScrollView,
          !scrollView.isHidden,
          scrollView.alpha > 0.01 {
         candidates.append(scrollView)
@@ -513,12 +522,17 @@ private final class TabBarAccessoryCoordinator: NSObject {
     }
 
     return candidates.max { lhs, rhs in
-      scrollBindingScore(for: lhs, rootView: rootView) < scrollBindingScore(for: rhs, rootView: rootView)
+      scrollBindingScore(for: lhs, rootView: rootView, pinnedScrollView: pinnedScrollView)
+        < scrollBindingScore(for: rhs, rootView: rootView, pinnedScrollView: pinnedScrollView)
     }
   }
 
-  private static func scrollBindingScore(for scrollView: UIScrollView, rootView: UIView) -> CGFloat {
-    guard scrollView.isScrollEnabled,
+  private static func scrollBindingScore(
+    for scrollView: UIScrollView,
+    rootView: UIView,
+    pinnedScrollView: UIScrollView? = nil
+  ) -> CGFloat {
+    guard scrollView.isScrollEnabled || scrollView === pinnedScrollView,
           !scrollView.isHidden,
           scrollView.alpha > 0.01,
           scrollView.isUserInteractionEnabled,
