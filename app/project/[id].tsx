@@ -1,3 +1,5 @@
+import { TaskWorkspace } from "@/components/tasks/task-workspace";
+import { useOpenTask } from "@/context/task-workspace-context";
 import {
   usePageDimensions,
   useVerticalBarActive,
@@ -467,6 +469,14 @@ function KanbanColumn({
 
 export default function ProjectDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { projects } = useTasksStore();
+  const project = projects.find(project => project.id === id);
+  return <TaskWorkspace showBack title={project?.name ?? t("common.project")} projectId={id}><ProjectDetailContent /></TaskWorkspace>;
+}
+
+function ProjectDetailContent() {
+  const openTask = useOpenTask();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const theme = (useColorScheme() ?? "light") as ThemeName;
   const isDark = theme === "dark";
@@ -577,9 +587,9 @@ export default function ProjectDetailScreen() {
 
   const onPressTask = React.useCallback(
     (taskId: string) => {
-      router.push({ pathname: "/task/[id]", params: { id: taskId } });
+      openTask(taskId);
     },
-    [router],
+    [openTask],
   );
 
   const onEditProject = React.useCallback(() => {

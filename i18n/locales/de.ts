@@ -1,6 +1,7 @@
 import type { TranslationDict } from "../types";
 
 export const DE_TRANSLATIONS: TranslationDict = {
+  "taskWorkspace.selectTask": "Aufgabe auswählen",
   "tabs.tasks": "Aufgaben",
   "tabs.search": "Suche",
   "tabs.projects": "Projekte",
@@ -474,11 +475,6 @@ export const DE_TRANSLATIONS: TranslationDict = {
     "Vollbild-Flamme, sobald du die erste Aufgabe des Tages erledigst.",
   "settings.interactions.streakCelebrationPreview": "Vorschau abspielen",
   "streakCelebration.continue": "Weiter",
-  "streakCelebration.first":
-    "Der erste Funke! Erledige morgen wieder eine Aufgabe, damit dein Streak weiterbrennt.",
-  "streakCelebration.keepGoing":
-    "Du bist on fire! Komm morgen wieder, um deinen Streak am Leben zu halten.",
-  "streakCelebration.milestone": "Meilenstein! {{count}} Tage am Stück – unaufhaltsam.",
   "streakCelebration.record": "Neuer Rekord",
   "streakCelebration.a11y": "Streak verlängert: {{count}} Tage",
   "settings.import.unavailableTitle": "Nicht verfügbar",
@@ -651,7 +647,7 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "legal.opensInBrowser": "Öffnet im Browser",
   "legal.openFailed": "Der Link konnte nicht geöffnet werden.",
   "legal.section.accessibility": "Barrierefreiheit",
-  "legal.accessibility.body": "Wir möchten, dass Reminders+ für alle nutzbar ist, und orientieren uns an der Europäischen Norm EN 301 549 (WCAG 2.1 AA) sowie dem Barrierefreiheitsstärkungsgesetz. Die App unterstützt VoiceOver/TalkBack, Dynamic Type, den Dunkelmodus und die Einstellung „Bewegung reduzieren“. Der Konformitätsstatus ist derzeit „teilweise konform“: Einzelne Elemente haben noch keine vollständigen Screenreader-Beschriftungen, einige Bedienelemente sind kleiner als 44 × 44 Punkte, und manche Aktionen lassen sich noch nicht über alternative Wege ausführen. Wir arbeiten an diesen Punkten.",
+  "legal.accessibility.body": "Wir möchten, dass Reminders+ für alle nutzbar ist, und orientieren uns an der Europäischen Norm EN 301 549 (WCAG 2.1 AA) sowie dem Barrierefreiheitsstärkungsgesetz. Die App unterstützt VoiceOver/TalkBack, Dynamic Type, den Dunkelmodus und die Einstellung „Bewegung reduzieren“. Die Anforderungen sind bereits weitgehend umgesetzt; an einzelnen Stellen, etwa bei Screenreader-Beschriftungen, arbeiten wir noch an Verbesserungen.",
   "legal.accessibility.feedback": "Barrieren melden",
   "legal.section.ai": "KI-Hinweis",
   "legal.ai.body": "AI Assist nutzt Apple Intelligence direkt auf deinem Gerät. Antworten werden automatisch von einer KI erzeugt, können Fehler enthalten und sollten vor dem Übernehmen geprüft werden.",

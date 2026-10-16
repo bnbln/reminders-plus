@@ -58,7 +58,7 @@ const TasksWidget = (props: TasksWidgetProps, environment: WidgetEnvironment) =>
     family === 'systemLarge' || family === 'systemExtraLarge'
       ? 7
       : family === 'systemMedium'
-        ? 4
+        ? 3
         : 2;
   const tasks = allTasks.slice(0, visibleCount);
   // `openCount` counts every open task, while `tasks` is capped by the app.
@@ -119,6 +119,8 @@ const TasksWidget = (props: TasksWidgetProps, environment: WidgetEnvironment) =>
 
   // The small widget is too narrow for title and time side by side: stack them
   // so the title gets the full row width and the time never gets squeezed.
+  // Titles wrap onto a second line instead of truncating after a few letters,
+  // and the emoji is left out so it does not eat into that width.
   const compactRowContent = (task: TasksWidgetProps['tasks'][number]) => (
     <VStack
       alignment="leading"
@@ -127,11 +129,11 @@ const TasksWidget = (props: TasksWidgetProps, environment: WidgetEnvironment) =>
       <Text
         modifiers={[
           font({ size: 13, weight: 'semibold' }),
-          lineLimit(1),
+          lineLimit(2),
           strikethrough({ isActive: isDone(task.id), pattern: 'solid' }),
           opacity(isDone(task.id) ? 0.45 : 1),
         ]}>
-        {task.emoji.length > 0 ? task.emoji + ' ' + task.title : task.title}
+        {task.title}
       </Text>
       {task.time.length > 0 && (
         <Text
@@ -254,9 +256,11 @@ const TasksWidget = (props: TasksWidgetProps, environment: WidgetEnvironment) =>
     return <VStack modifiers={surface}>{emptyState}</VStack>;
   }
 
+  // Two wrapped rows fill the small widget, so there is no footer: the open
+  // count in the header already says how many tasks there are in total.
   if (family === 'systemSmall') {
     return (
-      <VStack alignment="leading" spacing={8} modifiers={surface}>
+      <VStack alignment="leading" spacing={7} modifiers={surface}>
         <HStack spacing={6}>
           <Image systemName="checklist" size={12} color={accent} />
           <Text modifiers={[font({ size: 13, weight: 'bold' }), lineLimit(1)]}>{props.title}</Text>
@@ -271,12 +275,6 @@ const TasksWidget = (props: TasksWidgetProps, environment: WidgetEnvironment) =>
         </HStack>
         {tasks.map((task) => row(task, true))}
         <Spacer />
-        <Text
-          modifiers={[font({ size: 11, weight: 'medium' }), foregroundStyle(secondary), lineLimit(1)]}>
-          {overflow > 0
-            ? props.moreTemplate.replace('{count}', String(overflow))
-            : props.progressLabel}
-        </Text>
       </VStack>
     );
   }
@@ -289,7 +287,7 @@ const TasksWidget = (props: TasksWidgetProps, environment: WidgetEnvironment) =>
         {tasks.map((task) => row(task, false))}
       </VStack>
       <Spacer />
-      {progressBar}
+      {family !== 'systemMedium' && progressBar}
       <HStack spacing={6}>
         <Text
           modifiers={[font({ size: 11, weight: 'medium' }), foregroundStyle(secondary), lineLimit(1)]}>

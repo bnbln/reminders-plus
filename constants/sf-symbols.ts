@@ -55,6 +55,8 @@ const SF_TO_MATERIAL = {
   leaf: 'eco',
   'flame.fill': 'local-fire-department',
   flame: 'local-fire-department',
+  'trophy.fill': 'emoji-events',
+  trophy: 'emoji-events',
   'bolt.fill': 'bolt',
   bolt: 'bolt',
 

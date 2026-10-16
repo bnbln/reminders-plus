@@ -1,3 +1,5 @@
+import { TaskWorkspace } from "@/components/tasks/task-workspace";
+import { useOpenTask } from "@/context/task-workspace-context";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useHeaderHeight } from "expo-router/react-navigation";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -111,6 +113,11 @@ function adjustTaskForInboxSection(
 }
 
 export default function InboxScreen() {
+  return <TaskWorkspace title={t("common.inbox")}><InboxContent /></TaskWorkspace>;
+}
+
+function InboxContent() {
+  const openTask = useOpenTask();
   const headerHeight = useHeaderHeight();
   const router = useRouter();
   const theme = useColorScheme() ?? "light";
@@ -284,9 +291,9 @@ export default function InboxScreen() {
 
   const onPressTask = React.useCallback(
     (taskId: string) => {
-      router.push({ pathname: "/task/[id]", params: { id: taskId } });
+      openTask(taskId);
     },
-    [router],
+    [openTask],
   );
 
   const toggleComplete = React.useCallback(

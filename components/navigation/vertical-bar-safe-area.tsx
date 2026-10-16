@@ -12,7 +12,7 @@ const VerticalBarActiveContext = React.createContext(false);
 const RegularWidthContext = React.createContext(false);
 // Android has no size classes; 600dp is Material's compact/medium breakpoint.
 const ANDROID_REGULAR_WIDTH_MIN = 600;
-type PageLayout = { width: number; leftInset: number; rightInset: number };
+type PageLayout = { width: number; height?: number; leftInset: number; rightInset: number };
 const PageLayoutContext = React.createContext<PageLayout | undefined>(undefined);
 
 export function VerticalBarSafeAreaProvider({ children }: React.PropsWithChildren) {
@@ -156,7 +156,18 @@ export function usePageDimensions() {
   const pageLayout = React.useContext(PageLayoutContext);
   return pageLayout === undefined
     ? dimensions
-    : { ...dimensions, width: pageLayout.width };
+    : { ...dimensions, width: pageLayout.width, height: pageLayout.height ?? dimensions.height };
+}
+
+/** Each native split column supplies its own Yoga bounds, rather than the window's. */
+export function PagePane({ children }: React.PropsWithChildren) {
+  const [layout, setLayout] = React.useState<PageLayout>();
+  return <View style={{ flex: 1 }} onLayout={({ nativeEvent: { layout: bounds } }) => {
+    setLayout(previous => previous?.width === bounds.width && previous?.height === bounds.height
+      ? previous : { width: bounds.width, height: bounds.height, leftInset: 0, rightInset: 0 });
+  }}>
+    <PageLayoutContext.Provider value={layout}>{children}</PageLayoutContext.Provider>
+  </View>;
 }
 
 export function usePageInsets() {

@@ -1,6 +1,7 @@
 import type { TranslationDict } from '../types';
 
 export const EN_TRANSLATIONS: TranslationDict = {
+  "taskWorkspace.selectTask": "Select a task",
     'tabs.tasks': 'Tasks',
     'tabs.search': 'Search',
     'tabs.projects': 'Projects',
@@ -435,11 +436,6 @@ export const EN_TRANSLATIONS: TranslationDict = {
       'Full-screen flame when you complete your first task of the day.',
     'settings.interactions.streakCelebrationPreview': 'Play preview',
     'streakCelebration.continue': 'Continue',
-    'streakCelebration.first':
-      'The first spark! Complete a task tomorrow to keep your streak burning.',
-    'streakCelebration.keepGoing':
-      "You're on fire! Come back tomorrow to keep your streak alive.",
-    'streakCelebration.milestone': 'Milestone! {{count}} days in a row – unstoppable.',
     'streakCelebration.record': 'New record',
     'streakCelebration.a11y': 'Streak extended: {{count}} days',
     'settings.import.unavailableTitle': 'Unavailable',
@@ -568,7 +564,7 @@ export const EN_TRANSLATIONS: TranslationDict = {
     'legal.opensInBrowser': 'Opens in browser',
     'legal.openFailed': 'The link could not be opened.',
     'legal.section.accessibility': 'Accessibility',
-    'legal.accessibility.body': 'We want Reminders+ to be usable by everyone and follow the European standard EN 301 549 (WCAG 2.1 AA) and the European Accessibility Act. The app supports VoiceOver/TalkBack, Dynamic Type, dark mode and the Reduce Motion setting. The current conformance status is “partially conformant”: some elements still lack complete screen reader labels, some controls are smaller than 44 × 44 points, and some actions cannot yet be performed in alternative ways. We are working on these items.',
+    'legal.accessibility.body': 'We want Reminders+ to be usable by everyone and follow the European standard EN 301 549 (WCAG 2.1 AA) and the European Accessibility Act. The app supports VoiceOver/TalkBack, Dynamic Type, dark mode and the Reduce Motion setting. Most requirements are already met; in a few places, such as screen reader labels, we are still making improvements.',
     'legal.accessibility.feedback': 'Report a barrier',
     'legal.section.ai': 'AI notice',
     'legal.ai.body': 'AI Assist uses Apple Intelligence on your device. Responses are generated automatically by an AI, may contain mistakes and should be reviewed before you apply them.',

@@ -1,6 +1,6 @@
 # Expo SDK 58 Beta und iOS 27.1
 
-Stand: 19. September 2026. Lokaler Branch: `codex/expo58-ios27-duo`.
+Historischer Stand: 19. September 2026. Aktualisierung vom 3. Oktober unten. Lokaler Branch: `codex/expo58-ios27-duo`.
 Es wurde nichts veröffentlicht oder gepusht.
 
 ## Basis
@@ -62,3 +62,16 @@ Lokale Screenshots: `.expo/qa/expo58-duo/home-ready.png` und `.expo/qa/expo58-du
 ## Noch zu prüfen
 
 Der erfolgreiche Start ist keine vollständige Duo-Abnahme. Falten/Entfalten, Größenänderungen, Layout an den neuen Systemflächen, Task-Erstellung, Swipe/Drag-Gesten, Käufe, Kalender-Berechtigungen, tatsächlicher iCloud-Sync und ein physisches Gerät sind noch zu testen. Android wurde in diesem Upgrade nicht gebaut. Im Beta-Build bleiben Hinweise aus Abhängigkeiten bestehen, darunter die nicht unterstützte Accessibility-Rolle `search`.
+
+
+## Aktualisierung 3. Oktober 2026
+
+Expo auf 58.0.3 und alle durch `bundledNativeModules.json` vorgegebenen Pakete gemeinsam aktualisiert: React 19.3.0, React Native 0.88.0-rc.3, Router ~58.0.13, UI und Widgets ~58.0.12, Screens ~4.28.0, Reanimated 4.7.0 und Worklets 0.13.0. `package.json`, npm-Lockfile und Pods-Lockfile wurden gemeinsam aktualisiert. Kein Clean-Prebuild; eigene iOS-Integration erhalten.
+
+Der Widget-Persistenzpatch ist auf `patches/expo-widgets+58.0.12.patch` übertragen: atomare App-Group-Dateien mit UserDefaults-Fallback. Upstream nutzt weiter UserDefaults, daher bleibt der Patch nötig. Alle vier Patches lassen sich mit `npx patch-package --error-on-fail` anwenden. Eine neue Frame-Überladung in Expo UI erforderte getrennte Breiten-/Höhenmodifikatoren im Streak-Widget.
+
+`legacy-peer-deps=true` bleibt nötig: ein Installations-Dry-Run ohne Ausnahme scheitert an der React-Native-Prerelease-Version in der Peer-Auflösung, unter anderem bei `@react-native-ai/apple`. Die TypeScript-Bedingung `react-native-legacy-deep-imports` bleibt wegen bestehender Bibliothekstypen nötig; Entfernen wurde geprüft und nicht übernommen. Der alte Metro-Prozess wurde mit `--clear` neu gestartet. Ein alter Development Client benötigt wegen der geänderten nativen Worklets-Version einen Neubuild; Cache-Leeren allein ersetzt diesen nicht.
+
+Prüfung: Expo-Abhängigkeiten aktuell; TypeScript erfolgreich; iOS-/Android-JS-Export erfolgreich; Release-iOS-Build einschließlich Widget-Target erfolgreich. Expo Doctor besteht 19 von 20 Prüfungen: die verbleibende Warnung betrifft die bewusst manuell gepflegte native Konfiguration. Vollständiger Repository-Lint hat bekannte Altbefunde; gezielter Lint der neuen Workspace-Dateien hat keine Fehler. Simulator-Details siehe [task-split-view-implementation.md](task-split-view-implementation.md).
+
+58.0.3 liegt bei npm unter `next`, während `latest` weiterhin 57.0.26 ist (live geprüft am 3. Oktober). React Native bleibt RC. Dieses Update wird deshalb nicht als vollständig stabile SDK-Kombination bezeichnet.

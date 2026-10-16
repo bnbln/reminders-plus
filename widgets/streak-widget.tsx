@@ -108,7 +108,8 @@ const StreakWidget = (props: StreakWidgetProps, environment: WidgetEnvironment) 
           modifiers={[
             foregroundStyle(day.count > 0 ? accent : track),
             opacity(day.count > 0 ? (day.isToday ? 1 : 0.6) : 1),
-            frame({ maxWidth: Infinity, height: 6 }),
+            frame({ maxWidth: Infinity }),
+            frame({ height: 6 }),
           ]}
         />
       ))}

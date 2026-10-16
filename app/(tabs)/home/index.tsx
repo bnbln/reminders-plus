@@ -1,3 +1,5 @@
+import { TaskWorkspace } from "@/components/tasks/task-workspace";
+import { useOpenTask } from "@/context/task-workspace-context";
 import { usePageDimensions } from "@/components/navigation/vertical-bar-safe-area";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { type MenuAction } from "@react-native-menu/menu";
@@ -1282,6 +1284,11 @@ const createStyles = (
 };
 
 export default function HomeScreen() {
+  return <TaskWorkspace title={t("common.today")} homeFilters><HomeContent /></TaskWorkspace>;
+}
+
+function HomeContent() {
+  const openTask = useOpenTask();
   const navigation = useNavigation();
   const router = useRouter();
   const headerHeight = useHeaderHeight();
@@ -3783,9 +3790,9 @@ export default function HomeScreen() {
 
   const handlePressTask = React.useCallback(
     (taskId: string) => {
-      router.push({ pathname: "/task/[id]", params: { id: taskId } });
+      openTask(taskId);
     },
-    [router],
+    [openTask],
   );
 
   const getToggleCompleteTargetSection = React.useCallback(

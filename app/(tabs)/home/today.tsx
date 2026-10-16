@@ -1,3 +1,5 @@
+import { TaskWorkspace } from "@/components/tasks/task-workspace";
+import { useOpenTask } from "@/context/task-workspace-context";
 import { useFocusEffect } from "expo-router";
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
@@ -44,6 +46,11 @@ function isDueToday(task: Task, startOfDayMs: number, endOfDayMs: number) {
 }
 
 export default function TodayScreen() {
+  return <TaskWorkspace title={t('common.today')} homeFilters><TodayContent /></TaskWorkspace>;
+}
+
+function TodayContent() {
+  const openTask = useOpenTask();
   const router = useRouter();
   const theme = useColorScheme() ?? 'light';
   const accessoryBridge = NativeModules
@@ -111,9 +118,9 @@ export default function TodayScreen() {
 
   const onPressTask = React.useCallback(
     (taskId: string) => {
-      router.push({ pathname: '/task/[id]', params: { id: taskId } });
+      openTask(taskId);
     },
-    [router]
+    [openTask]
   );
 
   const toggleComplete = React.useCallback(

@@ -1,3 +1,4 @@
+import { usePageDimensions } from "@/components/navigation/vertical-bar-safe-area";
 import * as Haptics from 'expo-haptics';
 import { useIsFocused } from "expo-router";
 import React from 'react';
@@ -10,7 +11,6 @@ import {
   type GestureResponderEvent,
   type StyleProp,
   type ViewStyle,
-  useWindowDimensions,
 } from "react-native";
 import DraggableFlatList, { RenderItemParams } from 'react-native-draggable-flatlist';
 
@@ -338,7 +338,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
 ) {
   const { reduceMotionEnabled } = useAppSettings();
   const isFocused = useIsFocused();
-  const { width: viewportWidth } = useWindowDimensions();
+  const { width: viewportWidth } = usePageDimensions();
   const { popInTaskIds, consumeTaskPopIn } = useTaskCreateContext();
   const emojiTint = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.12 : 0.22), [isDark, theme]);
   const emojiFallback = React.useMemo(

@@ -1,3 +1,5 @@
+import { TaskWorkspace } from "@/components/tasks/task-workspace";
+import { useOpenTask } from "@/context/task-workspace-context";
 import {
   Host as ExpoSwiftUIHost,
   Picker as ExpoSwiftUIPicker,
@@ -45,6 +47,11 @@ const HOME_TASK_ROW_SURFACE_LIGHT = IOS_LIGHT_ELEVATED_SURFACE;
 const HOME_TASK_ROW_SURFACE_DARK = "rgba(35, 35, 35, 0.2)";
 
 export default function ArchiveScreen() {
+  return <TaskWorkspace showBack title={t("archive.title")}><ArchiveContent /></TaskWorkspace>;
+}
+
+function ArchiveContent() {
+  const openTask = useOpenTask();
   const router = useRouter();
   const theme = useColorScheme() ?? "light";
   const isDark = theme === "dark";
@@ -86,9 +93,9 @@ export default function ArchiveScreen() {
 
   const onPressTask = React.useCallback(
     (taskId: string) => {
-      router.push({ pathname: "/task/[id]", params: { id: taskId } });
+      openTask(taskId);
     },
-    [router],
+    [openTask],
   );
 
   const moveCompletedBackToToday = React.useCallback(
