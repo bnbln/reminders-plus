@@ -112,11 +112,10 @@ const newId = (prefix: string) => `${prefix}-${Date.now()}-${Math.floor(Math.ran
 
 
 
-export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0, embedded = false }: {
+export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
   taskId: string;
   onClose: () => void;
   headerHeight?: number;
-  embedded?: boolean;
 }) {
   const router = useRouter();
   const { tasks, setTasks, projects, setProjects } = useTasksStore();
@@ -426,19 +425,18 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0, embed
       style={styles.screen}
       contentContainerStyle={[
         styles.content,
-        embedded ? { paddingTop: 12, paddingHorizontal: 20 } : null,
         // iOS gets this from `contentInsetAdjustmentBehavior`; Android has no
         // equivalent, so the transparent header would overlap the hero emoji.
         Platform.OS === 'android' ? { paddingTop: headerHeight + 18 } : null,
       ]}
       showsVerticalScrollIndicator={false}
-      automaticallyAdjustContentInsets={!embedded}
-      contentInsetAdjustmentBehavior={embedded ? "never" : "automatic"}
+      automaticallyAdjustContentInsets
+      contentInsetAdjustmentBehavior="automatic"
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="interactive"
     >
       {/* Hero Section */}
-      <View style={[styles.heroSection, embedded ? { paddingVertical: 0 } : null]}>
+      <View style={styles.heroSection}>
         <Pressable
           android_ripple={ripple()} accessibilityRole="button" accessibilityLabel={t('a11y.task.changeEmoji')} onPress={() => router.push(`/task/emoji-picker?taskId=${task.id}`)} style={styles.heroEmojiWrap}>
           <View
@@ -753,7 +751,7 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0, embed
 
 
 
-      {embedded ? null : <TaskKeyboardSpacer />}
+      <TaskKeyboardSpacer />
     </ScrollView >
   );
 }

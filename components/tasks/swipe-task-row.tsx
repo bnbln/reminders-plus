@@ -1,4 +1,3 @@
-import { useTaskWorkspace } from "@/context/task-workspace-context";
 import { usePageDimensions } from "@/components/navigation/vertical-bar-safe-area";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import * as Haptics from "expo-haptics";
@@ -410,8 +409,6 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   registerMeasure,
 }: SwipeTaskRowProps) {
   const { width: viewportWidth } = usePageDimensions();
-  const workspace = useTaskWorkspace();
-  const isSelected = workspace?.selectedTaskId === task.id;
   const swipeRef = React.useRef<SwipeableItemImperativeRef | null>(null);
   const longPressTriggeredRef = React.useRef(false);
   const committedSwipeActionDirectionRef = React.useRef<OpenDirection | null>(
@@ -1183,7 +1180,6 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     () => [
       styles.row,
       rowStyle,
-      isSelected ? { borderColor: isDark ? "#64D2FF" : "#007AFF", borderWidth: 1 } : undefined,
       isActive ? styles.dragRow : undefined,
       isActive ? dragRowBorderLock : undefined,
       shouldUseCompactDragPreview
@@ -1202,8 +1198,6 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       dragRowBorderLock,
       isActive,
       rowStyle,
-      isSelected,
-      isDark,
       shouldUseCompactDragPreview,
       styles.dragRow,
       styles.row,
@@ -1628,7 +1622,6 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
           >
             <Animated.View style={contentMotionStyle}>
               <TouchableOpacity
-                accessibilityState={{ selected: isSelected }}
                 testID={`task-row-${task.id}`}
                 accessibilityActions={[
                   {

@@ -48,23 +48,16 @@ Gespeicherter Paketstand: Expo `58.0.13`, React Native `0.88.0`, Router `58.0.22
 - [ ] Verhindern, dass der Text die Prozentanzeige nach links verdrängt. Sowohl **0 % als auch 100 %** müssen stabil positioniert und vollständig sichtbar bleiben.
 - [ ] Die betroffene Statusanzeige/-kachel in `app/status.tsx` und auf der Heute-Seite prüfen; lange Übersetzungen, schmale Fenster und große Schrift einbeziehen. Umbruch und Prozentwert dürfen sich nicht überlagern.
 
-## Vor dem Release entscheiden: Duo-/iPad-Split-Details zurückstellen
+## Entschieden: Duo-/iPad-Split-Details für diesen Release zurückgestellt
 
-- [ ] Erwägen, den aktuellen Split-View-Stand zuerst auf einem eigenen Sicherungsbranch zwischenzuspeichern und die Split-Detail-Änderung aus dem Release-Stand gezielt zurückzunehmen. **Bisher nur als Aufgabe erfasst; noch kein Branch angelegt und kein Rollback ausgeführt.**
-- [ ] Ziel der möglichen Rücknahme: Aufgaben wieder als normale Fullscreen-Seiten mit der bisherigen Navigation öffnen, auf Duo und iPad ebenso wie auf dem normalen iPhone. Für diesen Release keine nebeneinander angeordneten Listen-/Detail-Spalten.
-- [ ] Vor der Rücknahme die gesamte Änderung abgrenzen: Workspace-Wrapper in Heute/Inbox/Archiv/Projekt, `TaskWorkspaceContext`, eingebetteter Editor und der regular-width Redirect in `/task/[id]`. Den bestehenden Editor und die funktionierende Aufgabenbearbeitung erhalten; keine pauschalen Reverts von Sammelcommits.
-- [ ] SDK-58-Update, Scene-Lifecycle, native Duo-Safe-Areas sowie Filter-/Profil-/Sheet-Aktionen erhalten. Das Zurückstellen der Split-Ansicht darf diese unabhängigen Anpassungen nicht entfernen.
-- [ ] Nach einer Rücknahme normale Navigation und Zurück-Pfade aus Heute, Inbox, Projekten, Suche, Routinen, Assist und Widgets prüfen. Position des Hinzufügen-Buttons und Tastaturverhalten mit der dann geltenden Fullscreen-Navigation abnehmen.
+Stand 16. Oktober 2026. Der Split-Stand liegt auf dem Branch `park/task-split-view` (`c26efd4`). Aufgaben öffnen auf Duo und iPad wieder als normale Vollbild-Seite über `/task/[id]`, wie auf dem iPhone. Begründung und Plan für einen späteren Neuaufbau auf `ArrangementView` (iOS 27.1): siehe [task-split-view-entscheidung.md](task-split-view-entscheidung.md).
 
-## Nur bei Beibehaltung der Split-Ansicht: Hinzufügen-Button links ausrichten
+- [x] Split-Stand auf Sicherungsbranch gesichert.
+- [x] `TaskWorkspace` auf iOS auf die Filter-/Profil-Items in der Duo-Leiste reduziert; eingebettetes Detail, `TaskWorkspaceContext`-Auswahl und Auswahlrahmen in der Liste entfernt.
+- [x] Regular-width-Redirect in `/task/[id]` entfernt.
+- [ ] Normale Navigation und Zurück-Pfade aus Heute, Inbox, Projekten, Suche, Routinen, Assist und Widgets auf Duo (außen, innen hoch/quer, angewinkelt) und iPad prüfen. Position des Hinzufügen-Buttons und Tastaturverhalten in der Vollbild-Detailseite abnehmen.
 
-Diese Aufgabe ist der Releaseentscheidung zur Split-Ansicht nachgeordnet. Bei deren Rücknahme entfällt die Spaltenzentrierung für den Release und bleibt beim zwischengespeicherten Split-Stand relevant.
-
-- [ ] Sobald rechts das Detail einer Aufgabe geöffnet ist, „Aufgabe hinzufügen“ horizontal in der **linken Listenspalte** zentrieren, etwa unter „Heute“. Der Button ist aktuell am gesamten Fenster ausgerichtet.
-- [ ] Die Position aus den tatsächlichen Spaltenmaßen bestimmen; bei iPad-Größenänderungen und Duo-Posewechseln aktualisieren.
-- [ ] Ohne geöffnetes Spaltendetail die bisherige Position beibehalten. Beim Tabwechsel keine falsche Spaltenposition übernehmen und keinen zweiten Button anzeigen.
-- [ ] Den bisherigen Erstellkontext erhalten: ausgewählter Heute-Tag, Inbox, Routine bzw. Projekt. Zuständig ist derzeit das native `UITabAccessory` im AppDelegate.
-- [ ] Auf iPad und Duo prüfen: Detail öffnen → Button links zentriert → Button tippen → korrekter Erstellungsdialog → Detail schließen → bisherige Position wiederhergestellt. Normales iPhone gegenprüfen.
+Damit entfallen für diesen Release: Hinzufügen-Button in der linken Spalte zentrieren, Tastatur im eingebetteten Detail, 680-pt-Grenze, Arbeitskontext-Redirect. Sie bleiben für den geparkten Split-Stand relevant.
 
 ## SDK 58: abschließende native Prüfung
 
@@ -72,7 +65,7 @@ Die finalen Paketversionen sind im Checkout gespeichert. Die vorherige Simulator
 
 - [ ] App **und Widget-Erweiterung** nach dem finalen Paket-/Pod-Update neu bauen. Vorhandene Development Builds mit React Native RC ersetzen.
 - [ ] iPhone Duo: außen, innen hoch/quer, Falten/Entfalten und angewinkelte Pose; Safe Areas, native Filter-/Profilmenüs, Day-Slider und Hinzufügen prüfen.
-- [ ] iPad: Hoch-/Querformat und schmale Fenster; Liste/Detail, Titelabstände und nativen Zurück-Button prüfen.
+- [ ] iPad: Hoch-/Querformat und schmale Fenster; Vollbild-Detail, Titelabstände und nativen Zurück-Button prüfen.
 - [ ] Normales iPhone: kompakte Aufgabenroute, Suche, Erstellungsdialoge und Bildschirmtastatur prüfen.
 - [ ] Datum-/Projekt-/Emoji-/Routinen-Sheets: native Close-/Done-Aktionen antippen; Eingaben über Posewechsel erhalten.
 - [ ] Swipe/Drag und Widget-Abhaken nach dem Update prüfen. Der Widget-Speicherpatch bleibt erforderlich.
@@ -81,11 +74,11 @@ Device Hub lieferte bei der Prüfung zeitweise `noWindowsAvailable` bzw. Timeout
 
 ## Im Code gefundene Risiken bearbeiten
 
-- [ ] **Tastatur im eingebetteten Detail:** Keyboard-Ausgleich ergänzen oder automatisch angepasste Keyboard-Insets aktivieren. Der Spacer entfällt derzeit bei `embedded`; das Notizfeld unten kann verdeckt werden. Mit eingeblendeter Bildschirmtastatur verifizieren.
+- [x] ~~**Tastatur im eingebetteten Detail:** Keyboard-Ausgleich ergänzen oder automatisch angepasste Keyboard-Insets aktivieren. Der Spacer entfällt derzeit bei `embedded`; das Notizfeld unten kann verdeckt werden. Mit eingeblendeter Bildschirmtastatur verifizieren.~~ Entfällt mit dem zurückgestellten Split.
 - [ ] **Erster Duo-Leistenwechsel:** Den Safe-Area-Wrapper von Anfang an strukturell stabil halten. Der erste Wechsel von „noch nie Leiste“ zu „Leiste vorhanden“ ersetzt aktuell den Kinderbaum; ungespeicherter lokaler Formularzustand kann verloren gehen.
-- [ ] **Aufgabenroute / Arbeitskontext:** Den pauschalen Redirect von `/task/[id]` nach `/inbox` auf regular-breiten Geräten prüfen. Suche, Routine, Assist und Widget-Links sollen ihren sinnvollen Kontext und Zurück-Pfad behalten.
+- [x] ~~**Aufgabenroute / Arbeitskontext:** Den pauschalen Redirect von `/task/[id]` nach `/inbox` auf regular-breiten Geräten prüfen. Suche, Routine, Assist und Widget-Links sollen ihren sinnvollen Kontext und Zurück-Pfad behalten.~~ Entfällt mit dem zurückgestellten Split.
 - [ ] **Projekt-Modals:** Hintergrund bei „Projekt bearbeiten“ und Projektlimit wie beim Anlegen hinter die Duo-Leiste ausdehnen. Interaktive Inhalte weiter innerhalb der Safe Area halten.
-- [ ] **Duo-Split bei 669 pt:** Die aktuelle 680-pt-Grenze zeigt innen hochkant nur eine Spalte. Gewünschtes Verhalten festlegen und bei einer Anpassung die Mindestbreiten beider Spalten beachten. Querformat nicht allein aus den Portrait-Einträgen in Info.plist ableiten: Im Simulator lief das resizable Duo-Innendisplay auch quer.
+- [x] ~~**Duo-Split bei 669 pt:** Die aktuelle 680-pt-Grenze zeigt innen hochkant nur eine Spalte. Gewünschtes Verhalten festlegen und bei einer Anpassung die Mindestbreiten beider Spalten beachten. Querformat nicht allein aus den Portrait-Einträgen in Info.plist ableiten: Im Simulator lief das resizable Duo-Innendisplay auch quer.~~ Entfällt mit dem zurückgestellten Split.
 
 ## Technische Altlasten
 
