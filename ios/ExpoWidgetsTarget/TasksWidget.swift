@@ -9,8 +9,8 @@ struct TasksWidget: Widget {
     StaticConfiguration(kind: name, provider: WidgetsTimelineProvider(name: name)) { entry in
       WidgetsEntryView(entry: entry)
     }
-    .configurationDisplayName("Heute")
-    .description("Deine offenen Aufgaben für heute – direkt abhakbar.")
+    .configurationDisplayName("Today")
+    .description("Your open tasks for today, ready to check off.")
     .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryCircular, .accessoryRectangular, .accessoryInline])
   }
 }

@@ -18,6 +18,7 @@ import {
   REMINDS_PLUS_SUBSCRIPTION_IDS,
   type PremiumPlan,
 } from "@/constants/premium";
+import { t } from "@/i18n";
 
 export type PurchaseAttemptResult =
   | "purchased"
@@ -116,7 +117,7 @@ function toErrorMessage(error: unknown): string {
     "code" in error &&
     (error as PurchaseError).code === ErrorCode.NetworkError
   ) {
-    return "Der App Store ist gerade nicht erreichbar.";
+    return t("plus.error.storeUnavailable");
   }
 
   if (
@@ -125,7 +126,7 @@ function toErrorMessage(error: unknown): string {
     "code" in error &&
     (error as PurchaseError).code === ErrorCode.ItemUnavailable
   ) {
-    return "Dieses Produkt ist in App Store Connect noch nicht verfuegbar.";
+    return t("plus.support.productNotLoaded");
   }
 
   if (error instanceof Error && error.message.trim().length > 0) {
@@ -136,7 +137,7 @@ function toErrorMessage(error: unknown): string {
     return error;
   }
 
-  return "Der Kauf konnte nicht abgeschlossen werden.";
+  return t("plus.error.purchaseFailed");
 }
 
 function isEntitlingPurchase(purchase: Purchase, productId: string): boolean {
@@ -387,7 +388,7 @@ function PremiumProviderIOS({ children }: { children: React.ReactNode }) {
         if (__DEV__) {
           return grantDebugEntitlement(productId);
         }
-        setErrorMessage("Die Verbindung zum App Store wird noch aufgebaut.");
+        setErrorMessage(t("plus.checkout.connecting"));
         setIsReady(true);
         return "failed";
       }
@@ -451,7 +452,7 @@ function PremiumProviderIOS({ children }: { children: React.ReactNode }) {
 
   const restorePurchases = React.useCallback(async () => {
     if (!connected) {
-      setErrorMessage("Die Verbindung zum App Store wird noch aufgebaut.");
+      setErrorMessage(t("plus.checkout.connecting"));
       setIsReady(true);
       return false;
     }

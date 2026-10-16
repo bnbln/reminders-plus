@@ -10,7 +10,7 @@ struct StreakWidget: Widget {
       WidgetsEntryView(entry: entry)
     }
     .configurationDisplayName("Streak")
-    .description("Deine Serie an erledigten Tagen auf einen Blick.")
+    .description("Your streak of completed days at a glance.")
     .supportedFamilies([.systemSmall, .systemMedium, .accessoryCircular, .accessoryRectangular, .accessoryInline])
   }
 }

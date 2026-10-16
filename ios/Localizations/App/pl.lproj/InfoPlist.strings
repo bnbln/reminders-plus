@@ -1,0 +1,9 @@
+/* Generated localization for Reminders+ (main app Info.plist). */
+"CFBundleDisplayName" = "Reminders+";
+"NSCalendarsUsageDescription" = "Reminders+ importuje wydarzenia z Kalendarza do Twoich zadań.";
+"NSCalendarsFullAccessUsageDescription" = "Reminders+ importuje wydarzenia z Kalendarza do Twoich zadań.";
+"NSRemindersUsageDescription" = "Reminders+ importuje przypomnienia z aplikacji Przypomnienia do Twoich zadań.";
+"NSRemindersFullAccessUsageDescription" = "Reminders+ importuje przypomnienia z aplikacji Przypomnienia do Twoich zadań.";
+"NSLocationWhenInUseUsageDescription" = "Reminders+ używa Twojej lokalizacji, aby zaproponować bieżące miejsce dla zadania.";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "Reminders+ używa Twojej lokalizacji, aby zaproponować bieżące miejsce dla zadania.";
+"NSLocationAlwaysUsageDescription" = "Reminders+ używa Twojej lokalizacji, aby zaproponować bieżące miejsce dla zadania.";
