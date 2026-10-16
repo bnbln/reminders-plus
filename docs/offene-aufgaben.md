@@ -32,6 +32,7 @@ Gespeicherter Paketstand: Expo `58.0.13`, React Native `0.88.0`, Router `58.0.22
 
 - [ ] Overlay und Tastatur beim Öffnen synchron bewegen, sodass die gesamte Eingabefläche unmittelbar mitkommt und an der Tastaturkante bleibt.
 - [ ] Prüfen, ob sich Position und Fortschritt des Overlays direkt an die tatsächliche Tastaturposition bzw. deren Animationsverlauf koppeln lassen. Timing, Easing und Layout-Anpassung in `app/task/create-modal.tsx` gemeinsam betrachten; keine bloß geschätzte Verzögerung als Synchronisation verwenden.
+- [ ] **Code-Fix:** `KeyboardAvoidingView` durch eine iOS-Ansicht ersetzt, die per `useAnimatedKeyboard` bildgenau mit der Tastaturhöhe verschoben wird (UI-Thread, kein nachträgliches Layout). Ursache: Der KAV berechnete die Höhe asynchron und erst nach `onLayout`; beim Fokus direkt nach dem Öffnen lief die Padding-Animation deshalb nachträglich. Android unverändert. Geräteabnahme steht aus.
 - [ ] Den kompletten Ablauf prüfen: erster und erneuter Aufruf, Schließen, interaktives Tastatur-Ausblenden, Hardwaretastatur sowie iPhone, Duo und iPad. Kein zweites nachlaufendes Aufklappen und kein zusätzlicher Positionssprung durch konkurrierende Layout-Animationen.
 
 ## Streak Celebration: flachere Flamme und natürlichere Bewegung
@@ -41,12 +42,14 @@ Gespeicherter Paketstand: Expo `58.0.13`, React Native `0.88.0`, Router `58.0.22
 - [ ] Oberhalb der Flamme einen horizontal zentrierten, mittig ausgerichteten Motivationstext vorsehen. Mit unterschiedlichen Textlängen und Übersetzungen prüfen.
 - [ ] Die Anfangsanimation natürlicher gestalten: Die Flamme soll sich organisch wie eine Flamme aufbauen bzw. bewegen. Das aktuelle nacheinander erfolgende Größerwerden der beiden Flächen ersetzen.
 - [ ] `components/streak-celebration/streak-flame.tsx`, `streak-celebration-overlay.tsx` und die verwendeten Flammen-Assets gemeinsam prüfen. Abnahme: klare flache Orange-/Gelb-Flächen, deutlich weniger Schatten, kein Light Sweep, lesbarer mittiger Text und ein zusammenhängender natürlicher Auftakt. „Bewegung reduzieren“ berücksichtigen.
+- **Code-Fix in Arbeit (Draft-PR):** Flamme als flache Vektorflächen aus den bestehenden Konturen (`streak-flame-paths.ts`, erzeugt von `scripts/generate-streak-flame-paths.js`); vorgerenderte PNGs, Glanzlicht, 3D-Drehung und Schattierung entfernt, nur ein schwacher Bodenschatten bleibt. Auftakt: Flamme wächst von der Basis als schmale Zunge hoch, gelber Kern folgt, beide flackern gegeneinander und gehen in ruhiges Brennen über. Motivationstext (Start, Standard, Rekord, Meilenstein; de/en) zentriert über der Flamme. Geräteabnahme steht aus.
 
 ## Status ohne Aufgaben: Textbreite und Umbruch begrenzen
 
 - [ ] Die lange Leerzustandsmeldung bei fehlendem Status bzw. fehlenden Aufgaben in der Breite begrenzen und rechtzeitig umbrechen lassen.
 - [ ] Verhindern, dass der Text die Prozentanzeige nach links verdrängt. Sowohl **0 % als auch 100 %** müssen stabil positioniert und vollständig sichtbar bleiben.
 - [ ] Die betroffene Statusanzeige/-kachel in `app/status.tsx` und auf der Heute-Seite prüfen; lange Übersetzungen, schmale Fenster und große Schrift einbeziehen. Umbruch und Prozentwert dürfen sich nicht überlagern.
+- **Code-Fix in Arbeit (Draft-PR):** Ursache in `app/status.tsx`: Der zentrierte Hero-Block wurde so breit wie der Untertitel, dadurch rückte die Prozentzahl nach links, und 0 % und 100 % waren unterschiedlich breit. Die Textspalte hat jetzt eine feste Breite (unsichtbarer „100 %“-Platzhalter, mindestens 170/190 pt, höchstens die verfügbare Breite), der Untertitel bricht darin um. Die Kachel auf der Heute-Seite zeigt keinen Leertext und ist nicht betroffen. Geräteabnahme steht aus.
 
 ## Entschieden: Duo-/iPad-Split-Details für diesen Release zurückgestellt
 
@@ -75,9 +78,9 @@ Device Hub lieferte bei der Prüfung zeitweise `noWindowsAvailable` bzw. Timeout
 ## Im Code gefundene Risiken bearbeiten
 
 - [x] ~~**Tastatur im eingebetteten Detail:** Keyboard-Ausgleich ergänzen oder automatisch angepasste Keyboard-Insets aktivieren. Der Spacer entfällt derzeit bei `embedded`; das Notizfeld unten kann verdeckt werden. Mit eingeblendeter Bildschirmtastatur verifizieren.~~ Entfällt mit dem zurückgestellten Split.
-- [ ] **Erster Duo-Leistenwechsel:** Den Safe-Area-Wrapper von Anfang an strukturell stabil halten. Der erste Wechsel von „noch nie Leiste“ zu „Leiste vorhanden“ ersetzt aktuell den Kinderbaum; ungespeicherter lokaler Formularzustand kann verloren gehen.
+- [ ] **Erster Duo-Leistenwechsel:** Den Safe-Area-Wrapper von Anfang an strukturell stabil halten. Der erste Wechsel von „noch nie Leiste“ zu „Leiste vorhanden“ ersetzt aktuell den Kinderbaum; ungespeicherter lokaler Formularzustand kann verloren gehen. **Code-Fix:** Ab iOS 27.1 (natives `supportsVerticalBar`) ist der Wrapper von Anfang an gemountet und bleibt neutral (keine Insets, Dekoration oder Seitenlayout), bis erstmals eine Leiste erscheint. Ältere iOS-Versionen und Android behalten die ursprüngliche Hierarchie. Native Neubau nötig; auf iPhone mit iOS 27.1 große Titel und Scroll-Kanten gegenprüfen.
 - [x] ~~**Aufgabenroute / Arbeitskontext:** Den pauschalen Redirect von `/task/[id]` nach `/inbox` auf regular-breiten Geräten prüfen. Suche, Routine, Assist und Widget-Links sollen ihren sinnvollen Kontext und Zurück-Pfad behalten.~~ Entfällt mit dem zurückgestellten Split.
-- [ ] **Projekt-Modals:** Hintergrund bei „Projekt bearbeiten“ und Projektlimit wie beim Anlegen hinter die Duo-Leiste ausdehnen. Interaktive Inhalte weiter innerhalb der Safe Area halten.
+- [ ] **Projekt-Modals:** Hintergrund bei „Projekt bearbeiten“ und Projektlimit wie beim Anlegen hinter die Duo-Leiste ausdehnen. Interaktive Inhalte weiter innerhalb der Safe Area halten. **Code-Fix:** Abdunklung in `edit-modal.tsx` und `limit-modal.tsx` nutzt jetzt wie `create-modal.tsx` `usePageInsets()` und reicht seitlich unter die Leiste; Geräteabnahme steht aus.
 - [x] ~~**Duo-Split bei 669 pt:** Die aktuelle 680-pt-Grenze zeigt innen hochkant nur eine Spalte. Gewünschtes Verhalten festlegen und bei einer Anpassung die Mindestbreiten beider Spalten beachten. Querformat nicht allein aus den Portrait-Einträgen in Info.plist ableiten: Im Simulator lief das resizable Duo-Innendisplay auch quer.~~ Entfällt mit dem zurückgestellten Split.
 
 ## Technische Altlasten

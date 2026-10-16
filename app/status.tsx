@@ -4,8 +4,9 @@ import {
 } from "@/components/navigation/vertical-bar-safe-area";
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
+  type LayoutChangeEvent,
   Platform,
   ScrollView,
   StyleSheet,
@@ -63,7 +64,18 @@ const createStyles = (
     },
     heroTextWrap: {
       alignItems: 'flex-start',
+      flexShrink: 1,
       gap: 2,
+    },
+    // Invisible "100%" that reserves the widest value, so 0 % and 100 % sit
+    // in the same place.
+    bigNumberSizer: {
+      opacity: 0,
+    },
+    bigNumberValue: {
+      position: 'absolute',
+      left: 0,
+      top: 0,
     },
     bigNumber: {
       fontSize: compact ? 54 : 64,
@@ -322,6 +334,11 @@ export default function StatusScreen() {
   } = useStatusStats();
 
   const [range, setRange] = useState<RangeOption>('14d');
+  const [numberSlotWidth, setNumberSlotWidth] = useState(0);
+  const handleNumberSlotLayout = useCallback((event: LayoutChangeEvent) => {
+    const next = Math.ceil(event.nativeEvent.layout.width);
+    setNumberSlotWidth((prev) => (prev === next ? prev : next));
+  }, []);
 
   const chartData = useMemo(() => getChartData(range), [range, getChartData]);
   const maxVal = 100;
@@ -377,6 +394,22 @@ export default function StatusScreen() {
           total: todayTotalCount,
         })
       : t('status.hero.empty');
+  // The hero is centred as a group. Giving the text column a fixed width
+  // (the widest number, at least a comfortable line length, at most what
+  // fits next to the icon) keeps the percentage from moving when the value
+  // or the subtitle changes; long subtitles wrap inside that width instead.
+  const heroIconSize = compact ? 36 : 42;
+  const heroAvailableWidth = Math.max(
+    0,
+    width - 32 - heroIconSize - (compact ? 10 : 14),
+  );
+  const heroTextWidth =
+    numberSlotWidth > 0
+      ? Math.min(
+          heroAvailableWidth,
+          Math.max(numberSlotWidth, compact ? 170 : 190),
+        )
+      : undefined;
 
   return (
     <ScrollView
@@ -407,8 +440,26 @@ export default function StatusScreen() {
             style={styles.heroIcon}
           />
         )}
-        <View style={styles.heroTextWrap}>
-          <Text style={styles.bigNumber}>{todayCompletionRate}%</Text>
+        <View
+          style={[
+            styles.heroTextWrap,
+            heroTextWidth != null ? { width: heroTextWidth } : null,
+          ]}
+        >
+          <View>
+            <Text
+              style={[styles.bigNumber, styles.bigNumberSizer]}
+              onLayout={handleNumberSlotLayout}
+              accessible={false}
+              importantForAccessibility="no"
+              aria-hidden
+            >
+              100%
+            </Text>
+            <Text style={[styles.bigNumber, styles.bigNumberValue]}>
+              {todayCompletionRate}%
+            </Text>
+          </View>
           <Text style={styles.heroSubtitle}>{heroSubtitle}</Text>
         </View>
       </View>

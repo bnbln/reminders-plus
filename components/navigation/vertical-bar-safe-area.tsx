@@ -7,6 +7,9 @@ import { StreakAccentBackground } from "@/components/ui/streak-accent-background
 import { useColorScheme } from "@/hooks/use-color-scheme";
 
 const verticalBarModule = Platform.OS === "ios" ? NativeModules.RemindsVerticalBar : undefined;
+// Vertical bars exist only from iOS 27.1. There the wrapper is mounted from the
+// start, so the first bar never swaps the subtree and drops local form state.
+const supportsVerticalBar = verticalBarModule?.supportsVerticalBar === true;
 const VerticalBarContext = React.createContext(false);
 const VerticalBarActiveContext = React.createContext(false);
 const RegularWidthContext = React.createContext(false);
@@ -72,14 +75,16 @@ function VerticalBarSafeArea({
   const dimensions = useWindowDimensions();
   const [pageLayout, setPageLayout] = React.useState<PageLayout>();
 
-  // Keep the original native view hierarchy on all layouts without a vertical bar.
-  if (!hasVerticalBar) return <>{children}</>;
+  // Keep the original native view hierarchy where no vertical bar can appear.
+  if (!supportsVerticalBar && !hasVerticalBar) return <>{children}</>;
 
+  // Until a bar was seen, the same tree stays neutral: no insets, decoration or
+  // page layout, matching the plain hierarchy without remounting later.
   return (
     <View
       style={[
         { flex: 1 },
-        fillBackground
+        hasVerticalBar && fillBackground
           ? {
               backgroundColor: fillBackgroundColor?.[theme] ?? Colors[theme].background,
             }
@@ -87,11 +92,13 @@ function VerticalBarSafeArea({
       ]}
     >
       {/* Only decoration spans the full native Screen, including the bar area. */}
-      {accentBackground ? <StreakAccentBackground isDark={theme === "dark"} /> : null}
+      {hasVerticalBar && accentBackground ? (
+        <StreakAccentBackground isDark={theme === "dark"} />
+      ) : null}
       {/* Read the nearest Screen's insets, including its toolbar/tab bar.
           Top/bottom remain governed by the existing headers and scroll views. */}
       <SafeAreaView
-        edges={{ left: true, right: true }}
+        edges={{ left: hasVerticalBar, right: hasVerticalBar }}
         onLayout={(event) => {
           const { x, width } = event.nativeEvent.layout;
           setPageLayout({
@@ -102,7 +109,7 @@ function VerticalBarSafeArea({
         }}
       >
         <View style={{ flex: 1 }}>
-          <PageLayoutContext.Provider value={pageLayout}>
+          <PageLayoutContext.Provider value={hasVerticalBar ? pageLayout : undefined}>
             {children}
           </PageLayoutContext.Provider>
         </View>

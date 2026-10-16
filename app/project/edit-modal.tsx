@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { usePageInsets } from '@/components/navigation/vertical-bar-safe-area';
 import { DropdownMenu } from '@/components/ui/dropdown-menu';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { SFSymbol } from '@/components/ui/sfsymbol';
@@ -122,6 +123,7 @@ export default function ProjectEditScreen() {
   const isDark = theme === 'dark';
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
+  const pageInsets = usePageInsets();
   const { projects, setProjects, setTasks } = useTasksStore();
   const { hasPremiumAccess, isReady } = usePremium();
 
@@ -355,7 +357,10 @@ export default function ProjectEditScreen() {
       />
 
       <Pressable
-        style={styles.backdrop}
+        style={[
+          styles.backdrop,
+          { left: -pageInsets.leftInset, right: -pageInsets.rightInset },
+        ]}
         accessibilityRole="button"
         accessibilityLabel={t('taskCreate.close')}
         onPress={onBackdropPress}
