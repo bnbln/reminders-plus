@@ -19,7 +19,7 @@ index 178fa42..3d74232 100644
      animationConfig?: Partial<WithSpringConfig>;
      activationThreshold?: number;
 diff --git a/node_modules/react-native-swipeable-item/src/index.tsx b/node_modules/react-native-swipeable-item/src/index.tsx
-index 3fb030b..7049ce6 100644
+index 3fb030b..b9db807 100644
 --- a/node_modules/react-native-swipeable-item/src/index.tsx
 +++ b/node_modules/react-native-swipeable-item/src/index.tsx
 @@ -78,6 +78,15 @@ type Props<T> = {
@@ -156,3 +156,12 @@ index 3fb030b..7049ce6 100644
        };
        if (animStatePos.value === closestSnapPoint) onComplete();
        else
+@@ -527,7 +596,7 @@ export function useSwipeableItemParams<T>() {
+ 
+ const styles = StyleSheet.create({
+   underlay: {
+-    ...StyleSheet.absoluteFillObject,
++    ...StyleSheet.absoluteFill,
+   },
+   flex: {
+     flex: 1,
