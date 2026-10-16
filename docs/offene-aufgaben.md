@@ -4,7 +4,38 @@ Stand: 16. Oktober 2026. Grundlage: [Expo-58-Release-Abgleich](expo58-release-au
 
 Gespeicherter Paketstand: Expo `58.0.13`, React Native `0.88.0`, Router `58.0.22`, Screens `4.30.0`, Safe Area Context `5.10.1`, UI/Widgets `58.0.20`. Saubere npm-Installation mit regulärer Peer-Auflösung, alle vier Patches, TypeScript und Expo-Paketabgleich sind erfolgreich. Pods und Podfile.lock sind synchronisiert. Expo Doctor meldet allein den bekannten Config-Sync-Hinweis.
 
-## Zuerst: Hinzufügen-Button an der linken Liste ausrichten
+## Release-Priorität: Heute-Day-Slider
+
+- [ ] **Ruckeln beim horizontalen Ziehen beheben.** Nutzerbeobachtung: Das Verschieben zwischen Tagen nach links und rechts wirkt leicht fehlerhaft und ruckelig. Langsames Ziehen, schnelles Wischen und Richtungswechsel getrennt prüfen.
+- [ ] **Sichtbare Animation bei Tag-Tap ergänzen.** Ein Tipp auf einen anderen Tag soll die Aktivierung nachvollziehbar animieren, statt direkt zur neuen Auswahl zu springen. Slider, aktive Markierung und zugehöriger Tagesinhalt sollen eine zusammenhängende Rückmeldung geben; schnelle aufeinanderfolgende Tipps berücksichtigen. „Bewegung reduzieren“ respektieren.
+- [ ] Scroll-, Auswahl- und Synchronisationspfade in `app/(tabs)/home/index.tsx` zusammen prüfen: `handleSelectDate`, `selectDateWithTransition`, `handleDateRailScroll`, Momentum-/Drag-Ende und `syncDateRailToSelectedDate`. Letzterer setzt Offset und Animated.Value unmittelbar und verwendet `animated: false`; prüfen, ob dieser Synchronisationspfad eine gewünschte Tap-Animation überschreibt oder beim Ziehen eingreift. Ursache noch nicht bestätigt.
+- [ ] Abnahme auf dem Gerät: beide Richtungen flüssig, keine nachträglichen Sprünge, Tippen mit verständlicher Aktivierungsanimation und anschließend genau der gewählte Tag aktiv. Auch im schmalen Fenster und nach Größenwechsel prüfen.
+
+## Release-Priorität: Listenregressionen gegenüber master
+
+**Nutzerbeobachtungen, noch keine neue Messung:** Swipe-Actions in beide Richtungen haben keinen sichtbaren Farbhintergrund mehr, die Icons wirken falsch dargestellt, und das frühere weiche Ein-/Ausblenden der Hintergrundfarbe fehlt. Der bisherige Fix sollte das Flackern nach dem Loslassen beim Drag & Drop beseitigen; es tritt weiterhin ungefähr bei **3 von 10 Vorgängen** auf. Zusätzlich springt die ganze Liste beim Aktivieren eines Drags häufig zusammen mit der Header-Bar nach oben.
+
+- [ ] **Swipe-Darstellung wiederherstellen:** links und rechts korrekte Icons, sichtbare Aktionsfarben und weiches Ein-/Ausblenden bei Öffnen, Abbrechen und Schließen. Gegen `master` vergleichen, nicht nur einen neu gestalteten Ersatz visuell abnehmen.
+- [ ] **Drop-Flackern beheben:** Originalproblem isoliert reproduzieren und den bisherigen Fix überprüfen. Die Behebung darf Swipe-Hintergründe, Icons oder Listengeometrie nicht beeinträchtigen.
+- [ ] **Sprung bei Drag-Beginn beheben:** Scrollposition, Zeilenpositionen und Header-Zustand beim Übergang zum aktiven Drag stabil halten. Mit ausgeklapptem und eingeklapptem großen Titel sowie bereits gescrollter Liste prüfen. Eine beabsichtigte Änderung der Drag-Vorschau darf nicht die gesamte Liste verschieben.
+- [ ] Änderungen gegenüber `master` gezielt in `components/tasks/swipe-task-row.tsx`, `components/tasks/task-swipe-draggable-list.tsx` und beiden zugehörigen `patch-package`-Patches nachvollziehen. Keine pauschale Übernahme alter Dateien: SDK-58-Kompatibilität und unabhängige Funktionen erhalten.
+- [ ] Prüfansätze aus dem Codevergleich: `SwipeActionUnderlay` wechselte von `interpolateColor` zu einem soliden Hintergrund mit animierter Opacity; iOS verwendet nun `SymbolView` statt MaterialIcons. Der Swipe-Patch ergänzt `underlayHeight` und natives `zIndex`. Höhe, Clipping, Ebenenreihenfolge und Icon-Tint gemeinsam prüfen. Dies sind Änderungen, keine nachgewiesene Fehlerursache.
+- [ ] Drop-Prüfansätze: `pendingDropData` verschiebt den Reorder in einen Effect; der Draggable-FlatList-Patch setzt den gehaltenen Zell-Offset im Layout-Effect zurück. Timing zwischen Bibliothekszustand, Daten-Reorder, Layout-/Landing-Animationen und Drag-State prüfen. Für den Header-Sprung zusätzlich `handleDragStateChange`, Scroll-Offsets und die native `setContentScrollView`-Anbindung untersuchen.
+- [ ] Abnahme mit mindestens 30 wiederholten Drops je relevantem Listenaufbau dokumentieren; Flackern und Sprünge zählen, einschließlich unveränderter Ablageposition, geänderter Reihenfolge und externer Drop-Ziele. Heute, Inbox und Projektlisten sowie Swipe links/rechts gegenprüfen. Einen erfolgreichen Einzelversuch nicht als Behebung werten.
+
+**Vergleichsstand vom 16. Oktober:** lokaler `master` = `6199d56`, geprüfter SDK-58-Stand = `befbf59`. Die drei betroffenen App-Dateien unterscheiden sich zusammen um 836 Einfügungen und 319 Löschungen; zusätzlich unterscheiden sich die Bibliothekspatches. Der Vergleich wurde lokal durchgeführt. Die gemeldeten Symptome wurden dabei nicht erneut im Simulator gemessen.
+
+## Vor dem Release entscheiden: Duo-/iPad-Split-Details zurückstellen
+
+- [ ] Erwägen, den aktuellen Split-View-Stand zuerst auf einem eigenen Sicherungsbranch zwischenzuspeichern und die Split-Detail-Änderung aus dem Release-Stand gezielt zurückzunehmen. **Bisher nur als Aufgabe erfasst; noch kein Branch angelegt und kein Rollback ausgeführt.**
+- [ ] Ziel der möglichen Rücknahme: Aufgaben wieder als normale Fullscreen-Seiten mit der bisherigen Navigation öffnen, auf Duo und iPad ebenso wie auf dem normalen iPhone. Für diesen Release keine nebeneinander angeordneten Listen-/Detail-Spalten.
+- [ ] Vor der Rücknahme die gesamte Änderung abgrenzen: Workspace-Wrapper in Heute/Inbox/Archiv/Projekt, `TaskWorkspaceContext`, eingebetteter Editor und der regular-width Redirect in `/task/[id]`. Den bestehenden Editor und die funktionierende Aufgabenbearbeitung erhalten; keine pauschalen Reverts von Sammelcommits.
+- [ ] SDK-58-Update, Scene-Lifecycle, native Duo-Safe-Areas sowie Filter-/Profil-/Sheet-Aktionen erhalten. Das Zurückstellen der Split-Ansicht darf diese unabhängigen Anpassungen nicht entfernen.
+- [ ] Nach einer Rücknahme normale Navigation und Zurück-Pfade aus Heute, Inbox, Projekten, Suche, Routinen, Assist und Widgets prüfen. Position des Hinzufügen-Buttons und Tastaturverhalten mit der dann geltenden Fullscreen-Navigation abnehmen.
+
+## Nur bei Beibehaltung der Split-Ansicht: Hinzufügen-Button links ausrichten
+
+Diese Aufgabe ist der Releaseentscheidung zur Split-Ansicht nachgeordnet. Bei deren Rücknahme entfällt die Spaltenzentrierung für den Release und bleibt beim zwischengespeicherten Split-Stand relevant.
 
 - [ ] Sobald rechts das Detail einer Aufgabe geöffnet ist, „Aufgabe hinzufügen“ horizontal in der **linken Listenspalte** zentrieren, etwa unter „Heute“. Der Button ist aktuell am gesamten Fenster ausgerichtet.
 - [ ] Die Position aus den tatsächlichen Spaltenmaßen bestimmen; bei iPad-Größenänderungen und Duo-Posewechseln aktualisieren.
