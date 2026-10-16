@@ -28,7 +28,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StreakFlame } from "@/components/streak-celebration/streak-flame";
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { SFSymbol } from "@/components/ui/sfsymbol";
-import { Colors, Fonts } from "@/constants/theme";
+import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
 import {
@@ -406,13 +406,17 @@ export function StreakCelebrationOverlay({
             accessibilityRole="button"
             accessibilityLabel={t("streakCelebration.continue")}
             onPress={handleClose}
-            style={({ pressed }) => pressed && { transform: [{ scale: 0.98 }] }}
+            style={({ pressed }) => [
+              styles.buttonPressable,
+              pressed && { transform: [{ scale: 0.98 }] },
+            ]}
           >
+            {/* Same glass as the card: interactive glass renders almost clear
+                here, so the press feedback comes from the scale instead. */}
             <GlassSurface
               style={[styles.button, { borderColor: hairline }]}
               glassEffectStyle="regular"
-              fallbackBackgroundColor={isDark ? "#2C2C2E" : "#FFFFFF"}
-              isInteractive
+              fallbackBackgroundColor={isDark ? "#1C1C1E" : "#FFFFFF"}
             >
               <Text style={[styles.buttonText, { color: text }]}>
                 {t("streakCelebration.continue")}
@@ -443,7 +447,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   message: {
-    fontFamily: Fonts?.rounded,
     fontSize: 24,
     lineHeight: 30,
     fontWeight: "800",
@@ -480,7 +483,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     top: 0,
-    fontFamily: Fonts?.rounded,
     fontSize: 34,
     lineHeight: 40,
     fontWeight: "900",
@@ -532,6 +534,12 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: BAR_SIDE_INSET,
     right: BAR_SIDE_INSET,
+    alignItems: "center",
+  },
+  // Matches the card's width, so the button does not stretch across an iPad.
+  buttonPressable: {
+    width: "100%",
+    maxWidth: 480,
   },
   button: {
     height: BAR_HEIGHT,
