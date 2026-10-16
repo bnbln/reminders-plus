@@ -1653,7 +1653,6 @@ function HomeContent() {
   >(null);
   const [isDragOverCalendarHeader, setIsDragOverCalendarHeader] =
     React.useState(false);
-  const [, setDragDropDebugReason] = React.useState("idle");
   const [, setActiveDragSurface] = React.useState<DragSurfaceId | null>(null);
   const dragContextRef = React.useRef<{
     taskId: string;
@@ -3037,7 +3036,6 @@ function HomeContent() {
   const clearDateDragHover = React.useCallback(() => {
     clearDateRailHover();
     setIsDragOverCalendarHeader(false);
-    setDragDropDebugReason("idle");
   }, [clearDateRailHover]);
   const getTouchPointFromEvent = React.useCallback(
     (event: GestureResponderEvent) => {
@@ -3061,7 +3059,6 @@ function HomeContent() {
     ) => {
       scheduleMeasureDateRailListBounds();
       const force = options?.force === true;
-      const source = options?.source ?? "touch";
       const headerBounds = dateRailBoundsRef.current;
       const shouldTrackHeader =
         !!dragContextRef.current && (force || listDragActiveRef.current);
@@ -3076,16 +3073,13 @@ function HomeContent() {
         current === isInsideCalendarHeader ? current : isInsideCalendarHeader,
       );
       if (!dragContextRef.current) {
-        setDragDropDebugReason(`${source}-no-context`);
         return;
       }
       if (!force && !listDragActiveRef.current) {
-        setDragDropDebugReason(`${source}-not-dragging`);
         return;
       }
       const bounds = dateRailListBoundsRef.current;
       if (!bounds) {
-        setDragDropDebugReason(`${source}-no-rail-bounds`);
         return;
       }
 
@@ -3097,7 +3091,6 @@ function HomeContent() {
       if (!isInsideDayRail) {
         dragLastRailDateStartRef.current = null;
         clearDateRailHover();
-        setDragDropDebugReason(`${source}-outside-rail`);
         return;
       }
 
@@ -3111,7 +3104,6 @@ function HomeContent() {
       );
       const targetDateStart = dateRailDays[targetIndex]?.timestamp;
       if (!Number.isFinite(targetDateStart)) {
-        setDragDropDebugReason(`${source}-invalid-target`);
         return;
       }
 
@@ -3122,9 +3114,6 @@ function HomeContent() {
       dragLastRailDateStartRef.current = targetDateStart;
       setDragDetectedDateStart((current) =>
         current === targetDateStart ? current : targetDateStart,
-      );
-      setDragDropDebugReason(
-        force ? `${source}-inside-force` : `${source}-inside`,
       );
       const now = Date.now();
       const currentIntent = dragRailHoverIntentRef.current;
@@ -3174,7 +3163,6 @@ function HomeContent() {
     (event: GestureResponderEvent, options?: { force?: boolean }) => {
       const point = getTouchPointFromEvent(event);
       if (!point) {
-        setDragDropDebugReason("touch-no-touch-point");
         return;
       }
       updateDateRailDragHoverFromPoint(point, {
@@ -3188,7 +3176,6 @@ function HomeContent() {
     (params: TaskDragGestureUpdateParams) => {
       const { absoluteX, absoluteY, phase } = params;
       if (!Number.isFinite(absoluteX) || !Number.isFinite(absoluteY)) {
-        setDragDropDebugReason("gesture-invalid-point");
         return;
       }
       updateDateRailDragHoverFromPoint(

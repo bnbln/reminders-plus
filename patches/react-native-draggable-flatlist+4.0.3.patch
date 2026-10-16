@@ -1,18 +1,39 @@
 diff --git a/node_modules/react-native-draggable-flatlist/lib/module/components/CellRendererComponent.js b/node_modules/react-native-draggable-flatlist/lib/module/components/CellRendererComponent.js
-index 7e32214..75c719e 100644
+index 7e32214..3c820e0 100644
 --- a/node_modules/react-native-draggable-flatlist/lib/module/components/CellRendererComponent.js
 +++ b/node_modules/react-native-draggable-flatlist/lib/module/components/CellRendererComponent.js
-@@ -1,7 +1,7 @@
+@@ -1,8 +1,9 @@
  function _extends() { _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return _extends.apply(this, arguments); }
  
 -import React, { useEffect, useMemo, useRef } from "react";
 -import { findNodeHandle } from "react-native";
+-import Animated, { runOnUI, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 +import React, { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 +import { findNodeHandle, UIManager } from "react-native";
- import Animated, { runOnUI, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
++import Animated, { runOnUI, useAnimatedStyle, useSharedValue, useAnimatedRef, setNativeProps } from "react-native-reanimated";
++import { runOnUISync } from "react-native-worklets";
  import { useDraggableFlatListContext } from "../context/draggableFlatListContext";
  import { isWeb } from "../constants";
-@@ -87,15 +87,39 @@ function CellRendererComponent(props) {
+ import { useCellTranslate } from "../hooks/useCellTranslate";
+@@ -20,7 +21,7 @@ function CellRendererComponent(props) {
+     children,
+     ...rest
+   } = props;
+-  const viewRef = useRef(null);
++  const viewRef = useAnimatedRef();
+   const {
+     cellDataRef,
+     propsRef,
+@@ -51,7 +52,7 @@ function CellRendererComponent(props) {
+     // the animated style may apply before the next paint, causing a flicker.
+     // Solution is to hold over the last animated value until the next onLayout.
+     // (Not required in web)
+-    if (translate.value && !isWeb) {
++    if (activeKey && !isWeb) {
+       heldTanslate.value = translate.value;
+     }
+ 
+@@ -87,15 +88,47 @@ function CellRendererComponent(props) {
        }
      };
  
@@ -52,8 +73,16 @@ index 7e32214..75c719e 100644
 +  useLayoutEffect(() => {
 +    if (lastIndexRef.current === index) return;
 +    lastIndexRef.current = index;
-+    if (!isWeb) heldTanslate.value = 0;
-+  }, [index]);
++    if (!isWeb) {
++      runOnUISync(() => {
++        "worklet";
++        heldTanslate.value = 0;
++        setNativeProps(viewRef, {
++          transform: [horizontalAnim.value ? { translateX: 0 } : { translateY: 0 }]
++        });
++      });
++    }
++  }, [index, heldTanslate, horizontalAnim, viewRef]);
 +
    const onCellLayout = useStableCallback(e => {
      heldTanslate.value = 0;
@@ -140,10 +169,10 @@ index 2abb4a2..0a25b1d 100644
      renderItem: RenderItem<T>;
      renderPlaceholder?: RenderPlaceholder<T>;
 diff --git a/node_modules/react-native-draggable-flatlist/src/components/CellRendererComponent.tsx b/node_modules/react-native-draggable-flatlist/src/components/CellRendererComponent.tsx
-index e4e861a..338f831 100644
+index e4e861a..31f21e2 100644
 --- a/node_modules/react-native-draggable-flatlist/src/components/CellRendererComponent.tsx
 +++ b/node_modules/react-native-draggable-flatlist/src/components/CellRendererComponent.tsx
-@@ -1,9 +1,10 @@
+@@ -1,16 +1,20 @@
 -import React, { useEffect, useMemo, useRef } from "react";
 +import React, { useEffect, useLayoutEffect, useMemo, useRef } from "react";
  import {
@@ -155,7 +184,35 @@ index e4e861a..338f831 100644
    ViewStyle,
  } from "react-native";
  import Animated, {
-@@ -88,16 +89,40 @@ function CellRendererComponent<T>(props: Props<T>) {
+   runOnUI,
+   useAnimatedStyle,
+   useSharedValue,
++  useAnimatedRef,
++  setNativeProps,
+ } from "react-native-reanimated";
++import { runOnUISync } from "react-native-worklets";
+ import { useDraggableFlatListContext } from "../context/draggableFlatListContext";
+ import { isWeb } from "../constants";
+ import { useCellTranslate } from "../hooks/useCellTranslate";
+@@ -31,7 +35,7 @@ type Props<T> = {
+ function CellRendererComponent<T>(props: Props<T>) {
+   const { item, index, onLayout, children, ...rest } = props;
+ 
+-  const viewRef = useRef<Animated.View>(null);
++  const viewRef = useAnimatedRef<Animated.View>();
+   const { cellDataRef, propsRef, containerRef } = useRefs<T>();
+ 
+   const { horizontalAnim, scrollOffset } = useAnimatedValues();
+@@ -60,7 +64,7 @@ function CellRendererComponent<T>(props: Props<T>) {
+     // the animated style may apply before the next paint, causing a flicker.
+     // Solution is to hold over the last animated value until the next onLayout.
+     // (Not required in web)
+-    if (translate.value && !isWeb) {
++    if (activeKey && !isWeb) {
+       heldTanslate.value = translate.value;
+     }
+     const t = activeKey ? translate.value : heldTanslate.value;
+@@ -88,16 +92,50 @@ function CellRendererComponent<T>(props: Props<T>) {
        }
      };
  
@@ -196,14 +253,24 @@ index e4e861a..338f831 100644
 +  useLayoutEffect(() => {
 +    if (lastIndexRef.current === index) return;
 +    lastIndexRef.current = index;
-+    if (!isWeb) heldTanslate.value = 0;
-+  }, [index]);
++    if (!isWeb) {
++      // Finish on the UI runtime before this layout effect returns. A queued
++      // SharedValue write can otherwise miss the Fabric layout commit's frame.
++      runOnUISync(() => {
++        "worklet";
++        heldTanslate.value = 0;
++        setNativeProps(viewRef, {
++          transform: [horizontalAnim.value ? { translateX: 0 } : { translateY: 0 }],
++        });
++      });
++    }
++  }, [index, heldTanslate, horizontalAnim, viewRef]);
 +
    const onCellLayout = useStableCallback((e?: LayoutChangeEvent) => {
      heldTanslate.value = 0;
      updateCellMeasurements();
 diff --git a/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx b/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx
-index 7c88afc..f111b36 100644
+index 7c88afc..df1735f 100644
 --- a/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx
 +++ b/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx
 @@ -10,7 +10,6 @@ import {
@@ -214,26 +281,68 @@ index 7c88afc..f111b36 100644
  } from "react-native";
  import {
    FlatList,
-@@ -119,9 +118,15 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+@@ -84,6 +83,9 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+     disabled,
+   } = useAnimatedValues();
+ 
++  const dragEpoch = useSharedValue(0);
++  const completedDragEpochRef = useRef(0);
++
+   const reset = useStableCallback(() => {
+     activeIndexAnim.value = -1;
+     spacerIndexAnim.value = -1;
+@@ -111,18 +113,20 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+     return props.keyExtractor(item, index);
+   });
+ 
+-  const dataRef = useRef(props.data);
+-  const dataHasChanged =
+-    dataRef.current.map(keyExtractor).join("") !==
+-    props.data.map(keyExtractor).join("");
+-  dataRef.current = props.data;
++  const dataKeys = JSON.stringify(props.data.map(keyExtractor));
++  const committedDataKeysRef = useRef(dataKeys);
++  const dataHasChanged = committedDataKeysRef.current !== dataKeys;
    if (dataHasChanged) {
-     // When data changes make sure `activeKey` is nulled out in the same render pass
+-    // When data changes make sure `activeKey` is nulled out in the same render pass
++    // Render reordered cells without an active key. Reset the shared values
++    // before this commit is painted, never in a queued idle callback: a late
++    // reset from the previous drop could otherwise cancel a subsequent drag.
      activeKey = null;
 -    InteractionManager.runAfterInteractions(() => {
 -      reset();
 -    });
-+    if (typeof globalThis.requestIdleCallback === "function") {
-+      globalThis.requestIdleCallback(() => {
-+        reset();
-+      });
-+    } else {
-+      setTimeout(() => {
-+        reset();
-+      }, 0);
-+    }
    }
++  useLayoutEffect(() => {
++    if (committedDataKeysRef.current === dataKeys) return;
++    committedDataKeysRef.current = dataKeys;
++    reset();
++  }, [dataKeys, reset]);
  
    useEffect(() => {
-@@ -237,6 +242,17 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+     if (!propsRef.current.enableLayoutAnimationExperimental) return;
+@@ -157,6 +161,7 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+     if (index !== undefined) {
+       spacerIndexAnim.value = index;
+       activeIndexAnim.value = index;
++      dragEpoch.value += 1;
+       setActiveKey(activeKey);
+       onDragBegin?.(index);
+     }
+@@ -219,7 +224,11 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+   });
+ 
+   const onDragEnd = useStableCallback(
+-    ({ from, to }: { from: number; to: number }) => {
++    ({ from, to, epoch }: { from: number; to: number; epoch: number }) => {
++      // A cancelled/queued completion from another gesture must not clear the
++      // active key or reorder data belonging to the current gesture.
++      if (epoch !== dragEpoch.value || completedDragEpochRef.current === epoch) return;
++      completedDragEpochRef.current = epoch;
+       const { onDragEnd, data } = props;
+ 
+       const newData = [...data];
+@@ -237,6 +246,17 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
    const onPlaceholderIndexChange = useStableCallback((index: number) => {
      props.onPlaceholderIndexChange?.(index);
    });
@@ -251,7 +360,15 @@ index 7c88afc..f111b36 100644
  
    // Handle case where user ends drag without moving their finger.
    useAnimatedReaction(
-@@ -277,6 +293,13 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+@@ -251,6 +271,7 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+           runOnJS(onDragEnd)({
+             from: activeIndexAnim.value,
+             to: spacerIndexAnim.value,
++            epoch: dragEpoch.value,
+           });
+         }
+       }
+@@ -277,6 +298,13 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
        gestureDisabled.value = disabled.value;
        if (gestureDisabled.value) return;
        panGestureState.value = evt.state;
@@ -265,7 +382,7 @@ index 7c88afc..f111b36 100644
      })
      .onUpdate((evt) => {
        if (gestureDisabled.value) return;
-@@ -285,6 +308,13 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+@@ -285,6 +313,13 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
          ? evt.translationX
          : evt.translationY;
        touchTranslate.value = translation;
@@ -279,7 +396,7 @@ index 7c88afc..f111b36 100644
      })
      .onEnd((evt) => {
        if (gestureDisabled.value) return;
-@@ -296,6 +326,13 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+@@ -296,20 +331,31 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
  
        touchTranslate.value = translation + autoScrollDistance.value;
        panGestureState.value = evt.state;
@@ -293,6 +410,29 @@ index 7c88afc..f111b36 100644
  
        // Only call onDragEnd if actually dragging a cell
        if (activeIndexAnim.value === -1 || disabled.value) return;
+       disabled.value = true;
+       runOnJS(onRelease)(activeIndexAnim.value);
+       const springTo = placeholderOffset.value - activeCellOffset.value;
++      // Capture this gesture's indices; shared indices may belong to a later
++      // gesture by the time a completion reaches the JS thread.
++      const from = activeIndexAnim.value;
++      const to = spacerIndexAnim.value;
++      const epoch = dragEpoch.value;
+       touchTranslate.value = withSpring(
+         springTo,
+         animationConfigRef.value,
+-        () => {
+-          runOnJS(onDragEnd)({
+-            from: activeIndexAnim.value,
+-            to: spacerIndexAnim.value,
+-          });
++        (finished) => {
++          // Reanimated also invokes callbacks when a spring is cancelled by
++          // a data reset/new animation. That is not another successful drop.
++          if (finished) runOnJS(onDragEnd)({ from, to, epoch });
+           disabled.value = false;
+         }
+       );
 diff --git a/node_modules/react-native-draggable-flatlist/src/components/NestableDraggableFlatList.tsx b/node_modules/react-native-draggable-flatlist/src/components/NestableDraggableFlatList.tsx
 index 1559352..b8d0f51 100644
 --- a/node_modules/react-native-draggable-flatlist/src/components/NestableDraggableFlatList.tsx

@@ -24,6 +24,9 @@ import Reanimated, {
   interpolate,
   interpolateColor,
   useAnimatedStyle,
+  useSharedValue,
+  useReducedMotion,
+  withTiming,
 } from "react-native-reanimated";
 
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
@@ -37,6 +40,10 @@ import {
   triggerImpactHaptic,
   triggerNotificationHaptic,
 } from "@/utils/haptics";
+
+const AnimatedGlassSurface = Reanimated.createAnimatedComponent(GlassSurface);
+const DRAG_SHADOW_IN_MS = 180;
+const DRAG_SHADOW_OUT_MS = 220;
 
 const SWIPE_STOP = 76;
 const SWIPE_TRIGGER_SNAP = 152;
@@ -436,6 +443,51 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   registerMeasure,
 }: SwipeTaskRowProps) {
   const { width: viewportWidth } = usePageDimensions();
+  const reduceMotion = useReducedMotion();
+  const dragShadowProgress = useSharedValue(isActive ? 1 : 0);
+  const [isDragShadowVisible, setIsDragShadowVisible] = React.useState(isActive);
+  React.useEffect(() => {
+    dragShadowProgress.value = withTiming(isActive ? 1 : 0, {
+      duration: reduceMotion ? 0 : isActive ? DRAG_SHADOW_IN_MS : DRAG_SHADOW_OUT_MS,
+    });
+    if (isActive) {
+      const frame = requestAnimationFrame(() => setIsDragShadowVisible(true));
+      return () => cancelAnimationFrame(frame);
+    }
+    // Keep clipping open until the outgoing shadow has faded. Cancel this
+    // timer on another lift, so a previous drop cannot clip the new shadow.
+    const timeout = setTimeout(
+      () => setIsDragShadowVisible(false),
+      reduceMotion ? 0 : DRAG_SHADOW_OUT_MS,
+    );
+    return () => clearTimeout(timeout);
+  }, [dragShadowProgress, isActive, reduceMotion]);
+  const dragShadow = StyleSheet.flatten(styles.dragRow) ?? {};
+  const dragShadowColor = typeof dragShadow.shadowColor === "string"
+    ? dragShadow.shadowColor : "#000000";
+  const dragShadowOpacity = dragShadow.shadowOpacity ?? 0.12;
+  const dragShadowRadius = dragShadow.shadowRadius ?? 14;
+  const dragShadowOffsetX = dragShadow.shadowOffset?.width ?? 0;
+  const dragShadowOffsetY = dragShadow.shadowOffset?.height ?? 8;
+  const hiddenShadowColor = withAlpha(dragShadowColor, 0);
+  const visibleShadowColor = withAlpha(dragShadowColor, dragShadowOpacity);
+  const dragShadowStyle = useAnimatedStyle(() => ({
+    // boxShadow is rendered on the UI thread and does not affect row size.
+    // Override the old, instant shadow/elevation supplied by dragRow.
+    shadowOpacity: 0,
+    elevation: 0,
+    boxShadow: [{
+      offsetX: dragShadowOffsetX * dragShadowProgress.value,
+      offsetY: dragShadowOffsetY * dragShadowProgress.value,
+      blurRadius: dragShadowRadius * 2,
+      color: interpolateColor(
+        dragShadowProgress.value,
+        [0, 1],
+        [hiddenShadowColor, visibleShadowColor],
+      ),
+    }],
+  }));
+
   const swipeRef = React.useRef<SwipeableItemImperativeRef | null>(null);
   const longPressTriggeredRef = React.useRef(false);
   const committedSwipeActionDirectionRef = React.useRef<OpenDirection | null>(
@@ -1071,9 +1123,9 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       styles.swipeClip,
       swipeClipStyle,
       measuredRowHeight > 0 ? { minHeight: measuredRowHeight } : null,
-      isActive ? { overflow: "visible" as const } : null,
+      isActive || isDragShadowVisible ? { overflow: "visible" as const } : null,
     ],
-    [isActive, measuredRowHeight, styles.swipeClip, swipeClipStyle],
+    [isActive, isDragShadowVisible, measuredRowHeight, styles.swipeClip, swipeClipStyle],
   );
 
   const spacerStyle = React.useMemo(
@@ -1711,8 +1763,8 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
                   onPressTask(task.id);
                 }}
               >
-                <GlassSurface
-                  style={rowContentStyle}
+                <AnimatedGlassSurface
+                  style={[rowContentStyle, dragShadowStyle]}
                   glassEffectStyle="regular"
                   tintColor={rowTintColor}
                   fallbackBackgroundColor={rowFallbackBackgroundColor}
@@ -1768,7 +1820,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
                       )}
                     </View>
                   </Animated.View>
-                </GlassSurface>
+                </AnimatedGlassSurface>
               </TouchableOpacity>
             </Animated.View>
           </SwipeableItem>
