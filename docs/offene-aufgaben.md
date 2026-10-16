@@ -16,7 +16,7 @@ Gespeicherter Paketstand: Expo `58.0.13`, React Native `0.88.0`, Router `58.0.22
 
 **Nutzerbeobachtungen, noch keine neue Messung:** Swipe-Actions in beide Richtungen haben keinen sichtbaren Farbhintergrund mehr, die Icons wirken falsch dargestellt, und das frühere weiche Ein-/Ausblenden der Hintergrundfarbe fehlt. Der bisherige Fix sollte das Flackern nach dem Loslassen beim Drag & Drop beseitigen; es tritt weiterhin ungefähr bei **3 von 10 Vorgängen** auf. Zusätzlich springt die ganze Liste beim Aktivieren eines Drags häufig zusammen mit der Header-Bar nach oben.
 
-- [ ] **Swipe-Darstellung wiederherstellen:** links und rechts korrekte Icons, sichtbare Aktionsfarben und weiches Ein-/Ausblenden bei Öffnen, Abbrechen und Schließen. Gegen `master` vergleichen, nicht nur einen neu gestalteten Ersatz visuell abnehmen.
+- [ ] **Swipe-Darstellung wiederherstellen:** links und rechts korrekte Icons, sichtbare Aktionsfarben und weiches Ein-/Ausblenden bei Öffnen, Abbrechen und Schließen. Gegen `master` vergleichen, nicht nur einen neu gestalteten Ersatz visuell abnehmen. **Code-Fix gemergt:** Swipe-Unterlage, Farbverlauf und Icons wieder wie auf `master`; Geräteabnahme steht aus.
 - [ ] **Drop-Flackern beheben:** Originalproblem isoliert reproduzieren und den bisherigen Fix überprüfen. Die Behebung darf Swipe-Hintergründe, Icons oder Listengeometrie nicht beeinträchtigen.
 - [ ] **Sprung bei Drag-Beginn beheben:** Scrollposition, Zeilenpositionen und Header-Zustand beim Übergang zum aktiven Drag stabil halten. Mit ausgeklapptem und eingeklapptem großen Titel sowie bereits gescrollter Liste prüfen. Eine beabsichtigte Änderung der Drag-Vorschau darf nicht die gesamte Liste verschieben.
 - [ ] Änderungen gegenüber `master` gezielt in `components/tasks/swipe-task-row.tsx`, `components/tasks/task-swipe-draggable-list.tsx` und beiden zugehörigen `patch-package`-Patches nachvollziehen. Keine pauschale Übernahme alter Dateien: SDK-58-Kompatibilität und unabhängige Funktionen erhalten.
@@ -68,7 +68,7 @@ Die finalen Paketversionen sind im Checkout gespeichert. Die vorherige Simulator
 - [ ] iPad: Hoch-/Querformat und schmale Fenster; Vollbild-Detail, Titelabstände und nativen Zurück-Button prüfen.
 - [ ] Normales iPhone: kompakte Aufgabenroute, Suche, Erstellungsdialoge und Bildschirmtastatur prüfen.
 - [ ] Datum-/Projekt-/Emoji-/Routinen-Sheets: native Close-/Done-Aktionen antippen; Eingaben über Posewechsel erhalten.
-- [ ] Swipe/Drag und Widget-Abhaken nach dem Update prüfen. Der Widget-Speicherpatch bleibt erforderlich.
+- [ ] Swipe/Drag und Widget-Abhaken nach dem Update prüfen. Der Widget-Speicherpatch bleibt erforderlich. **Code-Fix gemergt:** Widget-Sync wartet jetzt auf das Laden der Aufgaben, bevor Widget-Abhakungen übernommen werden; Geräteabnahme steht aus.
 
 Device Hub lieferte bei der Prüfung zeitweise `noWindowsAvailable` bzw. Timeouts. Screenshots belegen erfolgreiche Hauptansichten aller drei Geräteklassen und ein geöffnetes iPad-Spaltendetail. Daraus folgt keine vollständige Freigabe aller Interaktionen. Hardwaretastatur-Modus und Bildschirmtastatur bei der Wiederholung ausdrücklich unterscheiden.
 
