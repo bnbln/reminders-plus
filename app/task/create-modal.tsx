@@ -19,7 +19,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { KeyboardLiftView } from "@/components/ui/keyboard-lift-view";
-import { usePageInsets } from "@/components/navigation/vertical-bar-safe-area";
+import {
+  useIsRegularWidth,
+  usePageDimensions,
+  usePageInsets,
+} from "@/components/navigation/vertical-bar-safe-area";
 import { Colors, LIGHT_ACCENT_SCREEN_BACKGROUND, TASK_SHEET_ACCENTS } from "@/constants/theme";
 import { getAccentColorValue, useAppSettings } from "@/context/settings-store";
 import { useTaskCreateContext } from "@/context/task-create-context";
@@ -48,6 +52,10 @@ import {
 } from "@/utils/task-text-suggestions";
 import { motionSpring } from "@/utils/motion";
 import { useThemedStyles } from "@/hooks/use-themed-styles";
+
+const REGULAR_COMPOSER_MAX_WIDTH = 640;
+// Space kept clear of the fold on each side in landscape.
+const COMPOSER_FOLD_GAP = 12;
 
 const createTaskId = () =>
   `t-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -1467,6 +1475,17 @@ export default function CreateTaskModal() {
       ? insets.bottom + 16
       : Math.max(14, insets.bottom - 16);
   const menuBottom = 66;
+  // On a regular-width page (inner iPhone Duo display, iPad) a full-width
+  // composer stretches the field across the whole screen. Portrait keeps it
+  // centered at a readable width. In landscape the Duo fold runs down the
+  // middle, so the composer stays on the leading half next to the + button.
+  const isRegularWidth = useIsRegularWidth();
+  const { width: pageWidth, height: pageHeight } = usePageDimensions();
+  const composerSizeStyle = !isRegularWidth
+    ? null
+    : pageWidth > pageHeight
+      ? { width: pageWidth / 2 - COMPOSER_FOLD_GAP }
+      : { width: "100%" as const, maxWidth: REGULAR_COMPOSER_MAX_WIDTH, alignSelf: "center" as const };
   const lightBackdropGradient = React.useMemo(
     () =>
       [
@@ -1502,7 +1521,11 @@ export default function CreateTaskModal() {
 
       <KeyboardLiftView style={styles.keyboard}>
         <View
-          style={[styles.composerWrap, { paddingBottom: composerBottom }]}
+          style={[
+            styles.composerWrap,
+            { paddingBottom: composerBottom },
+            composerSizeStyle,
+          ]}
           pointerEvents="box-none"
         >
           {isMenuExpanded ? (
