@@ -131,6 +131,12 @@ const DATE_RAIL_TITLE_TRANSITION_DISTANCE = 56;
 // keeps many more titles ahead in the scroll direction than behind.
 const DATE_RAIL_TITLE_WINDOW_BEHIND = 3;
 const DATE_RAIL_TITLE_WINDOW_AHEAD = 14;
+// The titles live in a fixed pool of text views that are reused as the
+// window moves and never unmounted. Mounting and unmounting children inside
+// the MaskedView while scrolling crashed Fabric ("Attempt to recycle a
+// mounted view"); the masked view does not release its children in time.
+const DATE_RAIL_TITLE_SLOTS =
+  DATE_RAIL_TITLE_WINDOW_BEHIND + DATE_RAIL_TITLE_WINDOW_AHEAD + 1;
 // Width of the alpha fade on each side of the day title.
 const DATE_RAIL_TITLE_FADE = 32;
 // Back to today grows in from a slightly smaller size with a well-damped
@@ -1191,8 +1197,9 @@ type DateRailTitleStripProps = {
   liveIndexRef: React.MutableRefObject<((index: number) => void) | null>;
 };
 
+const HIDDEN_TITLE_SLOT_STYLE = { opacity: 0 } as const;
+
 type DateRailTitleNode = {
-  key: string;
   text: string;
   opacity: Animated.AnimatedInterpolation<number>;
   translateX: Animated.AnimatedInterpolation<number>;
@@ -1249,7 +1256,6 @@ const DateRailTitleStrip = React.memo(function DateRailTitleStrip({
     const step = snapInterval;
     const distance = reduceMotion ? 0 : DATE_RAIL_TITLE_TRANSITION_DISTANCE;
     const node: DateRailTitleNode = {
-      key: day.key,
       text: getTitle(day.timestamp),
       // Fully visible only when its day sits in the centre; gone by 70 %
       // of the way to a neighbour, so two titles never fight for long.
@@ -1291,25 +1297,35 @@ const DateRailTitleStrip = React.memo(function DateRailTitleStrip({
         ? DATE_RAIL_TITLE_WINDOW_AHEAD
         : DATE_RAIL_TITLE_WINDOW_BEHIND),
   );
-  const items: React.ReactNode[] = [];
+  // The window never holds more days than there are slots, so each day in
+  // it maps to its own slot; a slot without a day stays mounted but hidden.
+  const slotIndices = new Array<number | null>(DATE_RAIL_TITLE_SLOTS).fill(null);
   for (let index = first; index <= last; index += 1) {
-    const node = getNode(index);
+    slotIndices[index % DATE_RAIL_TITLE_SLOTS] = index;
+  }
+  const items = slotIndices.map((index, slot) => {
+    const node = index == null ? null : getNode(index);
     const isSelected = index === selectedIndex;
-    items.push(
+    return (
       <Animated.Text
-        key={node.key}
+        key={`slot-${slot}`}
         style={[
           textStyle,
-          { opacity: node.opacity, transform: [{ translateX: node.translateX }] },
+          node
+            ? {
+                opacity: node.opacity,
+                transform: [{ translateX: node.translateX }],
+              }
+            : HIDDEN_TITLE_SLOT_STYLE,
         ]}
         numberOfLines={1}
         accessibilityElementsHidden={!isSelected}
         importantForAccessibility={isSelected ? "auto" : "no-hide-descendants"}
       >
-        {node.text}
-      </Animated.Text>,
+        {node?.text ?? ""}
+      </Animated.Text>
     );
-  }
+  });
   return <>{items}</>;
 });
 
