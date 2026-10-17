@@ -410,6 +410,7 @@ function KanbanColumn({
         ref={listRef}
         renderMode="auto"
         syncDataDuringDrag={false}
+        dropLayoutHandoff
         animateDataLayoutChanges={false}
         theme={theme}
         isDark={theme === "dark"}
