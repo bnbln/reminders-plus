@@ -516,6 +516,8 @@ export const UK_TRANSLATIONS: TranslationDict = {
   "settings.remindsPlus.helper.noAssist": "Reminders+ відкриває понад 4 проєкти.",
   "settings.appearance.materialYou": "Material You (за шпалерами)",
   "settings.interactions.streakCelebration": "Святкування серії",
+  "settings.appearance.appIconFollowsAccent": "Значок програми в кольорі акценту",
+  "settings.appearance.appIconFollowsAccentHint": "Значок на початковому екрані набуває вашого кольору. iOS підтверджує кожну зміну коротким сповіщенням.",
   "settings.interactions.streakCelebrationHint": "Полум'я на весь екран, коли ви виконуєте перше завдання дня.",
   "settings.interactions.streakCelebrationPreview": "Відтворити попередній перегляд",
   "streakCelebration.continue": "Продовжити",

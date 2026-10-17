@@ -516,6 +516,8 @@ export const RU_TRANSLATIONS: TranslationDict = {
   "settings.remindsPlus.helper.noAssist": "Reminders+ открывает больше 4 проектов.",
   "settings.appearance.materialYou": "Material You (по обоям)",
   "settings.interactions.streakCelebration": "Празднование серии",
+  "settings.appearance.appIconFollowsAccent": "Значок приложения в цвете акцента",
+  "settings.appearance.appIconFollowsAccentHint": "Значок на экране «Домой» принимает ваш цвет. iOS подтверждает каждую смену коротким уведомлением.",
   "settings.interactions.streakCelebrationHint": "Пламя на весь экран, когда вы выполняете первую задачу дня.",
   "settings.interactions.streakCelebrationPreview": "Воспроизвести превью",
   "streakCelebration.continue": "Продолжить",

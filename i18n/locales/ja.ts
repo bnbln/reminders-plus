@@ -516,6 +516,8 @@ export const JA_TRANSLATIONS: TranslationDict = {
   "settings.remindsPlus.helper.noAssist": "Reminders+ なら 5 個以上のプロジェクトを作成できます。",
   "settings.appearance.materialYou": "Material You（壁紙から）",
   "settings.interactions.streakCelebration": "連続記録のお祝い",
+  "settings.appearance.appIconFollowsAccent": "アクセントカラーのアプリアイコン",
+  "settings.appearance.appIconFollowsAccentHint": "ホーム画面のアイコンがあなたの色になります。変更のたびに iOS が短い通知で確認します。",
   "settings.interactions.streakCelebrationHint": "その日の最初のタスクを完了すると、全画面に炎が表示されます。",
   "settings.interactions.streakCelebrationPreview": "プレビューを再生",
   "streakCelebration.continue": "続ける",

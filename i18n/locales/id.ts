@@ -516,6 +516,8 @@ export const ID_TRANSLATIONS: TranslationDict = {
   "settings.remindsPlus.helper.noAssist": "Reminders+ membuka lebih dari 4 proyek.",
   "settings.appearance.materialYou": "Material You (dari wallpaper)",
   "settings.interactions.streakCelebration": "Perayaan rentetan",
+  "settings.appearance.appIconFollowsAccent": "Ikon app dengan warna aksen",
+  "settings.appearance.appIconFollowsAccentHint": "Ikon di layar utama mengikuti warnamu. iOS mengonfirmasi setiap perubahan dengan pemberitahuan singkat.",
   "settings.interactions.streakCelebrationHint": "Api layar penuh saat Anda menyelesaikan tugas pertama hari ini.",
   "settings.interactions.streakCelebrationPreview": "Putar pratinjau",
   "streakCelebration.continue": "Lanjutkan",

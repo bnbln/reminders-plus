@@ -516,6 +516,8 @@ export const KO_TRANSLATIONS: TranslationDict = {
   "settings.remindsPlus.helper.noAssist": "Reminders+를 사용하면 4개 이상의 프로젝트를 만들 수 있습니다.",
   "settings.appearance.materialYou": "Material You(배경화면 기반)",
   "settings.interactions.streakCelebration": "연속 기록 축하",
+  "settings.appearance.appIconFollowsAccent": "강조 색상 앱 아이콘",
+  "settings.appearance.appIconFollowsAccentHint": "홈 화면 아이콘이 선택한 색상으로 바뀝니다. iOS는 변경할 때마다 짧은 알림으로 확인합니다.",
   "settings.interactions.streakCelebrationHint": "그날의 첫 작업을 완료하면 전체 화면에 불꽃이 나타납니다.",
   "settings.interactions.streakCelebrationPreview": "미리보기 재생",
   "streakCelebration.continue": "계속",

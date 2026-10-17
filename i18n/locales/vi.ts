@@ -516,6 +516,8 @@ export const VI_TRANSLATIONS: TranslationDict = {
   "settings.remindsPlus.helper.noAssist": "Reminders+ mở khóa hơn 4 dự án.",
   "settings.appearance.materialYou": "Material You (theo hình nền)",
   "settings.interactions.streakCelebration": "Ăn mừng chuỗi ngày",
+  "settings.appearance.appIconFollowsAccent": "Biểu tượng ứng dụng theo màu nhấn",
+  "settings.appearance.appIconFollowsAccentHint": "Biểu tượng trên màn hình chính sẽ theo màu của bạn. iOS xác nhận mỗi lần đổi bằng một thông báo ngắn.",
   "settings.interactions.streakCelebrationHint": "Ngọn lửa toàn màn hình khi bạn hoàn thành công việc đầu tiên trong ngày.",
   "settings.interactions.streakCelebrationPreview": "Phát bản xem trước",
   "streakCelebration.continue": "Tiếp tục",

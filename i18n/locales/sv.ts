@@ -516,6 +516,8 @@ export const SV_TRANSLATIONS: TranslationDict = {
   "settings.remindsPlus.helper.noAssist": "Med Reminders+ får du fler än 4 projekt.",
   "settings.appearance.materialYou": "Material You (från bakgrundsbild)",
   "settings.interactions.streakCelebration": "Svitfirande",
+  "settings.appearance.appIconFollowsAccent": "Appsymbol i accentfärg",
+  "settings.appearance.appIconFollowsAccentHint": "Symbolen på hemskärmen får din färg. iOS bekräftar varje byte med ett kort meddelande.",
   "settings.interactions.streakCelebrationHint": "En låga i helskärm när du slutför dagens första uppgift.",
   "settings.interactions.streakCelebrationPreview": "Spela upp förhandsvisning",
   "streakCelebration.continue": "Fortsätt",

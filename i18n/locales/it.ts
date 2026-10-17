@@ -516,6 +516,8 @@ export const IT_TRANSLATIONS: TranslationDict = {
   "settings.remindsPlus.helper.noAssist": "Reminders+ sblocca più di 4 progetti.",
   "settings.appearance.materialYou": "Material You (dallo sfondo)",
   "settings.interactions.streakCelebration": "Festeggia la serie",
+  "settings.appearance.appIconFollowsAccent": "Icona app nel colore di accento",
+  "settings.appearance.appIconFollowsAccentHint": "L’icona nella schermata Home assume il tuo colore. iOS conferma ogni modifica con un breve avviso.",
   "settings.interactions.streakCelebrationHint": "Una fiamma a schermo intero quando completi la prima attività della giornata.",
   "settings.interactions.streakCelebrationPreview": "Riproduci anteprima",
   "streakCelebration.continue": "Continua",

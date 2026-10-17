@@ -516,6 +516,8 @@ export const NL_TRANSLATIONS: TranslationDict = {
   "settings.remindsPlus.helper.noAssist": "Met Reminders+ krijg je meer dan 4 projecten.",
   "settings.appearance.materialYou": "Material You (op basis van achtergrond)",
   "settings.interactions.streakCelebration": "Reeksviering",
+  "settings.appearance.appIconFollowsAccent": "App-icoon in accentkleur",
+  "settings.appearance.appIconFollowsAccentHint": "Het icoon op je beginscherm krijgt jouw kleur. iOS bevestigt elke wijziging met een korte melding.",
   "settings.interactions.streakCelebrationHint": "Een vlam op het hele scherm zodra je je eerste taak van de dag afrondt.",
   "settings.interactions.streakCelebrationPreview": "Voorbeeld afspelen",
   "streakCelebration.continue": "Doorgaan",

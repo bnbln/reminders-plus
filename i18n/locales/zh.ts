@@ -516,6 +516,8 @@ export const ZH_TRANSLATIONS: TranslationDict = {
   "settings.remindsPlus.helper.noAssist": "Reminders+ 可解锁 4 个以上的项目。",
   "settings.appearance.materialYou": "Material You（取自壁纸）",
   "settings.interactions.streakCelebration": "连续记录庆祝",
+  "settings.appearance.appIconFollowsAccent": "使用强调色的应用图标",
+  "settings.appearance.appIconFollowsAccentHint": "主屏幕图标会采用你选择的颜色。每次更改时 iOS 会用简短提示确认。",
   "settings.interactions.streakCelebrationHint": "完成当天第一个任务时显示全屏火焰。",
   "settings.interactions.streakCelebrationPreview": "播放预览",
   "streakCelebration.continue": "继续",

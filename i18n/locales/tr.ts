@@ -516,6 +516,8 @@ export const TR_TRANSLATIONS: TranslationDict = {
   "settings.remindsPlus.helper.noAssist": "Reminders+ ile 4'ten fazla proje oluşturabilirsiniz.",
   "settings.appearance.materialYou": "Material You (duvar kâğıdından)",
   "settings.interactions.streakCelebration": "Seri kutlaması",
+  "settings.appearance.appIconFollowsAccent": "Vurgu renginde uygulama simgesi",
+  "settings.appearance.appIconFollowsAccentHint": "Ana ekran simgesi senin rengini alır. iOS her değişikliği kısa bir bildirimle onaylar.",
   "settings.interactions.streakCelebrationHint": "Günün ilk görevini tamamladığınızda tam ekran bir alev.",
   "settings.interactions.streakCelebrationPreview": "Önizlemeyi oynat",
   "streakCelebration.continue": "Devam",

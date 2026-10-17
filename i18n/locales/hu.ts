@@ -516,6 +516,8 @@ export const HU_TRANSLATIONS: TranslationDict = {
   "settings.remindsPlus.helper.noAssist": "A Reminders+ 4-nél több projektet tesz elérhetővé.",
   "settings.appearance.materialYou": "Material You (a háttérképből)",
   "settings.interactions.streakCelebration": "Sorozat ünneplése",
+  "settings.appearance.appIconFollowsAccent": "Alkalmazásikon kiemelőszínben",
+  "settings.appearance.appIconFollowsAccentHint": "A kezdőképernyő ikonja felveszi a színedet. Az iOS minden váltást rövid értesítéssel erősít meg.",
   "settings.interactions.streakCelebrationHint": "Teljes képernyős láng, amikor elvégzed a nap első feladatát.",
   "settings.interactions.streakCelebrationPreview": "Előnézet lejátszása",
   "streakCelebration.continue": "Tovább",

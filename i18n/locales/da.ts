@@ -516,6 +516,8 @@ export const DA_TRANSLATIONS: TranslationDict = {
   "settings.remindsPlus.helper.noAssist": "Med Reminders+ får du mere end 4 projekter.",
   "settings.appearance.materialYou": "Material You (fra baggrundsbillede)",
   "settings.interactions.streakCelebration": "Streak-fejring",
+  "settings.appearance.appIconFollowsAccent": "Appikon i accentfarve",
+  "settings.appearance.appIconFollowsAccentHint": "Ikonet på hjemmeskærmen får din farve. iOS bekræfter hver ændring med en kort besked.",
   "settings.interactions.streakCelebrationHint": "En flamme i fuld skærm, når du fuldfører dagens første opgave.",
   "settings.interactions.streakCelebrationPreview": "Afspil eksempel",
   "streakCelebration.continue": "Fortsæt",

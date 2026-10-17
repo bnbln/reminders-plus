@@ -516,6 +516,8 @@ export const HI_TRANSLATIONS: TranslationDict = {
   "settings.remindsPlus.helper.noAssist": "Reminders+ से 4 से अधिक प्रोजेक्ट अनलॉक होते हैं।",
   "settings.appearance.materialYou": "Material You (वॉलपेपर से)",
   "settings.interactions.streakCelebration": "स्ट्रीक का जश्न",
+  "settings.appearance.appIconFollowsAccent": "ऐक्सेंट रंग में ऐप आइकन",
+  "settings.appearance.appIconFollowsAccentHint": "होम स्क्रीन का आइकन आपका रंग अपना लेता है। iOS हर बदलाव की एक छोटी सूचना से पुष्टि करता है।",
   "settings.interactions.streakCelebrationHint": "दिन का पहला कार्य पूरा करने पर पूरी स्क्रीन पर एक लौ।",
   "settings.interactions.streakCelebrationPreview": "प्रीव्यू चलाएँ",
   "streakCelebration.continue": "जारी रखें",

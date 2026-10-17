@@ -516,6 +516,8 @@ export const RO_TRANSLATIONS: TranslationDict = {
   "settings.remindsPlus.helper.noAssist": "Reminders+ deblochează mai mult de 4 proiecte.",
   "settings.appearance.materialYou": "Material You (din imaginea de fundal)",
   "settings.interactions.streakCelebration": "Sărbătorirea seriei",
+  "settings.appearance.appIconFollowsAccent": "Pictograma aplicației în culoarea de accent",
+  "settings.appearance.appIconFollowsAccentHint": "Pictograma de pe ecranul principal preia culoarea ta. iOS confirmă fiecare schimbare cu o scurtă notificare.",
   "settings.interactions.streakCelebrationHint": "O flacără pe tot ecranul când finalizați prima sarcină a zilei.",
   "settings.interactions.streakCelebrationPreview": "Redați previzualizarea",
   "streakCelebration.continue": "Continuați",

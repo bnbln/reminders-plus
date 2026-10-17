@@ -516,6 +516,8 @@ export const CS_TRANSLATIONS: TranslationDict = {
   "settings.remindsPlus.helper.noAssist": "Reminders+ odemyká více než 4 projekty.",
   "settings.appearance.materialYou": "Material You (podle tapety)",
   "settings.interactions.streakCelebration": "Oslava série",
+  "settings.appearance.appIconFollowsAccent": "Ikona aplikace v barvě zvýraznění",
+  "settings.appearance.appIconFollowsAccentHint": "Ikona na ploše převezme tvou barvu. iOS každou změnu potvrdí krátkým upozorněním.",
   "settings.interactions.streakCelebrationHint": "Plamen přes celou obrazovku, když splníte první úkol dne.",
   "settings.interactions.streakCelebrationPreview": "Přehrát ukázku",
   "streakCelebration.continue": "Pokračovat",

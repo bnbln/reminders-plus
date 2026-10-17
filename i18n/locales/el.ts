@@ -516,6 +516,8 @@ export const EL_TRANSLATIONS: TranslationDict = {
   "settings.remindsPlus.helper.noAssist": "Το Reminders+ ξεκλειδώνει περισσότερα από 4 έργα.",
   "settings.appearance.materialYou": "Material You (από την ταπετσαρία)",
   "settings.interactions.streakCelebration": "Γιορτή σερί",
+  "settings.appearance.appIconFollowsAccent": "Εικονίδιο εφαρμογής στο χρώμα έμφασης",
+  "settings.appearance.appIconFollowsAccentHint": "Το εικονίδιο στην αρχική οθόνη παίρνει το χρώμα σου. Το iOS επιβεβαιώνει κάθε αλλαγή με μια σύντομη ειδοποίηση.",
   "settings.interactions.streakCelebrationHint": "Μια φλόγα σε πλήρη οθόνη όταν ολοκληρώνετε την πρώτη εργασία της ημέρας.",
   "settings.interactions.streakCelebrationPreview": "Αναπαραγωγή προεπισκόπησης",
   "streakCelebration.continue": "Συνέχεια",

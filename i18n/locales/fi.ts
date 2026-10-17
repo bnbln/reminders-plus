@@ -516,6 +516,8 @@ export const FI_TRANSLATIONS: TranslationDict = {
   "settings.remindsPlus.helper.noAssist": "Reminders+ avaa yli 4 projektia.",
   "settings.appearance.materialYou": "Material You (taustakuvasta)",
   "settings.interactions.streakCelebration": "Putken juhlinta",
+  "settings.appearance.appIconFollowsAccent": "Sovelluskuvake korostusvärissä",
+  "settings.appearance.appIconFollowsAccentHint": "Kotinäytön kuvake saa värisi. iOS vahvistaa jokaisen vaihdon lyhyellä ilmoituksella.",
   "settings.interactions.streakCelebrationHint": "Koko näytön liekki, kun teet päivän ensimmäisen tehtävän.",
   "settings.interactions.streakCelebrationPreview": "Toista esikatselu",
   "streakCelebration.continue": "Jatka",

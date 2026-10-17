@@ -516,6 +516,8 @@ export const AR_TRANSLATIONS: TranslationDict = {
   "settings.remindsPlus.helper.noAssist": "يتيح لك Reminders+ أكثر من 4 مشاريع.",
   "settings.appearance.materialYou": "Material You (من الخلفية)",
   "settings.interactions.streakCelebration": "الاحتفال بالسلسلة",
+  "settings.appearance.appIconFollowsAccent": "أيقونة التطبيق بلون التمييز",
+  "settings.appearance.appIconFollowsAccentHint": "تتخذ أيقونة الشاشة الرئيسية لونك. يؤكد iOS كل تغيير بإشعار قصير.",
   "settings.interactions.streakCelebrationHint": "شعلة بملء الشاشة عند إكمال أول مهمة في اليوم.",
   "settings.interactions.streakCelebrationPreview": "تشغيل المعاينة",
   "streakCelebration.continue": "متابعة",
