@@ -1,5 +1,6 @@
 import {
   ACCENT_COLORS,
+  type AccentColorId,
   APP_BADGE_MODES,
   type AppBadgeMode,
   APPEARANCE_MODES,
@@ -54,6 +55,8 @@ import {
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { SettingsButton } from "@/components/ui/settings-button";
 import { SettingsSwitch } from "@/components/ui/settings-switch";
+import { supportsAlternateAppIconsAsync } from "@/modules/app-icon";
+import { syncAppIconToAccent } from "@/utils/app-icon";
 import { useStreakCelebration } from "@/context/streak-celebration-store";
 import { localizeExistingOnboardingSeedData } from "@/storage/tasks-onboarding-seed";
 import { deriveActiveSectionFromDueAt } from "@/utils/task-dates";
@@ -179,6 +182,7 @@ export default function SettingsScreen() {
   const { tasks, setTasks, projects, setProjects } = useTasksStore();
   const {
     accentColor,
+    appIconFollowsAccent,
     appearanceMode,
     hapticsEnabled,
     streakCelebrationEnabled,
@@ -188,6 +192,7 @@ export default function SettingsScreen() {
     dailySummaryMinutes,
     fakeStatsEnabled,
     setAccentColor,
+    setAppIconFollowsAccent,
     setAppearanceMode,
     setHapticsEnabled,
     setStreakCelebrationEnabled,
@@ -211,6 +216,39 @@ export default function SettingsScreen() {
     // `isDark` isn't read directly, but the Material You scheme depends on
     // the resolved theme the same way `theme` below does — recompute together.
     [isDark],
+  );
+
+  const [supportsAlternateIcons, setSupportsAlternateIcons] =
+    React.useState(false);
+  React.useEffect(() => {
+    let mounted = true;
+    void supportsAlternateAppIconsAsync().then((supported) => {
+      if (mounted) setSupportsAlternateIcons(supported);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const onSelectAccentColor = React.useCallback(
+    (nextAccent: AccentColorId) => {
+      setAccentColor(nextAccent);
+      if (appIconFollowsAccent) {
+        syncAppIconToAccent(nextAccent).catch(() => undefined);
+      }
+    },
+    [appIconFollowsAccent, setAccentColor],
+  );
+
+  const onToggleAppIconFollowsAccent = React.useCallback(
+    (enabled: boolean) => {
+      setAppIconFollowsAccent(enabled);
+      syncAppIconToAccent(enabled ? accentColor : null).catch(() => {
+        // Keep the switch honest when iOS refused the change.
+        if (enabled) setAppIconFollowsAccent(false);
+      });
+    },
+    [accentColor, setAppIconFollowsAccent],
   );
 
   const dailySummaryTime = React.useMemo(() => {
@@ -723,7 +761,7 @@ export default function SettingsScreen() {
                     accessibilityLabel={t(`taskCreate.color.${color.id}`)}
                     accessibilityState={{ selected }}
                     hitSlop={7}
-                    onPress={() => setAccentColor(color.id)}
+                    onPress={() => onSelectAccentColor(color.id)}
                     style={[
                       styles.colorButton,
                       {
@@ -750,7 +788,7 @@ export default function SettingsScreen() {
                   accessibilityLabel={t("settings.appearance.materialYou")}
                   accessibilityState={{ selected: isMaterialYouSelected }}
                   hitSlop={7}
-                  onPress={() => setAccentColor(MATERIAL_YOU_ACCENT_ID)}
+                  onPress={() => onSelectAccentColor(MATERIAL_YOU_ACCENT_ID)}
                   style={[
                     styles.colorButton,
                     {
@@ -773,6 +811,28 @@ export default function SettingsScreen() {
               ) : null}
             </View>
           </View>
+
+          {supportsAlternateIcons ? (
+            <>
+              <View style={[styles.separator, { backgroundColor: borderColor }]} />
+
+              <View style={styles.switchRow}>
+                <View style={styles.switchLabelWrap}>
+                  <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
+                    {t("settings.appearance.appIconFollowsAccent")}
+                  </Text>
+                  <Text style={[styles.helperInlineText, { color: muted }]}>
+                    {t("settings.appearance.appIconFollowsAccentHint")}
+                  </Text>
+                </View>
+                <SettingsSwitch
+                  accessibilityLabel={t("settings.appearance.appIconFollowsAccent")}
+                  value={appIconFollowsAccent}
+                  onValueChange={onToggleAppIconFollowsAccent}
+                />
+              </View>
+            </>
+          ) : null}
 
           <View style={[styles.separator, { backgroundColor: borderColor }]} />
 

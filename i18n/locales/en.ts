@@ -424,6 +424,9 @@ export const EN_TRANSLATIONS: TranslationDict = {
     'settings.remindsPlus.action.showOptions': 'Show purchase options',
     'settings.remindsPlus.action.openOffer': 'Open offer',
     'settings.appearance.mode': 'Color mode',
+    'settings.appearance.appIconFollowsAccent': 'App icon in accent color',
+    'settings.appearance.appIconFollowsAccentHint':
+      'Your home screen icon takes on your color. iOS confirms each change with a short notice.',
     'settings.appearance.option.adaptive': 'Adaptive',
     'settings.appearance.option.alwaysLight': 'Always light',
     'settings.appearance.option.alwaysDark': 'Always dark',

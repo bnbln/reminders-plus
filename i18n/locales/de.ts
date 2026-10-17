@@ -464,6 +464,9 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "settings.remindsPlus.action.showOptions": "Kaufoptionen anzeigen",
   "settings.remindsPlus.action.openOffer": "Angebot öffnen",
   "settings.appearance.mode": "Farbmodus",
+  "settings.appearance.appIconFollowsAccent": "App-Icon in Akzentfarbe",
+  "settings.appearance.appIconFollowsAccentHint":
+    "Das Icon auf dem Home-Bildschirm übernimmt deine Farbe. iOS bestätigt jeden Wechsel mit einem kurzen Hinweis.",
   "settings.appearance.option.adaptive": "Adaptiv",
   "settings.appearance.option.alwaysLight": "Immer hell",
   "settings.appearance.option.alwaysDark": "Immer dunkel",

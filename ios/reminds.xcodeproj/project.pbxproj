@@ -24,6 +24,11 @@
 		D1C24D70A2D60F794B0D8FB3 /* libPods-ExpoWidgetsTarget.a in Frameworks */ = {isa = PBXBuildFile; fileRef = ACCC561A29C615A98A276C4A /* libPods-ExpoWidgetsTarget.a */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 		FF9AD93594AE4D66BD8F18EE /* Reminder+.icon in Resources */ = {isa = PBXBuildFile; fileRef = 9AA10842D15246EBB67CFE7B /* Reminder+.icon */; };
+		5358C5ED88DC4917B56FF06D /* AppIcon-Red.icon in Resources */ = {isa = PBXBuildFile; fileRef = A2D851EC9B9344ACACC64AE9 /* AppIcon-Red.icon */; };
+		3F4D05D2216141CFBFE64B4A /* AppIcon-Green.icon in Resources */ = {isa = PBXBuildFile; fileRef = 98CAEB9BA2404B05BB650C13 /* AppIcon-Green.icon */; };
+		D8C485D5FE2B499184FD65A0 /* AppIcon-Orange.icon in Resources */ = {isa = PBXBuildFile; fileRef = 1ACD33E0F7384213A985D1E7 /* AppIcon-Orange.icon */; };
+		6F1F8593969042A1865C0F6D /* AppIcon-Pink.icon in Resources */ = {isa = PBXBuildFile; fileRef = 4F219959BEA742E19D480D77 /* AppIcon-Pink.icon */; };
+		6C2BE0DFC4FF44A4A2D52362 /* AppIcon-Indigo.icon in Resources */ = {isa = PBXBuildFile; fileRef = A3CFE7AFD8C842C4A9077BB2 /* AppIcon-Indigo.icon */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -80,6 +85,11 @@
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = reminds/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* reminds-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "reminds-Bridging-Header.h"; path = "reminds/reminds-Bridging-Header.h"; sourceTree = "<group>"; };
 		F45E905FFA679E56B278FA31 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = reminds/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		A2D851EC9B9344ACACC64AE9 /* AppIcon-Red.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = "AppIcon-Red.icon"; sourceTree = "<group>"; };
+		98CAEB9BA2404B05BB650C13 /* AppIcon-Green.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = "AppIcon-Green.icon"; sourceTree = "<group>"; };
+		1ACD33E0F7384213A985D1E7 /* AppIcon-Orange.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = "AppIcon-Orange.icon"; sourceTree = "<group>"; };
+		4F219959BEA742E19D480D77 /* AppIcon-Pink.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = "AppIcon-Pink.icon"; sourceTree = "<group>"; };
+		A3CFE7AFD8C842C4A9077BB2 /* AppIcon-Indigo.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = "AppIcon-Indigo.icon"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -148,6 +158,11 @@
 				744BC80286F442E395B64A4D /* Reminder+.icon */,
 				9C2B0233265248B7B260A2C9 /* ExpoWidgetsTarget */,
 				D9BD72193066EE0200A659CD /* Recovered References */,
+				A2D851EC9B9344ACACC64AE9 /* AppIcon-Red.icon */,
+				98CAEB9BA2404B05BB650C13 /* AppIcon-Green.icon */,
+				1ACD33E0F7384213A985D1E7 /* AppIcon-Orange.icon */,
+				4F219959BEA742E19D480D77 /* AppIcon-Pink.icon */,
+				A3CFE7AFD8C842C4A9077BB2 /* AppIcon-Indigo.icon */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -354,6 +369,11 @@
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
 				335C3CBDE108721FE0842F3B /* PrivacyInfo.xcprivacy in Resources */,
 				FF9AD93594AE4D66BD8F18EE /* Reminder+.icon in Resources */,
+				5358C5ED88DC4917B56FF06D /* AppIcon-Red.icon in Resources */,
+				3F4D05D2216141CFBFE64B4A /* AppIcon-Green.icon in Resources */,
+				D8C485D5FE2B499184FD65A0 /* AppIcon-Orange.icon in Resources */,
+				6F1F8593969042A1865C0F6D /* AppIcon-Pink.icon in Resources */,
+				6C2BE0DFC4FF44A4A2D52362 /* AppIcon-Indigo.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -674,6 +694,7 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VERSIONING_SYSTEM = "apple-generic";
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIcon-Red AppIcon-Green AppIcon-Orange AppIcon-Pink AppIcon-Indigo";
 			};
 			name = Debug;
 		};
@@ -707,6 +728,7 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VERSIONING_SYSTEM = "apple-generic";
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIcon-Red AppIcon-Green AppIcon-Orange AppIcon-Pink AppIcon-Indigo";
 			};
 			name = Release;
 		};
