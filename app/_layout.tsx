@@ -11,7 +11,10 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ReduceMotion, ReducedMotionConfig } from "react-native-reanimated";
 
 import { VerticalBarSafeAreaProvider, verticalBarScreenLayout } from "@/components/navigation/vertical-bar-safe-area";
-import { LaunchSplashOverlay } from "@/components/ui/launch-splash-overlay";
+import {
+  LaunchSplashOverlay,
+  useSplashAccentPersistence,
+} from "@/components/ui/launch-splash-overlay";
 import { StreakAccentBackground } from "@/components/ui/streak-accent-background";
 import { WidgetSync } from "@/components/widgets/widget-sync";
 import { Colors } from "@/constants/theme";
@@ -37,6 +40,7 @@ export default function RootLayout() {
   const router = useRouter();
   const segments = useSegments();
   const searchBarRef = React.useRef<any>(null);
+  useSplashAccentPersistence();
   const showSettingsAccentBackground =
     segments[0] === "settings" || segments[0] === "cloud-sync";
   const themedContentStyle = React.useMemo(

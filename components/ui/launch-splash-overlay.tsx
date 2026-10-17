@@ -4,21 +4,23 @@ import {
   Animated,
   Easing,
   Image,
+  NativeModules,
+  Platform,
   StyleSheet,
   Text,
   useWindowDimensions,
 } from "react-native";
 
 import { StreakAccentBackground } from "@/components/ui/streak-accent-background";
-import { useAppSettings } from "@/context/settings-store";
+import { getAccentColorValue, useAppSettings } from "@/context/settings-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 
-// The native launch screen (ios/reminds/SplashScreen.storyboard) is a static
-// asset iOS renders before any app code runs, so it cannot know which accent
-// the user picked. It therefore only shows the neutral screen background plus
-// icon and title. Once the persisted settings are hydrated, this overlay
-// takes over with the identical layout and the accent gradient the Home and
-// Inbox screens use, then fades out onto them.
+// The launch storyboard (ios/reminds/SplashScreen.storyboard) is a static
+// asset, so it only holds the neutral screen background plus icon and title.
+// While JS loads, AppDelegate adds the accent gradient to the splash view from
+// the hex stored by useSplashAccentPersistence(). Once settings are hydrated,
+// this overlay takes over with the identical layout and fades out onto the
+// Home and Inbox screens, which draw the same gradient.
 
 // Keep the native splash up until the stored accent color is known; otherwise
 // the first frames render the default blue and cross-fade to the real color.
@@ -38,6 +40,19 @@ const TITLE_SPACING = 18;
 
 const ICON_LIGHT = require("@/assets/images/splash/icon-light.png");
 const ICON_DARK = require("@/assets/images/splash/icon-dark.png");
+
+const splashAccentBridge =
+  Platform.OS === "ios" ? NativeModules.SplashAccentBridge : undefined;
+
+/** Stores the resolved accent natively so the next launch's splash shows it. */
+export function useSplashAccentPersistence() {
+  const { accentColor, hasHydrated } = useAppSettings();
+
+  React.useEffect(() => {
+    if (!hasHydrated) return;
+    splashAccentBridge?.setAccentColor?.(getAccentColorValue(accentColor));
+  }, [accentColor, hasHydrated]);
+}
 
 export function LaunchSplashOverlay() {
   const { hasHydrated, reduceMotionEnabled } = useAppSettings();
