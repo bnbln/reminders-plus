@@ -86,6 +86,44 @@ const BACKUP_PERSISTED_KEYS = [
   "@reminds/assist_messages",
 ] as const;
 
+function isBackupTask(value: unknown): value is Task {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.title === "string" &&
+    typeof value.section === "string"
+  );
+}
+
+function isBackupProject(value: unknown): value is Project {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.name === "string"
+  );
+}
+
+function confirmBackupRestore(taskCount: number, projectCount: number) {
+  return new Promise<boolean>((resolve) => {
+    Alert.alert(
+      t("backup.alert.restoreConfirmTitle"),
+      t("backup.alert.restoreConfirmBody", {
+        tasks: taskCount,
+        projects: projectCount,
+      }),
+      [
+        { text: t("common.cancel"), style: "cancel", onPress: () => resolve(false) },
+        {
+          text: t("backup.alert.restoreConfirmAction"),
+          style: "destructive",
+          onPress: () => resolve(true),
+        },
+      ],
+      { cancelable: true, onDismiss: () => resolve(false) },
+    );
+  });
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -292,10 +330,12 @@ function parseBackupPayload(rawJson: string): AppBackupPayload {
     throw new Error(t("backup.error.unsupportedVersion"));
   }
 
-  const tasks = Array.isArray(parsed.tasks) ? (parsed.tasks as Task[]) : [];
-  const projects = Array.isArray(parsed.projects)
-    ? (parsed.projects as Project[])
-    : [];
+  if (!Array.isArray(parsed.tasks) || !Array.isArray(parsed.projects)) {
+    throw new Error(t("backup.error.invalidFile"));
+  }
+  // Drop entries that cannot be rendered instead of writing them into the store.
+  const tasks = parsed.tasks.filter(isBackupTask);
+  const projects = parsed.projects.filter(isBackupProject);
   const appSettings = isRecord(parsed.appSettings) ? parsed.appSettings : {};
   const homeFilters = isRecord(parsed.homeFilters) ? parsed.homeFilters : {};
   const persistedValues = isRecord(parsed.persistedValues)
@@ -399,7 +439,7 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
     appearanceMode,
     accentColor,
     hapticsEnabled,
-    reduceMotionEnabled,
+    reduceMotionPreference,
     appBadgeMode,
     dailySummaryEnabled,
     dailySummaryMinutes,
@@ -599,7 +639,9 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
           appearanceMode,
           accentColor,
           hapticsEnabled,
-          reduceMotionEnabled,
+          // Back up the in-app switch only; the OS Reduce Motion setting is
+          // applied live and must not be frozen into the restored preference.
+          reduceMotionEnabled: reduceMotionPreference,
           appBadgeMode,
           dailySummaryEnabled,
           dailySummaryMinutes,
@@ -635,7 +677,7 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
     isRestoringBackup,
     openPremiumOffer,
     projects,
-    reduceMotionEnabled,
+    reduceMotionPreference,
     showCompactSubtasks,
     showProjectNames,
     showTagIcons,
@@ -659,6 +701,12 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
       if (!rawJson) return;
 
       const backup = parseBackupPayload(rawJson);
+      const confirmed = await confirmBackupRestore(
+        backup.tasks.length,
+        backup.projects.length,
+      );
+      if (!confirmed) return;
+
       await applyPersistedValues(BACKUP_PERSISTED_KEYS, backup.persistedValues);
 
       setProjects(Array.isArray(backup.projects) ? backup.projects : []);

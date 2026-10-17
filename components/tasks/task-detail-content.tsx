@@ -180,6 +180,7 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
 
   const [paneWidth, setPaneWidth] = React.useState(0);
   const [isLocating, setIsLocating] = React.useState(false);
+  const isLocatingRef = React.useRef(false);
   const [titleHeight, setTitleHeight] = React.useState<number>(0);
   const [subtitleHeight, setSubtitleHeight] = React.useState<number>(0);
 
@@ -194,7 +195,8 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
   }, []);
 
   const onUseCurrentLocation = React.useCallback(async () => {
-    if (!task) return;
+    if (!task || isLocatingRef.current) return;
+    isLocatingRef.current = true;
     try {
       setIsLocating(true);
       let Location: typeof import('expo-location');
@@ -203,7 +205,7 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
       } catch {
         Alert.alert(
           t('taskDetail.alert.locationUnavailableTitle'),
-          t('taskDetail.alert.locationUnavailableBody')
+          t('taskDetail.alert.locationErrorBody')
         );
         return;
       }
@@ -219,7 +221,8 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
         longitude: pos.coords.longitude,
       });
 
-      const parts = [rev.name, rev.street, rev.district, rev.city, rev.region].filter(
+      // reverseGeocodeAsync can resolve to an empty list; fall back to coordinates.
+      const parts = [rev?.name, rev?.street, rev?.district, rev?.city, rev?.region].filter(
         (v): v is string => typeof v === 'string' && v.trim().length > 0
       );
       const label = parts.slice(0, 2).join(' · ') || `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
@@ -227,6 +230,7 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
     } catch {
       Alert.alert(t('taskDetail.alert.locationErrorTitle'), t('taskDetail.alert.locationErrorBody'));
     } finally {
+      isLocatingRef.current = false;
       setIsLocating(false);
     }
   }, [task, updateTask]);
@@ -571,7 +575,7 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
                   </Pressable>
                 ) : (
                   <Pressable
-                    android_ripple={ripple()} onPress={onUseCurrentLocation} hitSlop={8}>
+                    android_ripple={ripple()} onPress={onUseCurrentLocation} disabled={isLocating} hitSlop={8}>
                     {isLocating ? <ActivityIndicator size="small" /> : <MaterialIcons name="my-location" size={14} color={withAlpha(Colors[theme].text, contrastAlpha(0.5))} />}
                   </Pressable>
                 )}

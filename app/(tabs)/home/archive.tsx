@@ -12,6 +12,7 @@ import {
 import { Stack, useRouter } from "expo-router";
 import React from "react";
 import {
+  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -167,7 +168,21 @@ function ArchiveContent() {
 
   const deleteForever = React.useCallback(
     (taskId: string) => {
-      setTasks((prev) => prev.filter((task) => task.id !== taskId));
+      // Removing a task from the trash cannot be undone, so ask first. If the
+      // user cancels, the swiped row slides back because the task still exists.
+      Alert.alert(
+        t("archive.alert.deleteForeverTitle"),
+        t("archive.alert.deleteForeverBody"),
+        [
+          { text: t("common.cancel"), style: "cancel" },
+          {
+            text: t("common.delete"),
+            style: "destructive",
+            onPress: () =>
+              setTasks((prev) => prev.filter((task) => task.id !== taskId)),
+          },
+        ],
+      );
     },
     [setTasks],
   );

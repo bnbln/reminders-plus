@@ -3140,7 +3140,7 @@ function AssistScreenContent() {
               color: withAlpha(colors.text, contrastAlpha(0.74)),
             }}
           >
-            {t("projectLimit.body", { count: 4 })}
+            {t("assist.locked.body")}
           </Text>
 
           <Pressable
