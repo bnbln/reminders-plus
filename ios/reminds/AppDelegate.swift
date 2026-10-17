@@ -1000,6 +1000,13 @@ private final class AddReminderAccessoryButton: UIControl {
 class ReactNativeDelegate: ExpoReactNativeFactoryDelegate {
   // Extension point for config-plugins
 
+  override func customize(_ rootView: UIView) {
+    // expo-splash-screen attaches the storyboard view as the root view's
+    // loading view here; add the accent gradient on top of it afterwards.
+    super.customize(rootView)
+    SplashAccentGradientView.install(on: rootView)
+  }
+
   override func sourceURL(for bridge: RCTBridge) -> URL? {
     // needed to return the correct URL for expo-dev-client.
     bridge.bundleURL ?? bundleURL()
@@ -1011,6 +1018,70 @@ class ReactNativeDelegate: ExpoReactNativeFactoryDelegate {
 #else
     return Bundle.main.url(forResource: "main", withExtension: "jsbundle")
 #endif
+  }
+}
+
+// The launch storyboard is static, so it cannot know the accent the user
+// picked. JS stores the resolved accent hex here; on the next launch the
+// splash view expo-splash-screen keeps up while JS loads gets the same
+// gradient StreakAccentBackground draws (components/ui/streak-accent-background.tsx).
+private let splashAccentColorDefaultsKey = "reminds.splashAccentColor"
+
+@objc(SplashAccentBridge)
+final class SplashAccentBridge: NSObject {
+  @objc static func requiresMainQueueSetup() -> Bool {
+    false
+  }
+
+  @objc(setAccentColor:)
+  func setAccentColor(_ hex: String) {
+    UserDefaults.standard.set(hex, forKey: splashAccentColorDefaultsKey)
+  }
+}
+
+final class SplashAccentGradientView: UIView {
+  // Keep in sync with GRADIENT_LOCATIONS / GRADIENT_ALPHAS and
+  // VISIBLE_LAYER_OPACITY in streak-accent-background.tsx.
+  private static let locations: [NSNumber] = [0, 0.5, 0.75, 0.9, 1]
+  private static let alphas: [CGFloat] = [0, 0.06, 0.62, 0.96, 1]
+  private static let layerOpacity: CGFloat = 0.4
+  private static let defaultAccentHex = "#007AFF"
+
+  override class var layerClass: AnyClass { CAGradientLayer.self }
+
+  static func install(on rootView: UIView) {
+    guard
+      let hostView = rootView as? RCTSurfaceHostingProxyRootView,
+      let loadingView = hostView.loadingView,
+      !loadingView.subviews.contains(where: { $0 is SplashAccentGradientView })
+    else { return }
+
+    let hex = UserDefaults.standard.string(forKey: splashAccentColorDefaultsKey) ?? defaultAccentHex
+    let accent = color(fromHex: hex) ?? color(fromHex: defaultAccentHex)!
+    let gradientView = SplashAccentGradientView(frame: loadingView.bounds)
+    gradientView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    gradientView.isUserInteractionEnabled = false
+    gradientView.alpha = layerOpacity
+    if let layer = gradientView.layer as? CAGradientLayer {
+      layer.colors = alphas.map { accent.withAlphaComponent($0).cgColor }
+      layer.locations = locations
+      layer.startPoint = CGPoint(x: 0.5, y: 0)
+      layer.endPoint = CGPoint(x: 0.5, y: 1)
+    }
+    // Behind the icon and title, above the storyboard's background color.
+    loadingView.insertSubview(gradientView, at: 0)
+  }
+
+  private static func color(fromHex hex: String) -> UIColor? {
+    let trimmed = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+      .replacingOccurrences(of: "#", with: "")
+    guard trimmed.count == 6, let value = UInt32(trimmed, radix: 16) else { return nil }
+    return UIColor(
+      red: CGFloat((value >> 16) & 0xFF) / 255,
+      green: CGFloat((value >> 8) & 0xFF) / 255,
+      blue: CGFloat(value & 0xFF) / 255,
+      alpha: 1
+    )
   }
 }
 
