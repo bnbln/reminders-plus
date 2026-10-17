@@ -215,6 +215,7 @@ export default function SettingsScreen() {
         : undefined,
     // `isDark` isn't read directly, but the Material You scheme depends on
     // the resolved theme the same way `theme` below does — recompute together.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [isDark],
   );
 

@@ -1,7 +1,6 @@
 import { usePageDimensions } from "@/components/navigation/vertical-bar-safe-area";
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useFocusEffect } from "expo-router";
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
 import { NativeModules, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 

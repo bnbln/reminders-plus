@@ -2,8 +2,10 @@ import {
   DarkTheme,
   DefaultTheme,
   ThemeProvider,
+  Stack,
+  useRouter,
+  useSegments,
 } from "expo-router";
-import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React from "react";
 import { I18nManager, Platform, View } from "react-native";
