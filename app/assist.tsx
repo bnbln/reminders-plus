@@ -2105,7 +2105,9 @@ function AssistUnlockedScreen() {
   const [messages, setMessages] = React.useState<Message[]>([]);
   const [input, setInput] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(false);
-  const [isAIAvailable, setIsAIAvailable] = React.useState(true);
+  const [isAIAvailable] = React.useState(
+    () => Platform.OS === "ios" && apple.isAvailable(),
+  );
   const [isKeyboardVisible, setIsKeyboardVisible] = React.useState(false);
 
   const scrollViewRef = React.useRef<React.ComponentRef<typeof ScrollView>>(null);
@@ -2158,11 +2160,6 @@ function AssistUnlockedScreen() {
     if (messages.length === 0) return;
     void AsyncStorage.setItem(ASSIST_STORAGE_KEY, JSON.stringify(messages));
   }, [messages]);
-
-  React.useEffect(() => {
-    const available = Platform.OS === "ios" && apple.isAvailable();
-    setIsAIAvailable(available);
-  }, []);
 
   React.useEffect(() => {
     const showEvent =
