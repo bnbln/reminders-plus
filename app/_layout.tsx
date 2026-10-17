@@ -11,6 +11,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ReduceMotion, ReducedMotionConfig } from "react-native-reanimated";
 
 import { VerticalBarSafeAreaProvider, verticalBarScreenLayout } from "@/components/navigation/vertical-bar-safe-area";
+import { LaunchSplashOverlay } from "@/components/ui/launch-splash-overlay";
 import { StreakAccentBackground } from "@/components/ui/streak-accent-background";
 import { WidgetSync } from "@/components/widgets/widget-sync";
 import { Colors } from "@/constants/theme";
@@ -292,6 +293,7 @@ export default function RootLayout() {
                     }}
                   />
                   </Stack>
+                  <LaunchSplashOverlay />
                 </View>
                 <StatusBar style={theme === "dark" ? "light" : "dark"} />
               </VerticalBarSafeAreaProvider>
