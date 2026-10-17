@@ -181,7 +181,6 @@ export default function SettingsScreen() {
     accentColor,
     appearanceMode,
     hapticsEnabled,
-    reduceMotionPreference,
     streakCelebrationEnabled,
     localeOverride,
     appBadgeMode,
@@ -191,7 +190,6 @@ export default function SettingsScreen() {
     setAccentColor,
     setAppearanceMode,
     setHapticsEnabled,
-    setReduceMotionEnabled,
     setStreakCelebrationEnabled,
     setLocaleOverride,
     setAppBadgeMode,
@@ -922,15 +920,18 @@ export default function SettingsScreen() {
 
           <View style={[styles.separator, { backgroundColor: borderColor }]} />
 
-          <View style={styles.switchRow}>
-            <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-              {t("settings.interactions.reduceMotion")}
-            </Text>
-            <SettingsSwitch
-              accessibilityLabel={t("settings.interactions.reduceMotion")}
-              value={reduceMotionPreference}
-              onValueChange={setReduceMotionEnabled}
-            />
+          {/* No in-app switch: native transitions, sheets and system
+              controls only follow the OS setting, so an app-only switch
+              could never cover them all. */}
+          <View style={styles.switchRow} accessible>
+            <View style={styles.switchLabelWrap}>
+              <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
+                {t("settings.interactions.reduceMotion")}
+              </Text>
+              <Text style={[styles.helperInlineText, { color: muted }]}>
+                {t("settings.interactions.reduceMotionSystemHint")}
+              </Text>
+            </View>
           </View>
 
           <View style={[styles.separator, { backgroundColor: borderColor }]} />

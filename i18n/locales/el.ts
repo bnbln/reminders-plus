@@ -396,6 +396,7 @@ export const EL_TRANSLATIONS: TranslationDict = {
   'settings.notifications.dailySummary': 'Ημερήσια περίληψη',
   'settings.interactions.haptics': 'Ενεργοποίηση απτικών',
   'settings.interactions.reduceMotion': 'Μειώστε την κίνηση',
+  'settings.interactions.reduceMotionSystemHint': 'Ακολουθεί τη ρύθμιση Προσβασιμότητας της συσκευής σας.',
   'settings.import.unavailableTitle': 'Μη διαθέσιμο',
   'settings.import.unavailableBody': 'Apple Η εισαγωγή ημερολογίου/Υπενθυμίσεων είναι διαθέσιμη μόνο στο iOS.',
   'settings.import.permissionTitle': 'Χωρίς άδεια',

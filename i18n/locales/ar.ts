@@ -396,6 +396,7 @@ export const AR_TRANSLATIONS: TranslationDict = {
   'settings.notifications.dailySummary': 'ملخص يومي',
   'settings.interactions.haptics': 'تمكين اللمس',
   'settings.interactions.reduceMotion': 'تقليل الحركة',
+  'settings.interactions.reduceMotionSystemHint': 'يتبع إعداد إمكانية الوصول في جهازك.',
   'settings.import.unavailableTitle': 'غير متاح',
   'settings.import.unavailableBody': 'Apple استيراد التقويم/التذكيرات متاح فقط على iOS.',
   'settings.import.permissionTitle': 'لا يوجد إذن',

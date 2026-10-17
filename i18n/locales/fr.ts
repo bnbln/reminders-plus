@@ -396,6 +396,7 @@ export const FR_TRANSLATIONS: TranslationDict = {
   'settings.notifications.dailySummary': 'Résumé quotidien',
   'settings.interactions.haptics': 'Activer les retours haptiques',
   'settings.interactions.reduceMotion': 'Réduire les animations',
+  'settings.interactions.reduceMotionSystemHint': 'Suit le réglage Accessibilité de votre appareil.',
   'settings.import.unavailableTitle': 'Indisponible',
   'settings.import.unavailableBody': "L'import Apple Calendrier/Rappels est disponible uniquement sur iOS.",
   'settings.import.permissionTitle': 'Aucune autorisation',

@@ -396,6 +396,7 @@ export const RU_TRANSLATIONS: TranslationDict = {
   'settings.notifications.dailySummary': 'Ежедневная сводка',
   'settings.interactions.haptics': 'Включить тактильные ощущения',
   'settings.interactions.reduceMotion': 'Уменьшите движение',
+  'settings.interactions.reduceMotionSystemHint': 'Следует настройке универсального доступа на устройстве.',
   'settings.import.unavailableTitle': 'Недоступно',
   'settings.import.unavailableBody': 'Apple Импорт календаря/напоминаний доступен только на iOS.',
   'settings.import.permissionTitle': 'Нет разрешения',

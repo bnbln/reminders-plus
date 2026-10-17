@@ -396,6 +396,7 @@ export const PT_TRANSLATIONS: TranslationDict = {
   'settings.notifications.dailySummary': 'Resumo diário',
   'settings.interactions.haptics': 'Habilitar sensação tátil',
   'settings.interactions.reduceMotion': 'Reduzir o movimento',
+  'settings.interactions.reduceMotionSystemHint': 'Segue a definição de Acessibilidade do dispositivo.',
   'settings.import.unavailableTitle': 'Indisponível',
   'settings.import.unavailableBody': 'A importação de Apple Calendário/Lembretes está disponível apenas em iOS.',
   'settings.import.permissionTitle': 'Sem permissão',

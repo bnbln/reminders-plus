@@ -470,6 +470,7 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "settings.notifications.dailySummary": "Tägliche Zusammenfassung",
   "settings.interactions.haptics": "Haptik aktivieren",
   "settings.interactions.reduceMotion": "Bewegung reduzieren",
+  "settings.interactions.reduceMotionSystemHint": "Folgt der Systemeinstellung unter Bedienungshilfen.",
   "settings.interactions.streakCelebration": "Streak-Feier",
   "settings.interactions.streakCelebrationHint":
     "Vollbild-Flamme, sobald du die erste Aufgabe des Tages erledigst.",

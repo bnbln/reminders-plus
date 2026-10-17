@@ -431,6 +431,7 @@ export const EN_TRANSLATIONS: TranslationDict = {
     'settings.notifications.dailySummary': 'Daily summary',
     'settings.interactions.haptics': 'Enable haptics',
     'settings.interactions.reduceMotion': 'Reduce motion',
+    'settings.interactions.reduceMotionSystemHint': 'Follows your device\'s Accessibility setting.',
     'settings.interactions.streakCelebration': 'Streak celebration',
     'settings.interactions.streakCelebrationHint':
       'Full-screen flame when you complete your first task of the day.',

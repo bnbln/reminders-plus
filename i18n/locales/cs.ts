@@ -396,6 +396,7 @@ export const CS_TRANSLATIONS: TranslationDict = {
   'settings.notifications.dailySummary': 'Denní shrnutí',
   'settings.interactions.haptics': 'Povolit haptiku',
   'settings.interactions.reduceMotion': 'Snižte pohyb',
+  'settings.interactions.reduceMotionSystemHint': 'Řídí se nastavením zpřístupnění ve vašem zařízení.',
   'settings.import.unavailableTitle': 'Není k dispozici',
   'settings.import.unavailableBody': 'Import kalendáře/připomenutí Apple je dostupný pouze na iOS.',
   'settings.import.permissionTitle': 'Žádné povolení',

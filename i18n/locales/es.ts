@@ -227,6 +227,7 @@ export const ES_TRANSLATIONS: TranslationDict = {
   "settings.notifications.dailySummary": "Resumen diario",
   "settings.interactions.haptics": "Activar respuesta háptica",
   "settings.interactions.reduceMotion": "Reducir movimiento",
+  "settings.interactions.reduceMotionSystemHint": "Sigue el ajuste de Accesibilidad de tu dispositivo.",
   "settings.import.unavailableTitle": "No disponible",
   "settings.import.unavailableBody":
     "Apple Calendario/Recordatorios solo está disponible en iOS.",

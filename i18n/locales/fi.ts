@@ -396,6 +396,7 @@ export const FI_TRANSLATIONS: TranslationDict = {
   'settings.notifications.dailySummary': 'Päivittäinen yhteenveto',
   'settings.interactions.haptics': 'Ota haptiikka käyttöön',
   'settings.interactions.reduceMotion': 'Vähennä liikettä',
+  'settings.interactions.reduceMotionSystemHint': 'Noudattaa laitteen Saavutettavuus-asetusta.',
   'settings.import.unavailableTitle': 'Ei saatavilla',
   'settings.import.unavailableBody': 'Apple Kalenterien/muistutusten tuonti on saatavilla vain iOS.',
   'settings.import.permissionTitle': 'Ei lupaa',

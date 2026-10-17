@@ -396,6 +396,7 @@ export const DA_TRANSLATIONS: TranslationDict = {
   'settings.notifications.dailySummary': 'Daglig oversigt',
   'settings.interactions.haptics': 'Aktiver haptik',
   'settings.interactions.reduceMotion': 'Reducer bevægelse',
+  'settings.interactions.reduceMotionSystemHint': 'Følger enhedens indstilling under Tilgængelighed.',
   'settings.import.unavailableTitle': 'Ikke tilgængelig',
   'settings.import.unavailableBody': 'Apple Import af kalender/påmindelser er kun tilgængelig på iOS.',
   'settings.import.permissionTitle': 'Ingen tilladelse',

@@ -396,6 +396,7 @@ export const PL_TRANSLATIONS: TranslationDict = {
   'settings.notifications.dailySummary': 'Podsumowanie dnia',
   'settings.interactions.haptics': 'Włącz dotyk',
   'settings.interactions.reduceMotion': 'Zmniejsz ruch',
+  'settings.interactions.reduceMotionSystemHint': 'Zgodnie z ustawieniem Dostępności urządzenia.',
   'settings.import.unavailableTitle': 'Niedostępne',
   'settings.import.unavailableBody': 'Apple Import kalendarza/przypomnień jest dostępny tylko na iOS.',
   'settings.import.permissionTitle': 'Brak pozwolenia',

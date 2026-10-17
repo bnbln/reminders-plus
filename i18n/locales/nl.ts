@@ -396,6 +396,7 @@ export const NL_TRANSLATIONS: TranslationDict = {
   'settings.notifications.dailySummary': 'Dagelijkse samenvatting',
   'settings.interactions.haptics': 'Schakel haptiek in',
   'settings.interactions.reduceMotion': 'Verminder beweging',
+  'settings.interactions.reduceMotionSystemHint': 'Volgt de instelling Toegankelijkheid van je apparaat.',
   'settings.import.unavailableTitle': 'Niet beschikbaar',
   'settings.import.unavailableBody': 'Apple Het importeren van agenda\'s/herinneringen is alleen beschikbaar op iOS.',
   'settings.import.permissionTitle': 'Geen toestemming',

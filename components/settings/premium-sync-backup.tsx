@@ -408,7 +408,6 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
     setAppearanceMode,
     setAccentColor,
     setHapticsEnabled,
-    setReduceMotionEnabled,
     setAppBadgeMode,
     setDailySummaryEnabled,
     setDailySummaryMinutes,
@@ -667,7 +666,6 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
       setAppearanceMode(backup.appSettings.appearanceMode);
       setAccentColor(backup.appSettings.accentColor);
       setHapticsEnabled(backup.appSettings.hapticsEnabled);
-      setReduceMotionEnabled(backup.appSettings.reduceMotionEnabled);
       setAppBadgeMode(backup.appSettings.appBadgeMode);
       setDailySummaryEnabled(backup.appSettings.dailySummaryEnabled);
       setDailySummaryMinutes(backup.appSettings.dailySummaryMinutes);
@@ -702,7 +700,6 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
     setEnabledTags,
     setHapticsEnabled,
     setProjects,
-    setReduceMotionEnabled,
     setShowCompactSubtasks,
     setShowProjectNames,
     setShowTagIcons,

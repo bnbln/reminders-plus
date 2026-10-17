@@ -90,10 +90,9 @@ export default function RootLayout() {
     <GestureHandlerRootView
       style={{ flex: 1, backgroundColor: Colors[theme].background }}
     >
-      {/* Drives Reanimated's global reduced-motion flag from the combined
-          value (system setting, tracked live, or the in-app switch), so every
-          animation left on the default ReduceMotion.System follows both.
-          Reanimated's own system reading is only taken at startup. */}
+      {/* Drives Reanimated's global reduced-motion flag from the system
+          setting as tracked live by the settings store; Reanimated's own
+          reading is only taken at startup. */}
       <ReducedMotionConfig
         mode={reduceMotionEnabled ? ReduceMotion.Always : ReduceMotion.Never}
       />

@@ -396,6 +396,7 @@ export const ID_TRANSLATIONS: TranslationDict = {
   'settings.notifications.dailySummary': 'Ringkasan harian',
   'settings.interactions.haptics': 'Aktifkan haptik',
   'settings.interactions.reduceMotion': 'Kurangi gerakan',
+  'settings.interactions.reduceMotionSystemHint': 'Mengikuti pengaturan Aksesibilitas perangkat Anda.',
   'settings.import.unavailableTitle': 'Tidak tersedia',
   'settings.import.unavailableBody': 'Apple Impor Kalender/Pengingat hanya tersedia di iOS.',
   'settings.import.permissionTitle': 'Tidak ada izin',

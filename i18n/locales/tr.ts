@@ -396,6 +396,7 @@ export const TR_TRANSLATIONS: TranslationDict = {
   'settings.notifications.dailySummary': 'Günlük özet',
   'settings.interactions.haptics': 'Dokunsal özelliği etkinleştir',
   'settings.interactions.reduceMotion': 'Hareketi azalt',
+  'settings.interactions.reduceMotionSystemHint': 'Cihazınızın Erişilebilirlik ayarını izler.',
   'settings.import.unavailableTitle': 'Kullanılamıyor',
   'settings.import.unavailableBody': 'Apple Takvim/Hatırlatıcıları içe aktarma yalnızca iOS üzerinde mümkündür.',
   'settings.import.permissionTitle': 'İzin yok',

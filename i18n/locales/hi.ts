@@ -396,6 +396,7 @@ export const HI_TRANSLATIONS: TranslationDict = {
   'settings.notifications.dailySummary': 'दैनिक सारांश',
   'settings.interactions.haptics': 'हैप्टिक्स सक्षम करें',
   'settings.interactions.reduceMotion': 'गति कम करें',
+  'settings.interactions.reduceMotionSystemHint': 'आपके डिवाइस की एक्सेसिबिलिटी सेटिंग का पालन करता है।',
   'settings.import.unavailableTitle': 'अनुपलब्ध',
   'settings.import.unavailableBody': 'Apple कैलेंडर/रिमाइंडर आयात केवल iOS पर उपलब्ध है।',
   'settings.import.permissionTitle': 'कोई अनुमति नहीं',
