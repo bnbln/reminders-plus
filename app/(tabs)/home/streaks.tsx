@@ -15,6 +15,7 @@ import {
 
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { SFSymbol } from "@/components/ui/sfsymbol";
+import { StatHero } from "@/components/ui/stat-hero";
 import { StreakAccentBackground } from "@/components/ui/streak-accent-background";
 import { Colors, contrastAlpha } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -52,33 +53,8 @@ const createStyles = (
       gap: 16,
     },
     // Hero section
-    hero: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: compact ? 10 : 14,
-      paddingVertical: compact ? 10 : 14,
-      marginBottom: 8,
-    },
     heroFlame: {
       marginTop: compact ? -2 : -4,
-    },
-    heroTextWrap: {
-      alignItems: "flex-start",
-      gap: 2,
-    },
-    bigNumber: {
-      fontSize: compact ? 54 : 64,
-      fontWeight: "900",
-      letterSpacing: -0.8,
-      lineHeight: compact ? 54 : 64,
-      color: text,
-    },
-    heroSubtitle: {
-      fontSize: compact ? 15 : 16,
-      fontWeight: "700",
-      lineHeight: compact ? 19 : 20,
-      color: subtitleColor,
     },
     // Stat card grid
     quickGridWrap: {
@@ -344,32 +320,35 @@ export default function StreaksScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Hero Streak Section */}
-        <View style={styles.hero}>
-        {Platform.OS === "ios" ? (
-          <SFSymbol
-            name="flame.fill"
-            size={compact ? 38 : 44}
-            color={fireColor}
-            style={styles.heroFlame}
-            weight="bold"
-          />
-        ) : (
-          <MaterialIcons
-            name="whatshot"
-            size={compact ? 34 : 40}
-            color={fireColor}
-            style={styles.heroFlame}
-          />
-        )}
-        <View style={styles.heroTextWrap}>
-          <Text style={styles.bigNumber}>{currentStreak}</Text>
-          <Text style={styles.heroSubtitle}>
-            {currentStreak === 1
+        <StatHero
+          icon={
+            Platform.OS === "ios" ? (
+              <SFSymbol
+                name="flame.fill"
+                size={compact ? 38 : 44}
+                color={fireColor}
+                style={styles.heroFlame}
+                weight="bold"
+              />
+            ) : (
+              <MaterialIcons
+                name="whatshot"
+                size={compact ? 34 : 40}
+                color={fireColor}
+                style={styles.heroFlame}
+              />
+            )
+          }
+          value={`${currentStreak}`}
+          subtitle={
+            currentStreak === 1
               ? t("streaks.hero.one")
-              : t("streaks.hero.other")}
-          </Text>
-        </View>
-      </View>
+              : t("streaks.hero.other")
+          }
+          compact={compact}
+          textColor={textColor}
+          subtitleColor={withAlpha(textColor, 0.62)}
+        />
 
         {/* Stats Grid - Exact QuickNavGrid style */}
         <View style={styles.quickGridWrap}>
