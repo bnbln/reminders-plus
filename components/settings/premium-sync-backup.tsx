@@ -439,7 +439,6 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
     appearanceMode,
     accentColor,
     hapticsEnabled,
-    reduceMotionPreference,
     appBadgeMode,
     dailySummaryEnabled,
     dailySummaryMinutes,
@@ -638,9 +637,9 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
           appearanceMode,
           accentColor,
           hapticsEnabled,
-          // Back up the in-app switch only; the OS Reduce Motion setting is
-          // applied live and must not be frozen into the restored preference.
-          reduceMotionEnabled: reduceMotionPreference,
+          // Kept for the backup format only: Reduce Motion now follows the OS
+          // setting alone and the stored value is ignored.
+          reduceMotionEnabled: false,
           appBadgeMode,
           dailySummaryEnabled,
           dailySummaryMinutes,
@@ -676,7 +675,6 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
     isRestoringBackup,
     openPremiumOffer,
     projects,
-    reduceMotionPreference,
     showCompactSubtasks,
     showProjectNames,
     showTagIcons,
