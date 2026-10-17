@@ -3,10 +3,17 @@ import {
   DefaultTheme,
   ThemeProvider,
 } from "expo-router";
-import { Stack, useRouter, useSegments } from "expo-router";
+import { Stack, useSegments, type ErrorBoundaryProps } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React from "react";
-import { I18nManager, Platform, View } from "react-native";
+import {
+  DevSettings,
+  I18nManager,
+  Platform,
+  Pressable,
+  Text,
+  View,
+} from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ReduceMotion, ReducedMotionConfig } from "react-native-reanimated";
 
@@ -26,6 +33,7 @@ import { StreakCelebrationProvider } from "@/context/streak-celebration-store";
 import { TaskCreateProvider } from "@/context/task-create-context";
 import { TasksProvider } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useSearchQueryParam } from "@/hooks/use-search-query-param";
 import { isRtlLocale, t } from "@/i18n";
 import { initTaskNotifications } from "@/notifications/tasks-notifications";
 
@@ -33,17 +41,92 @@ export const unstable_settings = {
   anchor: "(tabs)",
 };
 
+// Reads the route on its own so navigating does not re-render the whole root
+// layout and its provider tree.
+function SettingsAccentBackground({ isDark }: { isDark: boolean }) {
+  const segments = useSegments();
+  const enabled = segments[0] === "settings" || segments[0] === "cloud-sync";
+  return <StreakAccentBackground isDark={isDark} enabled={enabled} />;
+}
+
+export function ErrorBoundary({ retry }: ErrorBoundaryProps) {
+  const theme = useColorScheme() ?? "light";
+  const textColor = Colors[theme].text;
+  return (
+    <View
+      style={{
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 32,
+        gap: 12,
+        backgroundColor: Colors[theme].background,
+      }}
+    >
+      <Text
+        accessibilityRole="header"
+        style={{
+          fontSize: 20,
+          fontWeight: "600",
+          textAlign: "center",
+          color: textColor,
+        }}
+      >
+        {t("errorBoundary.title")}
+      </Text>
+      <Text
+        style={{
+          fontSize: 15,
+          lineHeight: 21,
+          textAlign: "center",
+          color: textColor,
+          opacity: 0.7,
+        }}
+      >
+        {t("errorBoundary.body")}
+      </Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => {
+          void retry();
+        }}
+        style={({ pressed }) => ({
+          marginTop: 8,
+          minHeight: 44,
+          paddingHorizontal: 24,
+          borderRadius: 22,
+          justifyContent: "center",
+          backgroundColor: textColor,
+          opacity: pressed ? 0.7 : 1,
+        })}
+      >
+        <Text
+          style={{
+            fontSize: 16,
+            fontWeight: "600",
+            color: Colors[theme].background,
+          }}
+        >
+          {t("errorBoundary.retry")}
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const { localeOverride, reduceMotionEnabled, highContrastEnabled } = useAppSettings();
+  const {
+    localeOverride,
+    reduceMotionEnabled,
+    highContrastEnabled,
+    hasHydrated: hasSettingsHydrated,
+  } = useAppSettings();
   const theme = colorScheme ?? "light";
-  const router = useRouter();
-  const segments = useSegments();
+  const onSearchTextChange = useSearchQueryParam();
   const searchBarRef = React.useRef<any>(null);
   useSplashAccentPersistence();
   useHideSplashWhenReady();
-  const showSettingsAccentBackground =
-    segments[0] === "settings" || segments[0] === "cloud-sync";
   const themedContentStyle = React.useMemo(
     () => ({ backgroundColor: Colors[theme].background }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Colors[theme] switches palette while Increase Contrast is on.
@@ -90,15 +173,20 @@ export default function RootLayout() {
   }, []);
 
   React.useEffect(() => {
+    // Wait for the stored language; deciding on the default first would flip
+    // the direction twice.
+    if (!hasSettingsHydrated) return;
     const shouldBeRtl = isRtlLocale();
     if (I18nManager.isRTL !== shouldBeRtl) {
       I18nManager.allowRTL(shouldBeRtl);
       I18nManager.forceRTL(shouldBeRtl);
-      if (__DEV__) {
-        console.info("RTL wurde aktualisiert. Bitte die App neu starten.");
-      }
+      // Layout direction is only read at startup. The in-app language switch
+      // exists in development builds only, so reload there to apply it now. In
+      // release the language follows the system, and iOS relaunches the app
+      // when it changes.
+      if (__DEV__) DevSettings.reload();
     }
-  }, [localeOverride]);
+  }, [hasSettingsHydrated, localeOverride]);
 
   return (
     <GestureHandlerRootView
@@ -127,10 +215,7 @@ export default function RootLayout() {
                   key={highContrastEnabled ? "high-contrast" : "default-contrast"}
                   style={{ flex: 1, backgroundColor: Colors[theme].background }}
                 >
-                  <StreakAccentBackground
-                    isDark={theme === "dark"}
-                    enabled={showSettingsAccentBackground}
-                  />
+                  <SettingsAccentBackground isDark={theme === "dark"} />
                   <Stack
                     screenLayout={verticalBarScreenLayout}
                     screenOptions={{
@@ -305,11 +390,7 @@ export default function RootLayout() {
                         autoFocus: true,
                         ref: searchBarRef,
                         hideWhenScrolling: false,
-                        onChangeText: (event: any) => {
-                          router.setParams({
-                            q: String(event?.nativeEvent?.text ?? ""),
-                          });
-                        },
+                        onChangeText: onSearchTextChange,
                       },
                     }}
                   />

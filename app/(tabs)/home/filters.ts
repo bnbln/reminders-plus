@@ -8,18 +8,38 @@ export type FilterId =
   | 'withNotes'
   | 'withSubtasks';
 
-export const FILTERS: {
+type FilterDefinition = {
   id: FilterId;
   title: string;
   subtitle?: string;
   icon?: { ios?: string; android?: string };
-}[] = [
-  { id: 'all', title: t('filters.all'), icon: { ios: 'tray.full', android: 'filter-list' } },
-  { id: 'today', title: t('filters.today'), subtitle: t('filters.todayOnly'), icon: { ios: 'sun.max', android: 'wb-sunny' } },
-  { id: 'upcoming', title: t('filters.upcoming'), subtitle: t('filters.upcomingOnly'), icon: { ios: 'calendar', android: 'event' } },
-  { id: 'completed', title: t('filters.completed'), subtitle: t('filters.completedOnly'), icon: { ios: 'checkmark.circle', android: 'check-circle' } },
-  { id: 'withNotes', title: t('filters.withNotes'), subtitle: t('filters.withNotesOnly'), icon: { ios: 'note.text', android: 'notes' } },
-  { id: 'withSubtasks', title: t('filters.withSubtasks'), subtitle: t('filters.withSubtasksOnly'), icon: { ios: 'checkmark.square', android: 'check-box' } },
+};
+
+// Titles are getters so they follow a language change instead of keeping the
+// language that was active when this module was first imported.
+const filter = (
+  id: FilterId,
+  titleKey: string,
+  subtitleKey: string | null,
+  icon: FilterDefinition['icon'],
+): FilterDefinition => ({
+  id,
+  get title() {
+    return t(titleKey);
+  },
+  get subtitle() {
+    return subtitleKey ? t(subtitleKey) : undefined;
+  },
+  icon,
+});
+
+export const FILTERS: FilterDefinition[] = [
+  filter('all', 'filters.all', null, { ios: 'tray.full', android: 'filter-list' }),
+  filter('today', 'filters.today', 'filters.todayOnly', { ios: 'sun.max', android: 'wb-sunny' }),
+  filter('upcoming', 'filters.upcoming', 'filters.upcomingOnly', { ios: 'calendar', android: 'event' }),
+  filter('completed', 'filters.completed', 'filters.completedOnly', { ios: 'checkmark.circle', android: 'check-circle' }),
+  filter('withNotes', 'filters.withNotes', 'filters.withNotesOnly', { ios: 'note.text', android: 'notes' }),
+  filter('withSubtasks', 'filters.withSubtasks', 'filters.withSubtasksOnly', { ios: 'checkmark.square', android: 'check-box' }),
 ];
 
 export function isFilterId(value: unknown): value is FilterId {

@@ -559,6 +559,11 @@ export const HU_TRANSLATIONS: TranslationDict = {
   "assist.locked.body": "Az AI Assist a Reminders+ része, a korlátlan projektekkel és a Cloud Sync funkcióval együtt.",
   "plus.error.storeUnavailable": "Az App Store jelenleg nem érhető el.",
   "plus.error.purchaseFailed": "A vásárlást nem sikerült befejezni.",
+  "errorBoundary.title": "Hiba történt",
+  "errorBoundary.body": "Váratlan hiba történt. Próbáld újra, és ha ismét előfordul, indítsd újra az appot.",
+  "errorBoundary.retry": "Újrapróbálás",
+  "project.notFoundBody": "Ez a projekt törölve lett, vagy már nem érhető el.",
+  "project.notFoundAction": "Vissza a projektekhez",
 };
 
 export default HU_TRANSLATIONS;

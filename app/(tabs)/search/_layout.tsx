@@ -3,17 +3,18 @@ import {
   verticalBarTabScreenLayout,
 } from "@/components/navigation/vertical-bar-safe-area";
 import { useNativeProfileHeaderActionItems } from "@/components/navigation/native-header-action-items";
-import { Stack, useRouter } from 'expo-router';
+import { Stack } from 'expo-router';
 import React from 'react';
 import { Platform } from 'react-native';
 
 import { ProfileHeaderMenuButton } from '@/components/navigation/profile-header-menu-button';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useSearchQueryParam } from '@/hooks/use-search-query-param';
 import { t } from '@/i18n';
 
 export default function SearchLayout() {
-  const router = useRouter();
+  const onSearchTextChange = useSearchQueryParam();
   const searchBarRef = React.useRef<any>(null);
   const theme = useColorScheme() ?? 'light';
   const hasVerticalBar = useVerticalBarActive();
@@ -58,11 +59,7 @@ export default function SearchLayout() {
               // iOS 26 shows a cancel "X" button; keep it minimal.
               if (Platform.OS === 'ios') searchBarRef.current?.toggleCancelButton?.(false);
             },
-            onChangeText: (event: any) => {
-              router.setParams({
-                q: String(event?.nativeEvent?.text ?? ''),
-              });
-            },
+            onChangeText: onSearchTextChange,
           },
 
         }}

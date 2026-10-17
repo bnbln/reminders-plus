@@ -3783,7 +3783,9 @@ function HomeContent() {
   // Read the latest tasks through a ref so the toggle handler (and every row
   // it is passed to) stays stable while the task list changes.
   const latestTasksRef = React.useRef(tasks);
-  latestTasksRef.current = tasks;
+  React.useLayoutEffect(() => {
+    latestTasksRef.current = tasks;
+  });
   const handleToggleComplete = React.useCallback(
     (taskId: string) => {
       const currentTask = latestTasksRef.current.find(
@@ -4076,12 +4078,14 @@ function HomeContent() {
   const dateRailDayPressRef = React.useRef<(timestamp: number) => void>(
     () => {},
   );
-  dateRailDayPressRef.current = (timestamp: number) => {
-    dateRailDraggedRef.current = false;
-    closeAnyOpen();
-    scrollDateRailToDateStart(timestamp, !reduceMotionEnabled, true);
-    handleSelectDate(timestamp, "press");
-  };
+  React.useLayoutEffect(() => {
+    dateRailDayPressRef.current = (timestamp: number) => {
+      dateRailDraggedRef.current = false;
+      closeAnyOpen();
+      scrollDateRailToDateStart(timestamp, !reduceMotionEnabled, true);
+      handleSelectDate(timestamp, "press");
+    };
+  });
   const handleDateRailDayPress = React.useCallback((timestamp: number) => {
     dateRailDayPressRef.current(timestamp);
   }, []);

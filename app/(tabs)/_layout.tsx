@@ -164,6 +164,9 @@ export default function TabLayout() {
     }
 
     if (isTodayRoute) {
+      // No date here on purpose: this can run after Today's focus effect has
+      // sent its selected day. The native bridge keeps the last day while the
+      // mode stays "today" and only clears it for other modes.
       accessoryBridge?.setContext?.("today", null, null);
       return;
     }

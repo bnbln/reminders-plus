@@ -180,8 +180,8 @@ export default function RoutinePickerScreen() {
           options={
             {
               presentation: "formSheet",
-              // sheetCornerRadius: 50,
-              // contentStyle: { backgroundColor: 'transparent' },
+              headerTitle: t('routinePicker.title'),
+              ...sheetHeaderActions,
               headerShown: true,
             } as any
           }

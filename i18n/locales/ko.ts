@@ -559,6 +559,11 @@ export const KO_TRANSLATIONS: TranslationDict = {
   "assist.locked.body": "AI Assist는 무제한 프로젝트 및 Cloud Sync와 함께 Reminders+에 포함되어 있습니다.",
   "plus.error.storeUnavailable": "지금은 App Store에 연결할 수 없습니다.",
   "plus.error.purchaseFailed": "구입을 완료할 수 없습니다.",
+  "errorBoundary.title": "문제가 발생했습니다",
+  "errorBoundary.body": "예기치 않은 오류가 발생했습니다. 다시 시도하고, 계속 발생하면 앱을 다시 시작하세요.",
+  "errorBoundary.retry": "다시 시도",
+  "project.notFoundBody": "이 프로젝트는 삭제되었거나 더 이상 사용할 수 없습니다.",
+  "project.notFoundAction": "프로젝트로 돌아가기",
 };
 
 export default KO_TRANSLATIONS;
