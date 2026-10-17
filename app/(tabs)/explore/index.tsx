@@ -389,7 +389,7 @@ export default function ExploreScreen() {
   const dragTargetIndexRef = React.useRef(-1);
   const dragTouchOffsetRef = React.useRef({ x: 0, y: 0 });
   const gridOriginRef = React.useRef({ x: 0, y: 0 });
-  const gridRef = React.useRef<View | null>(null);
+  const gridRef = React.useRef<React.ComponentRef<typeof View>>(null);
   const tilePositionRef = React.useRef(new Map<string, ProjectTilePosition>());
 
   const getLayoutForIndex = React.useCallback(
@@ -524,20 +524,35 @@ export default function ExploreScreen() {
     (orderedIds: string[]) => {
       configureLayoutAnimation(LayoutAnimation.Presets.easeInEaseOut);
       setProjects((prev) => {
-        const nextVisibleProjects = orderedIds
-          .map((projectId) => visibleProjectsById.get(projectId))
-          .filter((project): project is Project => Boolean(project));
+        // Order by ID against the current list, not the snapshot from drag
+        // start: a project that synced in or was deleted meanwhile must
+        // neither appear twice nor disappear, and edits made meanwhile stay.
+        const liveById = new Map<string, Project>();
+        for (const project of prev) {
+          if (!project.deletedAt) liveById.set(project.id, project);
+        }
+        const nextLiveProjects: Project[] = [];
+        const placed = new Set<string>();
+        for (const projectId of orderedIds) {
+          const project = liveById.get(projectId);
+          if (!project || placed.has(projectId)) continue;
+          placed.add(projectId);
+          nextLiveProjects.push(project);
+        }
+        for (const project of liveById.values()) {
+          if (!placed.has(project.id)) nextLiveProjects.push(project);
+        }
 
-        let visibleIndex = 0;
+        let liveIndex = 0;
         return prev.map((project) => {
           if (project.deletedAt) return project;
-          const nextProject = nextVisibleProjects[visibleIndex];
-          visibleIndex += 1;
+          const nextProject = nextLiveProjects[liveIndex];
+          liveIndex += 1;
           return nextProject ?? project;
         });
       });
     },
-    [setProjects, visibleProjectsById],
+    [setProjects],
   );
 
   const finishDrag = React.useCallback(() => {

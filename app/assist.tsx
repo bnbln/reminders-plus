@@ -1,6 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { generateText } from "ai";
-import { Redirect, Stack, useRouter } from "expo-router";
+import { Redirect, Stack, useFocusEffect, useRouter } from "expo-router";
 import React from "react";
 import {
   ActivityIndicator,
@@ -29,7 +28,16 @@ import {
   useTasksStore,
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { apple, createAppleProvider } from "@/utils/apple-llm";
+import {
+  type AssistAvailability,
+  type AssistHistoryEntry,
+  AssistLLMError,
+  type AssistObjectSchema,
+  AssistSession,
+  type AssistToolResult,
+  assistSupportsLocale,
+  getAssistAvailability,
+} from "@/modules/assist-llm";
 import { IS_ASSIST_SUPPORTED } from "@/utils/assist-availability";
 import {
   ASSIST_TOOL_CALL_LIMIT_ERROR,
@@ -138,6 +146,10 @@ type ToolResultEntry = {
   result?: unknown;
 };
 
+function toolResultEntry(result: AssistToolResult): ToolResultEntry {
+  return { toolName: result.toolName, output: result.output };
+}
+
 type DirectAssistResolution = {
   content: string;
   actions?: AssistAction[];
@@ -157,6 +169,8 @@ type CollectedToolCandidates = {
 
 const ASSIST_STORAGE_KEY = "@reminds/assist_messages";
 const MAX_ASSIST_TOOL_CALLS = 10;
+/** Messages handed to a new native session; it trims further if the window overflows. */
+const ASSIST_HISTORY_MESSAGES = 6;
 const ASSIST_RESPONSE_INTENTS = [
   "create_task",
   "find_task",
@@ -166,9 +180,6 @@ const ASSIST_RESPONSE_INTENTS = [
   "general",
   "clarify",
 ] as const;
-const ASSIST_RESPONSE_INTENT_LIST = ASSIST_RESPONSE_INTENTS.map(
-  (intent) => `"${intent}"`,
-).join(" | ");
 
 const ASSIST_LANGUAGE_NAME_BY_LOCALE: Record<AppLocale, string> = {
   de: "German",
@@ -198,52 +209,113 @@ const ASSIST_LANGUAGE_NAME_BY_LOCALE: Record<AppLocale, string> = {
   ar: "Arabic",
 };
 
+/** The app language when the model supports it, otherwise English. */
+function assistOutputLanguage(locale: AppLocale): string {
+  const name = ASSIST_LANGUAGE_NAME_BY_LOCALE[locale] ?? "English";
+  return assistSupportsLocale(getIntlLocale(locale)) ? name : "English";
+}
+
 function supportsRuleBasedAssistantParsing(locale: AppLocale): boolean {
   return locale === "de" || locale === "en";
 }
 
-function buildSystemPrompt(locale: AppLocale): string {
-  const outputLanguage = ASSIST_LANGUAGE_NAME_BY_LOCALE[locale] ?? "English";
-  const intlLocale = getIntlLocale(locale);
-  return `You are the task and project assistant for the app "Reminds".
-User locale: ${locale} (${intlLocale}).
-
-Return exactly one valid JSON object with this shape:
-{
-  "intent": "${ASSIST_RESPONSE_INTENTS[0]}" | "${ASSIST_RESPONSE_INTENTS[1]}" | "${ASSIST_RESPONSE_INTENTS[2]}" | "${ASSIST_RESPONSE_INTENTS[3]}" | "${ASSIST_RESPONSE_INTENTS[4]}" | "${ASSIST_RESPONSE_INTENTS[5]}" | "${ASSIST_RESPONSE_INTENTS[6]}",
-  "answer": "<one short user-facing sentence in ${outputLanguage}>",
-  "openTaskId": "<task id or null>",
-  "openProjectId": "<project id or null>",
-  "suggestTaskIds": ["<task ids>"],
-  "suggestProjectIds": ["<project ids>"]
+function buildAssistInstructions(outputLanguage: string): string {
+  return `You are the assistant inside the to-do app "Reminders+". You help the user find, create and change their tasks and projects.
+- Use the tools for everything about the user's tasks and projects. Never invent tasks, projects or ids.
+- Every user message starts with the current local date and time. Resolve relative dates such as "tomorrow" or "next Friday" from it and pass dates as YYYY-MM-DD.
+- Your earlier answers list the ids of the tasks and projects they showed. Use those ids when the user refers back to them, e.g. "the second one" or "move it".
+- If the request is unclear, or a tool returns "ambiguous" or "not_found", ask one short follow-up question with intent "clarify".
+- If no task or project is involved, answer briefly with intent "general".
+- Write the answer in ${outputLanguage}.`;
 }
 
-Strict JSON rules:
-- Output must start with "{" and end with "}".
-- Output must be valid JSON (double quotes, no trailing commas, no comments).
-- Output must contain only the JSON object (no markdown, no code fences, no preface, no list).
-- If unsure, missing data, or tool result is ambiguous, return intent="clarify" with one short follow-up sentence in ${outputLanguage}.
-- If no concrete task/project operation is needed, return intent="general".
-- Use tools for all concrete task/project operations.
-- Never invent IDs or values. Unknown IDs must be null, unknown suggestions must be [].
-
-Task model fields:
-id, title, subtitle, emoji, projectId, dueAt, dueHasTime, completedAt, location, notes, subtasks[{id,title,done}], section, orderRank, color, deletedAt, isRoutine, routineType, routineInterval, routineWeekday, routineNthWeek, routineMonthDay, routineMonth
-
-Project model fields:
-id, name, color, emoji, icon, description, completed, deletedAt`;
+function buildAssistResponseSchema(outputLanguage: string): AssistObjectSchema {
+  const idList = { type: "array", items: { type: "string" }, maxItems: 5 } as const;
+  return {
+    type: "object",
+    properties: [
+      {
+        name: "intent",
+        schema: { type: "string", enum: ASSIST_RESPONSE_INTENTS },
+        description: "What the user asked for.",
+      },
+      {
+        name: "answer",
+        schema: { type: "string" },
+        description: `One short sentence for the user in ${outputLanguage}.`,
+      },
+      {
+        name: "openTaskId",
+        schema: { type: "string" },
+        optional: true,
+        description: "Id of the single task the user wants to open, taken from a tool result.",
+      },
+      {
+        name: "openProjectId",
+        schema: { type: "string" },
+        optional: true,
+        description: "Id of the single project the user wants to open, taken from a tool result.",
+      },
+      {
+        name: "suggestTaskIds",
+        schema: idList,
+        optional: true,
+        description: "Ids of matching tasks from tool results, best first.",
+      },
+      {
+        name: "suggestProjectIds",
+        schema: idList,
+        optional: true,
+        description: "Ids of matching projects from tool results, best first.",
+      },
+    ],
+  };
 }
 
-function buildCompactSystemPrompt(locale: AppLocale): string {
-  const outputLanguage = ASSIST_LANGUAGE_NAME_BY_LOCALE[locale] ?? "English";
-  const intlLocale = getIntlLocale(locale);
-  return `You are the task/project assistant for "Reminds". User locale: ${locale} (${intlLocale}).
-Return exactly one valid JSON object only.
-Keys: intent, answer, openTaskId, openProjectId, suggestTaskIds, suggestProjectIds.
-intent must be one of: ${ASSIST_RESPONSE_INTENT_LIST}.
-answer must be one short sentence in ${outputLanguage}.
-Never invent IDs. Use null for unknown open IDs and [] for unknown suggestion lists.
-If data is ambiguous or missing, return intent="clarify".`;
+/** Prepended to each prompt so relative dates resolve against the real "now". */
+function buildPromptContext(intlLocale: string): string {
+  const now = new Date();
+  const weekday = now.toLocaleDateString("en-US", { weekday: "long" });
+  const pad2 = (value: number) => (value < 10 ? `0${value}` : `${value}`);
+  const date = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+  const time = `${pad2(now.getHours())}:${pad2(now.getMinutes())}`;
+  let timeZone = "";
+  try {
+    timeZone = Intl.DateTimeFormat(intlLocale).resolvedOptions().timeZone ?? "";
+  } catch {
+    // Older Hermes builds may lack time zone data; the local time is enough.
+  }
+  return `Now: ${weekday}, ${date} ${time}${timeZone ? ` (${timeZone})` : ""}`;
+}
+
+/**
+ * Restores the chat for a new native session: the same JSON shape the model
+ * answered with, so ids of tasks it showed stay referable.
+ */
+function buildAssistHistory(messages: Message[]): AssistHistoryEntry[] {
+  return messages
+    .filter((message) => message.content.trim())
+    .slice(-ASSIST_HISTORY_MESSAGES)
+    .map((message): AssistHistoryEntry => {
+      if (message.role === "user") {
+        return { role: "user", content: message.content };
+      }
+      const taskIds = (message.actions ?? [])
+        .filter((action) => action.candidate.kind === "task" && !action.taskDraft)
+        .map((action) => action.candidate.id)
+        .filter((id) => !id.startsWith("show-more-tasks:"));
+      const projectIds = (message.actions ?? [])
+        .filter((action) => action.candidate.kind === "project" && !action.projectDraft)
+        .map((action) => action.candidate.id);
+      return {
+        role: "assistant",
+        content: JSON.stringify({
+          answer: message.content,
+          suggestTaskIds: taskIds.length > 0 ? taskIds.slice(0, 5) : undefined,
+          suggestProjectIds: projectIds.length > 0 ? projectIds.slice(0, 5) : undefined,
+        }),
+      };
+    });
 }
 
 function normalizeSearchText(value: string): string {
@@ -1280,34 +1352,6 @@ function parseMoveTaskToolResult(raw: unknown): MoveTaskToolOutput | null {
   };
 }
 
-function extractToolResultEntries(result: any): ToolResultEntry[] {
-  const entries: ToolResultEntry[] = [];
-
-  const pushFrom = (collection: unknown) => {
-    if (!Array.isArray(collection)) return;
-    for (const entry of collection) {
-      if (!entry || typeof entry !== "object") continue;
-      const value = entry as Record<string, unknown>;
-      entries.push({
-        toolName:
-          typeof value.toolName === "string" ? value.toolName : undefined,
-        output: value.output,
-        result: value.result,
-      });
-    }
-  };
-
-  pushFrom(result?.toolResults);
-  if (Array.isArray(result?.steps)) {
-    for (const step of result.steps) {
-      if (!step || typeof step !== "object") continue;
-      pushFrom((step as Record<string, unknown>).toolResults);
-    }
-  }
-
-  return entries;
-}
-
 function collectToolCandidates(
   entries: ToolResultEntry[],
 ): CollectedToolCandidates {
@@ -1922,14 +1966,44 @@ function isToolCallLimitError(error: unknown): boolean {
   return getErrorMessage(error).includes(ASSIST_TOOL_CALL_LIMIT_ERROR);
 }
 
-function isAppleGenerationError(error: unknown): boolean {
-  const normalized = getErrorMessage(error).replace(/\s+/g, "");
-  if (!normalized) return false;
-  return (
-    /FoundationModels\.LanguageModelSession\.GenerationError/i.test(
-      normalized,
-    ) || /GenerationError/i.test(normalized)
-  );
+function assistErrorContent(error: unknown): string {
+  if (isToolCallLimitError(error)) return t("assist.error.toolCallLimit");
+  if (error instanceof AssistLLMError) {
+    switch (error.code) {
+      case "UNSUPPORTED_LANGUAGE":
+        return t("assist.error.unsupportedLanguage");
+      case "MODEL_UNAVAILABLE":
+      case "UNSUPPORTED_OS":
+        return t("assist.error.foundationUnavailable");
+      case "CONTEXT_WINDOW":
+      case "GUARDRAIL":
+      case "RATE_LIMITED":
+      case "GENERATION":
+        return t("assist.error.appleGeneration");
+      default:
+        break;
+    }
+  }
+  const errorMessage = getErrorMessage(error);
+  return __DEV__ && errorMessage
+    ? t("assist.error.requestWithMessage", { message: errorMessage })
+    : t("assist.error.request");
+}
+
+function unavailableReasonText(availability: AssistAvailability): string | null {
+  if (availability.available) return null;
+  switch (availability.reason) {
+    case "deviceNotEligible":
+      return t("assist.unavailable.reason.deviceNotEligible");
+    case "appleIntelligenceNotEnabled":
+      return t("assist.unavailable.reason.appleIntelligenceNotEnabled");
+    case "modelNotReady":
+      return t("assist.unavailable.reason.modelNotReady");
+    case "unsupportedOS":
+      return t("assist.unavailable.hint");
+    default:
+      return null;
+  }
 }
 
 function toMutedTintColor(color: string): string {
@@ -2105,10 +2179,26 @@ function AssistUnlockedScreen() {
   const [messages, setMessages] = React.useState<Message[]>([]);
   const [input, setInput] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(false);
-  const [isAIAvailable, setIsAIAvailable] = React.useState(true);
+  const [availability, setAvailability] = React.useState<AssistAvailability>(
+    () => getAssistAvailability(),
+  );
+  const isAIAvailable = availability.available;
+  const [hasLoadedHistory, setHasLoadedHistory] = React.useState(false);
   const [isKeyboardVisible, setIsKeyboardVisible] = React.useState(false);
+  // Cancels the running generation when the user taps stop or leaves Assist,
+  // so no answer or tool call lands after they are gone.
+  const generationAbortRef = React.useRef<AbortController | null>(null);
+  useFocusEffect(
+    React.useCallback(
+      () => () => {
+        generationAbortRef.current?.abort();
+        generationAbortRef.current = null;
+      },
+      [],
+    ),
+  );
 
-  const scrollViewRef = React.useRef<ScrollView>(null);
+  const scrollViewRef = React.useRef<React.ComponentRef<typeof ScrollView>>(null);
   const router = useRouter();
   const rawColorScheme = useColorScheme();
   const resolvedColorScheme: "light" | "dark" =
@@ -2149,6 +2239,8 @@ function AssistUnlockedScreen() {
         }
       } catch {
         // Ignore parse/storage errors for chat history.
+      } finally {
+        setHasLoadedHistory(true);
       }
     };
     void loadMessages();
@@ -2159,10 +2251,83 @@ function AssistUnlockedScreen() {
     void AsyncStorage.setItem(ASSIST_STORAGE_KEY, JSON.stringify(messages));
   }, [messages]);
 
+  // The model can finish downloading or Apple Intelligence can be switched on
+  // while Assist is open, so check again whenever the tab gains focus.
+  useFocusEffect(
+    React.useCallback(() => {
+      const next = getAssistAvailability();
+      setAvailability((prev) =>
+        JSON.stringify(prev) === JSON.stringify(next) ? prev : next,
+      );
+    }, []),
+  );
+
+  const messagesRef = React.useRef<Message[]>(messages);
   React.useEffect(() => {
-    const available = Platform.OS === "ios" && apple.isAvailable();
-    setIsAIAvailable(available);
+    messagesRef.current = messages;
+  }, [messages]);
+
+  // One native session per chat keeps the conversation in the model's
+  // context. It is rebuilt from the stored messages when a turn was answered
+  // without the model (local shortcuts, created drafts) or after clearing.
+  const sessionRef = React.useRef<AssistSession | null>(null);
+  const sessionStaleRef = React.useRef(false);
+  const toolCallsCountRef = React.useRef(0);
+  const sessionLocaleRef = React.useRef<AppLocale | null>(null);
+
+  const disposeSession = React.useCallback(() => {
+    sessionRef.current?.dispose();
+    sessionRef.current = null;
   }, []);
+
+  const ensureSession = React.useCallback(
+    (history: Message[]): AssistSession => {
+      const locale = getLocale();
+      if (
+        sessionRef.current &&
+        !sessionStaleRef.current &&
+        sessionLocaleRef.current === locale
+      ) {
+        return sessionRef.current;
+      }
+      disposeSession();
+      const outputLanguage = assistOutputLanguage(locale);
+      const tools = createAssistTools({
+        getTasks: () => tasksRef.current,
+        getProjects: () => projectsRef.current,
+        setTasks,
+        setProjects,
+        onToolCall: () => {
+          toolCallsCountRef.current += 1;
+        },
+        shouldAbortToolCalls: () =>
+          Boolean(generationAbortRef.current?.signal.aborted) ||
+          toolCallsCountRef.current >= MAX_ASSIST_TOOL_CALLS,
+      });
+      const session = new AssistSession({
+        instructions: buildAssistInstructions(outputLanguage),
+        tools: Object.values(tools),
+        history: buildAssistHistory(history),
+      });
+      sessionRef.current = session;
+      sessionStaleRef.current = false;
+      sessionLocaleRef.current = locale;
+      return session;
+    },
+    [disposeSession, setProjects, setTasks],
+  );
+
+  React.useEffect(() => disposeSession, [disposeSession]);
+
+  // Prewarm once the stored chat is loaded, so the first answer starts faster.
+  React.useEffect(() => {
+    if (!hasLoadedHistory || !isAIAvailable) return;
+    try {
+      ensureSession(messagesRef.current).prewarm();
+    } catch (error) {
+      console.warn("[assist] could not prepare the model session", error);
+    }
+  }, [ensureSession, hasLoadedHistory, isAIAvailable]);
 
   React.useEffect(() => {
     const showEvent =
@@ -2247,13 +2412,15 @@ function AssistUnlockedScreen() {
           onPress: async () => {
             await AsyncStorage.removeItem(ASSIST_STORAGE_KEY);
             pendingRestoreScrollRef.current = false;
+            generationAbortRef.current?.abort();
+            disposeSession();
             setMessages([]);
           },
         },
         { text: t("common.cancel"), style: "cancel" },
       ],
     );
-  }, []);
+  }, [disposeSession]);
 
   const handleCreateTaskDraft = React.useCallback(
     (messageId: string, action: AssistAction) => {
@@ -2479,9 +2646,14 @@ function AssistUnlockedScreen() {
     [scrollToBottom],
   );
 
+  const handleStop = React.useCallback(() => {
+    generationAbortRef.current?.abort();
+  }, []);
+
   const handleSend = React.useCallback(async () => {
     if (!input.trim() || isLoading) return;
 
+    const historyBeforeSend = messagesRef.current;
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
@@ -2493,7 +2665,10 @@ function AssistUnlockedScreen() {
     setIsLoading(true);
     scrollToBottom();
 
-    let toolCallsCount = 0;
+    generationAbortRef.current?.abort();
+    const abortController = new AbortController();
+    generationAbortRef.current = abortController;
+    const abortSignal = abortController.signal;
 
     try {
       const assistantMessageId = `${Date.now() + 1}`;
@@ -2528,6 +2703,7 @@ function AssistUnlockedScreen() {
             actions: directKnowledge.actions,
           },
         ]);
+        sessionStaleRef.current = true;
         return;
       }
 
@@ -2550,6 +2726,7 @@ function AssistUnlockedScreen() {
             ],
           },
         ]);
+        sessionStaleRef.current = true;
         return;
       }
 
@@ -2585,82 +2762,30 @@ function AssistUnlockedScreen() {
             ],
           },
         ]);
+        sessionStaleRef.current = true;
         return;
       }
 
-      const toolset = createAssistTools({
-        getTasks: () => tasksRef.current,
-        getProjects: () => projectsRef.current,
-        setTasks,
-        setProjects,
-        onToolCall: () => {
-          toolCallsCount += 1;
-        },
-        shouldAbortToolCalls: () => toolCallsCount >= MAX_ASSIST_TOOL_CALLS,
-      });
+      const session = ensureSession(historyBeforeSend);
+      const outputLanguage = assistOutputLanguage(currentLocale);
+      const toolEntries: ToolResultEntry[] = [];
+      toolCallsCountRef.current = 0;
 
-      const provider = createAppleProvider({ availableTools: toolset });
-      const runGeneration = async ({
-        systemPrompt,
-        withTools,
-        maxOutputTokens,
-      }: {
-        systemPrompt: string;
-        withTools: boolean;
-        maxOutputTokens: number;
-      }) =>
-        generateText({
-          model: provider(),
-          system: systemPrompt,
-          prompt: userMessage.content,
-          tools: withTools ? toolset : undefined,
-          maxOutputTokens,
+      const resultText = await session.respond(
+        `${buildPromptContext(getIntlLocale(currentLocale))}\n${userMessage.content}`,
+        {
+          schema: buildAssistResponseSchema(outputLanguage),
           temperature: 0.2,
-        });
+          maxTokens: 400,
+          signal: abortSignal,
+          onToolResult: (entry) => {
+            toolEntries.push(toolResultEntry(entry));
+          },
+        },
+      );
 
-      let result: Awaited<ReturnType<typeof runGeneration>>;
-
-      try {
-        result = await runGeneration({
-          systemPrompt: buildSystemPrompt(currentLocale),
-          withTools: true,
-          maxOutputTokens: 420,
-        });
-      } catch (primaryError) {
-        if (!isAppleGenerationError(primaryError)) {
-          throw primaryError;
-        }
-        console.warn(
-          "[assist] primary generation failed, retrying with compact tool prompt",
-          primaryError,
-        );
-
-        try {
-          result = await runGeneration({
-            systemPrompt: buildCompactSystemPrompt(currentLocale),
-            withTools: true,
-            maxOutputTokens: 320,
-          });
-        } catch (secondaryError) {
-          if (!isAppleGenerationError(secondaryError)) {
-            throw secondaryError;
-          }
-          console.warn(
-            "[assist] compact tool retry failed, retrying text-only",
-            secondaryError,
-          );
-
-          result = await runGeneration({
-            systemPrompt: buildCompactSystemPrompt(currentLocale),
-            withTools: false,
-            maxOutputTokens: 220,
-          });
-        }
-      }
-
-      const structuredResponse = parseAssistModelResponse(result.text);
-
-      const toolEntries = extractToolResultEntries(result);
+      if (abortSignal.aborted) return;
+      const structuredResponse = parseAssistModelResponse(resultText);
       const toolCandidates = collectToolCandidates(toolEntries);
 
       if (
@@ -2732,7 +2857,7 @@ function AssistUnlockedScreen() {
 
         if (userAskedTaskCreate) {
           const taskDraft = parseTaskDraftFromAssistantText(
-            result.text ?? "",
+            resultText,
             projectsRef.current,
           );
           if (taskDraft) {
@@ -2741,7 +2866,7 @@ function AssistUnlockedScreen() {
           }
         } else if (userAskedProjectCreate) {
           const projectDraft = parseProjectDraftFromAssistantText(
-            result.text ?? "",
+            resultText,
           );
           if (projectDraft) {
             emitProjectDraft(projectDraft);
@@ -2749,7 +2874,7 @@ function AssistUnlockedScreen() {
           }
         } else {
           const taskDraft = parseTaskDraftFromAssistantText(
-            result.text ?? "",
+            resultText,
             projectsRef.current,
           );
           if (taskDraft) {
@@ -2757,7 +2882,7 @@ function AssistUnlockedScreen() {
             return;
           }
           const projectDraft = parseProjectDraftFromAssistantText(
-            result.text ?? "",
+            resultText,
           );
           if (projectDraft) {
             emitProjectDraft(projectDraft);
@@ -2768,7 +2893,7 @@ function AssistUnlockedScreen() {
 
       const fallbackResponse: AssistModelResponse = {
         intent: "general",
-        answer: result.text?.trim() ?? "",
+        answer: resultText.trim(),
       };
       const safeResponse = structuredResponse ?? fallbackResponse;
 
@@ -2798,32 +2923,37 @@ function AssistUnlockedScreen() {
         },
       ]);
     } catch (error) {
-      const errorMessage = getErrorMessage(error);
+      if (abortSignal.aborted) return;
+      if (error instanceof AssistLLMError && error.code === "CANCELLED") return;
       console.error("[assist] handleSend failed:", error);
-      const content = isToolCallLimitError(error)
-        ? t("assist.error.toolCallLimit")
-        : isAppleGenerationError(error)
-          ? t("assist.error.appleGeneration")
-          : errorMessage &&
-              /not available|availability|foundation models/i.test(errorMessage)
-            ? t("assist.error.foundationUnavailable")
-            : __DEV__ && errorMessage
-              ? t("assist.error.requestWithMessage", { message: errorMessage })
-              : t("assist.error.request");
+      if (
+        error instanceof AssistLLMError &&
+        error.code === "MODEL_UNAVAILABLE"
+      ) {
+        setAvailability(getAssistAvailability());
+      }
 
       setMessages((prev) => [
         ...prev,
         {
           id: `${Date.now() + 1}`,
           role: "assistant",
-          content,
+          content: assistErrorContent(error),
         },
       ]);
     } finally {
+      if (generationAbortRef.current === abortController) {
+        generationAbortRef.current = null;
+      }
       setIsLoading(false);
       scrollToBottom();
     }
-  }, [input, isAIAvailable, isLoading, scrollToBottom, setProjects, setTasks]);
+  }, [ensureSession, input, isAIAvailable, isLoading, scrollToBottom]);
+
+  const unavailableHint =
+    !isAIAvailable && !isIOS26OrNewer()
+      ? t("assist.unavailable.hint")
+      : unavailableReasonText(availability);
 
   const isDarkMode = resolvedColorScheme === "dark";
   const userBubbleBg = accentColorValue;
@@ -2895,9 +3025,9 @@ function AssistUnlockedScreen() {
           <Text style={[styles.errorMessage, { color: colors.text }]}>
             {t("assist.unavailable.body")}
           </Text>
-          {!isIOS26OrNewer() ? (
+          {unavailableHint ? (
             <Text style={[styles.errorHint, { color: colors.icon }]}>
-              {t("assist.unavailable.hint")}
+              {unavailableHint}
             </Text>
           ) : null}
         </View>
@@ -3029,21 +3159,33 @@ function AssistUnlockedScreen() {
                 multiline
                 maxLength={700}
                 editable={!isLoading}
+                // A multiline field only fires onSubmitEditing on iOS when
+                // Return submits instead of adding a line break.
+                submitBehavior="submit"
+                returnKeyType="send"
                 onSubmitEditing={handleSend}
-                blurOnSubmit={false}
               />
               <Pressable
-                onPress={handleSend}
-                disabled={!input.trim() || isLoading}
+                onPress={isLoading ? handleStop : handleSend}
+                disabled={!isLoading && !input.trim()}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  isLoading ? t("assist.input.stop") : t("assist.input.send")
+                }
                 style={({ pressed }) => [
                   styles.sendButton,
                   { backgroundColor: userBubbleBg },
-                  (!input.trim() || isLoading) && styles.sendButtonDisabled,
+                  !isLoading && !input.trim() && styles.sendButtonDisabled,
                   pressed && styles.sendButtonPressed,
                 ]}
               >
                 {isLoading ? (
-                  <ActivityIndicator size="small" color={userBubbleTextColor} />
+                  <View
+                    style={[
+                      styles.stopIcon,
+                      { backgroundColor: userBubbleTextColor },
+                    ]}
+                  />
                 ) : (
                   <Text
                     style={[
@@ -3286,6 +3428,11 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 20,
     fontWeight: "700",
+  },
+  stopIcon: {
+    width: 12,
+    height: 12,
+    borderRadius: 3,
   },
   centeredMessage: {
     flex: 1,

@@ -390,11 +390,11 @@ export type SwipeTaskRowProps = {
   dragCompactPreview?: boolean;
   activeDragTranslateX?:
     | Animated.Value
-    | Animated.AnimatedAddition<number>
+    | Animated.AnimatedAddition
     | null;
   revealTranslateX?:
     | Animated.Value
-    | Animated.AnimatedAddition<number>
+    | Animated.AnimatedAddition
     | Animated.AnimatedInterpolation<number>
     | null;
   followHorizontalDrag?: boolean;
@@ -512,9 +512,9 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   const [measuredRowHeight, setMeasuredRowHeight] = React.useState(
     cachedRowHeight,
   );
-  const swipeCommitTranslateX = React.useRef(new Animated.Value(0)).current;
-  const swipeCommitOpacity = React.useRef(new Animated.Value(1)).current;
-  const swipeCommitScale = React.useRef(new Animated.Value(1)).current;
+  const [swipeCommitTranslateX] = React.useState(() => new Animated.Value(0));
+  const [swipeCommitOpacity] = React.useState(() => new Animated.Value(1));
+  const [swipeCommitScale] = React.useState(() => new Animated.Value(1));
   // Collapse/pop-in heights run on the UI thread (Reanimated). As JS-driven
   // Animated layout animations they dropped frames whenever JS was busy, so
   // the whole list visibly jumped while a swiped row closed or reappeared.
@@ -532,7 +532,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   const longPressTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
-  const landingWrapperRef = React.useRef<View | null>(null);
+  const landingWrapperRef = React.useRef<React.ComponentRef<typeof View>>(null);
   const [landingTranslateX] = React.useState(() => new Animated.Value(0));
   const [landingTranslateY] = React.useState(() => new Animated.Value(0));
   const [landingScale] = React.useState(() => new Animated.Value(1));
@@ -1214,7 +1214,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   // which would re-measure the cell mid-drag and nudge the row on release.
   const dragRowBorderLock = React.useMemo(() => {
     const base = StyleSheet.flatten(styles.row) ?? {};
-    const lock: ViewStyle = {};
+    const lock: { -readonly [K in keyof ViewStyle]: ViewStyle[K] } = {};
     const widthKeys = [
       "borderWidth",
       "borderTopWidth",
@@ -1326,7 +1326,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   // spring on the drag offset threw. They live on separate views.
   const dragMotionStyle = React.useMemo(() => {
     const transforms: {
-      translateX: number | Animated.Value | Animated.AnimatedAddition<number>;
+      translateX: number | Animated.Value | Animated.AnimatedAddition;
     }[] = [];
 
     if (isActive && followHorizontalDrag && activeDragTranslateX) {
@@ -1358,7 +1358,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
         | {
             translateX:
               | Animated.Value
-              | Animated.AnimatedAddition<number>
+              | Animated.AnimatedAddition
               | Animated.AnimatedInterpolation<number>;
           }
         | { scale: Animated.Value }

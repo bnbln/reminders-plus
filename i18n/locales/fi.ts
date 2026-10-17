@@ -503,9 +503,15 @@ export const FI_TRANSLATIONS: TranslationDict = {
   'assist.unavailable.title': 'Apple Intelligence ei saatavilla',
   'assist.unavailable.body': 'Assist vaatii iOS 26+ -laitteen, jossa Apple Intelligence on käytössä.',
   'assist.unavailable.hint': 'Nykyinen iOS-versio on alle 26.',
+  'assist.unavailable.reason.deviceNotEligible': 'Tämä laite ei tue Apple Intelligenceä.',
+  'assist.unavailable.reason.appleIntelligenceNotEnabled': 'Laita Apple Intelligence päälle Asetuksissa, jotta voit käyttää Assistia.',
+  'assist.unavailable.reason.modelNotReady': 'Apple Intelligenceä valmistellaan vielä. Yritä uudelleen muutaman minuutin päästä.',
+  'assist.error.unsupportedLanguage': 'Apple Intelligence ei vielä tue tätä kieltä.',
   'assist.empty.title': 'Tervetuloa Assistille',
   'assist.empty.subtitle': 'Esimerkkejä: Etsi kaikki rutiinit sijainnin mukaan. Luo tehtävä huomenna klo 14:00 projektityössä. Siirrä ostokset henkilökohtaiseen.',
   'assist.input.placeholder': 'esim. Luo tehtävä tänään klo 18:00 sijaintisupermarketin kanssa',
+  'assist.input.send': 'Lähetä',
+  'assist.input.stop': 'Pysäytä vastaus',
 
   // Added: strings previously only available in German and English
   "taskWorkspace.selectTask": "Valitse tehtävä",
@@ -559,6 +565,11 @@ export const FI_TRANSLATIONS: TranslationDict = {
   "assist.locked.body": "AI Assist kuuluu Reminders+:aan yhdessä rajattomien projektien ja Cloud Syncin kanssa.",
   "plus.error.storeUnavailable": "App Storeen ei saada juuri nyt yhteyttä.",
   "plus.error.purchaseFailed": "Ostoa ei voitu viedä loppuun.",
+  "errorBoundary.title": "Jokin meni pieleen",
+  "errorBoundary.body": "Tapahtui odottamaton virhe. Yritä uudelleen ja käynnistä sovellus uudelleen, jos virhe toistuu.",
+  "errorBoundary.retry": "Yritä uudelleen",
+  "project.notFoundBody": "Tämä projekti on poistettu tai se ei ole enää saatavilla.",
+  "project.notFoundAction": "Takaisin projekteihin",
 };
 
 export default FI_TRANSLATIONS;

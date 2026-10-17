@@ -503,9 +503,15 @@ export const AR_TRANSLATIONS: TranslationDict = {
   'assist.unavailable.title': 'Apple Intelligence غير متاح',
   'assist.unavailable.body': 'تتطلب المساعدة جهاز iOS 26+ مع تمكين Apple Intelligence.',
   'assist.unavailable.hint': 'الإصدار الحالي iOS أقل من 26.',
+  'assist.unavailable.reason.deviceNotEligible': 'هذا الجهاز لا يدعم Apple Intelligence.',
+  'assist.unavailable.reason.appleIntelligenceNotEnabled': 'شغّل Apple Intelligence في الإعدادات لاستخدام Assist.',
+  'assist.unavailable.reason.modelNotReady': 'لا يزال Apple Intelligence قيد التجهيز. حاول مرة أخرى بعد بضع دقائق.',
+  'assist.error.unsupportedLanguage': 'لا يدعم Apple Intelligence هذه اللغة بعد.',
   'assist.empty.title': 'مرحبا بكم في مساعدة',
   'assist.empty.subtitle': 'أمثلة: البحث عن كافة الإجراءات مع الموقع. قم بإنشاء مهمة غدًا الساعة 14:00 في مشروع العمل. نقل التسوق إلى الشخصية.',
   'assist.input.placeholder': 'على سبيل المثال أنشئ مهمة اليوم الساعة 18:00 مع موقع السوبر ماركت',
+  'assist.input.send': 'إرسال',
+  'assist.input.stop': 'إيقاف الرد',
 
   // Added: strings previously only available in German and English
   "taskWorkspace.selectTask": "اختر مهمة",
@@ -559,6 +565,11 @@ export const AR_TRANSLATIONS: TranslationDict = {
   "assist.locked.body": "AI Assist جزء من Reminders+، إلى جانب المشاريع غير المحدودة وCloud Sync.",
   "plus.error.storeUnavailable": "يتعذر الوصول إلى App Store الآن.",
   "plus.error.purchaseFailed": "تعذّر إتمام عملية الشراء.",
+  "errorBoundary.title": "حدث خطأ ما",
+  "errorBoundary.body": "حدث خطأ غير متوقع. حاول مرة أخرى، وإذا تكرر الأمر فأعد تشغيل التطبيق.",
+  "errorBoundary.retry": "حاول مرة أخرى",
+  "project.notFoundBody": "تم حذف هذا المشروع أو لم يعد متاحًا.",
+  "project.notFoundAction": "العودة إلى المشاريع",
 };
 
 export default AR_TRANSLATIONS;

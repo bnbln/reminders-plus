@@ -503,9 +503,15 @@ export const TR_TRANSLATIONS: TranslationDict = {
   'assist.unavailable.title': 'Apple Intelligence kullanılamıyor',
   'assist.unavailable.body': 'Assist, Apple Intelligence etkinleştirilmiş bir iOS 26+ cihaz gerektirir.',
   'assist.unavailable.hint': 'Mevcut iOS sürümü 26\'nın altında.',
+  'assist.unavailable.reason.deviceNotEligible': 'Bu aygıt Apple Intelligence\'ı desteklemiyor.',
+  'assist.unavailable.reason.appleIntelligenceNotEnabled': 'Assist\'i kullanmak için Ayarlar\'da Apple Intelligence\'ı açın.',
+  'assist.unavailable.reason.modelNotReady': 'Apple Intelligence hâlâ hazırlanıyor. Birkaç dakika sonra yeniden deneyin.',
+  'assist.error.unsupportedLanguage': 'Apple Intelligence bu dili henüz desteklemiyor.',
   'assist.empty.title': 'Assist\'e hoş geldiniz',
   'assist.empty.subtitle': 'Örnekler: Konum içeren tüm rutinleri bulun. Yarın saat 14:00\'te Proje Çalışmasında bir görev oluşturun. Alışverişi Kişisel\'e taşıyın.',
   'assist.input.placeholder': 'örneğin Bugün saat 18:00\'de konum süpermarketi ile bir görev oluşturun',
+  'assist.input.send': 'Gönder',
+  'assist.input.stop': 'Yanıtı durdur',
 
   // Added: strings previously only available in German and English
   "taskWorkspace.selectTask": "Bir görev seçin",
@@ -559,6 +565,11 @@ export const TR_TRANSLATIONS: TranslationDict = {
   "assist.locked.body": "AI Assist, sınırsız proje ve Cloud Sync ile birlikte Reminders+'ın bir parçasıdır.",
   "plus.error.storeUnavailable": "App Store'a şu anda ulaşılamıyor.",
   "plus.error.purchaseFailed": "Satın alma tamamlanamadı.",
+  "errorBoundary.title": "Bir şeyler ters gitti",
+  "errorBoundary.body": "Beklenmeyen bir hata oluştu. Tekrar dene, sorun sürerse uygulamayı yeniden başlat.",
+  "errorBoundary.retry": "Tekrar dene",
+  "project.notFoundBody": "Bu proje silinmiş veya artık kullanılamıyor.",
+  "project.notFoundAction": "Projelere dön",
 };
 
 export default TR_TRANSLATIONS;

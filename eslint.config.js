@@ -7,4 +7,11 @@ module.exports = defineConfig([
   {
     ignores: ['dist/*'],
   },
+  {
+    // TypeScript already resolves namespace members; the import plugin
+    // cannot follow expo-notifications' compiled `export *` enums.
+    rules: {
+      'import/namespace': 'off',
+    },
+  },
 ]);

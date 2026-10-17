@@ -503,9 +503,15 @@ export const HI_TRANSLATIONS: TranslationDict = {
   'assist.unavailable.title': 'Apple Intelligence अनुपलब्ध',
   'assist.unavailable.body': 'सहायता के लिए Apple Intelligence सक्षम iOS 26+ डिवाइस की आवश्यकता होती है।',
   'assist.unavailable.hint': 'वर्तमान iOS संस्करण 26 से नीचे है।',
+  'assist.unavailable.reason.deviceNotEligible': 'यह डिवाइस Apple Intelligence को सपोर्ट नहीं करता।',
+  'assist.unavailable.reason.appleIntelligenceNotEnabled': 'Assist इस्तेमाल करने के लिए सेटिंग्स में Apple Intelligence चालू करें।',
+  'assist.unavailable.reason.modelNotReady': 'Apple Intelligence अभी तैयार हो रहा है। कुछ मिनट बाद फिर से कोशिश करें।',
+  'assist.error.unsupportedLanguage': 'Apple Intelligence अभी इस भाषा को सपोर्ट नहीं करता।',
   'assist.empty.title': 'सहायता के लिए आपका स्वागत है',
   'assist.empty.subtitle': 'उदाहरण: स्थान के साथ सभी रूटीन खोजें। कल 14:00 बजे प्रोजेक्ट वर्क में एक कार्य बनाएँ। खरीदारी को व्यक्तिगत पर ले जाएँ.',
   'assist.input.placeholder': 'जैसे आज 18:00 बजे स्थान सुपरमार्केट के साथ एक कार्य बनाएं',
+  'assist.input.send': 'भेजें',
+  'assist.input.stop': 'जवाब रोकें',
 
   // Added: strings previously only available in German and English
   "taskWorkspace.selectTask": "कोई कार्य चुनें",
@@ -559,6 +565,11 @@ export const HI_TRANSLATIONS: TranslationDict = {
   "assist.locked.body": "AI Assist, असीमित प्रोजेक्ट और Cloud Sync के साथ Reminders+ का हिस्सा है।",
   "plus.error.storeUnavailable": "अभी App Store तक नहीं पहुँचा जा सकता।",
   "plus.error.purchaseFailed": "ख़रीदारी पूरी नहीं हो सकी।",
+  "errorBoundary.title": "कुछ गलत हो गया",
+  "errorBoundary.body": "एक अनपेक्षित त्रुटि हुई। फिर से कोशिश करें, और अगर यह बार-बार हो तो ऐप को फिर से शुरू करें।",
+  "errorBoundary.retry": "फिर से कोशिश करें",
+  "project.notFoundBody": "यह प्रोजेक्ट हटा दिया गया है या अब उपलब्ध नहीं है।",
+  "project.notFoundAction": "प्रोजेक्ट्स पर वापस जाएँ",
 };
 
 export default HI_TRANSLATIONS;

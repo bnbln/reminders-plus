@@ -57,12 +57,12 @@ function StreakAccentBackgroundComponent({
   const baseBackgroundColor = isDark
     ? Colors.dark.background
     : LIGHT_ACCENT_SCREEN_BACKGROUND;
-  const translateY = React.useRef(
-    new Animated.Value(isVisible ? 0 : HIDDEN_TRANSLATE_Y),
-  ).current;
-  const opacity = React.useRef(
-    new Animated.Value(isVisible ? VISIBLE_LAYER_OPACITY : 0),
-  ).current;
+  const [translateY] = React.useState(
+    () => new Animated.Value(isVisible ? 0 : HIDDEN_TRANSLATE_Y),
+  );
+  const [opacity] = React.useState(
+    () => new Animated.Value(isVisible ? VISIBLE_LAYER_OPACITY : 0),
+  );
 
   // `getAccentColorValue` resolves the Material You pseudo-accent by reading
   // the *currently active* Appearance scheme, so it needs to be re-evaluated
@@ -78,7 +78,7 @@ function StreakAccentBackgroundComponent({
   const [previousColor, setPreviousColor] = React.useState<string | null>(
     null,
   );
-  const colorFade = React.useRef(new Animated.Value(1)).current;
+  const [colorFade] = React.useState(() => new Animated.Value(1));
   // Screens mounted before settings hydrate start on the default accent.
   // Jumping straight to the stored color avoids a blue-to-accent fade on launch.
   const hadHydratedRef = React.useRef(hasHydrated);

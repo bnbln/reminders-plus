@@ -9,6 +9,8 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import {
   Platform,
+  Pressable,
+  type ScrollView,
   StyleSheet,
   Text,
   View,
@@ -49,6 +51,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
 import { triggerSelectionHaptic } from "@/utils/haptics";
 import { isIOS26OrNewer } from "@/utils/ios-version";
+import { useUndoableTaskDelete } from "@/hooks/use-undoable-task-delete";
 import {
   alignDueAtToLocalDay,
   deriveActiveSectionFromDueAt,
@@ -326,7 +329,7 @@ function KanbanColumn({
   dropTargetAccentColor: string;
   columnBackgroundColor: string;
   columnBottomPadding: number;
-  boardScrollRef: React.RefObject<GHScrollView | null>;
+  boardScrollRef: React.RefObject<React.ComponentRef<typeof ScrollView> | null>;
   onPressTask: (id: string) => void;
   theme: ThemeName;
   styles: ReturnType<typeof createStyles>;
@@ -504,8 +507,8 @@ function ProjectDetailContent() {
   const rowStyles = useThemedStyles(() => createRowStyles(theme), [theme]);
   const { enabledTags, showTagIcons, showProjectNames, showCompactSubtasks } =
     useHomeFilters();
-  const { projects, tasks, setTasks } = useTasksStore();
-  const boardScrollRef = React.useRef<GHScrollView | null>(null);
+  const { projects, tasks, setTasks, hasHydrated } = useTasksStore();
+  const boardScrollRef = React.useRef<React.ComponentRef<typeof ScrollView>>(null);
   const boardOffsetXRef = React.useRef<number>(todaySnapOffset);
   const boardOffsetXShared = useSharedValue<number>(todaySnapOffset);
   const boardPageXRef = React.useRef<number>(0);
@@ -1169,16 +1172,7 @@ function ProjectDetailContent() {
     [setTasks],
   );
 
-  const deleteTask = React.useCallback(
-    (taskId: string) => {
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.id === taskId ? { ...t, deletedAt: Date.now() } : t,
-        ),
-      );
-    },
-    [setTasks],
-  );
+  const deleteTask = useUndoableTaskDelete();
 
   const handleBoardTouch = React.useCallback(
     (event: any) => {
@@ -1287,13 +1281,67 @@ function ProjectDetailContent() {
     });
   }, [id, projectTasks, snapOffsets, tasks]);
 
+  // Leave the board when the open project gets deleted. An ID that never
+  // matched a project (stale link, widget) shows the not-found state instead.
+  const hadProjectRef = React.useRef(false);
   React.useEffect(() => {
-    if (project) return;
-    router.replace("/(tabs)/explore");
+    if (project) {
+      hadProjectRef.current = true;
+      return;
+    }
+    if (hadProjectRef.current) router.replace("/(tabs)/explore");
   }, [project, router]);
 
+  const leaveMissingProject = React.useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/(tabs)/explore");
+    }
+  }, [router]);
+
   if (!project) {
-    return null;
+    if (!hasHydrated) return null;
+    return (
+      <View style={styles.container}>
+        <Stack.Screen
+          options={{
+            title: t("project.notFound"),
+            headerLargeTitle: false,
+            headerBackButtonDisplayMode: "minimal",
+            gestureEnabled: true,
+            headerTintColor: Colors[theme].text,
+            headerStyle: { backgroundColor: Colors[theme].background },
+            contentStyle: { backgroundColor: Colors[theme].background },
+          }}
+        />
+        <View style={styles.notFoundWrap}>
+          <MaterialIcons
+            name="folder-off"
+            size={40}
+            color={withAlpha(Colors[theme].text, contrastAlpha(0.45))}
+            accessibilityElementsHidden
+            importantForAccessibility="no"
+          />
+          <Text style={styles.notFoundTitle} accessibilityRole="header">
+            {t("project.notFound")}
+          </Text>
+          <Text style={styles.notFoundBody}>{t("project.notFoundBody")}</Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={leaveMissingProject}
+            style={({ pressed }) => [
+              styles.notFoundButton,
+              pressed ? { opacity: 0.7 } : null,
+            ]}
+          >
+            <Text style={styles.notFoundButtonText}>
+              {t("project.notFoundAction")}
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+    );
   }
 
   const projectDescription = project.description?.trim();
@@ -1478,6 +1526,38 @@ const createStyles = (theme: ThemeName) => {
     container: {
       flex: 1,
       backgroundColor: Colors[theme].background,
+    },
+    notFoundWrap: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 32,
+      gap: 10,
+    },
+    notFoundTitle: {
+      fontSize: 20,
+      fontWeight: "600",
+      textAlign: "center",
+      color: Colors[theme].text,
+    },
+    notFoundBody: {
+      fontSize: 15,
+      lineHeight: 21,
+      textAlign: "center",
+      color: withAlpha(Colors[theme].text, contrastAlpha(0.65)),
+    },
+    notFoundButton: {
+      marginTop: 8,
+      minHeight: 44,
+      paddingHorizontal: 20,
+      borderRadius: 22,
+      justifyContent: "center",
+      backgroundColor: withAlpha(Colors[theme].text, theme === "dark" ? 0.14 : 0.08),
+    },
+    notFoundButtonText: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: Colors[theme].text,
     },
     descriptionWrap: {
       paddingHorizontal: 20,

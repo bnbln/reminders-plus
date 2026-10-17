@@ -564,6 +564,8 @@ export const DE_TRANSLATIONS: TranslationDict = {
     "Käufe werden über den App-Store auf deinem Gerät abgewickelt.",
   "plus.error.storeUnavailable": "Der App Store ist gerade nicht erreichbar.",
   "plus.error.purchaseFailed": "Der Kauf konnte nicht abgeschlossen werden.",
+  "plus.legal.autoRenew":
+    "Das Monatsabo wird über deinen Apple-Account abgerechnet und verlängert sich automatisch, wenn du es nicht mindestens 24 Stunden vor Ablauf des Zeitraums kündigst. Kündigen kannst du jederzeit in den Einstellungen deines Apple-Accounts.",
   "plus.action.restorePurchases": "Käufe wiederherstellen",
   "plus.action.reloadProducts": "Produkte neu laden",
 
@@ -651,11 +653,17 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "assist.unavailable.body":
     "Assist benötigt ein iOS 26+ Gerät mit aktivierter Apple Intelligence.",
   "assist.unavailable.hint": "Aktuelles iOS ist älter als 26.",
+  "assist.unavailable.reason.deviceNotEligible": "Dieses Gerät unterstützt Apple Intelligence nicht.",
+  "assist.unavailable.reason.appleIntelligenceNotEnabled": "Aktiviere Apple Intelligence in den Einstellungen, um Assist zu nutzen.",
+  "assist.unavailable.reason.modelNotReady": "Apple Intelligence wird noch vorbereitet. Versuche es in ein paar Minuten erneut.",
+  "assist.error.unsupportedLanguage": "Apple Intelligence unterstützt diese Sprache noch nicht.",
   "assist.empty.title": "Willkommen bei Assist",
   "assist.empty.subtitle":
     "Beispiele: Finde alle Routinen mit Standort. Erstelle Task morgen 14:00 im Projekt Arbeit. Verschiebe Einkauf nach Privat.",
   "assist.input.placeholder":
     "z.B. Erstelle Task heute 18:00 mit Standort Supermarkt",
+  "assist.input.send": "Senden",
+  "assist.input.stop": "Antwort stoppen",
   "screen.legal": "Rechtliches & Barrierefreiheit",
   "settings.section.legal": "Rechtliches",
   "settings.legal.open": "Rechtliches & Barrierefreiheit",
@@ -676,6 +684,11 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "a11y.task.changeEmoji": "Emoji ändern",
   "a11y.task.moreActions": "Weitere Aktionen",
   "a11y.home.pickDate": "Datum auswählen",
+  "errorBoundary.title": "Etwas ist schiefgelaufen",
+  "errorBoundary.body": "Ein unerwarteter Fehler ist aufgetreten. Versuche es erneut und starte die App neu, falls es wieder passiert.",
+  "errorBoundary.retry": "Erneut versuchen",
+  "project.notFoundBody": "Dieses Projekt wurde gelöscht oder ist nicht mehr verfügbar.",
+  "project.notFoundAction": "Zurück zu den Projekten",
 };
 
 export default DE_TRANSLATIONS;

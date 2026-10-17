@@ -189,12 +189,6 @@ function normalizeLocaleTag(value: unknown): string | null {
   return trimmed.replace(/_/g, '-').toLowerCase();
 }
 
-type ExpoLocale = {
-  languageTag?: string;
-  languageCode?: string;
-  regionCode?: string;
-};
-
 function localeFromNativeModules(): string | null {
   try {
     const settings = (NativeModules as any)?.SettingsManager?.settings ?? {};

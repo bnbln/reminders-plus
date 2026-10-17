@@ -503,9 +503,15 @@ export const ID_TRANSLATIONS: TranslationDict = {
   'assist.unavailable.title': 'Apple Intelligence tidak tersedia',
   'assist.unavailable.body': 'Bantuan memerlukan perangkat iOS 26+ dengan Apple Intelligence diaktifkan.',
   'assist.unavailable.hint': 'Versi iOS saat ini di bawah 26.',
+  'assist.unavailable.reason.deviceNotEligible': 'Perangkat ini tidak mendukung Apple Intelligence.',
+  'assist.unavailable.reason.appleIntelligenceNotEnabled': 'Nyalakan Apple Intelligence di Pengaturan untuk menggunakan Assist.',
+  'assist.unavailable.reason.modelNotReady': 'Apple Intelligence masih disiapkan. Coba lagi dalam beberapa menit.',
+  'assist.error.unsupportedLanguage': 'Apple Intelligence belum mendukung bahasa ini.',
   'assist.empty.title': 'Selamat datang di Bantuan',
   'assist.empty.subtitle': 'Contoh: Temukan semua rutinitas dengan lokasi. Buat tugas besok pukul 14.00 di pekerjaan proyek. Pindahkan belanja ke Pribadi.',
   'assist.input.placeholder': 'misalnya Buat tugas hari ini pukul 18:00 dengan lokasi supermarket',
+  'assist.input.send': 'Kirim',
+  'assist.input.stop': 'Hentikan jawaban',
 
   // Added: strings previously only available in German and English
   "taskWorkspace.selectTask": "Pilih tugas",
@@ -559,6 +565,11 @@ export const ID_TRANSLATIONS: TranslationDict = {
   "assist.locked.body": "AI Assist adalah bagian dari Reminders+, bersama proyek tanpa batas dan Cloud Sync.",
   "plus.error.storeUnavailable": "App Store tidak dapat dijangkau saat ini.",
   "plus.error.purchaseFailed": "Pembelian tidak dapat diselesaikan.",
+  "errorBoundary.title": "Terjadi kesalahan",
+  "errorBoundary.body": "Terjadi kesalahan yang tidak terduga. Coba lagi, dan jika terus terjadi, mulai ulang aplikasi.",
+  "errorBoundary.retry": "Coba lagi",
+  "project.notFoundBody": "Proyek ini telah dihapus atau tidak tersedia lagi.",
+  "project.notFoundAction": "Kembali ke proyek",
 };
 
 export default ID_TRANSLATIONS;

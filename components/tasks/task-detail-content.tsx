@@ -32,7 +32,6 @@ import { Colors, contrastAlpha } from '@/constants/theme';
 import {
   createRoutineCompletionTransition,
   getDueAtForSection,
-  Project,
   Subtask,
   Task,
   useTasksStore,
@@ -42,6 +41,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getIntlLocale, t } from '@/i18n';
 import { deriveActiveSectionFromDueAt, hasValidDueAt } from '@/utils/task-dates';
 import { ripple } from "@/components/ui/ripple";
+import { useTextDraft } from '@/hooks/use-text-draft';
 import { m3InputProps } from '@/components/ui/m3-input';
 import { useThemedStyles } from "@/hooks/use-themed-styles";
 
@@ -49,21 +49,6 @@ import { useThemedStyles } from "@/hooks/use-themed-styles";
 
 
 // ... imports
-
-const PROJECT_ICON_SWATCHES = [
-  'paintpalette.fill',
-  'person.2.fill',
-  'sparkles',
-  'safari.fill',
-  'laptopcomputer',
-  'shippingbox.fill',
-  'books.vertical.fill',
-  'brain.head.profile',
-  'flask.fill',
-  'hammer.fill',
-  'figure.mind.and.body',
-  'photo.artframe',
-] as const;
 
 
 
@@ -88,8 +73,6 @@ const getRoutineLabel = (task: Task): string => {
 };
 
 
-const COMPLETE_GREEN = '#34C759';
-
 // One spacing/radius scale for every card on the page (property tiles, the
 // subtask panel and notes) so the stack reads as one rhythm.
 const SECTION_GAP = 12;
@@ -109,22 +92,6 @@ const formatDueLabel = (ms: number, hasTime: boolean) => {
   return `${date} · ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 };
 
-const normalizeDateWithTimeFlag = (date: Date, hasTime: boolean, previous: Date) => {
-  const d = new Date(date);
-  if (!hasTime) {
-    d.setHours(12, 0, 0, 0);
-    return d;
-  }
-  d.setHours(previous.getHours(), previous.getMinutes(), 0, 0);
-  return d;
-};
-
-const sectionLabel = (section: Task['section']) => {
-  if (section === 'today') return t('common.today');
-  if (section === 'upcoming') return t('common.upcoming');
-  return t('common.completed');
-};
-
 const newId = (prefix: string) => `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 
 
@@ -135,7 +102,7 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
   headerHeight?: number;
 }) {
   const router = useRouter();
-  const { tasks, setTasks, projects, setProjects } = useTasksStore();
+  const { tasks, setTasks, projects } = useTasksStore();
   const theme = useColorScheme() ?? 'light';
   const isDark = theme === 'dark';
 
@@ -152,7 +119,6 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
   const projectColor = project?.color;
   const taskColor = task?.color;
   const accent = taskColor ?? projectColor ?? (isDark ? '#30D158' : '#34C759');
-  const neutralAccent = isDark ? '#8E8E93' : '#6B7280';
   const glassTint = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.12 : 0.2), [isDark, theme]);
   const glassFallback = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.62 : 0.78), [isDark, theme]);
   const hairline = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)';
@@ -167,7 +133,7 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
 
   React.useEffect(() => {
     completionProgress.value = withTiming(isCompleted ? 1 : 0, { duration: 300 });
-  }, [isCompleted]);
+  }, [completionProgress, isCompleted]);
 
   const activeStyle = useAnimatedStyle(() => ({
     opacity: 1 - completionProgress.value,
@@ -186,11 +152,16 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
     [id, setTasks]
   );
 
-  const updateProject = React.useCallback(
-    (projectId: string, patch: Partial<Project>) => {
-      setProjects((prev) => prev.map((p) => (p.id === projectId ? { ...p, ...patch } : p)));
-    },
-    [setProjects]
+  // Text fields keep a local draft and write to the store once typing pauses.
+  const titleDraft = useTextDraft(task?.title ?? '', (v) => updateTask({ title: v }));
+  const subtitleDraft = useTextDraft(task?.subtitle ?? '', (v) =>
+    updateTask({ subtitle: v.trim().length ? v : undefined })
+  );
+  const locationDraft = useTextDraft(task?.location ?? '', (v) =>
+    updateTask({ location: v.trim().length ? v : undefined })
+  );
+  const notesDraft = useTextDraft(task?.notes ?? '', (v) =>
+    updateTask({ notes: v.length ? v : undefined })
   );
 
   const [paneWidth, setPaneWidth] = React.useState(0);
@@ -199,7 +170,7 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
   const [titleHeight, setTitleHeight] = React.useState<number>(0);
   const [subtitleHeight, setSubtitleHeight] = React.useState<number>(0);
 
-  const scrollRef = React.useRef<ScrollView>(null);
+  const scrollRef = React.useRef<React.ComponentRef<typeof ScrollView>>(null);
   const { showSnackbar } = useSnackbar();
 
   const scrollToBottom = React.useCallback(() => {
@@ -386,24 +357,6 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
 
 
 
-  const onPickEmoji = React.useCallback((emoji: string) => updateTask({ emoji }), [updateTask]);
-
-  const onToggleRoutine = React.useCallback((enabled: boolean) => {
-    if (enabled) {
-      updateTask({ isRoutine: true, routineType: 'daily' });
-    } else {
-      updateTask({
-        isRoutine: undefined,
-        routineType: undefined,
-        routineInterval: undefined,
-        routineWeekday: undefined,
-        routineNthWeek: undefined,
-        routineMonthDay: undefined,
-        routineMonth: undefined,
-      });
-    }
-  }, [updateTask]);
-
 
 
   const clearRoutine = React.useCallback(() => {
@@ -417,14 +370,6 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
       routineMonth: undefined,
     });
   }, [updateTask]);
-
-  const onPickProjectColor = React.useCallback(
-    (color: string) => {
-      if (!project) return;
-      updateProject(project.id, { color });
-    },
-    [project, updateProject]
-  );
 
   // Subtasks
   const [newSubtaskTitle, setNewSubtaskTitle] = React.useState('');
@@ -527,8 +472,7 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
         <TextInput
 
           {...m3InputProps()}
-          value={task.title}
-          onChangeText={(v) => updateTask({ title: v })}
+          {...titleDraft}
           placeholder={t('taskDetail.placeholder.title')}
           placeholderTextColor={placeholder}
           multiline
@@ -543,8 +487,7 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
         />
         <TextInput
           {...m3InputProps()}
-          value={task.subtitle ?? ''}
-          onChangeText={(v) => updateTask({ subtitle: v.trim().length ? v : undefined })}
+          {...subtitleDraft}
           placeholder={t('taskDetail.placeholder.subtitle')}
           placeholderTextColor={placeholder}
           multiline
@@ -651,11 +594,10 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
               <Text style={styles.propertyTileLabel}>{t('taskDetail.property.location')}</Text>
               <TextInput
                 {...m3InputProps()}
-                value={task.location ?? ''}
-                onChangeText={(v) => updateTask({ location: v.trim().length ? v : undefined })}
+                {...locationDraft}
                 placeholder={t('taskDetail.placeholder.location')}
                 placeholderTextColor={withAlpha(Colors[theme].text, contrastAlpha(0.4))}
-                style={[styles.propertyTileInput, { color: task.location ? Colors[theme].text : withAlpha(Colors[theme].text, contrastAlpha(0.5)) }]}
+                style={[styles.propertyTileInput, { color: locationDraft.value.trim().length ? Colors[theme].text : withAlpha(Colors[theme].text, contrastAlpha(0.5)) }]}
                 numberOfLines={1}
               />
             </View>
@@ -761,8 +703,7 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
         <Text style={styles.panelTitle}>{t('taskDetail.panel.notes')}</Text>
         <TextInput
           {...m3InputProps()}
-          value={task.notes ?? ''}
-          onChangeText={(v) => updateTask({ notes: v.length ? v : undefined })}
+          {...notesDraft}
           placeholder={t('taskDetail.placeholder.notes')}
           placeholderTextColor={placeholder}
           multiline
@@ -900,63 +841,6 @@ function TaskKeyboardSpacer() {
   const style = useAnimatedStyle(() => ({ height: Math.max(0, keyboard.height.value - 40) }));
   return <Animated.View style={style} />;
 }
-
-function FormField({
-  label,
-  icon,
-  accent,
-  theme,
-  children,
-}: {
-  label: string;
-  icon: React.ComponentProps<typeof MaterialIcons>['name'];
-  accent: string;
-  theme: keyof typeof Colors;
-  children: React.ReactNode;
-}) {
-  const text = Colors[theme].text;
-  return (
-    <View style={stylesField.row}>
-      <View style={[stylesField.icon, { backgroundColor: withAlpha(accent, 0.14) }]}>
-        <MaterialIcons name={icon} size={18} color={withAlpha(accent, 0.95)} />
-      </View>
-      <View style={stylesField.body}>
-        <Text style={[stylesField.label, { color: withAlpha(text, contrastAlpha(0.62)) }]}>{label}</Text>
-        <View style={stylesField.control}>{children}</View>
-      </View>
-    </View>
-  );
-}
-
-const stylesField = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 10,
-  },
-  icon: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  body: {
-    flex: 1,
-    gap: 4,
-  },
-  label: {
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.7,
-    textTransform: 'uppercase',
-  },
-  control: {
-    minHeight: 22,
-    justifyContent: 'center',
-  },
-});
 
 const createStyles = (theme: keyof typeof Colors) => {
   const isDark = theme === 'dark';

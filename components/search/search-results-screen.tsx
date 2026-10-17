@@ -2,8 +2,9 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useHeaderHeight } from "expo-router/react-navigation";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
-import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
+import { useDismissSearchBar } from "@/components/search/search-bar-dismiss";
 import { TaskSwipeDraggableList } from "@/components/tasks/task-swipe-draggable-list";
 import { withAlpha } from "@/components/ui/glass-surface";
 import { StreakAccentBackground } from "@/components/ui/streak-accent-background";
@@ -19,6 +20,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
 import { useThemedStyles } from "@/hooks/use-themed-styles";
 import { deriveActiveSectionFromDueAt, hasValidDueAt } from "@/utils/task-dates";
+import { useUndoableTaskDelete } from "@/hooks/use-undoable-task-delete";
 
 const IOS_LIGHT_BASE_BACKGROUND = "#F2F2F7";
 const IOS_LIGHT_ELEVATED_SURFACE = "#FFFFFF";
@@ -75,11 +77,6 @@ export function SearchResultsScreen() {
     (task: Task) =>
       `task-${task.id}:${rowLayoutSeed}:${task.subtitle?.length ?? 0}:${task.subtasks?.length ?? 0}:${task.notes?.length ?? 0}:${task.dueAt}:${task.dueHasTime ? 1 : 0}:${task.completedAt ?? 0}:${task.color ?? ""}`,
     [rowLayoutSeed],
-  );
-  const listRenderKey = React.useMemo(
-    () =>
-      `search:${query || "__empty__"}:${rowLayoutSeed}:${results.map((task) => keyForTask(task)).join("|")}`,
-    [keyForTask, query, results, rowLayoutSeed],
   );
 
   const onPressTask = React.useCallback(
@@ -145,16 +142,7 @@ export function SearchResultsScreen() {
     [setTasks],
   );
 
-  const deleteTask = React.useCallback(
-    (taskId: string) => {
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.id === taskId ? { ...t, deletedAt: Date.now() } : t,
-        ),
-      );
-    },
-    [setTasks],
-  );
+  const deleteTask = useUndoableTaskDelete();
 
   const toggleSubtask = React.useCallback(
     (taskId: string, subtaskId: string) => {
@@ -185,20 +173,28 @@ export function SearchResultsScreen() {
   const handleReorder = React.useCallback(() => {}, []);
 
   const isEmptyWithoutQuery = query.length === 0;
+  // Tapping the empty area or scrolling closes the search keyboard. With an
+  // empty field the keyboard's Search key is disabled, so otherwise there was
+  // no way out.
+  const dismissSearchBar = useDismissSearchBar();
 
   return (
     <View style={[styles.container, { backgroundColor: "transparent" }]}>
       <StreakAccentBackground isDark={isDark} />
       <ScrollView
-        key={listRenderKey}
         style={styles.scroll}
         contentContainerStyle={[
           styles.content,
+          styles.contentFill,
           // Header is transparent; iOS insets automatically, Android does not.
           Platform.OS === "android" ? { paddingTop: headerHeight } : null,
         ]}
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
+        alwaysBounceVertical
+        keyboardDismissMode="on-drag"
+        keyboardShouldPersistTaps="handled"
+        onScrollBeginDrag={dismissSearchBar}
       >
         <TaskSwipeDraggableList
           renderMode="static"
@@ -213,23 +209,32 @@ export function SearchResultsScreen() {
           contentContainerStyle={styles.listContent}
           containerStyle={{ backgroundColor: "transparent" }}
           empty={
-            <View style={styles.empty}>
-              <View style={styles.emptyCard}>
-                <View style={styles.emptyIconWrap}>
-                  <MaterialIcons
-                    name={isEmptyWithoutQuery ? "search" : "search-off"}
-                    size={26}
-                    color={withAlpha(Colors[theme].text, contrastAlpha(isDark ? 0.8 : 0.72))}
-                  />
+            <Pressable accessible={false} onPress={dismissSearchBar}>
+              <View style={styles.empty}>
+                <View style={styles.emptyCard}>
+                  <View style={styles.emptyIconWrap}>
+                    <MaterialIcons
+                      name={isEmptyWithoutQuery ? "search" : "search-off"}
+                      size={26}
+                      color={withAlpha(Colors[theme].text, contrastAlpha(isDark ? 0.8 : 0.72))}
+                    />
+                  </View>
+                  <Text style={styles.emptyTitle}>
+                    {isEmptyWithoutQuery
+                      ? t("search.placeholder")
+                      : t("search.empty.noResults", { query: q ?? "" })}
+                  </Text>
+                  <Text style={styles.emptyText}>{t("search.empty.hint")}</Text>
                 </View>
-                <Text style={styles.emptyTitle}>
-                  {isEmptyWithoutQuery
-                    ? t("search.placeholder")
-                    : t("search.empty.noResults", { query: q ?? "" })}
-                </Text>
-                <Text style={styles.emptyText}>{t("search.empty.hint")}</Text>
               </View>
-            </View>
+            </Pressable>
+          }
+          footer={
+            <Pressable
+              accessible={false}
+              onPress={dismissSearchBar}
+              style={styles.dismissTapArea}
+            />
           }
           enabledTags={enabledTags}
           showTaskIcons={showTagIcons}
@@ -276,6 +281,9 @@ const createStyles = (theme: keyof typeof Colors) => {
       paddingHorizontal: 16,
       paddingTop: 8,
       paddingBottom: 184,
+    },
+    contentFill: {
+      flexGrow: 1,
     },
     listContent: {
       paddingBottom: 0,
@@ -424,6 +432,13 @@ const createStyles = (theme: keyof typeof Colors) => {
       textTransform: "uppercase",
       color: isDark ? withAlpha(text, contrastAlpha(0.7)) : withAlpha(text, contrastAlpha(0.5)),
       maxWidth: 220,
+    },
+    // Fills the screen below the results so a tap anywhere closes the
+    // keyboard; it reaches into the bottom padding kept free for the tab bar.
+    dismissTapArea: {
+      flexGrow: 1,
+      marginBottom: -184,
+      paddingBottom: 184,
     },
     empty: {
       minHeight: 340,

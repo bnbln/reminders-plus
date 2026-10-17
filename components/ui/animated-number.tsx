@@ -83,7 +83,7 @@ function AnimatedDigit({
   shouldAnimate: boolean;
   textStyle: StyleProp<TextStyle>;
 }) {
-  const progress = React.useRef(new Animated.Value(1)).current;
+  const [progress] = React.useState(() => new Animated.Value(1));
   const animationRef = React.useRef<Animated.CompositeAnimation | null>(null);
   const latestDigitRef = React.useRef(digit);
   const [fromDigit, setFromDigit] = React.useState<string | null>(null);

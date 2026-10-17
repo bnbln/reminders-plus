@@ -1,7 +1,6 @@
 import { TaskWorkspace } from "@/components/tasks/task-workspace";
 import { useOpenTask } from "@/context/task-workspace-context";
-import { useFocusEffect } from "expo-router";
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 import { NativeModules, Platform, StyleSheet, Text, View } from 'react-native';
 

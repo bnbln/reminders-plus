@@ -50,8 +50,8 @@ const SnackbarContext = React.createContext<SnackbarContextValue | null>(null);
 
 export function SnackbarProvider({ children }: { children: React.ReactNode }) {
   const [current, setCurrent] = React.useState<SnackbarOptions | null>(null);
-  const opacity = React.useRef(new Animated.Value(0)).current;
-  const translateY = React.useRef(new Animated.Value(24)).current;
+  const [opacity] = React.useState(() => new Animated.Value(0));
+  const [translateY] = React.useState(() => new Animated.Value(24));
   const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const insets = useSafeAreaInsets();
@@ -194,7 +194,8 @@ const styles = StyleSheet.create({
     paddingLeft: 16,
     paddingRight: 8,
     paddingVertical: 8,
-    borderRadius: 4,
+    // M3 corner on Android; iOS uses its rounder card corner.
+    borderRadius: Platform.OS === "ios" ? 16 : 4,
     ...Platform.select({
       android: { elevation: 6 },
       default: {
@@ -213,7 +214,7 @@ const styles = StyleSheet.create({
   action: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 4,
+    borderRadius: Platform.OS === "ios" ? 10 : 4,
     overflow: "hidden",
   },
   actionLabel: {

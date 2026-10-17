@@ -503,9 +503,15 @@ export const HU_TRANSLATIONS: TranslationDict = {
   'assist.unavailable.title': 'Apple Intelligence nem érhető el',
   'assist.unavailable.body': 'Az Assist egy iOS 26+ eszközre van szükség, amelyen a Apple Intelligence engedélyezve van.',
   'assist.unavailable.hint': 'A jelenlegi iOS verzió 26 alatt van.',
+  'assist.unavailable.reason.deviceNotEligible': 'Ez az eszköz nem támogatja az Apple Intelligence-et.',
+  'assist.unavailable.reason.appleIntelligenceNotEnabled': 'Az Assist használatához kapcsold be az Apple Intelligence-et a Beállításokban.',
+  'assist.unavailable.reason.modelNotReady': 'Az Apple Intelligence még előkészítés alatt áll. Próbáld újra néhány perc múlva.',
+  'assist.error.unsupportedLanguage': 'Az Apple Intelligence még nem támogatja ezt a nyelvet.',
   'assist.empty.title': 'Üdvözli az Assist',
   'assist.empty.subtitle': 'Példák: Keresse meg az összes rutint a hellyel. Hozzon létre egy feladatot holnap 14:00-kor a Work projektben. Helyezze át a vásárlást a Személyes oldalra.',
   'assist.input.placeholder': 'pl. Hozzon létre egy feladatot ma 18:00-kor a hely szupermarkettel',
+  'assist.input.send': 'Küldés',
+  'assist.input.stop': 'Válasz leállítása',
 
   // Added: strings previously only available in German and English
   "taskWorkspace.selectTask": "Válassz egy feladatot",
@@ -559,6 +565,11 @@ export const HU_TRANSLATIONS: TranslationDict = {
   "assist.locked.body": "Az AI Assist a Reminders+ része, a korlátlan projektekkel és a Cloud Sync funkcióval együtt.",
   "plus.error.storeUnavailable": "Az App Store jelenleg nem érhető el.",
   "plus.error.purchaseFailed": "A vásárlást nem sikerült befejezni.",
+  "errorBoundary.title": "Hiba történt",
+  "errorBoundary.body": "Váratlan hiba történt. Próbáld újra, és ha ismét előfordul, indítsd újra az appot.",
+  "errorBoundary.retry": "Újrapróbálás",
+  "project.notFoundBody": "Ez a projekt törölve lett, vagy már nem érhető el.",
+  "project.notFoundAction": "Vissza a projektekhez",
 };
 
 export default HU_TRANSLATIONS;

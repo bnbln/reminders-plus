@@ -29,7 +29,9 @@ import {
   type Task,
   useTasksStore,
 } from "@/context/tasks-store";
+import { useCurrentMinute } from "@/hooks/use-clock";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useUndoableTaskDelete } from "@/hooks/use-undoable-task-delete";
 import { t } from "@/i18n";
 import { isIOS26OrNewer } from "@/utils/ios-version";
 import { ripple } from '@/components/ui/ripple';
@@ -182,7 +184,7 @@ function InboxContent() {
     [projects],
   );
 
-  const nowMs = Date.now();
+  const nowMs = useCurrentMinute();
   const activeTasks = React.useMemo(
     () =>
       tasks.filter((task) => !task.deletedAt && task.section !== "completed"),
@@ -386,16 +388,13 @@ function InboxContent() {
     [setTasks],
   );
 
+  const deleteTaskWithUndo = useUndoableTaskDelete();
   const deleteTask = React.useCallback(
     (taskId: string) => {
       configureLayoutAnimation(LayoutAnimation.Presets.easeInEaseOut);
-      setTasks((prev) =>
-        prev.map((task) =>
-          task.id === taskId ? { ...task, deletedAt: Date.now() } : task,
-        ),
-      );
+      deleteTaskWithUndo(taskId);
     },
-    [setTasks],
+    [deleteTaskWithUndo],
   );
 
   const toggleSubtask = React.useCallback(

@@ -503,9 +503,15 @@ export const EL_TRANSLATIONS: TranslationDict = {
   'assist.unavailable.title': 'Apple Intelligence μη διαθέσιμο',
   'assist.unavailable.body': 'Το Assist απαιτεί συσκευή iOS 26+ με ενεργοποιημένη Apple Intelligence.',
   'assist.unavailable.hint': 'Η τρέχουσα έκδοση iOS είναι κάτω από 26.',
+  'assist.unavailable.reason.deviceNotEligible': 'Αυτή η συσκευή δεν υποστηρίζει το Apple Intelligence.',
+  'assist.unavailable.reason.appleIntelligenceNotEnabled': 'Ενεργοποίησε το Apple Intelligence στις Ρυθμίσεις για να χρησιμοποιήσεις το Assist.',
+  'assist.unavailable.reason.modelNotReady': 'Το Apple Intelligence προετοιμάζεται ακόμα. Δοκίμασε ξανά σε λίγα λεπτά.',
+  'assist.error.unsupportedLanguage': 'Το Apple Intelligence δεν υποστηρίζει ακόμα αυτή τη γλώσσα.',
   'assist.empty.title': 'Καλώς ήρθατε στο Assist',
   'assist.empty.subtitle': 'Παραδείγματα: Βρείτε όλες τις ρουτίνες με τοποθεσία. Δημιουργήστε μια εργασία αύριο στις 14:00 στο έργο Εργασία. Μετακινήστε τα ψώνια στο Personal.',
   'assist.input.placeholder': 'π.χ. Δημιουργήστε μια εργασία σήμερα στις 18:00 με το σούπερ μάρκετ τοποθεσίας',
+  'assist.input.send': 'Αποστολή',
+  'assist.input.stop': 'Διακοπή απάντησης',
 
   // Added: strings previously only available in German and English
   "taskWorkspace.selectTask": "Επιλέξτε εργασία",
@@ -559,6 +565,11 @@ export const EL_TRANSLATIONS: TranslationDict = {
   "assist.locked.body": "Το AI Assist είναι μέρος του Reminders+, μαζί με απεριόριστα έργα και Cloud Sync.",
   "plus.error.storeUnavailable": "Το App Store δεν είναι προσβάσιμο αυτή τη στιγμή.",
   "plus.error.purchaseFailed": "Δεν ήταν δυνατή η ολοκλήρωση της αγοράς.",
+  "errorBoundary.title": "Κάτι πήγε στραβά",
+  "errorBoundary.body": "Παρουσιάστηκε ένα απρόσμενο σφάλμα. Δοκίμασε ξανά και, αν συνεχιστεί, επανεκκίνησε την εφαρμογή.",
+  "errorBoundary.retry": "Δοκίμασε ξανά",
+  "project.notFoundBody": "Αυτό το έργο διαγράφηκε ή δεν είναι πλέον διαθέσιμο.",
+  "project.notFoundAction": "Πίσω στα έργα",
 };
 
 export default EL_TRANSLATIONS;

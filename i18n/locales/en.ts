@@ -505,6 +505,8 @@ export const EN_TRANSLATIONS: TranslationDict = {
     'plus.legal.show': 'Availability notes',
     'plus.legal.hide': 'Hide availability notes',
     'plus.legal.disclaimer': 'Cloud Sync only works between Apple devices signed in to iCloud with the same Apple ID. AI Assist is only available on devices supported by Apple for Apple Intelligence.',
+    'plus.legal.autoRenew':
+      'The monthly plan is charged to your Apple Account and renews automatically unless you cancel at least 24 hours before the end of the current period. You can cancel anytime in your Apple Account settings.',
     'plus.legal.disclaimer.noAssist': 'Purchases are processed by the app store on your device.',
     'plus.error.storeUnavailable': "The App Store can't be reached right now.",
     'plus.error.purchaseFailed': "The purchase couldn't be completed.",
@@ -569,9 +571,15 @@ export const EN_TRANSLATIONS: TranslationDict = {
     'assist.unavailable.title': 'Apple Intelligence unavailable',
     'assist.unavailable.body': 'Assist requires an iOS 26+ device with Apple Intelligence enabled.',
     'assist.unavailable.hint': 'Current iOS version is below 26.',
+    'assist.unavailable.reason.deviceNotEligible': 'This device doesn\'t support Apple Intelligence.',
+    'assist.unavailable.reason.appleIntelligenceNotEnabled': 'Turn on Apple Intelligence in Settings to use Assist.',
+    'assist.unavailable.reason.modelNotReady': 'Apple Intelligence is still getting ready. Try again in a few minutes.',
+    'assist.error.unsupportedLanguage': 'Apple Intelligence doesn\'t support this language yet.',
     'assist.empty.title': 'Welcome to Assist',
     'assist.empty.subtitle': 'Examples: Find all routines with location. Create a task tomorrow at 14:00 in project Work. Move shopping to Personal.',
     'assist.input.placeholder': 'e.g. Create a task today at 18:00 with location supermarket',
+    'assist.input.send': 'Send',
+    'assist.input.stop': 'Stop answer',
     'screen.legal': 'Legal & accessibility',
     'settings.section.legal': 'Legal',
     'settings.legal.open': 'Legal & accessibility',
@@ -592,6 +600,11 @@ export const EN_TRANSLATIONS: TranslationDict = {
     'a11y.task.changeEmoji': 'Change emoji',
     'a11y.task.moreActions': 'More actions',
     'a11y.home.pickDate': 'Pick a date',
+    "errorBoundary.title": "Something went wrong",
+    "errorBoundary.body": "An unexpected error occurred. Try again, and if it keeps happening, restart the app.",
+    "errorBoundary.retry": "Try again",
+    "project.notFoundBody": "This project was deleted or is no longer available.",
+    "project.notFoundAction": "Back to projects",
 };
 
 export default EN_TRANSLATIONS;

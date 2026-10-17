@@ -503,9 +503,15 @@ export const KO_TRANSLATIONS: TranslationDict = {
   'assist.unavailable.title': 'Apple Intelligence 사용할 수 없음',
   'assist.unavailable.body': 'Assist에는 Apple Intelligence이 활성화된 iOS 26+ 장치가 필요합니다.',
   'assist.unavailable.hint': '현재 iOS 버전은 26 미만입니다.',
+  'assist.unavailable.reason.deviceNotEligible': '이 기기는 Apple Intelligence를 지원하지 않습니다.',
+  'assist.unavailable.reason.appleIntelligenceNotEnabled': 'Assist를 사용하려면 설정에서 Apple Intelligence를 켜세요.',
+  'assist.unavailable.reason.modelNotReady': 'Apple Intelligence를 준비하는 중입니다. 몇 분 후에 다시 시도하세요.',
+  'assist.error.unsupportedLanguage': 'Apple Intelligence는 아직 이 언어를 지원하지 않습니다.',
   'assist.empty.title': '지원에 오신 것을 환영합니다',
   'assist.empty.subtitle': '예: 위치가 포함된 모든 루틴을 찾습니다. 프로젝트 작업에서 내일 14:00에 작업을 생성하세요. 쇼핑을 개인으로 이동하세요.',
   'assist.input.placeholder': '예를 들어 위치 슈퍼마켓을 통해 오늘 18:00에 작업 생성',
+  'assist.input.send': '보내기',
+  'assist.input.stop': '답변 중지',
 
   // Added: strings previously only available in German and English
   "taskWorkspace.selectTask": "작업을 선택하세요",
@@ -559,6 +565,11 @@ export const KO_TRANSLATIONS: TranslationDict = {
   "assist.locked.body": "AI Assist는 무제한 프로젝트 및 Cloud Sync와 함께 Reminders+에 포함되어 있습니다.",
   "plus.error.storeUnavailable": "지금은 App Store에 연결할 수 없습니다.",
   "plus.error.purchaseFailed": "구입을 완료할 수 없습니다.",
+  "errorBoundary.title": "문제가 발생했습니다",
+  "errorBoundary.body": "예기치 않은 오류가 발생했습니다. 다시 시도하고, 계속 발생하면 앱을 다시 시작하세요.",
+  "errorBoundary.retry": "다시 시도",
+  "project.notFoundBody": "이 프로젝트는 삭제되었거나 더 이상 사용할 수 없습니다.",
+  "project.notFoundAction": "프로젝트로 돌아가기",
 };
 
 export default KO_TRANSLATIONS;

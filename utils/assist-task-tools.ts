@@ -1,5 +1,11 @@
-import { jsonSchema, tool } from 'ai';
 import type { Dispatch, SetStateAction } from 'react';
+
+import type {
+  AssistObjectSchema,
+  AssistSchemaNode,
+  AssistSchemaProperty,
+  AssistToolDefinition,
+} from '@/modules/assist-llm';
 
 import {
   getDueAtForSection,
@@ -634,7 +640,62 @@ function ensureToolBudget(params: Pick<CreateAssistToolsParams, 'onToolCall' | '
   }
 }
 
-export function createAssistTools(params: CreateAssistToolsParams) {
+const SECTION_VALUES = ['today', 'upcoming', 'completed'] as const;
+
+function prop(
+  name: string,
+  schema: AssistSchemaNode,
+  description: string,
+  optional: boolean = true,
+): AssistSchemaProperty {
+  return { name, schema, description, optional };
+}
+
+function objectSchema(properties: AssistSchemaProperty[]): AssistObjectSchema {
+  return { type: 'object', properties };
+}
+
+const STRING = { type: 'string' } as const;
+const BOOLEAN = { type: 'boolean' } as const;
+const SECTION = { type: 'string', enum: SECTION_VALUES } as const;
+const DUE_DATE = prop('dueDate', STRING, 'Due date in local time as YYYY-MM-DD.');
+const DUE_TIME = prop('dueTime', STRING, 'Due time as 24-hour HH:mm. Omit for an all-day task.');
+
+function pad2(value: number): string {
+  return value < 10 ? `0${value}` : `${value}`;
+}
+
+/** Local `YYYY-MM-DD` or `YYYY-MM-DD HH:mm`, the format the model is told to use. */
+function formatLocalDue(dueAt: number, dueHasTime?: boolean): string | undefined {
+  if (!hasValidDueAt(dueAt)) return undefined;
+  const date = new Date(dueAt);
+  const day = `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+  return dueHasTime ? `${day} ${pad2(date.getHours())}:${pad2(date.getMinutes())}` : day;
+}
+
+/** The few task fields the model needs; the full candidate stays in JS for the UI. */
+function taskForModel(task: AssistTaskCandidate) {
+  return {
+    id: task.id,
+    title: task.title,
+    project: task.projectName,
+    due: formatLocalDue(task.dueAt, task.dueHasTime),
+    done: task.section === 'completed' ? true : undefined,
+    routine: task.isRoutine ? task.routineType : undefined,
+  };
+}
+
+function projectForModel(project: AssistProjectCandidate) {
+  return { id: project.id, name: project.name };
+}
+
+function withoutCandidates<T extends { status: ToolStatus; message?: string }>(output: T) {
+  return { status: output.status, message: output.message };
+}
+
+type AssistToolSet = Record<string, AssistToolDefinition>;
+
+export function createAssistTools(params: CreateAssistToolsParams): AssistToolSet {
   const {
     getTasks,
     getProjects,
@@ -646,185 +707,342 @@ export function createAssistTools(params: CreateAssistToolsParams) {
 
   const guarded = () => ensureToolBudget({ onToolCall, shouldAbortToolCalls });
 
-  return {
-    findTasks: tool({
-      description:
-        'Finde Tasks in den Nutzerdaten. Liefert fuer jeden Treffer alle Task-Felder inklusive Projektbezug.',
-      inputSchema: jsonSchema<FindTasksToolInput>({
-        type: 'object',
-        additionalProperties: true,
-        properties: {
-          query: { type: 'string' },
-          limit: { type: 'number' },
-          includeCompleted: { type: 'boolean' },
-          includeDeleted: { type: 'boolean' },
-          section: { type: 'string', enum: ['today', 'upcoming', 'completed'] },
-          projectId: { type: 'string' },
-          projectQuery: { type: 'string' },
-          isRoutine: { type: 'boolean' },
+  const findTasks: AssistToolDefinition<FindTasksToolInput, FindTasksToolOutput> = {
+    name: 'findTasks',
+    description: "Search the user's tasks. Returns id, title, project and due date per match.",
+    parameters: objectSchema([
+      prop('query', STRING, 'Words from the task title, notes or location. Omit to list by filters only.'),
+      prop('section', SECTION, 'today, upcoming (later or no date) or completed.'),
+      prop('projectQuery', STRING, 'Name of the project the tasks belong to.'),
+      prop('includeCompleted', BOOLEAN, 'Also return completed tasks.'),
+      prop('isRoutine', BOOLEAN, 'Only repeating tasks (true) or only one-off tasks (false).'),
+      prop('limit', { type: 'integer', minimum: 1, maximum: 10 }, 'Maximum number of results, default 8.'),
+    ]),
+    execute: (input) => {
+      guarded();
+      const tasks = getTasks();
+      const projects = getProjects();
+      const query = input.query?.trim();
+      const results = findTasksLocally(tasks, projects, {
+        ...input,
+        includeDeleted: false,
+        limit: input.limit ?? 8,
+      });
+      return {
+        status: 'ok',
+        query,
+        filters: {
+          section: input.section,
+          projectId: input.projectId,
+          projectQuery: input.projectQuery?.trim() || undefined,
+          includeCompleted: input.includeCompleted,
+          includeDeleted: false,
+          isRoutine: input.isRoutine,
         },
-      }),
-      execute: async (input): Promise<FindTasksToolOutput> => {
-        guarded();
-        const tasks = getTasks();
-        const projects = getProjects();
-        const query = input.query?.trim();
-        const results = findTasksLocally(tasks, projects, input);
-        return {
-          status: 'ok',
-          query,
-          filters: {
-            section: input.section,
-            projectId: input.projectId,
-            projectQuery: input.projectQuery?.trim() || undefined,
-            includeCompleted: input.includeCompleted,
-            includeDeleted: input.includeDeleted,
-            isRoutine: input.isRoutine,
-          },
-          results,
-        };
-      },
+        results,
+      };
+    },
+    toModelOutput: (output) => ({
+      status: output.status,
+      results: output.results.map(taskForModel),
     }),
+  };
 
-    findProjects: tool({
-      description: 'Finde Projekte in den Nutzerdaten. Liefert alle Projektfelder je Treffer.',
-      inputSchema: jsonSchema<FindProjectsToolInput>({
-        type: 'object',
-        additionalProperties: true,
-        properties: {
-          query: { type: 'string' },
-          limit: { type: 'number' },
-          includeDeleted: { type: 'boolean' },
-        },
-      }),
-      execute: async (input): Promise<FindProjectsToolOutput> => {
-        guarded();
-        const projects = getProjects();
-        const query = input.query?.trim();
-        const results = findProjectsLocally(projects, query ?? '', {
-          limit: input.limit,
-          includeDeleted: input.includeDeleted,
+  const findProjects: AssistToolDefinition<FindProjectsToolInput, FindProjectsToolOutput> = {
+    name: 'findProjects',
+    description: "Search the user's projects by name. Returns id and name per match.",
+    parameters: objectSchema([
+      prop('query', STRING, 'Words from the project name. Omit to list all projects.'),
+      prop('limit', { type: 'integer', minimum: 1, maximum: 10 }, 'Maximum number of results, default 8.'),
+    ]),
+    execute: (input) => {
+      guarded();
+      const projects = getProjects();
+      const query = input.query?.trim();
+      const results = findProjectsLocally(projects, query ?? '', {
+        limit: input.limit ?? 8,
+        includeDeleted: false,
+      });
+      return {
+        status: 'ok',
+        query,
+        includeDeleted: false,
+        results,
+      };
+    },
+    toModelOutput: (output) => ({
+      status: output.status,
+      results: output.results.map(projectForModel),
+    }),
+  };
+
+  const createProject: AssistToolDefinition<CreateProjectToolInput, CreateProjectToolOutput> = {
+    name: 'createProject',
+    description: 'Create a new project.',
+    parameters: objectSchema([
+      prop('name', STRING, 'Project name.', false),
+      prop('description', STRING, 'Short description.'),
+      prop('emoji', STRING, 'One emoji that fits the project.'),
+    ]),
+    execute: (input) => {
+      guarded();
+      const name = input.name.trim();
+      if (!name) {
+        return { status: 'error', message: 'Project name is missing.' };
+      }
+
+      const projects = getProjects();
+      const exactMatch = projects.find(
+        (entry) => !entry.deletedAt && normalizeSearch(entry.name) === normalizeSearch(name),
+      );
+      if (exactMatch) {
+        return {
+          status: 'exists',
+          message: `Project "${name}" already exists.`,
+          project: buildProjectCandidate(exactMatch, 1),
+        };
+      }
+
+      const explicitEmoji = extractFirstEmoji(input.emoji);
+      const inferredEmoji = inferProjectEmojiFromName(`${name} ${input.description ?? ''}`);
+
+      const nextProject: Project = {
+        id: projectId(),
+        name,
+        color: normalizeHexColor(input.color) ?? DEFAULT_PROJECT_COLOR,
+        emoji: explicitEmoji ?? inferredEmoji,
+        icon: input.icon?.trim() || DEFAULT_PROJECT_ICON,
+        description: input.description?.trim() || undefined,
+        completed: false,
+        deletedAt: undefined,
+      };
+
+      setProjects((prev) => [nextProject, ...prev]);
+      return {
+        status: 'ok',
+        project: buildProjectCandidate(nextProject, 1),
+        message: `Project "${name}" was created.`,
+      };
+    },
+    toModelOutput: (output) => ({
+      ...withoutCandidates(output),
+      project: output.project ? projectForModel(output.project) : undefined,
+    }),
+  };
+
+  const createTask: AssistToolDefinition<CreateTaskToolInput, CreateTaskToolOutput> = {
+    name: 'createTask',
+    description:
+      'Create a task. Set a project, due date, notes, subtasks or a repeat rule only when the user asked for them.',
+    parameters: objectSchema([
+      prop('title', STRING, 'Short task title without date or project.', false),
+      prop('projectQuery', STRING, 'Name of an existing project to put the task in.'),
+      DUE_DATE,
+      DUE_TIME,
+      prop('notes', STRING, 'Extra details.'),
+      prop('location', STRING, 'Place where the task happens.'),
+      prop(
+        'subtasks',
+        { type: 'array', items: STRING, maxItems: 10 },
+        'Checklist items, one short phrase each.',
+      ),
+      prop('emoji', STRING, 'One emoji that fits the task.'),
+      prop(
+        'routineType',
+        { type: 'string', enum: ROUTINE_TYPES.filter((type) => type !== 'custom') },
+        'Repeat rule, only for recurring tasks.',
+      ),
+      prop(
+        'routineWeekday',
+        { type: 'integer', minimum: 0, maximum: 6 },
+        'Weekday for weekly routines, 0 = Sunday … 6 = Saturday.',
+      ),
+      prop(
+        'routineMonthDay',
+        { type: 'integer', minimum: 1, maximum: 31 },
+        'Day of the month for monthly routines.',
+      ),
+    ]),
+    execute: (rawInput) => {
+      guarded();
+      const input: CreateTaskToolInput = {
+        ...rawInput,
+        dueDateISO: rawInput.dueDateISO ?? (rawInput as { dueDate?: string }).dueDate,
+        dueTime24: rawInput.dueTime24 ?? (rawInput as { dueTime?: string }).dueTime,
+        subtasks: normalizeSubtaskInput((rawInput as { subtasks?: unknown }).subtasks),
+      };
+      const title = input.title.trim();
+      if (!title) {
+        return { status: 'error', message: 'Task title is missing.' };
+      }
+
+      const projects = getProjects();
+      const projectResolution = resolveProjectFromInput(projects, {
+        projectId: input.projectId,
+        projectQuery: input.projectQuery,
+      });
+
+      if (projectResolution.status === 'not_found' || projectResolution.status === 'ambiguous') {
+        return {
+          status: projectResolution.status,
+          message: projectResolution.message,
+          projectCandidates: projectResolution.projectCandidates,
+        };
+      }
+
+      const dueInfo = parseDueInput({
+        dueAtMs: input.dueAtMs,
+        dueDateISO: input.dueDateISO,
+        dueTime24: input.dueTime24,
+        dueHasTime: input.dueHasTime,
+      });
+
+      let section: SectionId =
+        input.section ??
+        (dueInfo.dueAt > 0 ? deriveActiveSectionFromDueAt(dueInfo.dueAt) : 'upcoming');
+      let dueAt = dueInfo.dueAt;
+      let dueHasTime = dueInfo.dueHasTime;
+
+      if (section === 'today' && !hasValidDueAt(dueAt)) {
+        dueAt = getDueAtForSection('today');
+        dueHasTime = true;
+      }
+      if (section === 'completed' && !hasValidDueAt(dueAt)) {
+        dueAt = Date.now();
+        dueHasTime = true;
+      }
+      if (section === 'upcoming' && !hasValidDueAt(dueAt)) {
+        dueAt = 0;
+        dueHasTime = false;
+      }
+
+      const explicitRoutineType = normalizeRoutineType(input.routineType);
+      const isRoutine = input.isRoutine ?? Boolean(explicitRoutineType);
+      const routineType = isRoutine ? explicitRoutineType ?? 'daily' : undefined;
+      const routineInterval = isRoutine ? routineIntervalFromType(routineType) : undefined;
+      const explicitEmoji = extractFirstEmoji(input.emoji);
+      const inferredEmoji = inferTaskEmojiFromTitle(
+        [title, input.subtitle ?? '', input.location ?? '', input.notes ?? ''].join(' '),
+      );
+
+      const nextTask: Task = {
+        id: taskId(),
+        title,
+        subtitle: input.subtitle?.trim() || undefined,
+        emoji: explicitEmoji ?? inferredEmoji,
+        projectId: projectResolution.project?.id ?? '',
+        dueAt,
+        dueHasTime,
+        completedAt: section === 'completed' ? Date.now() : undefined,
+        location: input.location?.trim() || undefined,
+        notes: input.notes?.trim() || undefined,
+        subtasks: normalizeSubtasks(input.subtasks),
+        section,
+        orderRank: topOrderRankForSection(getTasks(), section),
+        color: normalizeHexColor(input.color),
+        deletedAt: undefined,
+        isRoutine: isRoutine || undefined,
+        routineType,
+        routineInterval,
+        routineWeekday:
+          typeof input.routineWeekday === 'number' && input.routineWeekday >= 0 && input.routineWeekday <= 6
+            ? input.routineWeekday
+            : undefined,
+        routineNthWeek:
+          typeof input.routineNthWeek === 'number' && input.routineNthWeek >= 1 && input.routineNthWeek <= 4
+            ? input.routineNthWeek
+            : undefined,
+        routineMonthDay:
+          typeof input.routineMonthDay === 'number' && input.routineMonthDay >= 1 && input.routineMonthDay <= 31
+            ? input.routineMonthDay
+            : undefined,
+        routineMonth:
+          typeof input.routineMonth === 'number' && input.routineMonth >= 0 && input.routineMonth <= 11
+            ? input.routineMonth
+            : undefined,
+      };
+
+      setTasks((prev) => [nextTask, ...prev]);
+      const projectsById = new Map(getProjects().map((entry) => [entry.id, entry] as const));
+
+      return {
+        status: 'ok',
+        task: buildTaskCandidate(nextTask, projectsById, 1),
+        project: projectResolution.project ? buildProjectCandidate(projectResolution.project, 1) : undefined,
+        message: `Task "${title}" was created.`,
+      };
+    },
+    toModelOutput: (output) => ({
+      ...withoutCandidates(output),
+      task: output.task ? taskForModel(output.task) : undefined,
+      projectCandidates: output.projectCandidates?.map(projectForModel),
+    }),
+  };
+
+  const moveTask: AssistToolDefinition<MoveTaskToolInput, MoveTaskToolOutput> = {
+    name: 'moveTask',
+    description:
+      'Change an existing task: move it to another project or section, or change its due date.',
+    parameters: objectSchema([
+      prop('taskId', STRING, 'Id from a previous findTasks result. Preferred over taskQuery.'),
+      prop('taskQuery', STRING, 'Words from the task title when the id is unknown.'),
+      prop('targetProjectQuery', STRING, 'Name of the project to move the task to.'),
+      prop('clearProject', BOOLEAN, 'Remove the task from its project.'),
+      prop('targetSection', SECTION, 'today, upcoming or completed (marks it done).'),
+      DUE_DATE,
+      DUE_TIME,
+    ]),
+    execute: (rawInput) => {
+      guarded();
+      const input: MoveTaskToolInput = {
+        ...rawInput,
+        dueDateISO: rawInput.dueDateISO ?? (rawInput as { dueDate?: string }).dueDate,
+        dueTime24: rawInput.dueTime24 ?? (rawInput as { dueTime?: string }).dueTime,
+      };
+
+      const tasks = getTasks();
+      const projects = getProjects();
+      const projectsById = new Map(projects.map((entry) => [entry.id, entry] as const));
+
+      let taskToMove: Task | undefined;
+      if (input.taskId?.trim()) {
+        taskToMove = tasks.find((entry) => entry.id === input.taskId?.trim() && !entry.deletedAt);
+      } else if (input.taskQuery?.trim()) {
+        const matches = findTasksLocally(tasks, projects, {
+          query: input.taskQuery.trim(),
+          includeDeleted: false,
+          includeCompleted: true,
+          limit: 5,
         });
-        return {
-          status: 'ok',
-          query,
-          includeDeleted: input.includeDeleted,
-          results,
-        };
-      },
-    }),
-
-    createProject: tool({
-      description:
-        'Erstelle ein neues Projekt. Felder: name, description, color (hex), emoji und icon.',
-      inputSchema: jsonSchema<CreateProjectToolInput>({
-        type: 'object',
-        additionalProperties: true,
-        required: ['name'],
-        properties: {
-          name: { type: 'string' },
-          description: { type: 'string' },
-          color: { type: 'string' },
-          emoji: { type: 'string' },
-          icon: { type: 'string' },
-        },
-      }),
-      execute: async (input): Promise<CreateProjectToolOutput> => {
-        guarded();
-        const name = input.name.trim();
-        if (!name) {
-          return { status: 'error', message: 'Projektname fehlt.' };
-        }
-
-        const projects = getProjects();
-        const exactMatch = projects.find(
-          (entry) => !entry.deletedAt && normalizeSearch(entry.name) === normalizeSearch(name),
-        );
-        if (exactMatch) {
+        if (matches.length === 0) {
           return {
-            status: 'exists',
-            message: `Projekt "${name}" existiert bereits.`,
-            project: buildProjectCandidate(exactMatch, 1),
+            status: 'not_found',
+            message: `No task found for "${input.taskQuery.trim()}".`,
           };
         }
-
-        const explicitEmoji = extractFirstEmoji(input.emoji);
-        const inferredEmoji = inferProjectEmojiFromName(`${name} ${input.description ?? ''}`);
-
-        const nextProject: Project = {
-          id: projectId(),
-          name,
-          color: normalizeHexColor(input.color) ?? DEFAULT_PROJECT_COLOR,
-          emoji: explicitEmoji ?? inferredEmoji,
-          icon: input.icon?.trim() || DEFAULT_PROJECT_ICON,
-          description: input.description?.trim() || undefined,
-          completed: false,
-          deletedAt: undefined,
-        };
-
-        setProjects((prev) => [nextProject, ...prev]);
-        return {
-          status: 'ok',
-          project: buildProjectCandidate(nextProject, 1),
-          message: `Projekt "${name}" wurde erstellt.`,
-        };
-      },
-    }),
-
-    createTask: tool({
-      description:
-        'Erstelle einen Task inklusive optionaler Felder wie Projekt, Standort, Notizen, Subtasks, Deadline und Routine.',
-      inputSchema: jsonSchema<CreateTaskToolInput>({
-        type: 'object',
-        additionalProperties: true,
-        required: ['title'],
-        properties: {
-          title: { type: 'string' },
-          subtitle: { type: 'string' },
-          emoji: { type: 'string' },
-          color: { type: 'string' },
-          notes: { type: 'string' },
-          location: { type: 'string' },
-          projectId: { type: 'string' },
-          projectQuery: { type: 'string' },
-          section: { type: 'string', enum: ['today', 'upcoming', 'completed'] },
-          dueAtMs: { type: 'number' },
-          dueDateISO: { type: 'string' },
-          dueTime24: { type: 'string' },
-          dueHasTime: { type: 'boolean' },
-          subtasks: {
-            type: 'array',
-            items: {
-              type: 'object',
-              additionalProperties: true,
-              required: ['title'],
-              properties: {
-                title: { type: 'string' },
-                done: { type: 'boolean' },
-              },
-            },
-          },
-          isRoutine: { type: 'boolean' },
-          routineType: { type: 'string' },
-          routineWeekday: { type: 'number' },
-          routineNthWeek: { type: 'number' },
-          routineMonthDay: { type: 'number' },
-          routineMonth: { type: 'number' },
-        },
-      }),
-      execute: async (input): Promise<CreateTaskToolOutput> => {
-        guarded();
-        const title = input.title.trim();
-        if (!title) {
-          return { status: 'error', message: 'Task-Titel fehlt.' };
+        if (isAmbiguousByScore(matches) || (matches[0]?.score ?? 0) < 0.55) {
+          return {
+            status: 'ambiguous',
+            message: `Several tasks match "${input.taskQuery.trim()}".`,
+            taskCandidates: matches.slice(0, 3),
+          };
         }
+        taskToMove = tasks.find((entry) => entry.id === matches[0]?.id && !entry.deletedAt);
+      }
 
-        const projects = getProjects();
+      if (!taskToMove) {
+        return {
+          status: 'not_found',
+          message: 'Task not found.',
+        };
+      }
+
+      let targetProject: Project | undefined;
+      if (!input.clearProject && (input.targetProjectId?.trim() || input.targetProjectQuery?.trim())) {
         const projectResolution = resolveProjectFromInput(projects, {
-          projectId: input.projectId,
-          projectQuery: input.projectQuery,
+          projectId: input.targetProjectId,
+          projectQuery: input.targetProjectQuery,
         });
-
         if (projectResolution.status === 'not_found' || projectResolution.status === 'ambiguous') {
           return {
             status: projectResolution.status,
@@ -832,236 +1050,88 @@ export function createAssistTools(params: CreateAssistToolsParams) {
             projectCandidates: projectResolution.projectCandidates,
           };
         }
+        targetProject = projectResolution.project;
+      }
 
-        const dueInfo = parseDueInput({
-          dueAtMs: input.dueAtMs,
-          dueDateISO: input.dueDateISO,
-          dueTime24: input.dueTime24,
-          dueHasTime: input.dueHasTime,
-        });
+      const dueInputProvided =
+        typeof input.dueAtMs === 'number' ||
+        Boolean(input.dueDateISO?.trim()) ||
+        Boolean(input.dueTime24?.trim());
 
-        let section: SectionId =
-          input.section ??
-          (dueInfo.dueAt > 0 ? deriveActiveSectionFromDueAt(dueInfo.dueAt) : 'upcoming');
-        let dueAt = dueInfo.dueAt;
-        let dueHasTime = dueInfo.dueHasTime;
+      const dueInfo = parseDueInput({
+        dueAtMs: input.dueAtMs,
+        dueDateISO: input.dueDateISO,
+        dueTime24: input.dueTime24,
+        dueHasTime: input.dueHasTime,
+      });
 
-        if (section === 'today' && !hasValidDueAt(dueAt)) {
-          dueAt = getDueAtForSection('today');
-          dueHasTime = true;
-        }
-        if (section === 'completed' && !hasValidDueAt(dueAt)) {
-          dueAt = Date.now();
-          dueHasTime = true;
-        }
-        if (section === 'upcoming' && !hasValidDueAt(dueAt)) {
-          dueAt = 0;
-          dueHasTime = false;
-        }
+      const nextSection = input.targetSection ?? taskToMove.section;
+      const entry = taskToMove;
 
-        const explicitRoutineType = normalizeRoutineType(input.routineType);
-        const isRoutine = input.isRoutine ?? Boolean(explicitRoutineType);
-        const routineType = isRoutine ? explicitRoutineType ?? 'daily' : undefined;
-        const routineInterval = isRoutine ? routineIntervalFromType(routineType) : undefined;
-        const explicitEmoji = extractFirstEmoji(input.emoji);
-        const inferredEmoji = inferTaskEmojiFromTitle(
-          [title, input.subtitle ?? '', input.location ?? '', input.notes ?? ''].join(' '),
-        );
+      // Computed up front: the store applies updaters lazily, so a value set
+      // inside one is not reliably there when this tool returns.
+      let dueAt = entry.dueAt;
+      let dueHasTime = entry.dueHasTime;
+      if (dueInputProvided) {
+        dueAt = dueInfo.dueAt;
+        dueHasTime = dueInfo.dueHasTime;
+      }
+      if (nextSection === 'today' && !hasValidDueAt(dueAt)) {
+        dueAt = getDueAtForSection('today');
+        dueHasTime = true;
+      }
+      if (nextSection === 'completed' && !hasValidDueAt(dueAt)) {
+        dueAt = Date.now();
+        dueHasTime = true;
+      }
+      if (nextSection === 'upcoming' && !hasValidDueAt(dueAt)) {
+        dueAt = 0;
+        dueHasTime = false;
+      }
 
-        const nextTask: Task = {
-          id: taskId(),
-          title,
-          subtitle: input.subtitle?.trim() || undefined,
-          emoji: explicitEmoji ?? inferredEmoji,
-          projectId: projectResolution.project?.id ?? '',
-          dueAt,
-          dueHasTime,
-          completedAt: section === 'completed' ? Date.now() : undefined,
-          location: input.location?.trim() || undefined,
-          notes: input.notes?.trim() || undefined,
-          subtasks: normalizeSubtasks(input.subtasks),
-          section,
-          orderRank: topOrderRankForSection(getTasks(), section),
-          color: normalizeHexColor(input.color),
-          deletedAt: undefined,
-          isRoutine: isRoutine || undefined,
-          routineType,
-          routineInterval,
-          routineWeekday:
-            typeof input.routineWeekday === 'number' && input.routineWeekday >= 0 && input.routineWeekday <= 6
-              ? input.routineWeekday
-              : undefined,
-          routineNthWeek:
-            typeof input.routineNthWeek === 'number' && input.routineNthWeek >= 1 && input.routineNthWeek <= 4
-              ? input.routineNthWeek
-              : undefined,
-          routineMonthDay:
-            typeof input.routineMonthDay === 'number' && input.routineMonthDay >= 1 && input.routineMonthDay <= 31
-              ? input.routineMonthDay
-              : undefined,
-          routineMonth:
-            typeof input.routineMonth === 'number' && input.routineMonth >= 0 && input.routineMonth <= 11
-              ? input.routineMonth
-              : undefined,
-        };
+      const updatedTask: Task = {
+        ...entry,
+        section: nextSection,
+        projectId: input.clearProject ? '' : (targetProject?.id ?? entry.projectId),
+        dueAt,
+        dueHasTime,
+        completedAt: nextSection === 'completed' ? Date.now() : undefined,
+        orderRank:
+          nextSection === entry.section
+            ? entry.orderRank
+            : topOrderRankForSection(tasks, nextSection, entry.id),
+      };
 
-        setTasks((prev) => [nextTask, ...prev]);
-        const projectsById = new Map(getProjects().map((entry) => [entry.id, entry] as const));
+      setTasks((prev) => prev.map((candidate) => (candidate.id === entry.id ? updatedTask : candidate)));
 
-        return {
-          status: 'ok',
-          task: buildTaskCandidate(nextTask, projectsById, 1),
-          project: projectResolution.project ? buildProjectCandidate(projectResolution.project, 1) : undefined,
-          message: `Task "${title}" wurde erstellt.`,
-        };
-      },
-    }),
-
-    moveTask: tool({
-      description:
-        'Verschiebe oder aktualisiere einen existierenden Task, inkl. Zielprojekt, Zielsektion und Deadline.',
-      inputSchema: jsonSchema<MoveTaskToolInput>({
-        type: 'object',
-        additionalProperties: true,
-        properties: {
-          taskId: { type: 'string' },
-          taskQuery: { type: 'string' },
-          targetProjectId: { type: 'string' },
-          targetProjectQuery: { type: 'string' },
-          clearProject: { type: 'boolean' },
-          targetSection: { type: 'string', enum: ['today', 'upcoming', 'completed'] },
-          dueAtMs: { type: 'number' },
-          dueDateISO: { type: 'string' },
-          dueTime24: { type: 'string' },
-          dueHasTime: { type: 'boolean' },
-        },
-      }),
-      execute: async (input): Promise<MoveTaskToolOutput> => {
-        guarded();
-
-        const tasks = getTasks();
-        const projects = getProjects();
-        const projectsById = new Map(projects.map((entry) => [entry.id, entry] as const));
-
-        let taskToMove: Task | undefined;
-        if (input.taskId?.trim()) {
-          taskToMove = tasks.find((entry) => entry.id === input.taskId?.trim() && !entry.deletedAt);
-        } else if (input.taskQuery?.trim()) {
-          const matches = findTasksLocally(tasks, projects, {
-            query: input.taskQuery.trim(),
-            includeDeleted: false,
-            includeCompleted: true,
-            limit: 5,
-          });
-          if (matches.length === 0) {
-            return {
-              status: 'not_found',
-              message: `Kein Task fuer "${input.taskQuery.trim()}" gefunden.`,
-            };
-          }
-          if (isAmbiguousByScore(matches) || (matches[0]?.score ?? 0) < 0.55) {
-            return {
-              status: 'ambiguous',
-              message: `Taskzuordnung fuer "${input.taskQuery.trim()}" ist mehrdeutig.`,
-              taskCandidates: matches.slice(0, 3),
-            };
-          }
-          taskToMove = tasks.find((entry) => entry.id === matches[0]?.id && !entry.deletedAt);
-        }
-
-        if (!taskToMove) {
-          return {
-            status: 'not_found',
-            message: 'Task wurde nicht gefunden.',
-          };
-        }
-
-        let targetProject: Project | undefined;
-        if (!input.clearProject && (input.targetProjectId?.trim() || input.targetProjectQuery?.trim())) {
-          const projectResolution = resolveProjectFromInput(projects, {
-            projectId: input.targetProjectId,
-            projectQuery: input.targetProjectQuery,
-          });
-          if (projectResolution.status === 'not_found' || projectResolution.status === 'ambiguous') {
-            return {
-              status: projectResolution.status,
-              message: projectResolution.message,
-              projectCandidates: projectResolution.projectCandidates,
-            };
-          }
-          targetProject = projectResolution.project;
-        }
-
-        const dueInputProvided =
-          typeof input.dueAtMs === 'number' ||
-          Boolean(input.dueDateISO?.trim()) ||
-          Boolean(input.dueTime24?.trim());
-
-        const dueInfo = parseDueInput({
-          dueAtMs: input.dueAtMs,
-          dueDateISO: input.dueDateISO,
-          dueTime24: input.dueTime24,
-          dueHasTime: input.dueHasTime,
-        });
-
-        const nextSection = input.targetSection ?? taskToMove.section;
-        let updatedTask: Task | undefined;
-
-        setTasks((prev) =>
-          prev.map((entry) => {
-            if (entry.id !== taskToMove?.id) return entry;
-
-            let dueAt = entry.dueAt;
-            let dueHasTime = entry.dueHasTime;
-            if (dueInputProvided) {
-              dueAt = dueInfo.dueAt;
-              dueHasTime = dueInfo.dueHasTime;
-            }
-
-            if (nextSection === 'today' && !hasValidDueAt(dueAt)) {
-              dueAt = getDueAtForSection('today');
-              dueHasTime = true;
-            }
-            if (nextSection === 'completed' && !hasValidDueAt(dueAt)) {
-              dueAt = Date.now();
-              dueHasTime = true;
-            }
-            if (nextSection === 'upcoming' && !hasValidDueAt(dueAt)) {
-              dueAt = 0;
-              dueHasTime = false;
-            }
-
-            const patch: Task = {
-              ...entry,
-              section: nextSection,
-              projectId: input.clearProject ? '' : (targetProject?.id ?? entry.projectId),
-              dueAt,
-              dueHasTime,
-              completedAt: nextSection === 'completed' ? Date.now() : undefined,
-              orderRank:
-                nextSection === entry.section
-                  ? entry.orderRank
-                  : topOrderRankForSection(prev, nextSection, entry.id),
-            };
-            updatedTask = patch;
-            return patch;
-          }),
-        );
-
-        if (!updatedTask) {
-          return {
-            status: 'error',
-            message: 'Task konnte nicht aktualisiert werden.',
-          };
-        }
-
-        return {
-          status: 'ok',
-          task: buildTaskCandidate(updatedTask, projectsById, 1),
-          project: targetProject ? buildProjectCandidate(targetProject, 1) : undefined,
-          message: `Task "${updatedTask.title}" wurde aktualisiert.`,
-        };
-      },
+      return {
+        status: 'ok',
+        task: buildTaskCandidate(updatedTask, projectsById, 1),
+        project: targetProject ? buildProjectCandidate(targetProject, 1) : undefined,
+        message: `Task "${updatedTask.title}" was updated.`,
+      };
+    },
+    toModelOutput: (output) => ({
+      ...withoutCandidates(output),
+      task: output.task ? taskForModel(output.task) : undefined,
+      taskCandidates: output.taskCandidates?.map(taskForModel),
+      projectCandidates: output.projectCandidates?.map(projectForModel),
     }),
   };
+
+  return { findTasks, findProjects, createTask, moveTask, createProject };
+}
+
+/** The schema asks for plain strings; older callers may still pass `{ title, done }`. */
+function normalizeSubtaskInput(value: unknown): { title: string; done?: boolean }[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value
+    .map((entry) =>
+      typeof entry === 'string'
+        ? { title: entry }
+        : entry && typeof entry === 'object' && typeof (entry as { title?: unknown }).title === 'string'
+          ? (entry as { title: string; done?: boolean })
+          : null,
+    )
+    .filter((entry): entry is { title: string; done?: boolean } => Boolean(entry));
 }

@@ -503,9 +503,15 @@ export const DA_TRANSLATIONS: TranslationDict = {
   'assist.unavailable.title': 'Apple Intelligence ikke tilgængelig',
   'assist.unavailable.body': 'Assist kræver en iOS 26+ enhed med Apple Intelligence aktiveret.',
   'assist.unavailable.hint': 'Den nuværende version af iOS er under 26.',
+  'assist.unavailable.reason.deviceNotEligible': 'Denne enhed understøtter ikke Apple Intelligence.',
+  'assist.unavailable.reason.appleIntelligenceNotEnabled': 'Slå Apple Intelligence til i Indstillinger for at bruge Assist.',
+  'assist.unavailable.reason.modelNotReady': 'Apple Intelligence er stadig ved at blive klar. Prøv igen om et par minutter.',
+  'assist.error.unsupportedLanguage': 'Apple Intelligence understøtter ikke dette sprog endnu.',
   'assist.empty.title': 'Velkommen til Assist',
   'assist.empty.subtitle': 'Eksempler: Find alle rutiner med placering. Opret en opgave i morgen kl. 14:00 i projektarbejde. Flyt indkøb til Personlig.',
   'assist.input.placeholder': 'f.eks. Opret en opgave i dag kl. 18:00 med beliggenhed supermarked',
+  'assist.input.send': 'Send',
+  'assist.input.stop': 'Stop svaret',
 
   // Added: strings previously only available in German and English
   "taskWorkspace.selectTask": "Vælg en opgave",
@@ -559,6 +565,11 @@ export const DA_TRANSLATIONS: TranslationDict = {
   "assist.locked.body": "AI Assist er en del af Reminders+, sammen med ubegrænsede projekter og Cloud Sync.",
   "plus.error.storeUnavailable": "App Store kan ikke nås lige nu.",
   "plus.error.purchaseFailed": "Købet kunne ikke gennemføres.",
+  "errorBoundary.title": "Noget gik galt",
+  "errorBoundary.body": "Der opstod en uventet fejl. Prøv igen, og genstart appen, hvis det bliver ved.",
+  "errorBoundary.retry": "Prøv igen",
+  "project.notFoundBody": "Dette projekt er slettet eller ikke længere tilgængeligt.",
+  "project.notFoundAction": "Tilbage til projekter",
 };
 
 export default DA_TRANSLATIONS;

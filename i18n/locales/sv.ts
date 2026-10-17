@@ -503,9 +503,15 @@ export const SV_TRANSLATIONS: TranslationDict = {
   'assist.unavailable.title': 'Apple Intelligence inte tillgänglig',
   'assist.unavailable.body': 'Assist kräver en iOS 26+ enhet med Apple Intelligence aktiverat.',
   'assist.unavailable.hint': 'Aktuell version av iOS är under 26.',
+  'assist.unavailable.reason.deviceNotEligible': 'Den här enheten har inte stöd för Apple Intelligence.',
+  'assist.unavailable.reason.appleIntelligenceNotEnabled': 'Slå på Apple Intelligence i Inställningar för att använda Assist.',
+  'assist.unavailable.reason.modelNotReady': 'Apple Intelligence förbereds fortfarande. Försök igen om några minuter.',
+  'assist.error.unsupportedLanguage': 'Apple Intelligence har inte stöd för det här språket än.',
   'assist.empty.title': 'Välkommen till Assist',
   'assist.empty.subtitle': 'Exempel: Hitta alla rutiner med plats. Skapa en uppgift imorgon kl 14:00 i projektarbete. Flytta shopping till Personligt.',
   'assist.input.placeholder': 't.ex. Skapa en uppgift idag kl 18:00 med plats stormarknad',
+  'assist.input.send': 'Skicka',
+  'assist.input.stop': 'Stoppa svaret',
 
   // Added: strings previously only available in German and English
   "taskWorkspace.selectTask": "Välj en uppgift",
@@ -559,6 +565,11 @@ export const SV_TRANSLATIONS: TranslationDict = {
   "assist.locked.body": "AI Assist ingår i Reminders+, tillsammans med obegränsat med projekt och Cloud Sync.",
   "plus.error.storeUnavailable": "App Store går inte att nå just nu.",
   "plus.error.purchaseFailed": "Köpet kunde inte slutföras.",
+  "errorBoundary.title": "Något gick fel",
+  "errorBoundary.body": "Ett oväntat fel uppstod. Försök igen och starta om appen om det fortsätter.",
+  "errorBoundary.retry": "Försök igen",
+  "project.notFoundBody": "Det här projektet har raderats eller är inte längre tillgängligt.",
+  "project.notFoundAction": "Tillbaka till projekt",
 };
 
 export default SV_TRANSLATIONS;

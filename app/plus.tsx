@@ -24,6 +24,7 @@ import {
   REMINDS_PLUS_LIFETIME_PRODUCT_ID,
   REMINDS_PLUS_MONTHLY_PRODUCT_ID,
 } from "@/constants/premium";
+import { LEGAL_PRIVACY_URL, LEGAL_TERMS_URL } from "@/constants/legal";
 import { Colors } from "@/constants/theme";
 import { usePremium } from "@/context/premium-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
@@ -257,7 +258,6 @@ export default function PlusScreen({
   } = usePremium();
   const [selectedOption, setSelectedOption] =
     React.useState<PurchaseOption>("lifetime");
-  const [showsLegalDisclosure, setShowsLegalDisclosure] = React.useState(false);
 
   React.useEffect(() => {
     if (plan === "lifetime") {
@@ -652,36 +652,41 @@ export default function PlusScreen({
             </Pressable>
           ) : null}
 
-          <Pressable
-            android_ripple={ripple()}
-            accessibilityRole="button"
-            onPress={() => setShowsLegalDisclosure((current) => !current)}
-            style={({ pressed }) => [
-              styles.legalDisclosureToggle,
-              pressed && styles.restoreLinkPressed,
-            ]}
-          >
-            <View style={styles.legalDisclosureToggleRow}>
-              <Text
-                style={[styles.legalDisclosureToggleText, { color: legalTextColor }]}
+          {/* App Review (3.1.2) wants the renewal terms and both links
+              visible on the purchase screen, not behind a toggle. */}
+          <Text style={[styles.legalDisclosureText, { color: legalTextColor }]}>
+            {t("plus.legal.autoRenew")}
+          </Text>
+          <Text style={[styles.legalDisclosureText, { color: legalTextColor }]}>
+            {t(assistCopyKey("plus.legal.disclaimer"))}
+          </Text>
+          <View style={styles.legalLinksRow}>
+            {[
+              { key: "terms", label: t("legal.terms"), url: LEGAL_TERMS_URL },
+              { key: "privacy", label: t("legal.privacy"), url: LEGAL_PRIVACY_URL },
+            ].map((link) => (
+              <Pressable
+                key={link.key}
+                android_ripple={ripple()}
+                accessibilityRole="link"
+                onPress={() => {
+                  void Linking.openURL(link.url).catch(() =>
+                    Alert.alert(t("legal.openFailed")),
+                  );
+                }}
+                style={({ pressed }) => [
+                  styles.legalLink,
+                  pressed && styles.restoreLinkPressed,
+                ]}
               >
-                {showsLegalDisclosure
-                  ? t("plus.legal.hide")
-                  : t("plus.legal.show")}
-              </Text>
-              <MaterialIcons
-                name={showsLegalDisclosure ? "expand-less" : "expand-more"}
-                size={16}
-                color={legalTextColor}
-              />
-            </View>
-          </Pressable>
-
-          {showsLegalDisclosure ? (
-            <Text style={[styles.legalDisclosureText, { color: legalTextColor }]}>
-              {t(assistCopyKey("plus.legal.disclaimer"))}
-            </Text>
-          ) : null}
+                <Text
+                  style={[styles.legalDisclosureToggleText, { color: legalTextColor }]}
+                >
+                  {link.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
 
         </View>
       </ScrollView>
@@ -856,16 +861,16 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     textDecorationLine: "underline",
   },
-  legalDisclosureToggle: {
-    alignSelf: "center",
-    minHeight: 30,
+  legalLinksRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    columnGap: 12,
+  },
+  legalLink: {
+    minHeight: 44,
     justifyContent: "center",
     paddingHorizontal: 8,
-  },
-  legalDisclosureToggleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
   },
   legalDisclosureToggleText: {
     fontSize: 12,

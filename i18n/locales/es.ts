@@ -523,9 +523,15 @@ export const ES_TRANSLATIONS: TranslationDict = {
   "assist.unavailable.title": 'Apple Intelligence no disponible',
   "assist.unavailable.body": 'Assist requiere un dispositivo iOS 26+ con Apple Intelligence habilitado.',
   "assist.unavailable.hint": 'La versión actual iOS es inferior a 26.',
+  "assist.unavailable.reason.deviceNotEligible": "Este dispositivo no es compatible con Apple Intelligence.",
+  "assist.unavailable.reason.appleIntelligenceNotEnabled": "Activa Apple Intelligence en Ajustes para usar Assist.",
+  "assist.unavailable.reason.modelNotReady": "Apple Intelligence todavía se está preparando. Inténtalo de nuevo en unos minutos.",
+  "assist.error.unsupportedLanguage": "Apple Intelligence aún no es compatible con este idioma.",
   "assist.empty.title": 'Bienvenido a ayudar',
   "assist.empty.subtitle": 'Ejemplos: encontrar todas las rutinas con ubicación. Crea una tarea mañana a las 14:00 en el proyecto Trabajo. Mueva las compras a Personal.',
   "assist.input.placeholder": 'por ej. Crea una tarea hoy a las 18:00 con ubicación supermercado',
+  "assist.input.send": "Enviar",
+  "assist.input.stop": "Detener respuesta",
 
   // Added: strings previously only available in German and English
   "taskWorkspace.selectTask": "Selecciona una tarea",
@@ -579,6 +585,11 @@ export const ES_TRANSLATIONS: TranslationDict = {
   "assist.locked.body": "AI Assist forma parte de Reminders+, junto con proyectos ilimitados y Cloud Sync.",
   "plus.error.storeUnavailable": "No se puede acceder a la App Store en este momento.",
   "plus.error.purchaseFailed": "No se pudo completar la compra.",
+  "errorBoundary.title": "Algo salió mal",
+  "errorBoundary.body": "Se produjo un error inesperado. Inténtalo de nuevo y, si sigue ocurriendo, reinicia la app.",
+  "errorBoundary.retry": "Reintentar",
+  "project.notFoundBody": "Este proyecto se eliminó o ya no está disponible.",
+  "project.notFoundAction": "Volver a proyectos",
 };
 
 export default ES_TRANSLATIONS;

@@ -503,9 +503,15 @@ export const FR_TRANSLATIONS: TranslationDict = {
   'assist.unavailable.title': 'Apple Intelligence indisponible',
   'assist.unavailable.body': 'Assist nécessite un appareil iOS 26+ avec Apple Intelligence activé.',
   'assist.unavailable.hint': 'La version actuelle de iOS est inférieure à 26.',
+  'assist.unavailable.reason.deviceNotEligible': 'Cet appareil ne prend pas en charge Apple Intelligence.',
+  'assist.unavailable.reason.appleIntelligenceNotEnabled': 'Active Apple Intelligence dans Réglages pour utiliser Assist.',
+  'assist.unavailable.reason.modelNotReady': 'Apple Intelligence est encore en cours de préparation. Réessaie dans quelques minutes.',
+  'assist.error.unsupportedLanguage': 'Apple Intelligence ne prend pas encore en charge cette langue.',
   'assist.empty.title': 'Bienvenue sur Assist',
   'assist.empty.subtitle': 'Exemples : recherchez toutes les routines avec emplacement. Créez une tâche demain à 14h00 dans le projet Work. Déplacez vos achats vers Personnel.',
   'assist.input.placeholder': 'par ex. Créez une tâche aujourd\'hui à 18h00 avec emplacement supermarché',
+  'assist.input.send': 'Envoyer',
+  'assist.input.stop': 'Arrêter la réponse',
 
   // Added: strings previously only available in German and English
   "taskWorkspace.selectTask": "Sélectionner une tâche",
@@ -559,6 +565,11 @@ export const FR_TRANSLATIONS: TranslationDict = {
   "assist.locked.body": "AI Assist fait partie de Reminders+, avec les projets illimités et Cloud Sync.",
   "plus.error.storeUnavailable": "L'App Store est inaccessible pour le moment.",
   "plus.error.purchaseFailed": "L'achat n'a pas pu être finalisé.",
+  "errorBoundary.title": "Un problème est survenu",
+  "errorBoundary.body": "Une erreur inattendue s’est produite. Réessaie, et si cela se reproduit, redémarre l’app.",
+  "errorBoundary.retry": "Réessayer",
+  "project.notFoundBody": "Ce projet a été supprimé ou n’est plus disponible.",
+  "project.notFoundAction": "Retour aux projets",
 };
 
 export default FR_TRANSLATIONS;

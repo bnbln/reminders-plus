@@ -2,10 +2,13 @@ import { TaskWorkspace } from "@/components/tasks/task-workspace";
 import { useOpenTask } from "@/context/task-workspace-context";
 import { usePageDimensions } from "@/components/navigation/vertical-bar-safe-area";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { type MenuAction } from "@react-native-menu/menu";
 import { useHeaderHeight } from "expo-router/react-navigation";
-import { useFocusEffect } from "expo-router";
-import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import {
+  useFocusEffect,
+  useLocalSearchParams,
+  useNavigation,
+  useRouter,
+} from "expo-router";
 import React from "react";
 import {
   Animated,
@@ -14,21 +17,21 @@ import {
   FlatList,
   type GestureResponderEvent,
   LayoutAnimation,
-  type LayoutChangeEvent,
   NativeModules,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   Platform,
   Pressable,
+  type StyleProp,
   StyleSheet,
   Text,
+  type TextStyle,
   View,
 } from "react-native";
 
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
-import MaskedView from "@react-native-masked-view/masked-view";
+import MaskedViewBase from "@react-native-masked-view/masked-view";
 import Reanimated, {
   withSpring,
   withTiming,
@@ -65,7 +68,9 @@ import {
   useTasksStore,
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useStartOfToday } from "@/hooks/use-clock";
 import { useStreaks } from "@/hooks/use-streaks";
+import { useUndoableTaskDelete } from "@/hooks/use-undoable-task-delete";
 import { getIntlLocale, t } from "@/i18n";
 import { triggerSelectionHaptic } from "@/utils/haptics";
 import { isIOS26OrNewer } from "@/utils/ios-version";
@@ -81,6 +86,11 @@ import { useHighContrast } from "@/context/high-contrast-store";
 import { configureLayoutAnimation, motionSpring, motionTiming } from "@/utils/motion";
 import { useThemedStyles } from "@/hooks/use-themed-styles";
 
+// The library's class typings predate React Native's strict TypeScript API.
+const MaskedView = MaskedViewBase as unknown as React.ComponentType<
+  React.ComponentProps<typeof View> & { maskElement: React.ReactElement }
+>;
+
 type ThemeName = keyof typeof Colors;
 type TaskAccessoryContextBridge = {
   setContext?: (
@@ -92,19 +102,15 @@ type TaskAccessoryContextBridge = {
 };
 
 const GRID_HORIZONTAL_PADDING = 16;
-const GRID_GAP = 10;
 const SECTION_SIDE_INSET = 0;
-const DATE_RAIL_HORIZONTAL_PADDING = 6;
 const DATE_RAIL_PAST_DAYS = 119;
 const DATE_RAIL_FUTURE_DAYS = 365;
 // Cells rendered on the first frame around the selected day, so the visible
 // part of the rail is filled before the list measures its viewport.
 const DATE_RAIL_MOUNT_LEADING_DAYS = 10;
 const DATE_RAIL_MOUNT_RENDER_DAYS = 24;
-const DATE_RAIL_MIN_ITEM_WIDTH = 40;
 const DATE_RAIL_ITEM_GAP = 6;
 const DATE_RAIL_FADE_WIDTH = 64;
-const STREAK_PROGRESS_DAYS = 7;
 const HOME_TASK_ITEM_SPACING = 8;
 const HOME_METRICS_BOTTOM_GAP = 16;
 const HOME_TASK_LIST_TOP_GAP = 16;
@@ -115,11 +121,24 @@ const HERO_HEADER_OVERLAP = 268;
 const TASK_ROW_HORIZONTAL_PADDING = 12;
 const CONTENT_STACK_GAP = 10;
 const DATE_TRANSITION_DURATION = 250;
-const DATE_RAIL_TITLE_TRANSITION_DURATION = 300;
-const DATE_RAIL_TITLE_SCRUB_DURATION = 260;
-// Titles slide sideways with the swipe and fade while they move, so they
-// soften out before they reach the clipped edge.
-const DATE_RAIL_TITLE_TRANSITION_DISTANCE = 28;
+// Day titles are tied to the rail's scroll offset: while the rail moves one
+// day, the outgoing title slides this far with it and fades, and the
+// incoming one slides in from the other side. Dragging scrubs the titles
+// directly, so they follow the finger instead of playing a timed animation.
+const DATE_RAIL_TITLE_TRANSITION_DISTANCE = 56;
+// Titles kept mounted around the day under the rail's centre. The strip
+// re-centres from JS, which can trail a fast fling by several days, so it
+// keeps many more titles ahead in the scroll direction than behind.
+const DATE_RAIL_TITLE_WINDOW_BEHIND = 3;
+const DATE_RAIL_TITLE_WINDOW_AHEAD = 14;
+// The titles live in a fixed pool of text views that are reused as the
+// window moves and never unmounted. Mounting and unmounting children inside
+// the MaskedView while scrolling crashed Fabric ("Attempt to recycle a
+// mounted view"); the masked view does not release its children in time.
+const DATE_RAIL_TITLE_SLOTS =
+  DATE_RAIL_TITLE_WINDOW_BEHIND + DATE_RAIL_TITLE_WINDOW_AHEAD + 1;
+// Width of the alpha fade on each side of the day title.
+const DATE_RAIL_TITLE_FADE = 32;
 // Back to today grows in from a slightly smaller size with a well-damped
 // spring (barely any overshoot) and scales out quickly. Off with Reduce Motion.
 const BACK_TO_TODAY_ENTERING = () => {
@@ -145,10 +164,6 @@ const IOS_LIGHT_TINT_FILL = "rgba(118, 118, 128, 0.2)"; // quaternarySystemFill-
 // Customize task row surfaces here:
 const HOME_TASK_ROW_SURFACE_LIGHT = IOS_LIGHT_ELEVATED_SURFACE;
 const HOME_TASK_ROW_SURFACE_DARK = "rgba(35, 35, 35, 0.2)";
-const HOME_ONBOARDING_KEYS = {
-  gestures: "reminds.home.onboarding.gestures.v1",
-  dragDropTargets: "reminds.home.onboarding.dragDropTargets.v1",
-} as const;
 
 let hasPlayedHomeInitialRevealThisSession = false;
 
@@ -156,33 +171,6 @@ const SECTION_ORDER: SectionId[] = ["today", "upcoming", "completed"];
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
-
-async function readOnboardingSeen(key: string): Promise<boolean> {
-  try {
-    if (Platform.OS === "web") {
-      if (typeof localStorage === "undefined") return false;
-      return localStorage.getItem(key) === "1";
-    }
-    const value = await AsyncStorage.getItem(key);
-    return value === "1";
-  } catch {
-    return false;
-  }
-}
-
-async function markOnboardingSeen(key: string): Promise<void> {
-  try {
-    if (Platform.OS === "web") {
-      if (typeof localStorage !== "undefined") {
-        localStorage.setItem(key, "1");
-      }
-      return;
-    }
-    await AsyncStorage.setItem(key, "1");
-  } catch {
-    // ignore
-  }
-}
 
 const configureSmoothListLayoutTransition = (enabled: boolean = true) => {
   if (!enabled) return;
@@ -324,24 +312,6 @@ type DateRailDay = {
   eventCount: number;
 };
 
-type DateRailMonthOption = {
-  key: string;
-  monthStart: number;
-  title: string;
-};
-
-type DateListTransitionState = {
-  fromDateStart: number;
-  toDateStart: number;
-  direction: 1 | -1;
-};
-type DateRailTitleTransitionState = {
-  currentText: string;
-  previousText: string | null;
-  direction: 1 | -1;
-  animationToken: number;
-  phase: "idle" | "preparing" | "animating";
-};
 type DateSelectionSource =
   | "press"
   | "rail"
@@ -350,14 +320,7 @@ type DateSelectionSource =
   | "picker"
   | "programmatic";
 
-type DragSurfaceId = "today" | "upcoming";
 type DragBounds = { x: number; y: number; width: number; height: number };
-
-const isSameLocalMonth = (left: number, right: number) => {
-  const l = new Date(left);
-  const r = new Date(right);
-  return l.getFullYear() === r.getFullYear() && l.getMonth() === r.getMonth();
-};
 
 function HomeMetricsGrid({
   animateValues,
@@ -500,7 +463,6 @@ const createStyles = (
   const WEIGHT_BODY = "600" as const;
   const WEIGHT_SUBTLE = "500" as const;
   const RADIUS_TILE = 10;
-  const RADIUS_CHIP = 6;
   const RADIUS_PILL = 999;
   // ───────────────────────────────────────────────────
 
@@ -517,12 +479,9 @@ const createStyles = (
     : useAppleLightPalette
       ? IOS_LIGHT_INSET_SURFACE
       : "rgba(0,0,0,0.04)";
-  const tagBg = withAlpha(text, contrastAlpha(isDark ? 0.1 : 0.08));
-  const tagText = withAlpha(text, contrastAlpha(ALPHA_2));
   const dangerBg = isDark ? "rgba(255,69,58,0.18)" : "rgba(255,59,48,0.14)";
   const dangerBorder = isDark ? "rgba(255,69,58,0.32)" : "rgba(255,59,48,0.26)";
   const rowMetaText = withAlpha(text, contrastAlpha(ALPHA_3));
-  const dayBubbleSize = Math.max(30, Math.min(40, dateRailItemWidth - 14));
   const heroCardBorder = isDark
     ? "rgba(255,255,255,0.09)"
     : useAppleLightPalette
@@ -732,10 +691,21 @@ const createStyles = (
     },
     dateRailTitleTextViewport: {
       height: 24,
-      overflow: "hidden",
-      alignItems: "flex-start",
-      justifyContent: "center",
       position: "relative",
+    },
+    // Extends into the row's left padding so the fade sits outside the
+    // title at rest; the inner padding puts the title back in place.
+    dateRailTitleTextMask: {
+      position: "absolute",
+      top: 0,
+      bottom: 0,
+      left: -DATE_RAIL_TITLE_FADE,
+      right: 0,
+    },
+    dateRailTitleTextMaskContent: {
+      flex: 1,
+      paddingLeft: DATE_RAIL_TITLE_FADE,
+      justifyContent: "center",
     },
     dateRailTitleTextTransitionHost: {
       height: 24,
@@ -1214,6 +1184,203 @@ const createStyles = (
   });
 };
 
+type DateRailTitleStripProps = {
+  days: DateRailDay[];
+  scrollX: Animated.Value;
+  snapInterval: number;
+  selectedIndex: number;
+  reduceMotion: boolean;
+  getTitle: (dateStart: number) => string;
+  textStyle: StyleProp<TextStyle>;
+  // Filled by the strip; the rail's scroll listener calls it with the day
+  // under the centre on every scroll event.
+  liveIndexRef: React.MutableRefObject<((index: number) => void) | null>;
+};
+
+const HIDDEN_TITLE_SLOT_STYLE = { opacity: 0 } as const;
+
+type DateRailTitleNode = {
+  text: string;
+  opacity: Animated.AnimatedInterpolation<number>;
+  translateX: Animated.AnimatedInterpolation<number>;
+};
+
+// The day titles above the rail, each tied to the rail's native scroll
+// offset. Its own component so following the scroll only re-renders this
+// strip, not the whole home screen, which keeps it close behind fast flings.
+const DateRailTitleStrip = React.memo(function DateRailTitleStrip({
+  days,
+  scrollX,
+  snapInterval,
+  selectedIndex,
+  reduceMotion,
+  getTitle,
+  textStyle,
+  liveIndexRef,
+}: DateRailTitleStripProps) {
+  const [range, setRange] = React.useState(() => ({
+    center: selectedIndex,
+    direction: 1 as 1 | -1,
+  }));
+  const centerRef = React.useRef(selectedIndex);
+  const recenter = React.useCallback((index: number) => {
+    const previous = centerRef.current;
+    if (index === previous) return;
+    centerRef.current = index;
+    setRange({ center: index, direction: index > previous ? 1 : -1 });
+  }, []);
+  React.useEffect(() => {
+    liveIndexRef.current = recenter;
+    return () => {
+      if (liveIndexRef.current === recenter) liveIndexRef.current = null;
+    };
+  }, [liveIndexRef, recenter]);
+  // Selections that don't scroll the rail (or before the first scroll event)
+  // still move the strip.
+  React.useEffect(() => {
+    recenter(selectedIndex);
+  }, [recenter, selectedIndex]);
+
+  // Interpolations are cached per day so moving the window only creates
+  // nodes for the days that newly come into it.
+  const nodeCache = React.useMemo(
+    () => new Map<number, DateRailTitleNode>(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [days, scrollX, snapInterval, reduceMotion, getTitle],
+  );
+  const getNode = (index: number): DateRailTitleNode => {
+    const cached = nodeCache.get(index);
+    if (cached) return cached;
+    const day = days[index];
+    const offset = index * snapInterval;
+    const step = snapInterval;
+    const distance = reduceMotion ? 0 : DATE_RAIL_TITLE_TRANSITION_DISTANCE;
+    const node: DateRailTitleNode = {
+      text: getTitle(day.timestamp),
+      // Fully visible only when its day sits in the centre; gone by 70 %
+      // of the way to a neighbour, so two titles never fight for long.
+      opacity: scrollX.interpolate({
+        inputRange: [
+          offset - step,
+          offset - step * 0.7,
+          offset - step * 0.35,
+          offset,
+          offset + step * 0.35,
+          offset + step * 0.7,
+          offset + step,
+        ],
+        outputRange: [0, 0, 0.4, 1, 0.4, 0, 0],
+        extrapolate: "clamp",
+      }),
+      // Moves with the rail: dragging to later days pushes the title left.
+      translateX: scrollX.interpolate({
+        inputRange: [offset - step, offset, offset + step],
+        outputRange: [distance, 0, -distance],
+        extrapolate: "clamp",
+      }),
+    };
+    nodeCache.set(index, node);
+    return node;
+  };
+
+  const first = Math.max(
+    0,
+    range.center -
+      (range.direction > 0
+        ? DATE_RAIL_TITLE_WINDOW_BEHIND
+        : DATE_RAIL_TITLE_WINDOW_AHEAD),
+  );
+  const last = Math.min(
+    days.length - 1,
+    range.center +
+      (range.direction > 0
+        ? DATE_RAIL_TITLE_WINDOW_AHEAD
+        : DATE_RAIL_TITLE_WINDOW_BEHIND),
+  );
+  // The window never holds more days than there are slots, so each day in
+  // it maps to its own slot; a slot without a day stays mounted but hidden.
+  const slotIndices = new Array<number | null>(DATE_RAIL_TITLE_SLOTS).fill(null);
+  for (let index = first; index <= last; index += 1) {
+    slotIndices[index % DATE_RAIL_TITLE_SLOTS] = index;
+  }
+  const items = slotIndices.map((index, slot) => {
+    const node = index == null ? null : getNode(index);
+    const isSelected = index === selectedIndex;
+    return (
+      <Animated.Text
+        key={`slot-${slot}`}
+        style={[
+          textStyle,
+          node
+            ? {
+                opacity: node.opacity,
+                transform: [{ translateX: node.translateX }],
+              }
+            : HIDDEN_TITLE_SLOT_STYLE,
+        ]}
+        numberOfLines={1}
+        accessibilityElementsHidden={!isSelected}
+        importantForAccessibility={isSelected ? "auto" : "no-hide-descendants"}
+      >
+        {node?.text ?? ""}
+      </Animated.Text>
+    );
+  });
+  return <>{items}</>;
+});
+
+type DateRailDayItemProps = {
+  day: DateRailDay;
+  isDragCandidate: boolean;
+  isDropHover: boolean;
+  styles: ReturnType<typeof createStyles>;
+  onPressDay: (timestamp: number) => void;
+};
+
+// Memoized so a drag hovering over the rail only re-renders the days whose
+// highlight actually changes, not every visible day.
+const DateRailDayItem = React.memo(function DateRailDayItem({
+  day,
+  isDragCandidate,
+  isDropHover,
+  styles,
+  onPressDay,
+}: DateRailDayItemProps) {
+  const dayNumStyle = [
+    styles.dateRailDayNum,
+    day.isWeekend ? styles.dateRailDayNumWeekend : null,
+    day.isToday ? styles.dateRailDayNumToday : null,
+    isDragCandidate ? styles.dateRailDayNumDropCandidate : null,
+    isDropHover ? styles.dateRailDayNumDropReady : null,
+  ];
+
+  const dayDowStyle = [
+    styles.dateRailDow,
+    day.isWeekend ? styles.dateRailDowWeekend : null,
+    isDragCandidate ? styles.dateRailDowDropCandidate : null,
+    isDropHover ? styles.dateRailDowDropReady : null,
+  ];
+
+  return (
+    <Pressable
+      android_ripple={ripple()}
+      accessibilityRole="button"
+      accessibilityLabel={`${day.weekday} ${day.dayOfMonth}`}
+      onPress={() => onPressDay(day.timestamp)}
+      style={({ pressed }) => [
+        styles.dateRailDay,
+        isDragCandidate ? styles.dateRailDayDropCandidate : null,
+        isDropHover ? styles.dateRailDayDropReady : null,
+        { opacity: pressed ? 0.8 : 1 },
+      ]}
+    >
+      <Text style={dayDowStyle}>{day.weekday}</Text>
+      <Text style={dayNumStyle}>{day.dayOfMonth}</Text>
+      {day.eventCount > 0 && <View style={styles.dateRailEventIndicator} />}
+    </Pressable>
+  );
+});
+
 export default function HomeScreen() {
   return <TaskWorkspace title={t("common.today")} homeFilters><HomeContent /></TaskWorkspace>;
 }
@@ -1297,62 +1464,10 @@ function HomeContent() {
     params.routines === undefined
       ? showRoutineTasks
       : parseShowRoutineTasksParam(params.routines);
-  const [showGestureHint, setShowGestureHint] = React.useState(false);
-  const [
-    shouldHighlightDropTargetsOnFirstDrag,
-    setShouldHighlightDropTargetsOnFirstDrag,
-  ] = React.useState(false);
-  const [showDragDropTargetsHint, setShowDragDropTargetsHint] =
-    React.useState(false);
-  const gesturesHintSeenRef = React.useRef(true);
-  const dragDropTargetsHintSeenRef = React.useRef(true);
-  const gestureHintCopy = React.useMemo(
-    () => ({
-      title: t("home.gestureHint.title"),
-      body: t("home.gestureHint.body"),
-      dismissLabel: t("home.gestureHint.dismiss"),
-      dragToDate: t("home.gestureHint.dragToDate"),
-      dragToUndated: t("home.gestureHint.dragToUndated"),
-      monthPickerLabel: t("home.gestureHint.monthPicker"),
-    }),
-    [],
-  );
-  const markGesturesHintSeen = React.useCallback(() => {
-    if (gesturesHintSeenRef.current) return;
-    gesturesHintSeenRef.current = true;
-    setShowGestureHint(false);
-    void markOnboardingSeen(HOME_ONBOARDING_KEYS.gestures);
-  }, []);
-  const markDragDropTargetsHintSeen = React.useCallback(() => {
-    if (dragDropTargetsHintSeenRef.current) return;
-    dragDropTargetsHintSeenRef.current = true;
-    setShouldHighlightDropTargetsOnFirstDrag(false);
-    void markOnboardingSeen(HOME_ONBOARDING_KEYS.dragDropTargets);
-  }, []);
-  React.useEffect(() => {
-    let cancelled = false;
-    const hydrateHints = async () => {
-      const [gesturesSeen, dragTargetsSeen] = await Promise.all([
-        readOnboardingSeen(HOME_ONBOARDING_KEYS.gestures),
-        readOnboardingSeen(HOME_ONBOARDING_KEYS.dragDropTargets),
-      ]);
-      if (cancelled) return;
-      gesturesHintSeenRef.current = gesturesSeen;
-      dragDropTargetsHintSeenRef.current = dragTargetsSeen;
-      setShowGestureHint(!gesturesSeen);
-      setShouldHighlightDropTargetsOnFirstDrag(!dragTargetsSeen);
-    };
-    void hydrateHints();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
   const { currentStreak } = useStreaks();
   const [selectedDateStart, setSelectedDateStart] = React.useState(() =>
     getStartOfToday(),
   );
-  const [displayedDateTitleDateStart, setDisplayedDateTitleDateStart] =
-    React.useState(() => getStartOfToday());
   const setTodayAccessoryContext = React.useCallback(
     (dateStart: number) => {
       if (Platform.OS !== "ios" || !isIOS26OrNewer()) return;
@@ -1402,24 +1517,14 @@ function HomeContent() {
   const [listDateStart, setListDateStart] = React.useState(() =>
     getStartOfToday(),
   );
-  const dateListTranslateX = React.useRef(new Animated.Value(0)).current;
-  const dateListTransitionProgress = React.useRef(
-    new Animated.Value(1),
-  ).current;
-  const dateListTransitionItemRevealProgress = React.useRef(
-    new Animated.Value(1),
-  ).current;
-  const homeTaskListRevealProgress = React.useRef(new Animated.Value(1)).current;
-  const dateListTransitionHeight = React.useRef(new Animated.Value(0)).current;
-  const dateRailTitleMotion = React.useRef(new Animated.Value(1)).current;
-  const [, setIsDateListTransitioning] = React.useState(false);
-  const [dateListTransitionState, setDateListTransitionState] =
-    React.useState<DateListTransitionState | null>(null);
-  const [dateListHostWidth, setDateListHostWidth] =
-    React.useState(viewportWidth);
-  const dateListHostWidthRef = React.useRef(viewportWidth);
+  const [dateListTranslateX] = React.useState(() => new Animated.Value(0));
+  const [dateListTransitionProgress] = React.useState(() => new Animated.Value(1));
+  const [dateListTransitionItemRevealProgress] = React.useState(
+    () => new Animated.Value(1),
+  );
+  const [homeTaskListRevealProgress] = React.useState(() => new Animated.Value(1));
+  const [dateListTransitionHeight] = React.useState(() => new Animated.Value(0));
   const dateListHostHeightRef = React.useRef(0);
-  const dateListTransitionHeightsRef = React.useRef({ from: 0, to: 0 });
   const dateListTransitionReadyRef = React.useRef({ from: false, to: false });
   const dateListTransitionStartedRef = React.useRef(false);
   const dateListTransitionActiveTargetDateRef = React.useRef<number | null>(
@@ -1439,14 +1544,7 @@ function HomeContent() {
     typeof setTimeout
   > | null>(null);
   const dateListTransitionSettleRafRef = React.useRef<number | null>(null);
-  const dateRailTitlePendingDurationRef = React.useRef<number | null>(null);
-  const dateRailTitleDeferredRequestRef = React.useRef<{
-    dateStart: number;
-    title: string;
-  } | null>(null);
   const dateRailMomentumActiveRef = React.useRef(false);
-  const dateRailTitleAnimationRef =
-    React.useRef<Animated.CompositeAnimation | null>(null);
   const dateListTransitionProgressAnimationRef =
     React.useRef<Animated.CompositeAnimation | null>(null);
   const homeTaskListRevealAnimationRef =
@@ -1454,15 +1552,6 @@ function HomeContent() {
   const listTransitionRunningRef = React.useRef(false);
   const [homeTaskListRevealPhase, setHomeTaskListRevealPhase] =
     React.useState<"enter" | "exit">("enter");
-  const lastAnimatedTitleDateRef = React.useRef(displayedDateTitleDateStart);
-  const dateRailTitleTransitionStateRef =
-    React.useRef<DateRailTitleTransitionState>({
-      currentText: t("common.today"),
-      previousText: null,
-      direction: 1,
-      animationToken: 0,
-      phase: "idle",
-    });
   const queuedDateStartRef = React.useRef<number | null>(null);
   const listDateStartRef = React.useRef(listDateStart);
   const selectedDateStartRef = React.useRef(selectedDateStart);
@@ -1551,29 +1640,14 @@ function HomeContent() {
     homeTaskListRevealProgress,
     reduceMotionEnabled,
   ]);
-  React.useEffect(() => {
-    dateListHostWidthRef.current = viewportWidth;
-    setDateListHostWidth((current) =>
-      Math.abs(current - viewportWidth) < 1 ? current : viewportWidth,
-    );
-  }, [viewportWidth]);
   const dayLabelFormatter = React.useMemo(
     () => new Intl.DateTimeFormat(undefined, { weekday: "narrow" }),
     [],
   );
-  const monthActionFormatter = React.useMemo(
-    () =>
-      new Intl.DateTimeFormat(undefined, { month: "short", year: "numeric" }),
-    [],
-  );
-  const todayStart = getStartOfToday();
+  const todayStart = useStartOfToday();
   const currentWeekStart = React.useMemo(
     () => getStartOfWeekMonday(todayStart),
     [todayStart],
-  );
-  const minimizeProbeRows = React.useMemo(
-    () => Array.from({ length: 6 }, (_, index) => index),
-    [],
   );
   const [dragHoveredDateStart, setDragHoveredDateStart] = React.useState<
     number | null
@@ -1583,7 +1657,6 @@ function HomeContent() {
   >(null);
   const [isDragOverCalendarHeader, setIsDragOverCalendarHeader] =
     React.useState(false);
-  const [, setActiveDragSurface] = React.useState<DragSurfaceId | null>(null);
   const dragContextRef = React.useRef<{
     taskId: string;
   } | null>(null);
@@ -1600,27 +1673,21 @@ function HomeContent() {
     dateStart: null,
     enteredAt: 0,
   });
-  const dragSurfaceResetFrameRef = React.useRef<number | null>(null);
   const dropCommitFrameRef = React.useRef<number | null>(null);
   const railBoundsMeasureFrameRef = React.useRef<number | null>(null);
-  const upcomingSurfaceRef = React.useRef<View | null>(null);
+  const upcomingSurfaceRef = React.useRef<React.ComponentRef<typeof View>>(null);
   const upcomingSurfaceBoundsRef = React.useRef<DragBounds | null>(null);
-  const todaySurfaceRef = React.useRef<View | null>(null);
-  const todaySurfaceBoundsRef = React.useRef<DragBounds | null>(null);
-  const isHoveringUpcomingDropZone = false;
-  const isHoveringTodayDropZone = false;
   const completionPercentage = React.useMemo(() => {
     let todayTotal = 0;
     let todayCompleted = 0;
-    const todayStartMs = getStartOfToday();
 
     for (const task of tasks) {
       if (task.deletedAt) continue;
 
       const isDueToday =
-        hasValidDueAt(task.dueAt) && isSameLocalDay(task.dueAt, todayStartMs);
+        hasValidDueAt(task.dueAt) && isSameLocalDay(task.dueAt, todayStart);
       const isCompletedToday =
-        task.completedAt && isSameLocalDay(task.completedAt, todayStartMs);
+        task.completedAt && isSameLocalDay(task.completedAt, todayStart);
 
       if (isDueToday || isCompletedToday) {
         todayTotal++;
@@ -1632,7 +1699,7 @@ function HomeContent() {
 
     if (todayTotal === 0) return 0;
     return Math.round((todayCompleted / todayTotal) * 100);
-  }, [tasks]);
+  }, [tasks, todayStart]);
 
   const homeMetricsProps = React.useMemo<HomeMetricsProps>(() => {
     return {
@@ -1745,43 +1812,6 @@ function HomeContent() {
     },
     [currentWeekStart, dateTitleFormatter, todayStart, weekdayTitleFormatter],
   );
-  const [dateRailTitleTransitionState, setDateRailTitleTransitionState] =
-    React.useState<DateRailTitleTransitionState>(() => ({
-      currentText: getDynamicHeaderTitle(displayedDateTitleDateStart),
-      previousText: null,
-      direction: 1,
-      animationToken: 0,
-      phase: "idle",
-    }));
-  const updateDateRailTitleTransitionState = React.useCallback(
-    (
-      updater:
-        | DateRailTitleTransitionState
-        | ((
-            current: DateRailTitleTransitionState,
-          ) => DateRailTitleTransitionState),
-    ) => {
-      setDateRailTitleTransitionState((current) => {
-        const next =
-          typeof updater === "function"
-            ? (
-                updater as (
-                  current: DateRailTitleTransitionState,
-                ) => DateRailTitleTransitionState
-              )(current)
-            : updater;
-        dateRailTitleTransitionStateRef.current = next;
-        return current.currentText === next.currentText &&
-          current.previousText === next.previousText &&
-          current.direction === next.direction &&
-          current.animationToken === next.animationToken &&
-          current.phase === next.phase
-          ? current
-          : next;
-      });
-    },
-    [],
-  );
   React.useLayoutEffect(() => {
     navigation.setOptions({ title: t("common.today") });
   }, [navigation]);
@@ -1823,49 +1853,6 @@ function HomeContent() {
     dayLabelFormatter,
     todayStart,
   ]);
-  const dateRailMonthOptions = React.useMemo<DateRailMonthOption[]>(() => {
-    const firstDay = dateRailDays[0]?.timestamp;
-    const lastDay = dateRailDays[dateRailDays.length - 1]?.timestamp;
-    if (!firstDay || !lastDay) return [];
-
-    const options: DateRailMonthOption[] = [];
-    const cursor = new Date(firstDay);
-    cursor.setDate(1);
-    cursor.setHours(0, 0, 0, 0);
-    const end = new Date(lastDay);
-    end.setDate(1);
-    end.setHours(0, 0, 0, 0);
-
-    while (cursor.getTime() <= end.getTime()) {
-      const monthStart = cursor.getTime();
-      options.push({
-        key: `m-${monthStart}`,
-        monthStart,
-        title: monthActionFormatter.format(monthStart),
-      });
-      cursor.setMonth(cursor.getMonth() + 1);
-      cursor.setDate(1);
-      cursor.setHours(0, 0, 0, 0);
-    }
-    return options;
-  }, [dateRailDays, monthActionFormatter]);
-  const monthPickerActions = React.useMemo<MenuAction[]>(
-    () =>
-      dateRailMonthOptions.map((option) => ({
-        id: option.key,
-        title: option.title,
-        state:
-          Platform.OS === "ios" &&
-          isSameLocalMonth(option.monthStart, selectedDateStart)
-            ? "on"
-            : undefined,
-      })),
-    [dateRailMonthOptions, selectedDateStart],
-  );
-  const monthPickerButtonLabel = React.useMemo(
-    () => monthActionFormatter.format(selectedDateStart),
-    [monthActionFormatter, selectedDateStart],
-  );
   const cancelDateListTransitionStart = React.useCallback(() => {
     if (dateListTransitionStartRafRef.current != null) {
       cancelAnimationFrame(dateListTransitionStartRafRef.current);
@@ -1881,239 +1868,6 @@ function HomeContent() {
     cancelAnimationFrame(dateListTransitionSettleRafRef.current);
     dateListTransitionSettleRafRef.current = null;
   }, []);
-  const clearDeferredDateRailTitle = React.useCallback(() => {
-    dateRailTitleDeferredRequestRef.current = null;
-  }, []);
-  const stopDateRailTitleAnimation = React.useCallback(() => {
-    const runningAnimation = dateRailTitleAnimationRef.current;
-    if (!runningAnimation) return;
-    runningAnimation.stop();
-    dateRailTitleAnimationRef.current = null;
-  }, []);
-  const commitDateRailTitle = React.useCallback(
-    (title: string, direction: 1 | -1) => {
-      dateRailTitlePendingDurationRef.current = null;
-      stopDateRailTitleAnimation();
-      dateRailTitleMotion.stopAnimation();
-      dateRailTitleMotion.setValue(1);
-      updateDateRailTitleTransitionState((current) =>
-        current.currentText === title &&
-        current.previousText == null &&
-        current.direction === direction &&
-        current.phase === "idle"
-          ? current
-          : {
-              currentText: title,
-              previousText: null,
-              direction,
-              animationToken: current.animationToken,
-              phase: "idle",
-            },
-      );
-    },
-    [
-      dateRailTitleMotion,
-      stopDateRailTitleAnimation,
-      updateDateRailTitleTransitionState,
-    ],
-  );
-  const resetDateRailTitleMotion = React.useCallback(() => {
-    const current = dateRailTitleTransitionStateRef.current;
-    commitDateRailTitle(current.currentText, current.direction);
-  }, [commitDateRailTitle]);
-  const animateDateRailTitle = React.useCallback(
-    (nextTitle: string, direction: 1 | -1, source: DateSelectionSource) => {
-      if (reduceMotionEnabled) {
-        commitDateRailTitle(nextTitle, direction);
-        return;
-      }
-
-      const duration =
-        source === "rail"
-          ? DATE_RAIL_TITLE_SCRUB_DURATION
-          : source === "swipe"
-            ? DATE_RAIL_TITLE_TRANSITION_DURATION - 24
-            : DATE_RAIL_TITLE_TRANSITION_DURATION;
-
-      dateRailTitlePendingDurationRef.current = null;
-      stopDateRailTitleAnimation();
-      dateRailTitleMotion.stopAnimation((motionValue) => {
-        const current = dateRailTitleTransitionStateRef.current;
-        const progress = clamp(motionValue, 0, 1);
-        const outgoingVisibility =
-          progress <= 0.78
-            ? 1 - (progress / 0.78) * 0.76
-            : Math.max(0, 0.24 - ((progress - 0.78) / 0.22) * 0.24);
-        const incomingVisibility = progress;
-        const visibleTitle =
-          current.previousText != null &&
-          outgoingVisibility > incomingVisibility
-            ? current.previousText
-            : current.currentText;
-
-        if (visibleTitle === nextTitle) {
-          commitDateRailTitle(nextTitle, direction);
-          return;
-        }
-
-        dateRailTitlePendingDurationRef.current = duration;
-        updateDateRailTitleTransitionState((currentState) => ({
-          currentText: nextTitle,
-          previousText: visibleTitle,
-          direction,
-          animationToken: currentState.animationToken + 1,
-          phase: "preparing",
-        }));
-      });
-    },
-    [
-      commitDateRailTitle,
-      dateRailTitleMotion,
-      reduceMotionEnabled,
-      stopDateRailTitleAnimation,
-      updateDateRailTitleTransitionState,
-    ],
-  );
-  const flushDeferredDateRailTitle = React.useCallback(() => {
-    const deferred = dateRailTitleDeferredRequestRef.current;
-    if (!deferred) return;
-    dateRailTitleDeferredRequestRef.current = null;
-
-    const currentTitleDateStart = lastAnimatedTitleDateRef.current;
-    if (isSameLocalDay(currentTitleDateStart, deferred.dateStart)) {
-      commitDateRailTitle(
-        deferred.title,
-        deferred.dateStart >= currentTitleDateStart ? 1 : -1,
-      );
-      return;
-    }
-
-    const direction: 1 | -1 =
-      deferred.dateStart >= currentTitleDateStart ? 1 : -1;
-    lastAnimatedTitleDateRef.current = deferred.dateStart;
-    animateDateRailTitle(deferred.title, direction, "rail");
-  }, [animateDateRailTitle, commitDateRailTitle]);
-  React.useLayoutEffect(() => {
-    if (
-      dateRailTitleTransitionState.phase !== "preparing" ||
-      dateRailTitleTransitionState.previousText == null
-    ) {
-      return;
-    }
-
-    dateRailTitleMotion.stopAnimation();
-    dateRailTitleMotion.setValue(0);
-    updateDateRailTitleTransitionState((current) =>
-      current.phase !== "preparing"
-        ? current
-        : {
-            ...current,
-            phase: "animating",
-          },
-    );
-  }, [
-    dateRailTitleMotion,
-    dateRailTitleTransitionState.animationToken,
-    dateRailTitleTransitionState.phase,
-    dateRailTitleTransitionState.previousText,
-    updateDateRailTitleTransitionState,
-  ]);
-
-  React.useLayoutEffect(() => {
-    const duration = dateRailTitlePendingDurationRef.current;
-    if (
-      duration == null ||
-      dateRailTitleTransitionState.phase !== "animating" ||
-      dateRailTitleTransitionState.previousText == null
-    ) {
-      return;
-    }
-
-    stopDateRailTitleAnimation();
-    const animation = motionTiming(dateRailTitleMotion, {
-      toValue: 1,
-      duration,
-      easing: Easing.inOut(Easing.cubic),
-      useNativeDriver: true,
-    });
-    dateRailTitleAnimationRef.current = animation;
-    animation.start(({ finished }) => {
-      if (dateRailTitleAnimationRef.current === animation) {
-        dateRailTitleAnimationRef.current = null;
-      }
-      if (!finished) return;
-      dateRailTitlePendingDurationRef.current = null;
-      updateDateRailTitleTransitionState((current) =>
-        current.previousText == null
-          ? current
-          : {
-              ...current,
-              previousText: null,
-              phase: "idle",
-            },
-      );
-    });
-    return () => {
-      if (dateRailTitleAnimationRef.current === animation) {
-        animation.stop();
-        dateRailTitleAnimationRef.current = null;
-      }
-    };
-  }, [
-    dateRailTitleMotion,
-    dateRailTitleTransitionState.animationToken,
-    dateRailTitleTransitionState.phase,
-    dateRailTitleTransitionState.previousText,
-    stopDateRailTitleAnimation,
-    updateDateRailTitleTransitionState,
-  ]);
-  React.useEffect(() => {
-    const nextTitle = getDynamicHeaderTitle(displayedDateTitleDateStart);
-    if (
-      isSameLocalDay(
-        lastAnimatedTitleDateRef.current,
-        displayedDateTitleDateStart,
-      )
-    ) {
-      clearDeferredDateRailTitle();
-      const current = dateRailTitleTransitionStateRef.current;
-      if (current.currentText !== nextTitle || current.previousText != null) {
-        commitDateRailTitle(nextTitle, current.direction);
-      }
-      return;
-    }
-    const lastRequest = lastDateSelectionRequestRef.current;
-    const source =
-      lastRequest &&
-      isSameLocalDay(lastRequest.dateStart, displayedDateTitleDateStart)
-        ? lastRequest.source
-        : "programmatic";
-    if (source === "rail") {
-      dateRailTitleDeferredRequestRef.current = {
-        dateStart: displayedDateTitleDateStart,
-        title: nextTitle,
-      };
-      return;
-    }
-
-    const previousDateStart = lastAnimatedTitleDateRef.current;
-    lastAnimatedTitleDateRef.current = displayedDateTitleDateStart;
-    const direction =
-      lastRequest &&
-      isSameLocalDay(lastRequest.dateStart, displayedDateTitleDateStart)
-        ? lastRequest.direction
-        : displayedDateTitleDateStart >= previousDateStart
-          ? 1
-          : -1;
-    clearDeferredDateRailTitle();
-    animateDateRailTitle(nextTitle, direction, source);
-  }, [
-    animateDateRailTitle,
-    clearDeferredDateRailTitle,
-    commitDateRailTitle,
-    displayedDateTitleDateStart,
-    getDynamicHeaderTitle,
-  ]);
   const resetDateListMotion = React.useCallback(() => {
     dateListTranslateX.stopAnimation();
     dateListTranslateX.setValue(0);
@@ -2184,102 +1938,19 @@ function HomeContent() {
     dateListTransitionProgress,
     stopDateListTransitionProgressAnimation,
   ]);
-  const handleDateListHostLayout = React.useCallback(
-    (event: LayoutChangeEvent) => {
-      const nextWidth = event.nativeEvent.layout.width;
-      if (!Number.isFinite(nextWidth) || nextWidth <= 0) return;
-      dateListHostWidthRef.current = nextWidth;
-      setDateListHostWidth((current) =>
-        Math.abs(current - nextWidth) < 1 ? current : nextWidth,
-      );
-
-      const nextHeight = Math.max(
-        0,
-        Math.ceil(event.nativeEvent.layout.height),
-      );
-      if (nextHeight <= 0) return;
-      dateListHostHeightRef.current = nextHeight;
-      if (!listTransitionRunningRef.current) {
-        dateListTransitionConfigRef.current = {
-          startX: 0,
-          endX: 0,
-          fromHeight: nextHeight,
-          toHeight: nextHeight,
-        };
-        applyDateListTransitionProgress(1);
-      }
-    },
-    [applyDateListTransitionProgress],
-  );
-  const handleDateListTransitionPageLayout = React.useCallback(
-    (kind: "from" | "to", event: LayoutChangeEvent) => {
-      if (!listTransitionRunningRef.current || !dateListTransitionState) return;
-
-      const nextHeight = Math.max(
-        0,
-        Math.ceil(event.nativeEvent.layout.height),
-      );
-      if (nextHeight <= 0) return;
-
-      const previousHeight = dateListTransitionHeightsRef.current[kind];
-      dateListTransitionReadyRef.current[kind] = true;
-      if (Math.abs(previousHeight - nextHeight) < 1) {
-        dateListTransitionStartHandlerRef.current?.(false);
-        return;
-      }
-
-      dateListTransitionHeightsRef.current[kind] = nextHeight;
-
-      if (!dateListTransitionStartedRef.current) {
-        if (kind === "from") {
-          dateListTransitionConfigRef.current = {
-            ...dateListTransitionConfigRef.current,
-            fromHeight: nextHeight,
-          };
-          applyDateListTransitionProgress(0);
-        } else {
-          dateListTransitionConfigRef.current = {
-            ...dateListTransitionConfigRef.current,
-            toHeight: nextHeight,
-          };
-        }
-      }
-
-      dateListTransitionStartHandlerRef.current?.(false);
-    },
-    [applyDateListTransitionProgress, dateListTransitionState],
-  );
-  const handleDateListFromPageLayout = React.useCallback(
-    (event: LayoutChangeEvent) => {
-      handleDateListTransitionPageLayout("from", event);
-    },
-    [handleDateListTransitionPageLayout],
-  );
-  const handleDateListToPageLayout = React.useCallback(
-    (event: LayoutChangeEvent) => {
-      handleDateListTransitionPageLayout("to", event);
-    },
-    [handleDateListTransitionPageLayout],
-  );
 
   const setListDateWithoutTransition = React.useCallback(
     (
       nextDateStart: number,
       animateLayout = true,
-      preserveTitleMotion = false,
     ) => {
       if (nextDateStart === listDateStartRef.current) return;
       cancelDateListTransitionStart();
       queuedDateStartRef.current = null;
       listTransitionRunningRef.current = false;
-      setIsDateListTransitioning(false);
-      setDateListTransitionState(null);
       stopHomeTaskListRevealAnimation();
       homeTaskListRevealProgress.setValue(1);
       resetDateListMotion();
-      if (!preserveTitleMotion) {
-        resetDateRailTitleMotion();
-      }
       resetDateListTransitionMotion();
       if (animateLayout) {
         configureSmoothListLayoutTransition(!reduceMotionEnabled);
@@ -2292,26 +1963,15 @@ function HomeContent() {
       homeTaskListRevealProgress,
       resetDateListMotion,
       resetDateListTransitionMotion,
-      resetDateRailTitleMotion,
       reduceMotionEnabled,
       stopHomeTaskListRevealAnimation,
     ],
   );
   const applyDayChangeWithoutTransition = React.useCallback(
     (nextDateStart: number, direction: 1 | -1) => {
-      const nextTitle = getDynamicHeaderTitle(nextDateStart);
-      clearDeferredDateRailTitle();
-      lastAnimatedTitleDateRef.current = nextDateStart;
-      commitDateRailTitle(nextTitle, direction);
-      setDisplayedDateTitleDateStart(nextDateStart);
-      setListDateWithoutTransition(nextDateStart, false, true);
+      setListDateWithoutTransition(nextDateStart, false);
     },
-    [
-      clearDeferredDateRailTitle,
-      commitDateRailTitle,
-      getDynamicHeaderTitle,
-      setListDateWithoutTransition,
-    ],
+    [setListDateWithoutTransition],
   );
   const runDateListTransition = React.useCallback(
     (nextDateStart: number, direction: 1 | -1) => {
@@ -2388,7 +2048,7 @@ function HomeContent() {
       const lastRequest = lastDateSelectionRequestRef.current;
       if (
         source === "momentum" &&
-        (dateRailTitleAnimationRef.current || listTransitionRunningRef.current)
+        listTransitionRunningRef.current
       ) {
         return;
       }
@@ -2462,26 +2122,30 @@ function HomeContent() {
     },
     [applyDayChangeWithoutTransition, setPresetDateStart],
   );
+  const previousTodayStartRef = React.useRef(todayStart);
+  React.useEffect(() => {
+    const previousTodayStart = previousTodayStartRef.current;
+    if (previousTodayStart === todayStart) return;
+    previousTodayStartRef.current = todayStart;
+    // After midnight or a resume on a later day, keep "Today" selected
+    // instead of leaving the list on yesterday.
+    if (isSameLocalDay(selectedDateStartRef.current, previousTodayStart)) {
+      selectDateWithoutTransition(todayStart);
+    }
+  }, [selectDateWithoutTransition, todayStart]);
   React.useEffect(
     () => () => {
       cancelDateListTransitionStart();
-      clearDeferredDateRailTitle();
       resetDateListMotion();
-      resetDateRailTitleMotion();
       resetDateListTransitionMotion();
-      dateRailTitlePendingDurationRef.current = null;
       dateRailMomentumActiveRef.current = false;
-      stopDateRailTitleAnimation();
       todayCollapseAnimationRef.current?.stop();
       upcomingCollapseAnimationRef.current?.stop();
     },
     [
       cancelDateListTransitionStart,
-      clearDeferredDateRailTitle,
       resetDateListTransitionMotion,
       resetDateListMotion,
-      resetDateRailTitleMotion,
-      stopDateRailTitleAnimation,
     ],
   );
   const handleSelectDate = React.useCallback(
@@ -2502,12 +2166,12 @@ function HomeContent() {
     [dateRailItemWidth, dateRailSidePadding, dateRailSnapInterval],
   );
 
-  const dateRailScrollX = React.useRef(
-    new Animated.Value(dateRailInitialIndex * dateRailSnapInterval),
-  ).current;
+  const [dateRailScrollX] = React.useState(
+    () => new Animated.Value(dateRailInitialIndex * dateRailSnapInterval),
+  );
   const dateRailRef = React.useRef<FlatList<DateRailDay> | any>(null);
-  const dateRailWrapRef = React.useRef<View | null>(null);
-  const dateRailListRef = React.useRef<View | null>(null);
+  const dateRailWrapRef = React.useRef<React.ComponentRef<typeof View>>(null);
+  const dateRailListRef = React.useRef<React.ComponentRef<typeof View>>(null);
   const dateRailBoundsRef = React.useRef<{
     x: number;
     y: number;
@@ -2540,6 +2204,14 @@ function HomeContent() {
       return targetIndex >= 0 ? targetIndex : dateRailInitialIndex;
     },
     [dateRailDays, dateRailInitialIndex],
+  );
+  const selectedDateRailIndex = getDateRailIndexForDateStart(selectedDateStart);
+  const dateRailTitleLiveIndexRef = React.useRef<
+    ((index: number) => void) | null
+  >(null);
+  const dateRailTitleTextStyle = React.useMemo(
+    () => [styles.dateRailTitle, styles.dateRailTitleTextTransitionText],
+    [styles],
   );
   // Mount the rail already sitting on the selected day. Without this the list
   // first renders the oldest days at offset 0 and only jumps to today a few
@@ -2701,6 +2373,7 @@ function HomeContent() {
             dateRailScrollOffsetRef.current = nextOffset;
             const centerIndex = Math.round(nextOffset / dateRailSnapInterval);
             const nextIndex = clamp(centerIndex, 0, dateRailDays.length - 1);
+            dateRailTitleLiveIndexRef.current?.(nextIndex);
             const isUserDrivenScroll =
               dateRailDraggedRef.current || dateRailMomentumActiveRef.current;
             const lockedTargetIndex =
@@ -2723,7 +2396,11 @@ function HomeContent() {
             }
             const nextDay = dateRailDays[nextIndex];
             if (nextDay) {
-              selectDateWithoutTransition(nextDay.timestamp, "rail");
+              // Low priority: the title strip re-centres first, so a fast
+              // fling never outruns its titles while the list catches up.
+              React.startTransition(() => {
+                selectDateWithoutTransition(nextDay.timestamp, "rail");
+              });
             }
           },
         },
@@ -2743,13 +2420,7 @@ function HomeContent() {
   }, []);
   const handleDateRailScrollEndDrag = React.useCallback(() => {
     dateRailDraggedRef.current = false;
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (dateRailMomentumActiveRef.current) return;
-        flushDeferredDateRailTitle();
-      });
-    });
-  }, [flushDeferredDateRailTitle]);
+  }, []);
   const handleDateRailMomentumBegin = React.useCallback(() => {
     dateRailMomentumActiveRef.current = true;
   }, []);
@@ -2762,9 +2433,8 @@ function HomeContent() {
       dateRailScrollOffsetRef.current = offset;
       dateRailSelectionLockTargetIndexRef.current = null;
       dateRailSelectionLockUntilRef.current = 0;
-      flushDeferredDateRailTitle();
     },
-    [flushDeferredDateRailTitle],
+    [],
   );
   React.useEffect(() => {
     const rafId = requestAnimationFrame(() => {
@@ -2797,43 +2467,11 @@ function HomeContent() {
     today: false,
     upcoming: true,
   });
-  const todayCollapseProgress = React.useRef(
-    new Animated.Value(collapsedSections.today ? 1 : 0),
-  ).current;
-  const upcomingCollapseProgress = React.useRef(
-    new Animated.Value(collapsedSections.upcoming ? 1 : 0),
-  ).current;
-  const todaySectionRevealProgress = React.useMemo(
-    () =>
-      todayCollapseProgress.interpolate({
-        inputRange: [0, 1],
-        outputRange: [1, 0],
-      }),
-    [todayCollapseProgress],
+  const [todayCollapseProgress] = React.useState(
+    () => new Animated.Value(collapsedSections.today ? 1 : 0),
   );
-  const upcomingSectionRevealProgress = React.useMemo(
-    () =>
-      upcomingCollapseProgress.interpolate({
-        inputRange: [0, 1],
-        outputRange: [1, 0],
-      }),
-    [upcomingCollapseProgress],
-  );
-  const upcomingSectionRevealTranslateY = React.useMemo(
-    () =>
-      upcomingCollapseProgress.interpolate({
-        inputRange: [0, 1],
-        outputRange: [0, -8],
-      }),
-    [upcomingCollapseProgress],
-  );
-  const upcomingSectionRevealScale = React.useMemo(
-    () =>
-      upcomingCollapseProgress.interpolate({
-        inputRange: [0, 1],
-        outputRange: [1, 0.985],
-      }),
-    [upcomingCollapseProgress],
+  const [upcomingCollapseProgress] = React.useState(
+    () => new Animated.Value(collapsedSections.upcoming ? 1 : 0),
   );
   const todayCollapseAnimationRef =
     React.useRef<Animated.CompositeAnimation | null>(null);
@@ -2893,7 +2531,6 @@ function HomeContent() {
     upcomingCollapseProgress,
   ]);
 
-  const scrollRef = React.useRef<any>(null);
   const todayListRef = React.useRef<TaskSwipeDraggableListHandle | null>(null);
   const upcomingListRef = React.useRef<TaskSwipeDraggableListHandle | null>(
     null,
@@ -2908,11 +2545,6 @@ function HomeContent() {
     active: boolean;
     startedOnRow: boolean;
   }>({ x: 0, y: 0, at: 0, active: false, startedOnRow: false });
-  const cancelDragSurfaceResetFrame = React.useCallback(() => {
-    if (dragSurfaceResetFrameRef.current == null) return;
-    cancelAnimationFrame(dragSurfaceResetFrameRef.current);
-    dragSurfaceResetFrameRef.current = null;
-  }, []);
   const cancelDropCommitFrame = React.useCallback(() => {
     if (dropCommitFrameRef.current == null) return;
     cancelAnimationFrame(dropCommitFrameRef.current);
@@ -2945,31 +2577,11 @@ function HomeContent() {
     );
   }, []);
 
-  const measureTodaySurfaceBounds = React.useCallback(() => {
-    const node =
-      // @ts-ignore - some refs expose getNode
-      todaySurfaceRef.current?.getNode?.() ?? todaySurfaceRef.current;
-    if (!node || typeof node.measureInWindow !== "function") return;
-    node.measureInWindow(
-      (x: number, y: number, width: number, height: number) => {
-        if (
-          !Number.isFinite(x) ||
-          !Number.isFinite(y) ||
-          !Number.isFinite(width) ||
-          !Number.isFinite(height)
-        ) {
-          return;
-        }
-        todaySurfaceBoundsRef.current = { x, y, width, height };
-      },
-    );
-  }, []);
   React.useEffect(
     () => () => {
-      cancelDragSurfaceResetFrame();
       cancelDropCommitFrame();
     },
-    [cancelDragSurfaceResetFrame, cancelDropCommitFrame],
+    [cancelDropCommitFrame],
   );
   const clearDateRailHover = React.useCallback(() => {
     dragRailHoverIntentRef.current = { dateStart: null, enteredAt: 0 };
@@ -3195,86 +2807,20 @@ function HomeContent() {
     (isDragging: boolean) => {
       listDragActiveRef.current = isDragging;
       if (isDragging) {
-        cancelDragSurfaceResetFrame();
         measureDateRailBounds();
         measureDateRailListBounds();
         return;
       }
-      cancelDragSurfaceResetFrame();
-      dragSurfaceResetFrameRef.current = requestAnimationFrame(() => {
-        dragSurfaceResetFrameRef.current = null;
-        setActiveDragSurface(null);
-      });
       if (!dragContextRef.current) {
         clearDateDragHover();
       }
     },
     [
-      cancelDragSurfaceResetFrame,
       clearDateDragHover,
       measureDateRailBounds,
       measureDateRailListBounds,
     ],
   );
-
-  const shiftSelectedDateBySwipe = React.useCallback(
-    (delta: 1 | -1) => {
-      const next = addDays(selectedDateStartRef.current, delta);
-      scrollDateRailToDateStart(next, !reduceMotionEnabled, true);
-      selectDateWithTransition(next, delta > 0 ? 1 : -1, "swipe");
-    },
-    [reduceMotionEnabled, scrollDateRailToDateStart, selectDateWithTransition],
-  );
-
-  const onListTouchStart = React.useCallback((event: GestureResponderEvent) => {
-    const touch = event.nativeEvent.touches?.[0];
-    if (!touch) return;
-    listTouchStartRef.current = {
-      x: touch.pageX,
-      y: touch.pageY,
-      at: Date.now(),
-      active: true,
-      startedOnRow: rowTouchActiveRef.current,
-    };
-  }, []);
-
-  const onListTouchEnd = React.useCallback(
-    (event: GestureResponderEvent) => {
-      const start = listTouchStartRef.current;
-      listTouchStartRef.current.active = false;
-      if (!start.active) return;
-
-      const touch = event.nativeEvent.changedTouches?.[0];
-      if (!touch) return;
-      if (
-        start.startedOnRow ||
-        swipeGestureActiveRef.current ||
-        listDragActiveRef.current
-      ) {
-        return;
-      }
-
-      const dx = touch.pageX - start.x;
-      const dy = touch.pageY - start.y;
-      const absX = Math.abs(dx);
-      const absY = Math.abs(dy);
-      const dt = Math.max(1, Date.now() - start.at);
-      const vx = (dx / dt) * 1000;
-
-      const horizontalIntent = absX > 72 && absX > absY * 1.45 + 8;
-      const shouldTrigger = absX > 96 || Math.abs(vx) > 880;
-      if (!horizontalIntent || !shouldTrigger) return;
-
-      closeAnyOpen();
-      shiftSelectedDateBySwipe(dx < 0 ? 1 : -1);
-    },
-    [closeAnyOpen, shiftSelectedDateBySwipe],
-  );
-
-  const onListTouchCancel = React.useCallback(() => {
-    listTouchStartRef.current.active = false;
-    listTouchStartRef.current.startedOnRow = false;
-  }, []);
 
   const projectsById = React.useMemo(
     () => new Map(projects.map((p) => [p.id, p] as const)),
@@ -3452,66 +2998,6 @@ function HomeContent() {
     ),
     [styles, theme],
   );
-  const dateListTransitionData = React.useMemo(() => {
-    if (!dateListTransitionState) return null;
-    const fromVisibleTasks = getDisplayedTasksForDateStart(
-      dateListTransitionState.fromDateStart,
-    );
-    const toVisibleTasks = getDisplayedTasksForDateStart(
-      dateListTransitionState.toDateStart,
-    );
-    const fromTodayData: TaskSwipeDraggableListItem[] = fromVisibleTasks
-      .filter(
-        (task) =>
-          deriveHomeDisplaySection(
-            task,
-            dateListTransitionState.fromDateStart,
-          ) === "today",
-      )
-      .sort((a, b) => a.orderRank - b.orderRank)
-      .map((task) => ({
-        kind: "task",
-        key: `task-${task.id}`,
-        taskId: task.id,
-      }));
-    const toTodayData: TaskSwipeDraggableListItem[] = toVisibleTasks
-      .filter(
-        (task) =>
-          deriveHomeDisplaySection(
-            task,
-            dateListTransitionState.toDateStart,
-          ) === "today",
-      )
-      .sort((a, b) => a.orderRank - b.orderRank)
-      .map((task) => ({
-        kind: "task",
-        key: `task-${task.id}`,
-        taskId: task.id,
-      }));
-    return {
-      fromVisibleTasks,
-      toVisibleTasks,
-      fromTodayData,
-      toTodayData,
-    };
-  }, [dateListTransitionState, getDisplayedTasksForDateStart]);
-  const dateListTransitionPageWidth = React.useMemo(
-    () => Math.max(1, dateListHostWidth),
-    [dateListHostWidth],
-  );
-  const upcomingSwipeListData = React.useMemo<
-    TaskSwipeDraggableListItem[]
-  >(() => {
-    if (!hasUpcomingSection) return [];
-    const upcomingTasks = swipeListData.filter(
-      (item) =>
-        item.kind === "task" &&
-        (visibleTaskDisplaySectionById.get(item.taskId) ?? "upcoming") ===
-          "upcoming",
-    );
-    return upcomingTasks;
-  }, [hasUpcomingSection, swipeListData, visibleTaskDisplaySectionById]);
-  const hasUpcomingTasks = tasksBySection.upcoming.length > 0;
   const withoutDateCount = tasksBySection.upcoming.length;
 
   const applyOrderFromListData = React.useCallback(
@@ -3624,14 +3110,11 @@ function HomeContent() {
       };
       dragStartPointRef.current = null;
       dragRailHoverIntentRef.current = { dateStart: null, enteredAt: 0 };
-      cancelDragSurfaceResetFrame();
-      setActiveDragSurface("today");
       clearDateDragHover();
       measureDateRailBounds();
       measureDateRailListBounds();
     },
     [
-      cancelDragSurfaceResetFrame,
       clearDateDragHover,
       measureDateRailBounds,
       measureDateRailListBounds,
@@ -3749,9 +3232,17 @@ function HomeContent() {
     [],
   );
 
+  // Read the latest tasks through a ref so the toggle handler (and every row
+  // it is passed to) stays stable while the task list changes.
+  const latestTasksRef = React.useRef(tasks);
+  React.useLayoutEffect(() => {
+    latestTasksRef.current = tasks;
+  });
   const handleToggleComplete = React.useCallback(
     (taskId: string) => {
-      const currentTask = tasks.find((task) => task.id === taskId);
+      const currentTask = latestTasksRef.current.find(
+        (task) => task.id === taskId,
+      );
       if (!currentTask) return;
 
       const now = Date.now();
@@ -3851,24 +3342,18 @@ function HomeContent() {
       reseedSection,
       setTasks,
       showCompletedTasksEnabled,
-      tasks,
     ],
   );
 
+  const deleteTaskWithUndo = useUndoableTaskDelete();
   const handleDeleteTask = React.useCallback(
     (taskId: string) => {
       if (!reduceMotionEnabled) {
         configureLayoutAnimation(LayoutAnimation.Presets.easeInEaseOut);
       }
-      setTasks((prev) => {
-        const task = prev.find((t) => t.id === taskId);
-        if (!task) return prev;
-        return prev.map((t) =>
-          t.id === taskId ? { ...t, deletedAt: Date.now() } : t,
-        );
-      });
+      deleteTaskWithUndo(taskId);
     },
-    [reduceMotionEnabled, setTasks],
+    [deleteTaskWithUndo, reduceMotionEnabled],
   );
 
   const handleToggleSubtask = React.useCallback(
@@ -4037,6 +3522,39 @@ function HomeContent() {
 
   // The highlighted copy of every rail day is static between day changes;
   // rebuilding it on each selection made dragging across days expensive.
+  const dateRailDayPressRef = React.useRef<(timestamp: number) => void>(
+    () => {},
+  );
+  React.useLayoutEffect(() => {
+    dateRailDayPressRef.current = (timestamp: number) => {
+      dateRailDraggedRef.current = false;
+      closeAnyOpen();
+      scrollDateRailToDateStart(timestamp, !reduceMotionEnabled, true);
+      handleSelectDate(timestamp, "press");
+    };
+  });
+  const handleDateRailDayPress = React.useCallback((timestamp: number) => {
+    dateRailDayPressRef.current(timestamp);
+  }, []);
+  const renderDateRailDay = React.useCallback(
+    ({ item: day }: { item: DateRailDay }) => (
+      <DateRailDayItem
+        day={day}
+        isDragCandidate={
+          dragDetectedDateStart != null &&
+          isSameLocalDay(day.timestamp, dragDetectedDateStart)
+        }
+        isDropHover={
+          dragHoveredDateStart != null &&
+          isSameLocalDay(day.timestamp, dragHoveredDateStart)
+        }
+        styles={styles}
+        onPressDay={handleDateRailDayPress}
+      />
+    ),
+    [dragDetectedDateStart, dragHoveredDateStart, handleDateRailDayPress, styles],
+  );
+
   const dateRailCenterIndicatorDays = React.useMemo(
     () =>
       dateRailDays.map((day) => {
@@ -4092,32 +3610,18 @@ function HomeContent() {
       1 - edgeFade * 0.28,
       1,
     ];
-    const isPreparingTitleTransition =
-      dateRailTitleTransitionState.phase === "preparing";
-    const outgoingTitleOpacity = dateRailTitleMotion.interpolate({
-      inputRange: [0, 0.6, 1],
-      outputRange: [1, 0.12, 0],
-    });
-    const incomingTitleOpacity = dateRailTitleMotion.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0, 1],
-    });
-    const outgoingTitleTranslateX = dateRailTitleMotion.interpolate({
-      inputRange: [0, 1],
-      outputRange: [
-        0,
-        -DATE_RAIL_TITLE_TRANSITION_DISTANCE *
-          dateRailTitleTransitionState.direction,
-      ],
-    });
-    const incomingTitleTranslateX = dateRailTitleMotion.interpolate({
-      inputRange: [0, 1],
-      outputRange: [
-        DATE_RAIL_TITLE_TRANSITION_DISTANCE *
-          dateRailTitleTransitionState.direction,
-        0,
-      ],
-    });
+    // The mask spans the row minus the round buttons (about 88 pt) plus the
+    // fade reaching into the left padding; an estimate is enough here.
+    const titleMaskFade = Math.min(
+      0.2,
+      DATE_RAIL_TITLE_FADE / Math.max(120, dateRailContainerWidth - 76),
+    );
+    const titleMaskLocations = [
+      0,
+      titleMaskFade,
+      1 - titleMaskFade,
+      1,
+    ] as const;
     return (
       <View
         ref={dateRailWrapRef}
@@ -4129,61 +3633,38 @@ function HomeContent() {
             <View style={styles.dateRailHeadlineRow}>
               <View style={styles.dateRailHeadlineTextHost}>
                 <View style={styles.dateRailTitleTextViewport}>
-                  <View style={styles.dateRailTitleTextTransitionHost}>
-                    {dateRailTitleTransitionState.previousText ? (
-                      <Animated.Text
-                        style={[
-                          styles.dateRailTitle,
-                          styles.dateRailTitleTextTransitionText,
-                          isPreparingTitleTransition
-                            ? {
-                                opacity: 1,
-                                transform: [{ translateX: 0 }],
-                              }
-                            : {
-                                opacity: outgoingTitleOpacity,
-                                transform: [
-                                  { translateX: outgoingTitleTranslateX },
-                                ],
-                              },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {dateRailTitleTransitionState.previousText}
-                      </Animated.Text>
-                    ) : null}
-                    <Animated.Text
-                      style={[
-                        styles.dateRailTitle,
-                        styles.dateRailTitleTextTransitionText,
-                        dateRailTitleTransitionState.previousText
-                          ? isPreparingTitleTransition
-                            ? {
-                                opacity: 0,
-                                transform: [
-                                  {
-                                    translateX:
-                                      DATE_RAIL_TITLE_TRANSITION_DISTANCE *
-                                      dateRailTitleTransitionState.direction,
-                                  },
-                                ],
-                              }
-                            : {
-                                opacity: incomingTitleOpacity,
-                                transform: [
-                                  { translateX: incomingTitleTranslateX },
-                                ],
-                              }
-                          : {
-                              opacity: 1,
-                              transform: [{ translateX: 0 }],
-                            },
+                <MaskedView
+                  style={styles.dateRailTitleTextMask}
+                  maskElement={
+                    <LinearGradient
+                      colors={[
+                        "rgba(0,0,0,0)",
+                        "rgba(0,0,0,1)",
+                        "rgba(0,0,0,1)",
+                        "rgba(0,0,0,0)",
                       ]}
-                      numberOfLines={1}
-                    >
-                      {dateRailTitleTransitionState.currentText}
-                    </Animated.Text>
+                      locations={titleMaskLocations}
+                      start={{ x: 0, y: 0.5 }}
+                      end={{ x: 1, y: 0.5 }}
+                      style={StyleSheet.absoluteFill}
+                    />
+                  }
+                >
+                <View style={styles.dateRailTitleTextMaskContent}>
+                  <View style={styles.dateRailTitleTextTransitionHost}>
+                    <DateRailTitleStrip
+                      days={dateRailDays}
+                      scrollX={dateRailScrollX}
+                      snapInterval={dateRailSnapInterval}
+                      selectedIndex={selectedDateRailIndex}
+                      reduceMotion={reduceMotionEnabled}
+                      getTitle={getDynamicHeaderTitle}
+                      textStyle={dateRailTitleTextStyle}
+                      liveIndexRef={dateRailTitleLiveIndexRef}
+                    />
                   </View>
+                </View>
+                </MaskedView>
                 </View>
               </View>
               <View style={styles.calendarButtonRow}>
@@ -4336,60 +3817,7 @@ function HomeContent() {
               ref={dateRailRef}
               data={dateRailDays}
               keyExtractor={(day: DateRailDay) => day.key}
-              renderItem={({ item: day }: { item: DateRailDay }) => {
-                const isToday = day.isToday;
-                const isDragCandidate =
-                  dragDetectedDateStart != null &&
-                  isSameLocalDay(day.timestamp, dragDetectedDateStart);
-                const isDropHover =
-                  dragHoveredDateStart != null &&
-                  isSameLocalDay(day.timestamp, dragHoveredDateStart);
-
-                const dayNumStyle = [
-                  styles.dateRailDayNum,
-                  day.isWeekend ? styles.dateRailDayNumWeekend : null,
-                  isToday ? styles.dateRailDayNumToday : null,
-                  isDragCandidate ? styles.dateRailDayNumDropCandidate : null,
-                  isDropHover ? styles.dateRailDayNumDropReady : null,
-                ];
-
-                const dayDowStyle = [
-                  styles.dateRailDow,
-                  day.isWeekend ? styles.dateRailDowWeekend : null,
-                  isDragCandidate ? styles.dateRailDowDropCandidate : null,
-                  isDropHover ? styles.dateRailDowDropReady : null,
-                ];
-
-                return (
-                  <Pressable
-                    android_ripple={ripple()}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${day.weekday} ${day.dayOfMonth}`}
-                    onPress={() => {
-                      dateRailDraggedRef.current = false;
-                      closeAnyOpen();
-                      scrollDateRailToDateStart(
-                        day.timestamp,
-                        !reduceMotionEnabled,
-                        true,
-                      );
-                      handleSelectDate(day.timestamp, "press");
-                    }}
-                    style={({ pressed }) => [
-                      styles.dateRailDay,
-                      isDragCandidate ? styles.dateRailDayDropCandidate : null,
-                      isDropHover ? styles.dateRailDayDropReady : null,
-                      { opacity: pressed ? 0.8 : 1 },
-                    ]}
-                  >
-                    <Text style={dayDowStyle}>{day.weekday}</Text>
-                    <Text style={dayNumStyle}>{day.dayOfMonth}</Text>
-                    {day.eventCount > 0 && (
-                      <View style={styles.dateRailEventIndicator} />
-                    )}
-                  </Pressable>
-                );
-              }}
+              renderItem={renderDateRailDay}
               horizontal
               style={styles.dateRailList}
               contentContainerStyle={[
@@ -4466,12 +3894,10 @@ function HomeContent() {
     dateRailSidePadding,
     dateRailSnapInterval,
     dateRailScrollX,
-    dateRailTitleMotion,
-    dateRailTitleTransitionState,
-    dragDetectedDateStart,
-    dragHoveredDateStart,
+    dateRailTitleTextStyle,
     firstVisibleSection,
     getDateRailItemLayout,
+    getDynamicHeaderTitle,
     handleDateRailMomentumEnd,
     handleDateRailMomentumBegin,
     handleDateRailScroll,
@@ -4488,7 +3914,9 @@ function HomeContent() {
     measureDateRailBounds,
     measureDateRailListBounds,
     reduceMotionEnabled,
+    renderDateRailDay,
     router,
+    selectedDateRailIndex,
     selectedDateStart,
     scheduleDateRailSyncToSelectedDate,
     styles,

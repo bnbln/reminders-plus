@@ -145,8 +145,8 @@ export default function ProjectEditScreen() {
   const [color, setColor] = React.useState(project?.color ?? DEFAULT_PROJECT_COLOR);
   const [selectedEmoji, setSelectedEmoji] = React.useState(project?.emoji ?? '');
 
-  const titleInputRef = React.useRef<TextInput | null>(null);
-  const descriptionInputRef = React.useRef<TextInput | null>(null);
+  const titleInputRef = React.useRef<React.ComponentRef<typeof TextInput>>(null);
+  const descriptionInputRef = React.useRef<React.ComponentRef<typeof TextInput>>(null);
   const activeInputRef = React.useRef<'title' | 'description'>('title');
 
   const canSubmit = name.trim().length > 0;
