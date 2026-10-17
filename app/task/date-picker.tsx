@@ -7,13 +7,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useSheetHeaderActions } from '@/components/navigation/sheet-header-actions';
 import { withAlpha } from '@/components/ui/glass-surface';
-import { Colors, contrastAlpha, PICKER_SHEET_DARK_ROW, PICKER_SHEET_DARK_ROW_BORDER } from '@/constants/theme';
+import { Colors, contrastAlpha, PICKER_SHEET_DARK_ROW, PICKER_SHEET_DARK_ROW_BORDER, TASK_SHEET_ACCENTS } from '@/constants/theme';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
 import { deriveActiveSectionFromDueAt } from '@/utils/task-dates';
 import { ripple, rippleClip } from "@/components/ui/ripple";
 import { useThemedStyles } from "@/hooks/use-themed-styles";
+
+const ACCENT = TASK_SHEET_ACCENTS.date;
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
@@ -112,7 +114,7 @@ export default function DatePickerScreen() {
         setDueDraft(new Date()); // Reset to Today for UX if they re-enable
     }, []);
 
-    const sheetHeaderActions = useSheetHeaderActions({ onClose: handleCancel, onDone: handleSave });
+    const sheetHeaderActions = useSheetHeaderActions({ onClose: handleCancel, onDone: handleSave, doneTintColor: ACCENT });
 
     // If cleared, user interacts with picker -> uncleared
     const onDateChange = (_: any, date?: Date) => {
@@ -155,7 +157,7 @@ export default function DatePickerScreen() {
                         <View style={styles.optionBody}>
                             <Text style={styles.optionLabel}>{t('datePicker.noDate')}</Text>
                         </View>
-                        {isCleared && <MaterialIcons name="check" size={20} color={Colors[theme].tint} />}
+                        {isCleared && <MaterialIcons name="check" size={20} color={ACCENT} />}
                     </Pressable>
 
                     <View style={styles.divider} />
@@ -169,6 +171,7 @@ export default function DatePickerScreen() {
                             onChange={onDateChange}
                             textColor={Colors[theme].text}
                             themeVariant={theme}
+                            accentColor={ACCENT}
                             style={styles.datePicker}
                         />
                     </View>
@@ -195,6 +198,7 @@ export default function DatePickerScreen() {
                                 onChange={onDateChange}
                                 textColor={Colors[theme].text}
                                 themeVariant={theme}
+                            accentColor={ACCENT}
                             />
                         </View>
                     )}
@@ -238,8 +242,8 @@ const createStyles = (theme: keyof typeof Colors) => {
         },
         optionRowActive: {
             borderWidth: isDark ? 1.5 : StyleSheet.hairlineWidth,
-            borderColor: isDark ? Colors[theme].tint : withAlpha(Colors[theme].tint, 0.45),
-            backgroundColor: withAlpha(Colors[theme].tint, isDark ? 0.18 : 0.12),
+            borderColor: isDark ? ACCENT : withAlpha(ACCENT, 0.45),
+            backgroundColor: withAlpha(ACCENT, isDark ? 0.18 : 0.12),
         },
         optionIcon: {
             width: 36,

@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useSheetHeaderActions } from '@/components/navigation/sheet-header-actions';
 import { withAlpha } from '@/components/ui/glass-surface';
-import { Colors, contrastAlpha, PICKER_SHEET_DARK_ROW, PICKER_SHEET_DARK_ROW_BORDER } from '@/constants/theme';
+import { Colors, contrastAlpha, PICKER_SHEET_DARK_ROW, PICKER_SHEET_DARK_ROW_BORDER, TASK_SHEET_ACCENTS } from '@/constants/theme';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
@@ -17,6 +17,8 @@ import {
     TASK_STYLE_COLOR_SWATCHES,
 } from '@/utils/task-style-emoji';
 import { useThemedStyles } from "@/hooks/use-themed-styles";
+
+const ACCENT = TASK_SHEET_ACCENTS.style;
 
 export default function EmojiPickerScreen() {
     const router = useRouter();
@@ -246,7 +248,7 @@ const createStyles = (theme: keyof typeof Colors) => {
         },
         selectedSwatch: {
             borderWidth: 2,
-            borderColor: Colors[theme].tint,
+            borderColor: ACCENT,
         },
         resetButton: {
             marginTop: 24,
