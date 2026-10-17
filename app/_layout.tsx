@@ -8,7 +8,7 @@ import { StatusBar } from "expo-status-bar";
 import React from "react";
 import { I18nManager, Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import "react-native-reanimated";
+import { ReduceMotion, ReducedMotionConfig } from "react-native-reanimated";
 
 import { VerticalBarSafeAreaProvider, verticalBarScreenLayout } from "@/components/navigation/vertical-bar-safe-area";
 import { StreakAccentBackground } from "@/components/ui/streak-accent-background";
@@ -31,7 +31,7 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const { localeOverride } = useAppSettings();
+  const { localeOverride, reduceMotionEnabled, highContrastEnabled } = useAppSettings();
   const theme = colorScheme ?? "light";
   const router = useRouter();
   const segments = useSegments();
@@ -40,7 +40,8 @@ export default function RootLayout() {
     segments[0] === "settings" || segments[0] === "cloud-sync";
   const themedContentStyle = React.useMemo(
     () => ({ backgroundColor: Colors[theme].background }),
-    [theme],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Colors[theme] switches palette while Increase Contrast is on.
+    [theme, highContrastEnabled],
   );
   const navigationTheme = React.useMemo(() => {
     const baseTheme = theme === "dark" ? DarkTheme : DefaultTheme;
@@ -52,7 +53,8 @@ export default function RootLayout() {
         card: Colors[theme].background,
       },
     };
-  }, [theme]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Colors[theme] switches palette while Increase Contrast is on.
+  }, [theme, highContrastEnabled]);
   const tabLikeHeaderOptions = React.useMemo(
     () => ({
       contentStyle: themedContentStyle,
@@ -88,6 +90,13 @@ export default function RootLayout() {
     <GestureHandlerRootView
       style={{ flex: 1, backgroundColor: Colors[theme].background }}
     >
+      {/* Drives Reanimated's global reduced-motion flag from the combined
+          value (system setting, tracked live, or the in-app switch), so every
+          animation left on the default ReduceMotion.System follows both.
+          Reanimated's own system reading is only taken at startup. */}
+      <ReducedMotionConfig
+        mode={reduceMotionEnabled ? ReduceMotion.Always : ReduceMotion.Never}
+      />
       <PremiumProvider>
         <TasksProvider>
           <WidgetSync />
@@ -97,7 +106,12 @@ export default function RootLayout() {
               <SnackbarProvider>
               <ThemeProvider value={navigationTheme}>
                 <VerticalBarSafeAreaProvider>
+                {/* Remount the screens when "Increase Contrast" flips. Colors
+                    read inline during render (Colors[theme], contrastAlpha,
+                    getAccentColorValue) are memoized by the React Compiler on
+                    `theme` alone and would otherwise keep the old palette. */}
                 <View
+                  key={highContrastEnabled ? "high-contrast" : "default-contrast"}
                   style={{ flex: 1, backgroundColor: Colors[theme].background }}
                 >
                   <StreakAccentBackground

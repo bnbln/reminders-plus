@@ -16,7 +16,7 @@ import {
 
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { SFSymbol } from '@/components/ui/sfsymbol';
-import { Colors } from '@/constants/theme';
+import { Colors, contrastAlpha } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   type StatusChartDataPoint,
@@ -25,6 +25,7 @@ import {
 } from '@/hooks/use-status-stats';
 import { t } from '@/i18n';
 import { useHeaderHeight } from "expo-router/react-navigation";
+import { useThemedStyles } from "@/hooks/use-themed-styles";
 
 type ThemeName = keyof typeof Colors;
 type RangeOption = StatusRangeOption;
@@ -38,7 +39,7 @@ const createStyles = (
   const text = Colors[theme].text;
   const cardBorder = isDark ? 'rgba(255,255,255,0.09)' : 'rgba(17,24,28,0.09)';
   const cardBg = isDark ? '#1C1C1E' : '#F2F2F7';
-  const subtitleColor = withAlpha(text, 0.62);
+  const subtitleColor = withAlpha(text, contrastAlpha(0.62));
 
   return StyleSheet.create({
     container: {
@@ -209,7 +210,7 @@ function ChartBar({
   const heightPercent = max > 0 ? (item.completionRate / max) * 100 : 0;
   const isZero = item.totalCount === 0;
   const barHeight = !isZero ? `${Math.max(8, heightPercent)}%` : '0%';
-  const barColor = item.isToday ? '#22C55E' : withAlpha(textColor, 0.6);
+  const barColor = item.isToday ? '#22C55E' : withAlpha(textColor, contrastAlpha(0.6));
   const styles = createStyles(isDark ? 'dark' : 'light', false, false);
 
   return (
@@ -220,7 +221,7 @@ function ChartBar({
             styles.barFill,
             {
               height: barHeight as any,
-              backgroundColor: isZero ? withAlpha(textColor, 0.08) : barColor,
+              backgroundColor: isZero ? withAlpha(textColor, contrastAlpha(0.08)) : barColor,
             },
             isZero && { height: 4 },
           ]}
@@ -230,7 +231,7 @@ function ChartBar({
         style={[
           styles.barLabel,
           {
-            color: item.isToday ? '#22C55E' : withAlpha(textColor, 0.45),
+            color: item.isToday ? '#22C55E' : withAlpha(textColor, contrastAlpha(0.45)),
             fontWeight: item.isToday ? '800' : '700',
           },
         ]}
@@ -312,7 +313,7 @@ export default function StatusScreen() {
   const isDark = theme === 'dark';
   const compact = width < 390;
   const regular = useIsRegularWidth();
-  const styles = useMemo(
+  const styles = useThemedStyles(
     () => createStyles(theme, compact, regular),
     [compact, regular, theme],
   );
@@ -540,7 +541,7 @@ export default function StatusScreen() {
             <View style={styles.emptyChart}>
               <Text
                 style={{
-                  color: withAlpha(textColor, 0.5),
+                  color: withAlpha(textColor, contrastAlpha(0.5)),
                   fontSize: 12,
                   fontWeight: '700',
                 }}

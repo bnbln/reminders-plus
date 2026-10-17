@@ -7,7 +7,9 @@ import {
   Colors,
   LIGHT_ACCENT_SCREEN_BACKGROUND,
 } from "@/constants/theme";
+import { useHighContrast } from "@/context/high-contrast-store";
 import { getAccentColorValue, useAppSettings } from "@/context/settings-store";
+import { motionSpring, motionTiming } from "@/utils/motion";
 
 type StreakAccentBackgroundProps = {
   isDark: boolean;
@@ -66,10 +68,11 @@ function StreakAccentBackgroundComponent({
   // the *currently active* Appearance scheme, so it needs to be re-evaluated
   // whenever the caller's resolved theme (`isDark`) flips, not just when the
   // user picks a different accent swatch.
+  const highContrast = useHighContrast();
   const accentHex = React.useMemo(
     () => getAccentColorValue(accentColor),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- isDark isn't read directly, but forces a recompute when the Material You branch's Appearance-derived scheme flips.
-    [accentColor, isDark],
+    [accentColor, isDark, highContrast],
   );
   const [displayColor, setDisplayColor] = React.useState(accentHex);
   const [previousColor, setPreviousColor] = React.useState<string | null>(
@@ -103,7 +106,7 @@ function StreakAccentBackgroundComponent({
     setDisplayColor(accentHex);
     colorFade.setValue(0);
 
-    Animated.timing(colorFade, {
+    motionTiming(colorFade, {
       toValue: 1,
       duration: COLOR_TRANSITION_DURATION_MS,
       easing: Easing.out(Easing.cubic),
@@ -129,7 +132,7 @@ function StreakAccentBackgroundComponent({
     }
 
     Animated.parallel([
-      Animated.spring(translateY, {
+      motionSpring(translateY, {
         toValue: targetTranslateY,
         stiffness: isVisible ? 72 : 90,
         damping: isVisible ? 21 : 28,
@@ -137,7 +140,7 @@ function StreakAccentBackgroundComponent({
         overshootClamping: true,
         useNativeDriver: true,
       }),
-      Animated.timing(opacity, {
+      motionTiming(opacity, {
         toValue: targetOpacity,
         duration: isVisible ? 680 : 260,
         easing: isVisible

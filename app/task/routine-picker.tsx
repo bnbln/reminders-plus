@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useSheetHeaderActions } from "@/components/navigation/sheet-header-actions";
 import { withAlpha } from "@/components/ui/glass-surface";
-import { Colors } from "@/constants/theme";
+import { Colors, contrastAlpha } from "@/constants/theme";
 import {
   type RoutineInterval,
   RoutineType,
@@ -15,6 +15,7 @@ import {
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
 import { ripple } from '@/components/ui/ripple';
+import { useThemedStyles } from "@/hooks/use-themed-styles";
 
 type ThemeName = keyof typeof Colors;
 
@@ -59,7 +60,7 @@ export default function RoutinePickerScreen() {
   }>();
   const theme = useColorScheme() ?? "light";
   const isDark = theme === "dark";
-  const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const styles = useThemedStyles(() => createStyles(theme), [theme]);
 
   const insets = useSafeAreaInsets();
 
@@ -165,7 +166,7 @@ export default function RoutinePickerScreen() {
   if (!task && canRecoverDraft) {
     return (
       <View style={[styles.container, styles.centeredState]}>
-        <ActivityIndicator size="small" color={withAlpha(Colors[theme].text, 0.6)} />
+        <ActivityIndicator size="small" color={withAlpha(Colors[theme].text, contrastAlpha(0.6))} />
       </View>
     );
   }
@@ -237,7 +238,7 @@ export default function RoutinePickerScreen() {
                     name={option.icon}
                     size={20}
                     color={
-                      isNone ? withAlpha(Colors[theme].text, 0.6) : "#0A84FF"
+                      isNone ? withAlpha(Colors[theme].text, contrastAlpha(0.6)) : "#0A84FF"
                     }
                   />
                 </View>
@@ -310,7 +311,7 @@ const createStyles = (theme: ThemeName) => {
       marginBottom: 8,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: hairline,
-      backgroundColor: withAlpha(text, isDark ? 0.04 : 0.03),
+      backgroundColor: withAlpha(text, contrastAlpha(isDark ? 0.04 : 0.03)),
     },
     optionRowActive: {
       borderWidth: StyleSheet.hairlineWidth,

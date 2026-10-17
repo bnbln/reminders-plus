@@ -8,12 +8,13 @@ import { useSheetHeaderActions } from '@/components/navigation/sheet-header-acti
 import { withAlpha } from '@/components/ui/glass-surface';
 import { SFSymbol } from '@/components/ui/sfsymbol';
 import { usePremium } from '@/context/premium-store';
-import { Colors } from '@/constants/theme';
+import { Colors, contrastAlpha } from '@/constants/theme';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
 import { shouldRouteToProjectLimitGate } from '@/utils/project-creation-gate';
 import { ripple, rippleClip } from "@/components/ui/ripple";
+import { useThemedStyles } from "@/hooks/use-themed-styles";
 
 export default function ProjectPickerScreen() {
     const router = useRouter();
@@ -25,7 +26,7 @@ export default function ProjectPickerScreen() {
     }, [taskIdParam]);
     const theme = useColorScheme() ?? 'light';
     const isDark = theme === 'dark';
-    const styles = React.useMemo(() => createStyles(theme), [theme]);
+    const styles = useThemedStyles(() => createStyles(theme), [theme]);
     const insets = useSafeAreaInsets();
 
     const { tasks, setTasks, projects } = useTasksStore();
@@ -107,8 +108,8 @@ export default function ProjectPickerScreen() {
                         onPress={() => applyProjectSelectionAndClose(null)}
                         style={[styles.optionRow, rippleClip(14), (selectedProjectId ?? null) === null && styles.optionRowActive]}
                     >
-                        <View style={[styles.optionIcon, { backgroundColor: withAlpha(Colors[theme].text, isDark ? 0.15 : 0.1) }]}>
-                            <MaterialIcons name="folder-off" size={20} color={withAlpha(Colors[theme].text, 0.6)} />
+                        <View style={[styles.optionIcon, { backgroundColor: withAlpha(Colors[theme].text, contrastAlpha(isDark ? 0.15 : 0.1)) }]}>
+                            <MaterialIcons name="folder-off" size={20} color={withAlpha(Colors[theme].text, contrastAlpha(0.6))} />
                         </View>
                         <View style={styles.optionBody}>
                             <Text style={styles.optionLabel}>{t('projectPicker.noProject')}</Text>
@@ -178,7 +179,7 @@ const createStyles = (theme: keyof typeof Colors) => {
             marginBottom: 8,
             borderWidth: StyleSheet.hairlineWidth,
             borderColor: hairline,
-            backgroundColor: withAlpha(text, isDark ? 0.04 : 0.03),
+            backgroundColor: withAlpha(text, contrastAlpha(isDark ? 0.04 : 0.03)),
         },
         optionRowActive: {
             borderWidth: StyleSheet.hairlineWidth,
@@ -207,7 +208,7 @@ const createStyles = (theme: keyof typeof Colors) => {
         },
         optionSubLabel: {
             fontSize: 12,
-            color: withAlpha(text, 0.5),
+            color: withAlpha(text, contrastAlpha(0.5)),
         },
         iconButton: {
             width: 32,

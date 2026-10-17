@@ -3,6 +3,8 @@ import { getMaterial3Theme, type Material3Theme } from "@pchmn/expo-material3-th
 import React from "react";
 import { AccessibilityInfo, Appearance, Platform, type ColorSchemeName } from "react-native";
 
+import { isHighContrastEnabled, useHighContrast } from "@/context/high-contrast-store";
+
 import { type AppLocale, setLocale } from "@/i18n";
 
 export type AppearanceMode = "adaptive" | "alwaysLight" | "alwaysDark";
@@ -21,6 +23,19 @@ export const ACCENT_COLORS = [
   { id: "pink", value: "#FF2D55", label: "Pink" },
   { id: "indigo", value: "#5856D6", label: "Indigo" },
 ] as const;
+
+// Apple's accessible system color variants, used while "Increase Contrast" is on.
+const HIGH_CONTRAST_ACCENT_VALUES: Record<
+  (typeof ACCENT_COLORS)[number]["id"],
+  { light: string; dark: string }
+> = {
+  blue: { light: "#0040DD", dark: "#409CFF" },
+  red: { light: "#D70015", dark: "#FF6961" },
+  green: { light: "#248A3D", dark: "#30DB5B" },
+  orange: { light: "#C93400", dark: "#FFB340" },
+  pink: { light: "#D30F45", dark: "#FF6482" },
+  indigo: { light: "#3634A3", dark: "#7D7AFF" },
+};
 
 // Android-only: derives the accent (and, via `getMaterial3Scheme`, the rest
 // of the M3 surface palette) from the system's Material You wallpaper theme
@@ -445,10 +460,56 @@ export function getAccentColorValue(accentColorId: AccentColorId): string {
       getMaterialYouScheme(scheme)?.primary ?? MATERIAL_YOU_FALLBACK_SEED
     );
   }
+  if (isHighContrastEnabled()) {
+    const variants =
+      HIGH_CONTRAST_ACCENT_VALUES[
+        accentColorId in HIGH_CONTRAST_ACCENT_VALUES
+          ? (accentColorId as keyof typeof HIGH_CONTRAST_ACCENT_VALUES)
+          : (DEFAULT_SETTINGS.accentColor as keyof typeof HIGH_CONTRAST_ACCENT_VALUES)
+      ];
+    // Same scheme source as the Material You branch above.
+    return Appearance.getColorScheme() === "dark" ? variants.dark : variants.light;
+  }
   return (
     ACCENT_COLOR_VALUE_BY_ID[accentColorId] ??
     (ACCENT_COLOR_VALUE_BY_ID[DEFAULT_SETTINGS.accentColor] as string)
   );
+}
+
+// System Reduce Motion, held once at module level: queried at import time and
+// kept current through the change event, so every hook instance reads the
+// same value and components mounting after startup see it on first render.
+let systemReduceMotion = false;
+const systemReduceMotionListeners = new Set<() => void>();
+
+function setSystemReduceMotion(next: boolean) {
+  if (next === systemReduceMotion) return;
+  systemReduceMotion = next;
+  systemReduceMotionListeners.forEach((listener) => listener());
+}
+
+AccessibilityInfo.isReduceMotionEnabled()
+  .then(setSystemReduceMotion)
+  .catch(() => undefined);
+AccessibilityInfo.addEventListener("reduceMotionChanged", setSystemReduceMotion);
+
+function getSystemReduceMotion() {
+  return systemReduceMotion;
+}
+
+function subscribeSystemReduceMotion(listener: () => void) {
+  systemReduceMotionListeners.add(listener);
+  return () => {
+    systemReduceMotionListeners.delete(listener);
+  };
+}
+
+/**
+ * Combined Reduce Motion value (system setting or in-app switch) for code that
+ * runs outside render, such as animation helpers and event callbacks.
+ */
+export function isReduceMotionActive() {
+  return snapshot.reduceMotionEnabled || systemReduceMotion;
 }
 
 export function getAppSettingsSnapshot() {
@@ -462,23 +523,12 @@ export function useAppSettings() {
     void hydrateSettings();
   }, []);
 
-  const [systemReduceMotion, setSystemReduceMotion] = React.useState(false);
-  React.useEffect(() => {
-    let mounted = true;
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then((enabled) => {
-        if (mounted) setSystemReduceMotion(enabled);
-      })
-      .catch(() => undefined);
-    const subscription = AccessibilityInfo.addEventListener(
-      "reduceMotionChanged",
-      setSystemReduceMotion,
-    );
-    return () => {
-      mounted = false;
-      subscription.remove();
-    };
-  }, []);
+  const highContrastEnabled = useHighContrast();
+  const systemReduceMotion = React.useSyncExternalStore(
+    subscribeSystemReduceMotion,
+    getSystemReduceMotion,
+    getSystemReduceMotion,
+  );
 
   const setAppearanceMode = React.useCallback((appearanceMode: AppearanceMode) => {
     patchSettings({ appearanceMode });
@@ -553,6 +603,10 @@ export function useAppSettings() {
     // in-app value for the settings switch.
     reduceMotionPreference: state.reduceMotionEnabled,
     reduceMotionEnabled: state.reduceMotionEnabled || systemReduceMotion,
+    // OS "Increase Contrast". Subscribing here re-renders every settings
+    // consumer (and `useColorScheme()`) when it changes, so `Colors[theme]`,
+    // `getAccentColorValue` and `contrastAlpha` are read fresh.
+    highContrastEnabled,
     setAppearanceMode,
     setAccentColor,
     setHapticsEnabled,

@@ -19,7 +19,7 @@ import {
 import { useVerticalBarActive } from "@/components/navigation/vertical-bar-safe-area";
 import { ThemedView } from "@/components/themed-view";
 import { withAlpha } from "@/components/ui/glass-surface";
-import { Colors } from "@/constants/theme";
+import { Colors, contrastAlpha } from "@/constants/theme";
 import { usePremium } from "@/context/premium-store";
 import { getAccentColorValue, useAppSettings } from "@/context/settings-store";
 import {
@@ -55,6 +55,7 @@ import {
 } from "@/i18n";
 import { isIOS26OrNewer } from "@/utils/ios-version";
 import { deriveActiveSectionFromDueAt } from "@/utils/task-dates";
+import { useHighContrast } from "@/context/high-contrast-store";
 
 type Message = {
   id: string;
@@ -2115,9 +2116,11 @@ function AssistUnlockedScreen() {
   const colors = Colors[resolvedColorScheme];
   const hasVerticalBar = useVerticalBarActive();
   const { accentColor } = useAppSettings();
+  const highContrast = useHighContrast();
   const accentColorValue = React.useMemo(
     () => getAccentColorValue(accentColor),
-    [accentColor],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- highContrast isn't read directly; getAccentColorValue returns the accessible variant while it is on.
+    [accentColor, highContrast],
   );
 
   const { tasks, projects, setTasks, setProjects } = useTasksStore();
@@ -3087,7 +3090,7 @@ function AssistScreenContent() {
             fontSize: 15,
             lineHeight: 21,
             textAlign: "center",
-            color: withAlpha(colors.text, 0.72),
+            color: withAlpha(colors.text, contrastAlpha(0.72)),
           }}
         >
           {t("projectLimit.loading")}
@@ -3134,7 +3137,7 @@ function AssistScreenContent() {
             style={{
               fontSize: 15,
               lineHeight: 22,
-              color: withAlpha(colors.text, 0.74),
+              color: withAlpha(colors.text, contrastAlpha(0.74)),
             }}
           >
             {t("projectLimit.body", { count: 4 })}

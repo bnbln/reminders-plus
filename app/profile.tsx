@@ -9,6 +9,7 @@ import { usePremium } from "@/context/premium-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
 import { ripple } from '@/components/ui/ripple';
+import { useThemedStyles } from "@/hooks/use-themed-styles";
 
 type ThemeName = keyof typeof Colors;
 
@@ -83,7 +84,7 @@ export default function ProfileScreen() {
   const headerHeight = useHeaderHeight();
   const router = useRouter();
   const theme = (useColorScheme() ?? "light") as ThemeName;
-  const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const styles = useThemedStyles(() => createStyles(theme), [theme]);
   const { hasPremiumAccess, isReady, plan } = usePremium();
 
   return (

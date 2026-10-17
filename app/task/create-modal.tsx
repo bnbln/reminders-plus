@@ -52,6 +52,8 @@ import {
   stripTaskSuggestionText,
   type DetectedTaskTextSuggestion,
 } from "@/utils/task-text-suggestions";
+import { motionSpring } from "@/utils/motion";
+import { useThemedStyles } from "@/hooks/use-themed-styles";
 
 const createTaskId = () =>
   `t-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -196,7 +198,7 @@ export default function CreateTaskModal() {
     dateStart?: string | string[];
   }>();
   const theme = useColorScheme() ?? "light";
-  const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const styles = useThemedStyles(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   const pageInsets = usePageInsets();
   const isFocused = useIsFocused();
@@ -505,7 +507,7 @@ export default function CreateTaskModal() {
   }, [title, setTasks]);
 
   React.useEffect(() => {
-    Animated.spring(menuProgress, {
+    motionSpring(menuProgress, {
       toValue: isMenuExpanded ? 1 : 0,
       tension: 220,
       friction: 26,

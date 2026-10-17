@@ -21,7 +21,7 @@ import Animated, {
 
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { SFSymbol } from '@/components/ui/sfsymbol';
-import { Colors } from '@/constants/theme';
+import { Colors, contrastAlpha } from '@/constants/theme';
 import {
   createRoutineCompletionTransition,
   getDueAtForSection,
@@ -36,6 +36,7 @@ import { getIntlLocale, t } from '@/i18n';
 import { deriveActiveSectionFromDueAt, hasValidDueAt } from '@/utils/task-dates';
 import { ripple } from "@/components/ui/ripple";
 import { m3InputProps } from '@/components/ui/m3-input';
+import { useThemedStyles } from "@/hooks/use-themed-styles";
 
 
 
@@ -122,7 +123,7 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
   const theme = useColorScheme() ?? 'light';
   const isDark = theme === 'dark';
 
-  const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const styles = useThemedStyles(() => createStyles(theme), [theme]);
 
   const task = React.useMemo(() => tasks.find((t) => t.id === id), [id, tasks]);
 
@@ -139,7 +140,7 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
   const glassTint = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.12 : 0.2), [isDark, theme]);
   const glassFallback = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.62 : 0.78), [isDark, theme]);
   const hairline = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)';
-  const placeholder = withAlpha(Colors[theme].text, 0.35);
+  const placeholder = withAlpha(Colors[theme].text, contrastAlpha(0.35));
 
   const completeBg = isDark ? '#30D158' : '#34C759';
   const deleteBg = isDark ? '#FF453A' : '#FF3B30';
@@ -480,7 +481,7 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
           onContentSizeChange={(e) => setSubtitleHeight(e.nativeEvent.contentSize.height)}
           style={[
             styles.heroSubtitle,
-            { color: withAlpha(Colors[theme].text, 0.7) },
+            { color: withAlpha(Colors[theme].text, contrastAlpha(0.7)) },
             subtitleHeight > 0 ? { height: Math.max(20, Math.ceil(subtitleHeight)) } : null,
           ]}
         />
@@ -501,17 +502,17 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
             <View style={styles.propertyTileInner}>
               <View style={styles.propertyTileIconRow}>
                 <View style={[styles.propertyTileIconBadge, { backgroundColor: withAlpha(hasDueDate ? '#0A84FF' : Colors[theme].text, isDark ? 0.15 : 0.1) }]}>
-                  <MaterialIcons name="event" size={16} color={hasDueDate ? '#0A84FF' : withAlpha(Colors[theme].text, 0.6)} />
+                  <MaterialIcons name="event" size={16} color={hasDueDate ? '#0A84FF' : withAlpha(Colors[theme].text, contrastAlpha(0.6))} />
                 </View>
                 {hasDueDate && (
                   <Pressable
                     android_ripple={ripple()} onPress={clearDue} hitSlop={8}>
-                    <MaterialIcons name="close" size={16} color={withAlpha(Colors[theme].text, 0.5)} />
+                    <MaterialIcons name="close" size={16} color={withAlpha(Colors[theme].text, contrastAlpha(0.5))} />
                   </Pressable>
                 )}
               </View>
               <Text style={styles.propertyTileLabel}>{t('taskDetail.property.date')}</Text>
-              <Text style={[styles.propertyTileValue, { color: hasDueDate ? Colors[theme].text : withAlpha(Colors[theme].text, 0.5) }]} numberOfLines={1}>
+              <Text style={[styles.propertyTileValue, { color: hasDueDate ? Colors[theme].text : withAlpha(Colors[theme].text, contrastAlpha(0.5)) }]} numberOfLines={1}>
                 {formatDueLabel(task.dueAt, dueHasTime)}
               </Text>
             </View>
@@ -531,17 +532,17 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
             <View style={styles.propertyTileInner}>
               <View style={styles.propertyTileIconRow}>
                 <View style={[styles.propertyTileIconBadge, { backgroundColor: withAlpha(task.isRoutine ? '#8B5CF6' : Colors[theme].text, isDark ? 0.15 : 0.1) }]}>
-                  <MaterialIcons name="loop" size={16} color={task.isRoutine ? '#8B5CF6' : withAlpha(Colors[theme].text, 0.6)} />
+                  <MaterialIcons name="loop" size={16} color={task.isRoutine ? '#8B5CF6' : withAlpha(Colors[theme].text, contrastAlpha(0.6))} />
                 </View>
                 {task.isRoutine && (
                   <Pressable
                     android_ripple={ripple()} onPress={clearRoutine} hitSlop={8}>
-                    <MaterialIcons name="close" size={16} color={withAlpha(Colors[theme].text, 0.5)} />
+                    <MaterialIcons name="close" size={16} color={withAlpha(Colors[theme].text, contrastAlpha(0.5))} />
                   </Pressable>
                 )}
               </View>
               <Text style={styles.propertyTileLabel}>{t('taskDetail.property.routine')}</Text>
-              <Text style={[styles.propertyTileValue, { color: task.isRoutine ? Colors[theme].text : withAlpha(Colors[theme].text, 0.5) }]} numberOfLines={1}>
+              <Text style={[styles.propertyTileValue, { color: task.isRoutine ? Colors[theme].text : withAlpha(Colors[theme].text, contrastAlpha(0.5)) }]} numberOfLines={1}>
                 {task.isRoutine ? getRoutineLabel(task) : t('taskDetail.property.none')}
               </Text>
             </View>
@@ -561,17 +562,17 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
             <View style={styles.propertyTileInner}>
               <View style={styles.propertyTileIconRow}>
                 <View style={[styles.propertyTileIconBadge, { backgroundColor: withAlpha(task.location ? '#10B981' : Colors[theme].text, isDark ? 0.15 : 0.1) }]}>
-                  <MaterialIcons name="place" size={16} color={task.location ? '#10B981' : withAlpha(Colors[theme].text, 0.6)} />
+                  <MaterialIcons name="place" size={16} color={task.location ? '#10B981' : withAlpha(Colors[theme].text, contrastAlpha(0.6))} />
                 </View>
                 {task.location ? (
                   <Pressable
                     android_ripple={ripple()} onPress={() => updateTask({ location: undefined })} hitSlop={8}>
-                    <MaterialIcons name="close" size={16} color={withAlpha(Colors[theme].text, 0.5)} />
+                    <MaterialIcons name="close" size={16} color={withAlpha(Colors[theme].text, contrastAlpha(0.5))} />
                   </Pressable>
                 ) : (
                   <Pressable
                     android_ripple={ripple()} onPress={onUseCurrentLocation} hitSlop={8}>
-                    {isLocating ? <ActivityIndicator size="small" /> : <MaterialIcons name="my-location" size={14} color={withAlpha(Colors[theme].text, 0.5)} />}
+                    {isLocating ? <ActivityIndicator size="small" /> : <MaterialIcons name="my-location" size={14} color={withAlpha(Colors[theme].text, contrastAlpha(0.5))} />}
                   </Pressable>
                 )}
               </View>
@@ -581,8 +582,8 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
                 value={task.location ?? ''}
                 onChangeText={(v) => updateTask({ location: v.trim().length ? v : undefined })}
                 placeholder={t('taskDetail.placeholder.location')}
-                placeholderTextColor={withAlpha(Colors[theme].text, 0.4)}
-                style={[styles.propertyTileInput, { color: task.location ? Colors[theme].text : withAlpha(Colors[theme].text, 0.5) }]}
+                placeholderTextColor={withAlpha(Colors[theme].text, contrastAlpha(0.4))}
+                style={[styles.propertyTileInput, { color: task.location ? Colors[theme].text : withAlpha(Colors[theme].text, contrastAlpha(0.5)) }]}
                 numberOfLines={1}
               />
             </View>
@@ -610,18 +611,18 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
                       <SFSymbol name={project.icon} size={14} color={project.color} />
                     )
                   ) : (
-                    <MaterialIcons name="folder" size={16} color={withAlpha(Colors[theme].text, 0.6)} />
+                    <MaterialIcons name="folder" size={16} color={withAlpha(Colors[theme].text, contrastAlpha(0.6))} />
                   )}
                 </View>
                 {project && (
                   <Pressable
                     android_ripple={ripple()} onPress={clearProject} hitSlop={8}>
-                    <MaterialIcons name="close" size={16} color={withAlpha(Colors[theme].text, 0.5)} />
+                    <MaterialIcons name="close" size={16} color={withAlpha(Colors[theme].text, contrastAlpha(0.5))} />
                   </Pressable>
                 )}
               </View>
               <Text style={styles.propertyTileLabel}>{t('taskDetail.property.project')}</Text>
-              <Text style={[styles.propertyTileValue, { color: project ? Colors[theme].text : withAlpha(Colors[theme].text, 0.5) }]} numberOfLines={1}>
+              <Text style={[styles.propertyTileValue, { color: project ? Colors[theme].text : withAlpha(Colors[theme].text, contrastAlpha(0.5)) }]} numberOfLines={1}>
                 {project?.name ?? t('taskDetail.property.noneProject')}
               </Text>
             </View>
@@ -639,7 +640,7 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
             <View style={styles.subtaskRow}>
               <Pressable
                 android_ripple={ripple()} onPress={() => toggleSubtask(s.id)} hitSlop={10} style={styles.subtaskCheck}>
-                <MaterialIcons name={s.done ? 'check-box' : 'check-box-outline-blank'} size={22} color={withAlpha(Colors[theme].text, s.done ? 0.9 : 0.55)} />
+                <MaterialIcons name={s.done ? 'check-box' : 'check-box-outline-blank'} size={22} color={withAlpha(Colors[theme].text, contrastAlpha(s.done ? 0.9 : 0.55))} />
               </Pressable>
               <TextInput
                 {...m3InputProps()}
@@ -652,14 +653,14 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
                 style={[
                   styles.subtaskInput,
                   {
-                    color: withAlpha(Colors[theme].text, s.done ? 0.55 : 0.9),
+                    color: withAlpha(Colors[theme].text, contrastAlpha(s.done ? 0.55 : 0.9)),
                     textDecorationLine: s.done ? 'line-through' : 'none',
                   },
                 ]}
               />
               <Pressable
                 android_ripple={ripple()} onPress={() => deleteSubtask(s.id)} hitSlop={10} style={styles.subtaskDelete}>
-                <MaterialIcons name="close" size={18} color={withAlpha(Colors[theme].text, 0.5)} />
+                <MaterialIcons name="close" size={18} color={withAlpha(Colors[theme].text, contrastAlpha(0.5))} />
               </Pressable>
             </View>
           </View>
@@ -679,7 +680,7 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
           />
           <Pressable
             android_ripple={ripple()} onPress={addSubtask} hitSlop={10} style={styles.addBtn}>
-            <MaterialIcons name="add" size={20} color={withAlpha(Colors[theme].text, 0.85)} />
+            <MaterialIcons name="add" size={20} color={withAlpha(Colors[theme].text, contrastAlpha(0.85))} />
           </Pressable>
         </View>
       </GlassSurface>
@@ -707,7 +708,7 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
             tintColor={withAlpha(deleteBg, isDark ? 0.55 : 0.45)}
             fallbackBackgroundColor={withAlpha(deleteBg, isDark ? 0.6 : 0.5)}
           >
-            <MaterialIcons name="delete" size={24} color={withAlpha(Colors[theme].text, 0.95)} />
+            <MaterialIcons name="delete" size={24} color={withAlpha(Colors[theme].text, contrastAlpha(0.95))} />
           </GlassSurface>
         </Pressable>
 
@@ -722,8 +723,8 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
                 tintColor={withAlpha(completeBg, isDark ? 0.55 : 0.45)}
                 fallbackBackgroundColor={withAlpha(completeBg, isDark ? 0.6 : 0.5)}
               >
-                <MaterialIcons name="check" size={18} color={withAlpha(Colors[theme].text, 0.95)} />
-                <Text style={[styles.primaryActionText, { color: withAlpha(Colors[theme].text, 0.95) }]}>
+                <MaterialIcons name="check" size={18} color={withAlpha(Colors[theme].text, contrastAlpha(0.95))} />
+                <Text style={[styles.primaryActionText, { color: withAlpha(Colors[theme].text, contrastAlpha(0.95)) }]}>
                   {t('taskDetail.action.complete')}
                 </Text>
               </GlassSurface>
@@ -737,8 +738,8 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
                 tintColor={withAlpha(repeatBg, isDark ? 0.45 : 0.35)}
                 fallbackBackgroundColor={withAlpha(repeatBg, isDark ? 0.5 : 0.4)}
               >
-                <MaterialIcons name="undo" size={18} color={withAlpha(Colors[theme].text, 0.95)} />
-                <Text style={[styles.primaryActionText, { color: withAlpha(Colors[theme].text, 0.95) }]}>
+                <MaterialIcons name="undo" size={18} color={withAlpha(Colors[theme].text, contrastAlpha(0.95))} />
+                <Text style={[styles.primaryActionText, { color: withAlpha(Colors[theme].text, contrastAlpha(0.95)) }]}>
                   {t('taskDetail.action.repeat')}
                 </Text>
               </GlassSurface>
@@ -782,7 +783,7 @@ function FormField({
         <MaterialIcons name={icon} size={18} color={withAlpha(accent, 0.95)} />
       </View>
       <View style={stylesField.body}>
-        <Text style={[stylesField.label, { color: withAlpha(text, 0.62) }]}>{label}</Text>
+        <Text style={[stylesField.label, { color: withAlpha(text, contrastAlpha(0.62)) }]}>{label}</Text>
         <View style={stylesField.control}>{children}</View>
       </View>
     </View>
@@ -929,7 +930,7 @@ const createStyles = (theme: keyof typeof Colors) => {
     propertyTileLabel: {
       fontSize: 11,
       fontWeight: '700',
-      color: withAlpha(text, 0.55),
+      color: withAlpha(text, contrastAlpha(0.55)),
       textTransform: 'uppercase',
       letterSpacing: 0.5,
     },
@@ -1026,7 +1027,7 @@ const createStyles = (theme: keyof typeof Colors) => {
       fontWeight: '800',
       letterSpacing: 0.8,
       textTransform: 'uppercase',
-      color: withAlpha(text, 0.6),
+      color: withAlpha(text, contrastAlpha(0.6)),
       marginBottom: 8,
     },
 
