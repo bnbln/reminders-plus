@@ -20,8 +20,10 @@ import {
   type NativeSyntheticEvent,
   Platform,
   Pressable,
+  type StyleProp,
   StyleSheet,
   Text,
+  type TextStyle,
   View,
 } from "react-native";
 
@@ -117,13 +119,18 @@ const HERO_HEADER_OVERLAP = 268;
 const TASK_ROW_HORIZONTAL_PADDING = 12;
 const CONTENT_STACK_GAP = 10;
 const DATE_TRANSITION_DURATION = 250;
-const DATE_RAIL_TITLE_TRANSITION_DURATION = 300;
-const DATE_RAIL_TITLE_SCRUB_DURATION = 260;
-// Titles slide sideways with the swipe and fade while they move, so they
-// soften out before they reach the clipped edge.
-const DATE_RAIL_TITLE_TRANSITION_DISTANCE = 32;
+// Day titles are tied to the rail's scroll offset: while the rail moves one
+// day, the outgoing title slides this far with it and fades, and the
+// incoming one slides in from the other side. Dragging scrubs the titles
+// directly, so they follow the finger instead of playing a timed animation.
+const DATE_RAIL_TITLE_TRANSITION_DISTANCE = 56;
+// Titles kept mounted around the day under the rail's centre. The strip
+// re-centres from JS, which can trail a fast fling by several days, so it
+// keeps many more titles ahead in the scroll direction than behind.
+const DATE_RAIL_TITLE_WINDOW_BEHIND = 3;
+const DATE_RAIL_TITLE_WINDOW_AHEAD = 14;
 // Width of the alpha fade on each side of the day title.
-const DATE_RAIL_TITLE_FADE = 12;
+const DATE_RAIL_TITLE_FADE = 32;
 // Back to today grows in from a slightly smaller size with a well-damped
 // spring (barely any overshoot) and scales out quickly. Off with Reduce Motion.
 const BACK_TO_TODAY_ENTERING = () => {
@@ -338,13 +345,6 @@ type DateListTransitionState = {
   fromDateStart: number;
   toDateStart: number;
   direction: 1 | -1;
-};
-type DateRailTitleTransitionState = {
-  currentText: string;
-  previousText: string | null;
-  direction: 1 | -1;
-  animationToken: number;
-  phase: "idle" | "preparing" | "animating";
 };
 type DateSelectionSource =
   | "press"
@@ -1228,6 +1228,141 @@ const createStyles = (
   });
 };
 
+type DateRailTitleStripProps = {
+  days: DateRailDay[];
+  scrollX: Animated.Value;
+  snapInterval: number;
+  selectedIndex: number;
+  reduceMotion: boolean;
+  getTitle: (dateStart: number) => string;
+  textStyle: StyleProp<TextStyle>;
+  // Filled by the strip; the rail's scroll listener calls it with the day
+  // under the centre on every scroll event.
+  liveIndexRef: React.MutableRefObject<((index: number) => void) | null>;
+};
+
+type DateRailTitleNode = {
+  key: string;
+  text: string;
+  opacity: Animated.AnimatedInterpolation<number>;
+  translateX: Animated.AnimatedInterpolation<number>;
+};
+
+// The day titles above the rail, each tied to the rail's native scroll
+// offset. Its own component so following the scroll only re-renders this
+// strip, not the whole home screen, which keeps it close behind fast flings.
+const DateRailTitleStrip = React.memo(function DateRailTitleStrip({
+  days,
+  scrollX,
+  snapInterval,
+  selectedIndex,
+  reduceMotion,
+  getTitle,
+  textStyle,
+  liveIndexRef,
+}: DateRailTitleStripProps) {
+  const [range, setRange] = React.useState(() => ({
+    center: selectedIndex,
+    direction: 1 as 1 | -1,
+  }));
+  const centerRef = React.useRef(selectedIndex);
+  const recenter = React.useCallback((index: number) => {
+    const previous = centerRef.current;
+    if (index === previous) return;
+    centerRef.current = index;
+    setRange({ center: index, direction: index > previous ? 1 : -1 });
+  }, []);
+  React.useEffect(() => {
+    liveIndexRef.current = recenter;
+    return () => {
+      if (liveIndexRef.current === recenter) liveIndexRef.current = null;
+    };
+  }, [liveIndexRef, recenter]);
+  // Selections that don't scroll the rail (or before the first scroll event)
+  // still move the strip.
+  React.useEffect(() => {
+    recenter(selectedIndex);
+  }, [recenter, selectedIndex]);
+
+  // Interpolations are cached per day so moving the window only creates
+  // nodes for the days that newly come into it.
+  const nodeCache = React.useMemo(
+    () => new Map<number, DateRailTitleNode>(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [days, scrollX, snapInterval, reduceMotion, getTitle],
+  );
+  const getNode = (index: number): DateRailTitleNode => {
+    const cached = nodeCache.get(index);
+    if (cached) return cached;
+    const day = days[index];
+    const offset = index * snapInterval;
+    const step = snapInterval;
+    const distance = reduceMotion ? 0 : DATE_RAIL_TITLE_TRANSITION_DISTANCE;
+    const node: DateRailTitleNode = {
+      key: day.key,
+      text: getTitle(day.timestamp),
+      // Fully visible only when its day sits in the centre; gone by 70 %
+      // of the way to a neighbour, so two titles never fight for long.
+      opacity: scrollX.interpolate({
+        inputRange: [
+          offset - step,
+          offset - step * 0.7,
+          offset - step * 0.35,
+          offset,
+          offset + step * 0.35,
+          offset + step * 0.7,
+          offset + step,
+        ],
+        outputRange: [0, 0, 0.4, 1, 0.4, 0, 0],
+        extrapolate: "clamp",
+      }),
+      // Moves with the rail: dragging to later days pushes the title left.
+      translateX: scrollX.interpolate({
+        inputRange: [offset - step, offset, offset + step],
+        outputRange: [distance, 0, -distance],
+        extrapolate: "clamp",
+      }),
+    };
+    nodeCache.set(index, node);
+    return node;
+  };
+
+  const first = Math.max(
+    0,
+    range.center -
+      (range.direction > 0
+        ? DATE_RAIL_TITLE_WINDOW_BEHIND
+        : DATE_RAIL_TITLE_WINDOW_AHEAD),
+  );
+  const last = Math.min(
+    days.length - 1,
+    range.center +
+      (range.direction > 0
+        ? DATE_RAIL_TITLE_WINDOW_AHEAD
+        : DATE_RAIL_TITLE_WINDOW_BEHIND),
+  );
+  const items: React.ReactNode[] = [];
+  for (let index = first; index <= last; index += 1) {
+    const node = getNode(index);
+    const isSelected = index === selectedIndex;
+    items.push(
+      <Animated.Text
+        key={node.key}
+        style={[
+          textStyle,
+          { opacity: node.opacity, transform: [{ translateX: node.translateX }] },
+        ]}
+        numberOfLines={1}
+        accessibilityElementsHidden={!isSelected}
+        importantForAccessibility={isSelected ? "auto" : "no-hide-descendants"}
+      >
+        {node.text}
+      </Animated.Text>,
+    );
+  }
+  return <>{items}</>;
+});
+
 type DateRailDayItemProps = {
   day: DateRailDay;
   isDragCandidate: boolean;
@@ -1417,8 +1552,6 @@ function HomeContent() {
   const [selectedDateStart, setSelectedDateStart] = React.useState(() =>
     getStartOfToday(),
   );
-  const [displayedDateTitleDateStart, setDisplayedDateTitleDateStart] =
-    React.useState(() => getStartOfToday());
   const setTodayAccessoryContext = React.useCallback(
     (dateStart: number) => {
       if (Platform.OS !== "ios" || !isIOS26OrNewer()) return;
@@ -1477,7 +1610,6 @@ function HomeContent() {
   ).current;
   const homeTaskListRevealProgress = React.useRef(new Animated.Value(1)).current;
   const dateListTransitionHeight = React.useRef(new Animated.Value(0)).current;
-  const dateRailTitleMotion = React.useRef(new Animated.Value(1)).current;
   const [dateListTransitionState, setDateListTransitionState] =
     React.useState<DateListTransitionState | null>(null);
   const [dateListHostWidth, setDateListHostWidth] =
@@ -1504,14 +1636,7 @@ function HomeContent() {
     typeof setTimeout
   > | null>(null);
   const dateListTransitionSettleRafRef = React.useRef<number | null>(null);
-  const dateRailTitlePendingDurationRef = React.useRef<number | null>(null);
-  const dateRailTitleDeferredRequestRef = React.useRef<{
-    dateStart: number;
-    title: string;
-  } | null>(null);
   const dateRailMomentumActiveRef = React.useRef(false);
-  const dateRailTitleAnimationRef =
-    React.useRef<Animated.CompositeAnimation | null>(null);
   const dateListTransitionProgressAnimationRef =
     React.useRef<Animated.CompositeAnimation | null>(null);
   const homeTaskListRevealAnimationRef =
@@ -1519,15 +1644,6 @@ function HomeContent() {
   const listTransitionRunningRef = React.useRef(false);
   const [homeTaskListRevealPhase, setHomeTaskListRevealPhase] =
     React.useState<"enter" | "exit">("enter");
-  const lastAnimatedTitleDateRef = React.useRef(displayedDateTitleDateStart);
-  const dateRailTitleTransitionStateRef =
-    React.useRef<DateRailTitleTransitionState>({
-      currentText: t("common.today"),
-      previousText: null,
-      direction: 1,
-      animationToken: 0,
-      phase: "idle",
-    });
   const queuedDateStartRef = React.useRef<number | null>(null);
   const listDateStartRef = React.useRef(listDateStart);
   const selectedDateStartRef = React.useRef(selectedDateStart);
@@ -1807,43 +1923,6 @@ function HomeContent() {
     },
     [currentWeekStart, dateTitleFormatter, todayStart, weekdayTitleFormatter],
   );
-  const [dateRailTitleTransitionState, setDateRailTitleTransitionState] =
-    React.useState<DateRailTitleTransitionState>(() => ({
-      currentText: getDynamicHeaderTitle(displayedDateTitleDateStart),
-      previousText: null,
-      direction: 1,
-      animationToken: 0,
-      phase: "idle",
-    }));
-  const updateDateRailTitleTransitionState = React.useCallback(
-    (
-      updater:
-        | DateRailTitleTransitionState
-        | ((
-            current: DateRailTitleTransitionState,
-          ) => DateRailTitleTransitionState),
-    ) => {
-      setDateRailTitleTransitionState((current) => {
-        const next =
-          typeof updater === "function"
-            ? (
-                updater as (
-                  current: DateRailTitleTransitionState,
-                ) => DateRailTitleTransitionState
-              )(current)
-            : updater;
-        dateRailTitleTransitionStateRef.current = next;
-        return current.currentText === next.currentText &&
-          current.previousText === next.previousText &&
-          current.direction === next.direction &&
-          current.animationToken === next.animationToken &&
-          current.phase === next.phase
-          ? current
-          : next;
-      });
-    },
-    [],
-  );
   React.useLayoutEffect(() => {
     navigation.setOptions({ title: t("common.today") });
   }, [navigation]);
@@ -1943,239 +2022,6 @@ function HomeContent() {
     cancelAnimationFrame(dateListTransitionSettleRafRef.current);
     dateListTransitionSettleRafRef.current = null;
   }, []);
-  const clearDeferredDateRailTitle = React.useCallback(() => {
-    dateRailTitleDeferredRequestRef.current = null;
-  }, []);
-  const stopDateRailTitleAnimation = React.useCallback(() => {
-    const runningAnimation = dateRailTitleAnimationRef.current;
-    if (!runningAnimation) return;
-    runningAnimation.stop();
-    dateRailTitleAnimationRef.current = null;
-  }, []);
-  const commitDateRailTitle = React.useCallback(
-    (title: string, direction: 1 | -1) => {
-      dateRailTitlePendingDurationRef.current = null;
-      stopDateRailTitleAnimation();
-      dateRailTitleMotion.stopAnimation();
-      dateRailTitleMotion.setValue(1);
-      updateDateRailTitleTransitionState((current) =>
-        current.currentText === title &&
-        current.previousText == null &&
-        current.direction === direction &&
-        current.phase === "idle"
-          ? current
-          : {
-              currentText: title,
-              previousText: null,
-              direction,
-              animationToken: current.animationToken,
-              phase: "idle",
-            },
-      );
-    },
-    [
-      dateRailTitleMotion,
-      stopDateRailTitleAnimation,
-      updateDateRailTitleTransitionState,
-    ],
-  );
-  const resetDateRailTitleMotion = React.useCallback(() => {
-    const current = dateRailTitleTransitionStateRef.current;
-    commitDateRailTitle(current.currentText, current.direction);
-  }, [commitDateRailTitle]);
-  const animateDateRailTitle = React.useCallback(
-    (nextTitle: string, direction: 1 | -1, source: DateSelectionSource) => {
-      if (reduceMotionEnabled) {
-        commitDateRailTitle(nextTitle, direction);
-        return;
-      }
-
-      const duration =
-        source === "rail"
-          ? DATE_RAIL_TITLE_SCRUB_DURATION
-          : source === "swipe"
-            ? DATE_RAIL_TITLE_TRANSITION_DURATION - 24
-            : DATE_RAIL_TITLE_TRANSITION_DURATION;
-
-      dateRailTitlePendingDurationRef.current = null;
-      stopDateRailTitleAnimation();
-      dateRailTitleMotion.stopAnimation((motionValue) => {
-        const current = dateRailTitleTransitionStateRef.current;
-        const progress = clamp(motionValue, 0, 1);
-        const outgoingVisibility =
-          progress <= 0.78
-            ? 1 - (progress / 0.78) * 0.76
-            : Math.max(0, 0.24 - ((progress - 0.78) / 0.22) * 0.24);
-        const incomingVisibility = progress;
-        const visibleTitle =
-          current.previousText != null &&
-          outgoingVisibility > incomingVisibility
-            ? current.previousText
-            : current.currentText;
-
-        if (visibleTitle === nextTitle) {
-          commitDateRailTitle(nextTitle, direction);
-          return;
-        }
-
-        dateRailTitlePendingDurationRef.current = duration;
-        updateDateRailTitleTransitionState((currentState) => ({
-          currentText: nextTitle,
-          previousText: visibleTitle,
-          direction,
-          animationToken: currentState.animationToken + 1,
-          phase: "preparing",
-        }));
-      });
-    },
-    [
-      commitDateRailTitle,
-      dateRailTitleMotion,
-      reduceMotionEnabled,
-      stopDateRailTitleAnimation,
-      updateDateRailTitleTransitionState,
-    ],
-  );
-  const flushDeferredDateRailTitle = React.useCallback(() => {
-    const deferred = dateRailTitleDeferredRequestRef.current;
-    if (!deferred) return;
-    dateRailTitleDeferredRequestRef.current = null;
-
-    const currentTitleDateStart = lastAnimatedTitleDateRef.current;
-    if (isSameLocalDay(currentTitleDateStart, deferred.dateStart)) {
-      commitDateRailTitle(
-        deferred.title,
-        deferred.dateStart >= currentTitleDateStart ? 1 : -1,
-      );
-      return;
-    }
-
-    const direction: 1 | -1 =
-      deferred.dateStart >= currentTitleDateStart ? 1 : -1;
-    lastAnimatedTitleDateRef.current = deferred.dateStart;
-    animateDateRailTitle(deferred.title, direction, "rail");
-  }, [animateDateRailTitle, commitDateRailTitle]);
-  React.useLayoutEffect(() => {
-    if (
-      dateRailTitleTransitionState.phase !== "preparing" ||
-      dateRailTitleTransitionState.previousText == null
-    ) {
-      return;
-    }
-
-    dateRailTitleMotion.stopAnimation();
-    dateRailTitleMotion.setValue(0);
-    updateDateRailTitleTransitionState((current) =>
-      current.phase !== "preparing"
-        ? current
-        : {
-            ...current,
-            phase: "animating",
-          },
-    );
-  }, [
-    dateRailTitleMotion,
-    dateRailTitleTransitionState.animationToken,
-    dateRailTitleTransitionState.phase,
-    dateRailTitleTransitionState.previousText,
-    updateDateRailTitleTransitionState,
-  ]);
-
-  React.useLayoutEffect(() => {
-    const duration = dateRailTitlePendingDurationRef.current;
-    if (
-      duration == null ||
-      dateRailTitleTransitionState.phase !== "animating" ||
-      dateRailTitleTransitionState.previousText == null
-    ) {
-      return;
-    }
-
-    stopDateRailTitleAnimation();
-    const animation = motionTiming(dateRailTitleMotion, {
-      toValue: 1,
-      duration,
-      easing: Easing.inOut(Easing.cubic),
-      useNativeDriver: true,
-    });
-    dateRailTitleAnimationRef.current = animation;
-    animation.start(({ finished }) => {
-      if (dateRailTitleAnimationRef.current === animation) {
-        dateRailTitleAnimationRef.current = null;
-      }
-      if (!finished) return;
-      dateRailTitlePendingDurationRef.current = null;
-      updateDateRailTitleTransitionState((current) =>
-        current.previousText == null
-          ? current
-          : {
-              ...current,
-              previousText: null,
-              phase: "idle",
-            },
-      );
-    });
-    return () => {
-      if (dateRailTitleAnimationRef.current === animation) {
-        animation.stop();
-        dateRailTitleAnimationRef.current = null;
-      }
-    };
-  }, [
-    dateRailTitleMotion,
-    dateRailTitleTransitionState.animationToken,
-    dateRailTitleTransitionState.phase,
-    dateRailTitleTransitionState.previousText,
-    stopDateRailTitleAnimation,
-    updateDateRailTitleTransitionState,
-  ]);
-  React.useEffect(() => {
-    const nextTitle = getDynamicHeaderTitle(displayedDateTitleDateStart);
-    if (
-      isSameLocalDay(
-        lastAnimatedTitleDateRef.current,
-        displayedDateTitleDateStart,
-      )
-    ) {
-      clearDeferredDateRailTitle();
-      const current = dateRailTitleTransitionStateRef.current;
-      if (current.currentText !== nextTitle || current.previousText != null) {
-        commitDateRailTitle(nextTitle, current.direction);
-      }
-      return;
-    }
-    const lastRequest = lastDateSelectionRequestRef.current;
-    const source =
-      lastRequest &&
-      isSameLocalDay(lastRequest.dateStart, displayedDateTitleDateStart)
-        ? lastRequest.source
-        : "programmatic";
-    if (source === "rail") {
-      dateRailTitleDeferredRequestRef.current = {
-        dateStart: displayedDateTitleDateStart,
-        title: nextTitle,
-      };
-      return;
-    }
-
-    const previousDateStart = lastAnimatedTitleDateRef.current;
-    lastAnimatedTitleDateRef.current = displayedDateTitleDateStart;
-    const direction =
-      lastRequest &&
-      isSameLocalDay(lastRequest.dateStart, displayedDateTitleDateStart)
-        ? lastRequest.direction
-        : displayedDateTitleDateStart >= previousDateStart
-          ? 1
-          : -1;
-    clearDeferredDateRailTitle();
-    animateDateRailTitle(nextTitle, direction, source);
-  }, [
-    animateDateRailTitle,
-    clearDeferredDateRailTitle,
-    commitDateRailTitle,
-    displayedDateTitleDateStart,
-    getDynamicHeaderTitle,
-  ]);
   const resetDateListMotion = React.useCallback(() => {
     dateListTranslateX.stopAnimation();
     dateListTranslateX.setValue(0);
@@ -2328,7 +2174,6 @@ function HomeContent() {
     (
       nextDateStart: number,
       animateLayout = true,
-      preserveTitleMotion = false,
     ) => {
       if (nextDateStart === listDateStartRef.current) return;
       cancelDateListTransitionStart();
@@ -2338,9 +2183,6 @@ function HomeContent() {
       stopHomeTaskListRevealAnimation();
       homeTaskListRevealProgress.setValue(1);
       resetDateListMotion();
-      if (!preserveTitleMotion) {
-        resetDateRailTitleMotion();
-      }
       resetDateListTransitionMotion();
       if (animateLayout) {
         configureSmoothListLayoutTransition(!reduceMotionEnabled);
@@ -2353,18 +2195,13 @@ function HomeContent() {
       homeTaskListRevealProgress,
       resetDateListMotion,
       resetDateListTransitionMotion,
-      resetDateRailTitleMotion,
       reduceMotionEnabled,
       stopHomeTaskListRevealAnimation,
     ],
   );
   const applyDayChangeWithoutTransition = React.useCallback(
     (nextDateStart: number, direction: 1 | -1) => {
-      // The title effect animates from the previous day to this one (or
-      // commits it directly under Reduce Motion). Committing it here first
-      // marked the day as already shown, so the slide never ran.
-      setDisplayedDateTitleDateStart(nextDateStart);
-      setListDateWithoutTransition(nextDateStart, false, true);
+      setListDateWithoutTransition(nextDateStart, false);
     },
     [setListDateWithoutTransition],
   );
@@ -2443,7 +2280,7 @@ function HomeContent() {
       const lastRequest = lastDateSelectionRequestRef.current;
       if (
         source === "momentum" &&
-        (dateRailTitleAnimationRef.current || listTransitionRunningRef.current)
+        listTransitionRunningRef.current
       ) {
         return;
       }
@@ -2531,23 +2368,16 @@ function HomeContent() {
   React.useEffect(
     () => () => {
       cancelDateListTransitionStart();
-      clearDeferredDateRailTitle();
       resetDateListMotion();
-      resetDateRailTitleMotion();
       resetDateListTransitionMotion();
-      dateRailTitlePendingDurationRef.current = null;
       dateRailMomentumActiveRef.current = false;
-      stopDateRailTitleAnimation();
       todayCollapseAnimationRef.current?.stop();
       upcomingCollapseAnimationRef.current?.stop();
     },
     [
       cancelDateListTransitionStart,
-      clearDeferredDateRailTitle,
       resetDateListTransitionMotion,
       resetDateListMotion,
-      resetDateRailTitleMotion,
-      stopDateRailTitleAnimation,
     ],
   );
   const handleSelectDate = React.useCallback(
@@ -2606,6 +2436,14 @@ function HomeContent() {
       return targetIndex >= 0 ? targetIndex : dateRailInitialIndex;
     },
     [dateRailDays, dateRailInitialIndex],
+  );
+  const selectedDateRailIndex = getDateRailIndexForDateStart(selectedDateStart);
+  const dateRailTitleLiveIndexRef = React.useRef<
+    ((index: number) => void) | null
+  >(null);
+  const dateRailTitleTextStyle = React.useMemo(
+    () => [styles.dateRailTitle, styles.dateRailTitleTextTransitionText],
+    [styles],
   );
   // Mount the rail already sitting on the selected day. Without this the list
   // first renders the oldest days at offset 0 and only jumps to today a few
@@ -2767,6 +2605,7 @@ function HomeContent() {
             dateRailScrollOffsetRef.current = nextOffset;
             const centerIndex = Math.round(nextOffset / dateRailSnapInterval);
             const nextIndex = clamp(centerIndex, 0, dateRailDays.length - 1);
+            dateRailTitleLiveIndexRef.current?.(nextIndex);
             const isUserDrivenScroll =
               dateRailDraggedRef.current || dateRailMomentumActiveRef.current;
             const lockedTargetIndex =
@@ -2789,7 +2628,11 @@ function HomeContent() {
             }
             const nextDay = dateRailDays[nextIndex];
             if (nextDay) {
-              selectDateWithoutTransition(nextDay.timestamp, "rail");
+              // Low priority: the title strip re-centres first, so a fast
+              // fling never outruns its titles while the list catches up.
+              React.startTransition(() => {
+                selectDateWithoutTransition(nextDay.timestamp, "rail");
+              });
             }
           },
         },
@@ -2809,13 +2652,7 @@ function HomeContent() {
   }, []);
   const handleDateRailScrollEndDrag = React.useCallback(() => {
     dateRailDraggedRef.current = false;
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (dateRailMomentumActiveRef.current) return;
-        flushDeferredDateRailTitle();
-      });
-    });
-  }, [flushDeferredDateRailTitle]);
+  }, []);
   const handleDateRailMomentumBegin = React.useCallback(() => {
     dateRailMomentumActiveRef.current = true;
   }, []);
@@ -2828,9 +2665,8 @@ function HomeContent() {
       dateRailScrollOffsetRef.current = offset;
       dateRailSelectionLockTargetIndexRef.current = null;
       dateRailSelectionLockUntilRef.current = 0;
-      flushDeferredDateRailTitle();
     },
-    [flushDeferredDateRailTitle],
+    [],
   );
   React.useEffect(() => {
     const rafId = requestAnimationFrame(() => {
@@ -4177,8 +4013,6 @@ function HomeContent() {
       1 - edgeFade * 0.28,
       1,
     ];
-    const isPreparingTitleTransition =
-      dateRailTitleTransitionState.phase === "preparing";
     // The mask spans the row minus the round buttons (about 88 pt) plus the
     // fade reaching into the left padding; an estimate is enough here.
     const titleMaskFade = Math.min(
@@ -4191,30 +4025,6 @@ function HomeContent() {
       1 - titleMaskFade,
       1,
     ] as const;
-    const outgoingTitleOpacity = dateRailTitleMotion.interpolate({
-      inputRange: [0, 0.6, 1],
-      outputRange: [1, 0.12, 0],
-    });
-    const incomingTitleOpacity = dateRailTitleMotion.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0, 1],
-    });
-    const outgoingTitleTranslateX = dateRailTitleMotion.interpolate({
-      inputRange: [0, 1],
-      outputRange: [
-        0,
-        -DATE_RAIL_TITLE_TRANSITION_DISTANCE *
-          dateRailTitleTransitionState.direction,
-      ],
-    });
-    const incomingTitleTranslateX = dateRailTitleMotion.interpolate({
-      inputRange: [0, 1],
-      outputRange: [
-        DATE_RAIL_TITLE_TRANSITION_DISTANCE *
-          dateRailTitleTransitionState.direction,
-        0,
-      ],
-    });
     return (
       <View
         ref={dateRailWrapRef}
@@ -4245,59 +4055,16 @@ function HomeContent() {
                 >
                 <View style={styles.dateRailTitleTextMaskContent}>
                   <View style={styles.dateRailTitleTextTransitionHost}>
-                    {dateRailTitleTransitionState.previousText ? (
-                      <Animated.Text
-                        style={[
-                          styles.dateRailTitle,
-                          styles.dateRailTitleTextTransitionText,
-                          isPreparingTitleTransition
-                            ? {
-                                opacity: 1,
-                                transform: [{ translateX: 0 }],
-                              }
-                            : {
-                                opacity: outgoingTitleOpacity,
-                                transform: [
-                                  { translateX: outgoingTitleTranslateX },
-                                ],
-                              },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {dateRailTitleTransitionState.previousText}
-                      </Animated.Text>
-                    ) : null}
-                    <Animated.Text
-                      style={[
-                        styles.dateRailTitle,
-                        styles.dateRailTitleTextTransitionText,
-                        dateRailTitleTransitionState.previousText
-                          ? isPreparingTitleTransition
-                            ? {
-                                opacity: 0,
-                                transform: [
-                                  {
-                                    translateX:
-                                      DATE_RAIL_TITLE_TRANSITION_DISTANCE *
-                                      dateRailTitleTransitionState.direction,
-                                  },
-                                ],
-                              }
-                            : {
-                                opacity: incomingTitleOpacity,
-                                transform: [
-                                  { translateX: incomingTitleTranslateX },
-                                ],
-                              }
-                          : {
-                              opacity: 1,
-                              transform: [{ translateX: 0 }],
-                            },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {dateRailTitleTransitionState.currentText}
-                    </Animated.Text>
+                    <DateRailTitleStrip
+                      days={dateRailDays}
+                      scrollX={dateRailScrollX}
+                      snapInterval={dateRailSnapInterval}
+                      selectedIndex={selectedDateRailIndex}
+                      reduceMotion={reduceMotionEnabled}
+                      getTitle={getDynamicHeaderTitle}
+                      textStyle={dateRailTitleTextStyle}
+                      liveIndexRef={dateRailTitleLiveIndexRef}
+                    />
                   </View>
                 </View>
                 </MaskedView>
@@ -4530,10 +4297,10 @@ function HomeContent() {
     dateRailSidePadding,
     dateRailSnapInterval,
     dateRailScrollX,
-    dateRailTitleMotion,
-    dateRailTitleTransitionState,
+    dateRailTitleTextStyle,
     firstVisibleSection,
     getDateRailItemLayout,
+    getDynamicHeaderTitle,
     handleDateRailMomentumEnd,
     handleDateRailMomentumBegin,
     handleDateRailScroll,
@@ -4552,6 +4319,7 @@ function HomeContent() {
     reduceMotionEnabled,
     renderDateRailDay,
     router,
+    selectedDateRailIndex,
     selectedDateStart,
     scheduleDateRailSyncToSelectedDate,
     styles,
