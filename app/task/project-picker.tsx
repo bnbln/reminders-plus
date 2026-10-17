@@ -8,7 +8,7 @@ import { useSheetHeaderActions } from '@/components/navigation/sheet-header-acti
 import { withAlpha } from '@/components/ui/glass-surface';
 import { SFSymbol } from '@/components/ui/sfsymbol';
 import { usePremium } from '@/context/premium-store';
-import { Colors, contrastAlpha } from '@/constants/theme';
+import { Colors, contrastAlpha, PICKER_SHEET_DARK_ROW, PICKER_SHEET_DARK_ROW_BORDER } from '@/constants/theme';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
@@ -178,13 +178,13 @@ const createStyles = (theme: keyof typeof Colors) => {
             paddingHorizontal: 14,
             borderRadius: 14,
             marginBottom: 8,
-            borderWidth: StyleSheet.hairlineWidth,
-            borderColor: hairline,
-            backgroundColor: withAlpha(text, contrastAlpha(isDark ? 0.04 : 0.03)),
+            borderWidth: isDark ? 1 : StyleSheet.hairlineWidth,
+            borderColor: isDark ? PICKER_SHEET_DARK_ROW_BORDER : hairline,
+            backgroundColor: isDark ? PICKER_SHEET_DARK_ROW : withAlpha(text, contrastAlpha(0.03)),
         },
         optionRowActive: {
-            borderWidth: StyleSheet.hairlineWidth,
-            borderColor: withAlpha(Colors[theme].tint, 0.45),
+            borderWidth: isDark ? 1.5 : StyleSheet.hairlineWidth,
+            borderColor: isDark ? Colors[theme].tint : withAlpha(Colors[theme].tint, 0.45),
             backgroundColor: withAlpha(Colors[theme].tint, isDark ? 0.18 : 0.12),
         },
         optionIcon: {
