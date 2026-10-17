@@ -868,7 +868,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       const stagger = Math.max(0.02, Math.min(0.1, revealStaggerStep));
       const start = Math.min(0.03 + safeIndex * stagger, 0.76);
       const end = Math.min(start + 0.3, 1);
-      const interpolation = revealProgress.interpolate({
+      const interpolation = (revealProgress as Animated.Value).interpolate({
         inputRange: [0, start, end, 1],
         outputRange:
           revealPhase === 'exit'
@@ -1441,9 +1441,9 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     data: flatListData,
     keyExtractor: (item: TaskSwipeDraggableListItem) => item.key,
     renderItem,
-    ListHeaderComponent: header ?? null,
-    ListFooterComponent: footer ?? null,
-    ListEmptyComponent: empty ?? null,
+    ListHeaderComponent: header ?? undefined,
+    ListFooterComponent: footer ?? undefined,
+    ListEmptyComponent: empty ?? undefined,
     contentContainerStyle,
     simultaneousHandlers,
     activationDistance: listActivationDistance,

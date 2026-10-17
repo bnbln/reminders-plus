@@ -157,7 +157,7 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
   const [titleHeight, setTitleHeight] = React.useState<number>(0);
   const [subtitleHeight, setSubtitleHeight] = React.useState<number>(0);
 
-  const scrollRef = React.useRef<ScrollView>(null);
+  const scrollRef = React.useRef<React.ComponentRef<typeof ScrollView>>(null);
   const { showSnackbar } = useSnackbar();
 
   const scrollToBottom = React.useCallback(() => {

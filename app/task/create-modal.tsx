@@ -290,7 +290,7 @@ export default function CreateTaskModal() {
   const hasTitle = trimmed.length > 0;
   const menuProgress = React.useRef(new Animated.Value(0)).current;
 
-  const inputRef = React.useRef<TextInput | null>(null);
+  const inputRef = React.useRef<React.ComponentRef<typeof TextInput>>(null);
 
   // Draft management
   const draftIdRef = React.useRef<string | null>(null);

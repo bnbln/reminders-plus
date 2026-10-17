@@ -28,7 +28,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
-import MaskedView from "@react-native-masked-view/masked-view";
+import MaskedViewBase from "@react-native-masked-view/masked-view";
 import Reanimated, {
   withSpring,
   withTiming,
@@ -80,6 +80,11 @@ import {
 import { useHighContrast } from "@/context/high-contrast-store";
 import { configureLayoutAnimation, motionSpring, motionTiming } from "@/utils/motion";
 import { useThemedStyles } from "@/hooks/use-themed-styles";
+
+// The library's class typings predate React Native's strict TypeScript API.
+const MaskedView = MaskedViewBase as unknown as React.ComponentType<
+  React.ComponentProps<typeof View> & { maskElement: React.ReactElement }
+>;
 
 type ThemeName = keyof typeof Colors;
 type TaskAccessoryContextBridge = {
@@ -1603,9 +1608,9 @@ function HomeContent() {
   const dragSurfaceResetFrameRef = React.useRef<number | null>(null);
   const dropCommitFrameRef = React.useRef<number | null>(null);
   const railBoundsMeasureFrameRef = React.useRef<number | null>(null);
-  const upcomingSurfaceRef = React.useRef<View | null>(null);
+  const upcomingSurfaceRef = React.useRef<React.ComponentRef<typeof View>>(null);
   const upcomingSurfaceBoundsRef = React.useRef<DragBounds | null>(null);
-  const todaySurfaceRef = React.useRef<View | null>(null);
+  const todaySurfaceRef = React.useRef<React.ComponentRef<typeof View>>(null);
   const todaySurfaceBoundsRef = React.useRef<DragBounds | null>(null);
   const isHoveringUpcomingDropZone = false;
   const isHoveringTodayDropZone = false;
@@ -2506,8 +2511,8 @@ function HomeContent() {
     new Animated.Value(dateRailInitialIndex * dateRailSnapInterval),
   ).current;
   const dateRailRef = React.useRef<FlatList<DateRailDay> | any>(null);
-  const dateRailWrapRef = React.useRef<View | null>(null);
-  const dateRailListRef = React.useRef<View | null>(null);
+  const dateRailWrapRef = React.useRef<React.ComponentRef<typeof View>>(null);
+  const dateRailListRef = React.useRef<React.ComponentRef<typeof View>>(null);
   const dateRailBoundsRef = React.useRef<{
     x: number;
     y: number;

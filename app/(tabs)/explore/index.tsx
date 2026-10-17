@@ -389,7 +389,7 @@ export default function ExploreScreen() {
   const dragTargetIndexRef = React.useRef(-1);
   const dragTouchOffsetRef = React.useRef({ x: 0, y: 0 });
   const gridOriginRef = React.useRef({ x: 0, y: 0 });
-  const gridRef = React.useRef<View | null>(null);
+  const gridRef = React.useRef<React.ComponentRef<typeof View>>(null);
   const tilePositionRef = React.useRef(new Map<string, ProjectTilePosition>());
 
   const getLayoutForIndex = React.useCallback(
