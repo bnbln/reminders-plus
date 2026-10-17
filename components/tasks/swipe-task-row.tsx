@@ -20,10 +20,16 @@ import SwipeableItem, {
   type UnderlayParams,
 } from "react-native-swipeable-item";
 import Reanimated, {
+  Easing as ReanimatedEasing,
   Extrapolation,
+  cancelAnimation,
   interpolate,
   interpolateColor,
+  runOnJS,
   useAnimatedStyle,
+  useSharedValue,
+  useReducedMotion,
+  withTiming,
 } from "react-native-reanimated";
 
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
@@ -39,6 +45,10 @@ import {
 } from "@/utils/haptics";
 import { motionSpring, motionTiming } from "@/utils/motion";
 
+const AnimatedGlassSurface = Reanimated.createAnimatedComponent(GlassSurface);
+const DRAG_SHADOW_IN_MS = 180;
+const DRAG_SHADOW_OUT_MS = 220;
+
 const SWIPE_STOP = 76;
 const SWIPE_TRIGGER_SNAP = 152;
 const SWIPE_ACTIVATION_THRESHOLD = 10;
@@ -53,6 +63,9 @@ const TASK_POP_IN_DURATION_MS = 196;
 const SWIPE_COMMIT_EXIT_DURATION_MS = 118;
 const SWIPE_COMMIT_EXIT_FADE_DURATION_MS = 96;
 const SWIPE_COMMIT_COLLAPSE_DURATION_MS = 164;
+const MIN_HEIGHT_ZERO = { minHeight: 0 } as const;
+// Neutral maxHeight for the always attached clip style: no clipping.
+const UNCLIPPED_MAX_HEIGHT = 100000;
 const TASK_ROW_HEIGHT_CACHE = new Map<string, number>();
 // Cross-list drop "landing": the row mounts in its new list and springs from
 // the spot where the finger released it into its final slot.
@@ -437,6 +450,51 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   registerMeasure,
 }: SwipeTaskRowProps) {
   const { width: viewportWidth } = usePageDimensions();
+  const reduceMotion = useReducedMotion();
+  const dragShadowProgress = useSharedValue(isActive ? 1 : 0);
+  const [isDragShadowVisible, setIsDragShadowVisible] = React.useState(isActive);
+  React.useEffect(() => {
+    dragShadowProgress.value = withTiming(isActive ? 1 : 0, {
+      duration: reduceMotion ? 0 : isActive ? DRAG_SHADOW_IN_MS : DRAG_SHADOW_OUT_MS,
+    });
+    if (isActive) {
+      const frame = requestAnimationFrame(() => setIsDragShadowVisible(true));
+      return () => cancelAnimationFrame(frame);
+    }
+    // Keep clipping open until the outgoing shadow has faded. Cancel this
+    // timer on another lift, so a previous drop cannot clip the new shadow.
+    const timeout = setTimeout(
+      () => setIsDragShadowVisible(false),
+      reduceMotion ? 0 : DRAG_SHADOW_OUT_MS,
+    );
+    return () => clearTimeout(timeout);
+  }, [dragShadowProgress, isActive, reduceMotion]);
+  const dragShadow = StyleSheet.flatten(styles.dragRow) ?? {};
+  const dragShadowColor = typeof dragShadow.shadowColor === "string"
+    ? dragShadow.shadowColor : "#000000";
+  const dragShadowOpacity = dragShadow.shadowOpacity ?? 0.12;
+  const dragShadowRadius = dragShadow.shadowRadius ?? 14;
+  const dragShadowOffsetX = dragShadow.shadowOffset?.width ?? 0;
+  const dragShadowOffsetY = dragShadow.shadowOffset?.height ?? 8;
+  const hiddenShadowColor = withAlpha(dragShadowColor, 0);
+  const visibleShadowColor = withAlpha(dragShadowColor, dragShadowOpacity);
+  const dragShadowStyle = useAnimatedStyle(() => ({
+    // boxShadow is rendered on the UI thread and does not affect row size.
+    // Override the old, instant shadow/elevation supplied by dragRow.
+    shadowOpacity: 0,
+    elevation: 0,
+    boxShadow: [{
+      offsetX: dragShadowOffsetX * dragShadowProgress.value,
+      offsetY: dragShadowOffsetY * dragShadowProgress.value,
+      blurRadius: dragShadowRadius * 2,
+      color: interpolateColor(
+        dragShadowProgress.value,
+        [0, 1],
+        [hiddenShadowColor, visibleShadowColor],
+      ),
+    }],
+  }));
+
   const swipeRef = React.useRef<SwipeableItemImperativeRef | null>(null);
   const longPressTriggeredRef = React.useRef(false);
   const committedSwipeActionDirectionRef = React.useRef<OpenDirection | null>(
@@ -457,19 +515,18 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   const swipeCommitTranslateX = React.useRef(new Animated.Value(0)).current;
   const swipeCommitOpacity = React.useRef(new Animated.Value(1)).current;
   const swipeCommitScale = React.useRef(new Animated.Value(1)).current;
-  const swipeCommitCollapseProgress = React.useRef(
-    new Animated.Value(1),
-  ).current;
-  const popInExpandProgress = React.useRef(
-    new Animated.Value(shouldPopIn && cachedRowHeight > 0 ? 0 : 1),
-  ).current;
+  // Collapse/pop-in heights run on the UI thread (Reanimated). As JS-driven
+  // Animated layout animations they dropped frames whenever JS was busy, so
+  // the whole list visibly jumped while a swiped row closed or reappeared.
+  const swipeCommitCollapseProgress = useSharedValue(1);
+  const popInExpandProgress = useSharedValue(
+    shouldPopIn && cachedRowHeight > 0 ? 0 : 1,
+  );
+  const swipeCommitCollapseTokenRef = React.useRef(0);
+  const popInTokenRef = React.useRef(0);
   const popInAppearanceKeyRef = React.useRef<string | null>(null);
   const swipeCommitAppearanceKeyRef = React.useRef<string | null>(null);
   const swipeCommitExitAnimationRef =
-    React.useRef<Animated.CompositeAnimation | null>(null);
-  const swipeCommitCollapseAnimationRef =
-    React.useRef<Animated.CompositeAnimation | null>(null);
-  const popInAnimationRef =
     React.useRef<Animated.CompositeAnimation | null>(null);
   const popInStartFrameRef = React.useRef<number | null>(null);
   const longPressTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
@@ -534,12 +591,14 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
         cancelAnimationFrame(popInStartFrameRef.current);
         popInStartFrameRef.current = null;
       }
-      popInAnimationRef.current?.stop();
+      popInTokenRef.current += 1;
+      swipeCommitCollapseTokenRef.current += 1;
+      cancelAnimation(popInExpandProgress);
+      cancelAnimation(swipeCommitCollapseProgress);
       swipeCommitExitAnimationRef.current?.stop();
-      swipeCommitCollapseAnimationRef.current?.stop();
       landingAnimationRef.current?.stop();
     };
-  }, []);
+  }, [popInExpandProgress, swipeCommitCollapseProgress]);
 
   const measureInWindow = React.useCallback<TaskRowMeasure>((callback) => {
     const node = landingWrapperRef.current;
@@ -648,10 +707,9 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       cancelAnimationFrame(popInStartFrameRef.current);
       popInStartFrameRef.current = null;
     }
-    popInAnimationRef.current?.stop();
-    popInAnimationRef.current = null;
-    popInExpandProgress.stopAnimation();
-    popInExpandProgress.setValue(1);
+    popInTokenRef.current += 1;
+    cancelAnimation(popInExpandProgress);
+    popInExpandProgress.set(1);
   }, [popInExpandProgress]);
 
   React.useEffect(() => {
@@ -661,8 +719,9 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     if (measuredRowHeight <= 0) return;
 
     popInAppearanceKeyRef.current = taskAppearanceKey;
-    popInAnimationRef.current?.stop();
-    popInExpandProgress.setValue(0);
+    popInTokenRef.current += 1;
+    cancelAnimation(popInExpandProgress);
+    popInExpandProgress.set(0);
 
     if (popInStartFrameRef.current != null) {
       cancelAnimationFrame(popInStartFrameRef.current);
@@ -674,21 +733,27 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       if (!isMountedRef.current) return;
       if (popInAppearanceKeyRef.current !== taskAppearanceKey) return;
 
-      popInAnimationRef.current = motionTiming(popInExpandProgress, {
-        toValue: 1,
-        duration: TASK_POP_IN_DURATION_MS,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: false,
-      });
-
-      popInAnimationRef.current.start(({ finished }) => {
-        popInAnimationRef.current = null;
+      const token = ++popInTokenRef.current;
+      const onPopInFinished = (finished: boolean) => {
+        if (token !== popInTokenRef.current) return;
         if (!finished || !isMountedRef.current) return;
         if (popInAppearanceKeyRef.current === taskAppearanceKey) {
           popInAppearanceKeyRef.current = null;
         }
         onPopInAnimationEnd?.(task.id);
-      });
+      };
+      popInExpandProgress.set(
+        withTiming(
+          1,
+          {
+            duration: TASK_POP_IN_DURATION_MS,
+            easing: ReanimatedEasing.out(ReanimatedEasing.cubic),
+          },
+          (finished) => {
+            runOnJS(onPopInFinished)(!!finished);
+          },
+        ),
+      );
     });
   }, [
     measuredRowHeight,
@@ -710,17 +775,16 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
 
   const resetSwipeCommitAnimationValues = React.useCallback(() => {
     swipeCommitExitAnimationRef.current?.stop();
-    swipeCommitCollapseAnimationRef.current?.stop();
     swipeCommitExitAnimationRef.current = null;
-    swipeCommitCollapseAnimationRef.current = null;
+    swipeCommitCollapseTokenRef.current += 1;
     swipeCommitTranslateX.stopAnimation();
     swipeCommitOpacity.stopAnimation();
     swipeCommitScale.stopAnimation();
-    swipeCommitCollapseProgress.stopAnimation();
+    cancelAnimation(swipeCommitCollapseProgress);
     swipeCommitTranslateX.setValue(0);
     swipeCommitOpacity.setValue(1);
     swipeCommitScale.setValue(1);
-    swipeCommitCollapseProgress.setValue(1);
+    swipeCommitCollapseProgress.set(1);
   }, [
     swipeCommitCollapseProgress,
     swipeCommitOpacity,
@@ -853,7 +917,8 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
         direction === OpenDirection.LEFT ? -exitDistance : exitDistance;
 
       swipeCommitExitAnimationRef.current?.stop();
-      swipeCommitCollapseAnimationRef.current?.stop();
+      swipeCommitCollapseTokenRef.current += 1;
+      cancelAnimation(swipeCommitCollapseProgress);
       swipeCommitExitAnimationRef.current = Animated.parallel([
         motionTiming(swipeCommitTranslateX, {
           toValue: translateTarget,
@@ -897,35 +962,37 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
           return;
         }
 
-        swipeCommitCollapseAnimationRef.current = motionTiming(
-          swipeCommitCollapseProgress,
-          {
-            toValue: 0,
-            duration: SWIPE_COMMIT_COLLAPSE_DURATION_MS,
-            easing: Easing.out(Easing.cubic),
-            useNativeDriver: false,
-          },
-        );
-        swipeCommitCollapseAnimationRef.current.start(
-          ({ finished: collapseFinished }) => {
-            swipeCommitCollapseAnimationRef.current = null;
-            if (!collapseFinished) {
-              if (!isMountedRef.current) return;
-              setIsSwipeCommitAnimating(false);
-              return;
-            }
-
-            void swipeRef.current?.close({ animated: false }).catch(
-              () => undefined,
-            );
-            performAction();
-
+        const token = ++swipeCommitCollapseTokenRef.current;
+        const onCollapseFinished = (collapseFinished: boolean) => {
+          if (token !== swipeCommitCollapseTokenRef.current) return;
+          if (!collapseFinished) {
             if (!isMountedRef.current) return;
-            requestAnimationFrame(() => {
-              if (!isMountedRef.current) return;
-              setIsSwipeCommitAnimating(false);
-            });
-          },
+            setIsSwipeCommitAnimating(false);
+            return;
+          }
+
+          void swipeRef.current?.close({ animated: false }).catch(
+            () => undefined,
+          );
+          performAction();
+
+          if (!isMountedRef.current) return;
+          requestAnimationFrame(() => {
+            if (!isMountedRef.current) return;
+            setIsSwipeCommitAnimating(false);
+          });
+        };
+        swipeCommitCollapseProgress.set(
+          withTiming(
+            0,
+            {
+              duration: SWIPE_COMMIT_COLLAPSE_DURATION_MS,
+              easing: ReanimatedEasing.out(ReanimatedEasing.cubic),
+            },
+            (finished) => {
+              runOnJS(onCollapseFinished)(!!finished);
+            },
+          ),
         );
       });
     },
@@ -1080,9 +1147,9 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       styles.swipeClip,
       swipeClipStyle,
       measuredRowHeight > 0 ? { minHeight: measuredRowHeight } : null,
-      isActive ? { overflow: "visible" as const } : null,
+      isActive || isDragShadowVisible ? { overflow: "visible" as const } : null,
     ],
-    [isActive, measuredRowHeight, styles.swipeClip, swipeClipStyle],
+    [isActive, isDragShadowVisible, measuredRowHeight, styles.swipeClip, swipeClipStyle],
   );
 
   const spacerStyle = React.useMemo(
@@ -1100,88 +1167,47 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     ],
     [itemSpacing, itemSpacerStyle, measuredRowHeight, styles.itemSpacer],
   );
-  const swipeCommitSpacerStyle = React.useMemo(() => {
-    if (!shouldApplySwipeCommitState) return null;
-
-    return {
-      minHeight: 0,
-      marginBottom: swipeCommitCollapseProgress.interpolate({
-        inputRange: [0, 1],
-        outputRange: [0, itemSpacing],
-      }),
-    };
-  }, [
-    itemSpacing,
-    shouldApplySwipeCommitState,
-    swipeCommitCollapseProgress,
-  ]);
   const shouldApplyPopInLayoutState =
     shouldPopIn && !shouldApplySwipeCommitState && measuredRowHeight > 0;
-  const popInSpacerStyle = React.useMemo(() => {
-    if (!shouldApplyPopInLayoutState) return null;
-
-    if (measuredRowHeight <= 0) {
+  const shouldCollapseSwipeCommitClip =
+    shouldApplySwipeCommitState && measuredRowHeight > 0;
+  // minHeight only changes when a mode starts or ends, so React owns it. The
+  // per-frame values live in the always attached animated styles below:
+  // Reanimated does not revert props of an animated style that is removed,
+  // so they return neutral values (no clipping, normal spacing) otherwise.
+  const swipeCommitSpacerStyle = shouldApplySwipeCommitState
+    ? MIN_HEIGHT_ZERO
+    : null;
+  const popInSpacerStyle = shouldApplyPopInLayoutState ? MIN_HEIGHT_ZERO : null;
+  const swipeCommitClipStyle = shouldCollapseSwipeCommitClip
+    ? MIN_HEIGHT_ZERO
+    : null;
+  const popInClipStyle = shouldApplyPopInLayoutState ? MIN_HEIGHT_ZERO : null;
+  const spacerMotionStyle = useAnimatedStyle(() => {
+    if (shouldApplySwipeCommitState) {
+      return { marginBottom: itemSpacing * swipeCommitCollapseProgress.value };
+    }
+    if (shouldApplyPopInLayoutState) {
+      return { marginBottom: itemSpacing * popInExpandProgress.value };
+    }
+    return { marginBottom: itemSpacing };
+  }, [itemSpacing, shouldApplyPopInLayoutState, shouldApplySwipeCommitState]);
+  const clipMotionStyle = useAnimatedStyle(() => {
+    if (shouldCollapseSwipeCommitClip) {
+      const progress = swipeCommitCollapseProgress.value;
       return {
-        minHeight: 0,
-        marginBottom: 0,
+        maxHeight: measuredRowHeight * progress,
+        opacity: interpolate(progress, [0, 0.12, 1], [0, 0.86, 1]),
       };
     }
-
-    return {
-      minHeight: 0,
-      marginBottom: popInExpandProgress.interpolate({
-        inputRange: [0, 1],
-        outputRange: [0, itemSpacing],
-      }),
-    };
-  }, [
-    itemSpacing,
-    measuredRowHeight,
-    popInExpandProgress,
-    shouldApplyPopInLayoutState,
-  ]);
-  const swipeCommitClipStyle = React.useMemo(() => {
-    if (!shouldApplySwipeCommitState || measuredRowHeight <= 0) return null;
-
-    return {
-      minHeight: 0,
-      height: swipeCommitCollapseProgress.interpolate({
-        inputRange: [0, 1],
-        outputRange: [0, measuredRowHeight],
-      }),
-      opacity: swipeCommitCollapseProgress.interpolate({
-        inputRange: [0, 0.12, 1],
-        outputRange: [0, 0.86, 1],
-      }),
-    };
-  }, [
-    measuredRowHeight,
-    shouldApplySwipeCommitState,
-    swipeCommitCollapseProgress,
-  ]);
-  const popInClipStyle = React.useMemo(() => {
-    if (!shouldApplyPopInLayoutState) return null;
-
-    if (measuredRowHeight <= 0) {
+    if (shouldApplyPopInLayoutState) {
       return {
-        minHeight: 0,
-        height: 0,
-        opacity: 0,
+        maxHeight: measuredRowHeight * popInExpandProgress.value,
+        opacity: 1,
       };
     }
-
-    return {
-      minHeight: 0,
-      height: popInExpandProgress.interpolate({
-        inputRange: [0, 1],
-        outputRange: [0, measuredRowHeight],
-      }),
-    };
-  }, [
-    measuredRowHeight,
-    popInExpandProgress,
-    shouldApplyPopInLayoutState,
-  ]);
+    return { maxHeight: UNCLIPPED_MAX_HEIGHT, opacity: 1 };
+  }, [measuredRowHeight, shouldApplyPopInLayoutState, shouldCollapseSwipeCommitClip]);
 
   // dragRow styles drop the hairline border; keep its width (just hide it) so
   // lifting/dropping a row never changes its height by a sub-pixel amount,
@@ -1650,8 +1676,8 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       collapsable={false}
       style={landingMotionStyle}
     >
-      <Animated.View style={[spacerStyle, popInSpacerStyle, swipeCommitSpacerStyle]}>
-        <Animated.View style={[clipStyle, popInClipStyle, swipeCommitClipStyle]}>
+      <Reanimated.View style={[spacerStyle, popInSpacerStyle, swipeCommitSpacerStyle, spacerMotionStyle]}>
+        <Reanimated.View style={[clipStyle, popInClipStyle, swipeCommitClipStyle, clipMotionStyle]}>
           <SwipeableItem
             ref={swipeRef}
             item={task}
@@ -1737,8 +1763,8 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
                     onPressTask(task.id);
                   }}
                 >
-                  <GlassSurface
-                    style={rowContentStyle}
+                  <AnimatedGlassSurface
+                    style={[rowContentStyle, dragShadowStyle]}
                     glassEffectStyle="regular"
                     tintColor={rowTintColor}
                     fallbackBackgroundColor={rowFallbackBackgroundColor}
@@ -1794,13 +1820,13 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
                         )}
                       </View>
                     </Animated.View>
-                  </GlassSurface>
+                  </AnimatedGlassSurface>
                 </TouchableOpacity>
               </Animated.View>
             </Animated.View>
           </SwipeableItem>
-        </Animated.View>
-      </Animated.View>
+        </Reanimated.View>
+      </Reanimated.View>
     </Animated.View>
   );
 });
