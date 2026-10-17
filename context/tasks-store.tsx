@@ -81,6 +81,11 @@ export type Task = {
   color?: string;
   /** Unix ms timestamp when moved to trash. Undefined = active. */
   deletedAt?: number;
+  /**
+   * Unsaved task while the create flow is open. Kept in memory only so the
+   * pickers can edit it by id; never persisted, synced or backed up.
+   */
+  isDraft?: boolean;
   /** Whether this task repeats */
   isRoutine?: boolean;
   /** Routine type (extended) */
@@ -607,6 +612,7 @@ function normalizeSnapshot(raw: any): TasksStoreData {
   const tasks: Task[] = rawTasks
     .map((t: any, index: number): Task | null => {
       if (!t || typeof t !== "object") return null;
+      if (t.isDraft === true) return null;
       if (typeof t.id !== "string" || t.id.trim().length === 0) return null;
       if (typeof t.title !== "string") return null;
 
@@ -873,7 +879,7 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     if (!hydratedRef.current) return false;
     if (!persistEnabledRef.current) return false;
 
-    const nextTasks = tasksRef.current;
+    const nextTasks = tasksRef.current.filter((task) => !task.isDraft);
     const nextProjects = projectsRef.current;
     const nextCompletionHistory = completionHistoryRef.current;
     const nextSignature = getTasksContentSignature(
@@ -912,8 +918,9 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
       next.completionHistory,
     );
     const nextSavedAt = getSnapshotSavedAt(res.snapshot);
+    const currentTasks = tasksRef.current;
     const currentSignature = getTasksContentSignature(
-      tasksRef.current,
+      currentTasks.filter((task) => !task.isDraft),
       projectsRef.current,
       completionHistoryRef.current,
     );
@@ -938,7 +945,13 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     if (nextSavedAt > 0) {
       lastKnownLocalSavedAtRef.current = nextSavedAt;
     }
-    setStore(next);
+    // Keep a draft that is being composed while a synced snapshot lands.
+    const openDrafts = currentTasks.filter((task) => task.isDraft);
+    setStore(
+      openDrafts.length > 0
+        ? { ...next, tasks: [...openDrafts, ...next.tasks] }
+        : next,
+    );
     return true;
   }, []);
 

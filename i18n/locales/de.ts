@@ -564,6 +564,8 @@ export const DE_TRANSLATIONS: TranslationDict = {
     "Käufe werden über den App-Store auf deinem Gerät abgewickelt.",
   "plus.error.storeUnavailable": "Der App Store ist gerade nicht erreichbar.",
   "plus.error.purchaseFailed": "Der Kauf konnte nicht abgeschlossen werden.",
+  "plus.legal.autoRenew":
+    "Das Monatsabo wird über deinen Apple-Account abgerechnet und verlängert sich automatisch, wenn du es nicht mindestens 24 Stunden vor Ablauf des Zeitraums kündigst. Kündigen kannst du jederzeit in den Einstellungen deines Apple-Accounts.",
   "plus.action.restorePurchases": "Käufe wiederherstellen",
   "plus.action.reloadProducts": "Produkte neu laden",
 

@@ -50,6 +50,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
 import { triggerSelectionHaptic } from "@/utils/haptics";
 import { isIOS26OrNewer } from "@/utils/ios-version";
+import { useUndoableTaskDelete } from "@/hooks/use-undoable-task-delete";
 import {
   alignDueAtToLocalDay,
   deriveActiveSectionFromDueAt,
@@ -1170,16 +1171,7 @@ function ProjectDetailContent() {
     [setTasks],
   );
 
-  const deleteTask = React.useCallback(
-    (taskId: string) => {
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.id === taskId ? { ...t, deletedAt: Date.now() } : t,
-        ),
-      );
-    },
-    [setTasks],
-  );
+  const deleteTask = useUndoableTaskDelete();
 
   const handleBoardTouch = React.useCallback(
     (event: any) => {

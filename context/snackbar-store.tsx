@@ -194,7 +194,8 @@ const styles = StyleSheet.create({
     paddingLeft: 16,
     paddingRight: 8,
     paddingVertical: 8,
-    borderRadius: 4,
+    // M3 corner on Android; iOS uses its rounder card corner.
+    borderRadius: Platform.OS === "ios" ? 16 : 4,
     ...Platform.select({
       android: { elevation: 6 },
       default: {
@@ -213,7 +214,7 @@ const styles = StyleSheet.create({
   action: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 4,
+    borderRadius: Platform.OS === "ios" ? 10 : 4,
     overflow: "hidden",
   },
   actionLabel: {

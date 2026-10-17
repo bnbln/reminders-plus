@@ -65,7 +65,9 @@ import {
   useTasksStore,
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { useStartOfToday } from "@/hooks/use-clock";
 import { useStreaks } from "@/hooks/use-streaks";
+import { useUndoableTaskDelete } from "@/hooks/use-undoable-task-delete";
 import { getIntlLocale, t } from "@/i18n";
 import { triggerSelectionHaptic } from "@/utils/haptics";
 import { isIOS26OrNewer } from "@/utils/ios-version";
@@ -1629,7 +1631,7 @@ function HomeContent() {
       new Intl.DateTimeFormat(undefined, { month: "short", year: "numeric" }),
     [],
   );
-  const todayStart = getStartOfToday();
+  const todayStart = useStartOfToday();
   const currentWeekStart = React.useMemo(
     () => getStartOfWeekMonday(todayStart),
     [todayStart],
@@ -1673,15 +1675,14 @@ function HomeContent() {
   const completionPercentage = React.useMemo(() => {
     let todayTotal = 0;
     let todayCompleted = 0;
-    const todayStartMs = getStartOfToday();
 
     for (const task of tasks) {
       if (task.deletedAt) continue;
 
       const isDueToday =
-        hasValidDueAt(task.dueAt) && isSameLocalDay(task.dueAt, todayStartMs);
+        hasValidDueAt(task.dueAt) && isSameLocalDay(task.dueAt, todayStart);
       const isCompletedToday =
-        task.completedAt && isSameLocalDay(task.completedAt, todayStartMs);
+        task.completedAt && isSameLocalDay(task.completedAt, todayStart);
 
       if (isDueToday || isCompletedToday) {
         todayTotal++;
@@ -1693,7 +1694,7 @@ function HomeContent() {
 
     if (todayTotal === 0) return 0;
     return Math.round((todayCompleted / todayTotal) * 100);
-  }, [tasks]);
+  }, [tasks, todayStart]);
 
   const homeMetricsProps = React.useMemo<HomeMetricsProps>(() => {
     return {
@@ -2516,6 +2517,17 @@ function HomeContent() {
     },
     [applyDayChangeWithoutTransition, setPresetDateStart],
   );
+  const previousTodayStartRef = React.useRef(todayStart);
+  React.useEffect(() => {
+    const previousTodayStart = previousTodayStartRef.current;
+    if (previousTodayStart === todayStart) return;
+    previousTodayStartRef.current = todayStart;
+    // After midnight or a resume on a later day, keep "Today" selected
+    // instead of leaving the list on yesterday.
+    if (isSameLocalDay(selectedDateStartRef.current, previousTodayStart)) {
+      selectDateWithoutTransition(todayStart);
+    }
+  }, [selectDateWithoutTransition, todayStart]);
   React.useEffect(
     () => () => {
       cancelDateListTransitionStart();
@@ -3900,20 +3912,15 @@ function HomeContent() {
     ],
   );
 
+  const deleteTaskWithUndo = useUndoableTaskDelete();
   const handleDeleteTask = React.useCallback(
     (taskId: string) => {
       if (!reduceMotionEnabled) {
         configureLayoutAnimation(LayoutAnimation.Presets.easeInEaseOut);
       }
-      setTasks((prev) => {
-        const task = prev.find((t) => t.id === taskId);
-        if (!task) return prev;
-        return prev.map((t) =>
-          t.id === taskId ? { ...t, deletedAt: Date.now() } : t,
-        );
-      });
+      deleteTaskWithUndo(taskId);
     },
-    [reduceMotionEnabled, setTasks],
+    [deleteTaskWithUndo, reduceMotionEnabled],
   );
 
   const handleToggleSubtask = React.useCallback(
