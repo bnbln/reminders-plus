@@ -97,6 +97,10 @@ const SECTION_SIDE_INSET = 0;
 const DATE_RAIL_HORIZONTAL_PADDING = 6;
 const DATE_RAIL_PAST_DAYS = 119;
 const DATE_RAIL_FUTURE_DAYS = 365;
+// Cells rendered on the first frame around the selected day, so the visible
+// part of the rail is filled before the list measures its viewport.
+const DATE_RAIL_MOUNT_LEADING_DAYS = 10;
+const DATE_RAIL_MOUNT_RENDER_DAYS = 24;
 const DATE_RAIL_MIN_ITEM_WIDTH = 40;
 const DATE_RAIL_ITEM_GAP = 6;
 const DATE_RAIL_FADE_WIDTH = 64;
@@ -2537,6 +2541,17 @@ function HomeContent() {
     },
     [dateRailDays, dateRailInitialIndex],
   );
+  // Mount the rail already sitting on the selected day. Without this the list
+  // first renders the oldest days at offset 0 and only jumps to today a few
+  // frames later, which made the rail pop in late on app launch.
+  const [dateRailMountIndex] = React.useState(() =>
+    getDateRailIndexForDateStart(selectedDateStart),
+  );
+  // Kept stable: the native list applies it once on mount.
+  const [dateRailMountOffset] = React.useState(() => ({
+    x: dateRailMountIndex * dateRailSnapInterval,
+    y: 0,
+  }));
   const scrollDateRailToDateStart = React.useCallback(
     (
       targetDateStart: number,
@@ -4385,6 +4400,12 @@ function HomeContent() {
                 scheduleDateRailSyncToSelectedDate();
               }}
               getItemLayout={getDateRailItemLayout}
+              contentOffset={dateRailMountOffset}
+              initialScrollIndex={Math.max(
+                0,
+                dateRailMountIndex - DATE_RAIL_MOUNT_LEADING_DAYS,
+              )}
+              initialNumToRender={DATE_RAIL_MOUNT_RENDER_DAYS}
               onScrollToIndexFailed={handleDateRailScrollToIndexFailed}
               onScroll={handleDateRailScroll}
               onScrollBeginDrag={handleDateRailScrollBeginDrag}
@@ -4473,6 +4494,8 @@ function HomeContent() {
     styles,
     theme,
     dateRailContainerWidth,
+    dateRailMountIndex,
+    dateRailMountOffset,
   ]);
 
   const listHeader = React.useMemo(() => {
