@@ -559,6 +559,11 @@ export const VI_TRANSLATIONS: TranslationDict = {
   "assist.locked.body": "AI Assist là một phần của Reminders+, cùng với dự án không giới hạn và Cloud Sync.",
   "plus.error.storeUnavailable": "Hiện không thể kết nối với App Store.",
   "plus.error.purchaseFailed": "Không thể hoàn tất giao dịch mua.",
+  "errorBoundary.title": "Đã xảy ra sự cố",
+  "errorBoundary.body": "Đã xảy ra lỗi không mong muốn. Hãy thử lại, và nếu vẫn tiếp diễn, hãy khởi động lại ứng dụng.",
+  "errorBoundary.retry": "Thử lại",
+  "project.notFoundBody": "Dự án này đã bị xóa hoặc không còn khả dụng.",
+  "project.notFoundAction": "Quay lại dự án",
 };
 
 export default VI_TRANSLATIONS;

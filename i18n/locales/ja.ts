@@ -559,6 +559,11 @@ export const JA_TRANSLATIONS: TranslationDict = {
   "assist.locked.body": "AI Assist は Reminders+ に含まれており、無制限のプロジェクトや Cloud Sync も利用できます。",
   "plus.error.storeUnavailable": "現在 App Store に接続できません。",
   "plus.error.purchaseFailed": "購入を完了できませんでした。",
+  "errorBoundary.title": "問題が発生しました",
+  "errorBoundary.body": "予期しないエラーが発生しました。もう一度お試しください。繰り返し発生する場合は、アプリを再起動してください。",
+  "errorBoundary.retry": "再試行",
+  "project.notFoundBody": "このプロジェクトは削除されたか、利用できなくなりました。",
+  "project.notFoundAction": "プロジェクトに戻る",
 };
 
 export default JA_TRANSLATIONS;

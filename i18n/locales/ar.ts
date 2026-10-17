@@ -559,6 +559,11 @@ export const AR_TRANSLATIONS: TranslationDict = {
   "assist.locked.body": "AI Assist جزء من Reminders+، إلى جانب المشاريع غير المحدودة وCloud Sync.",
   "plus.error.storeUnavailable": "يتعذر الوصول إلى App Store الآن.",
   "plus.error.purchaseFailed": "تعذّر إتمام عملية الشراء.",
+  "errorBoundary.title": "حدث خطأ ما",
+  "errorBoundary.body": "حدث خطأ غير متوقع. حاول مرة أخرى، وإذا تكرر الأمر فأعد تشغيل التطبيق.",
+  "errorBoundary.retry": "حاول مرة أخرى",
+  "project.notFoundBody": "تم حذف هذا المشروع أو لم يعد متاحًا.",
+  "project.notFoundAction": "العودة إلى المشاريع",
 };
 
 export default AR_TRANSLATIONS;

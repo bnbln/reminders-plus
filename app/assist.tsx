@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { generateText } from "ai";
-import { Redirect, Stack, useRouter } from "expo-router";
+import { Redirect, Stack, useFocusEffect, useRouter } from "expo-router";
 import React from "react";
 import {
   ActivityIndicator,
@@ -2106,6 +2106,18 @@ function AssistUnlockedScreen() {
   const [input, setInput] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(false);
   const [isAIAvailable, setIsAIAvailable] = React.useState(true);
+  // Cancels the running generation when the user leaves Assist, so no answer
+  // or tool call lands after they are gone.
+  const generationAbortRef = React.useRef<AbortController | null>(null);
+  useFocusEffect(
+    React.useCallback(
+      () => () => {
+        generationAbortRef.current?.abort();
+        generationAbortRef.current = null;
+      },
+      [],
+    ),
+  );
   const [isKeyboardVisible, setIsKeyboardVisible] = React.useState(false);
 
   const scrollViewRef = React.useRef<ScrollView>(null);
@@ -2493,6 +2505,11 @@ function AssistUnlockedScreen() {
     setIsLoading(true);
     scrollToBottom();
 
+    generationAbortRef.current?.abort();
+    const abortController = new AbortController();
+    generationAbortRef.current = abortController;
+    const abortSignal = abortController.signal;
+
     let toolCallsCount = 0;
 
     try {
@@ -2596,7 +2613,8 @@ function AssistUnlockedScreen() {
         onToolCall: () => {
           toolCallsCount += 1;
         },
-        shouldAbortToolCalls: () => toolCallsCount >= MAX_ASSIST_TOOL_CALLS,
+        shouldAbortToolCalls: () =>
+          abortSignal.aborted || toolCallsCount >= MAX_ASSIST_TOOL_CALLS,
       });
 
       const provider = createAppleProvider({ availableTools: toolset });
@@ -2608,15 +2626,18 @@ function AssistUnlockedScreen() {
         systemPrompt: string;
         withTools: boolean;
         maxOutputTokens: number;
-      }) =>
-        generateText({
+      }) => {
+        if (abortSignal.aborted) throw new Error("Assist generation aborted");
+        return generateText({
           model: provider(),
+          abortSignal,
           system: systemPrompt,
           prompt: userMessage.content,
           tools: withTools ? toolset : undefined,
           maxOutputTokens,
           temperature: 0.2,
         });
+      };
 
       let result: Awaited<ReturnType<typeof runGeneration>>;
 
@@ -2658,6 +2679,7 @@ function AssistUnlockedScreen() {
         }
       }
 
+      if (abortSignal.aborted) return;
       const structuredResponse = parseAssistModelResponse(result.text);
 
       const toolEntries = extractToolResultEntries(result);
@@ -2798,6 +2820,7 @@ function AssistUnlockedScreen() {
         },
       ]);
     } catch (error) {
+      if (abortSignal.aborted) return;
       const errorMessage = getErrorMessage(error);
       console.error("[assist] handleSend failed:", error);
       const content = isToolCallLimitError(error)
@@ -2820,6 +2843,9 @@ function AssistUnlockedScreen() {
         },
       ]);
     } finally {
+      if (generationAbortRef.current === abortController) {
+        generationAbortRef.current = null;
+      }
       setIsLoading(false);
       scrollToBottom();
     }
@@ -3029,8 +3055,11 @@ function AssistUnlockedScreen() {
                 multiline
                 maxLength={700}
                 editable={!isLoading}
+                // A multiline field only fires onSubmitEditing on iOS when
+                // Return submits instead of adding a line break.
+                submitBehavior="submit"
+                returnKeyType="send"
                 onSubmitEditing={handleSend}
-                blurOnSubmit={false}
               />
               <Pressable
                 onPress={handleSend}

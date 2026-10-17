@@ -559,6 +559,11 @@ export const FI_TRANSLATIONS: TranslationDict = {
   "assist.locked.body": "AI Assist kuuluu Reminders+:aan yhdessä rajattomien projektien ja Cloud Syncin kanssa.",
   "plus.error.storeUnavailable": "App Storeen ei saada juuri nyt yhteyttä.",
   "plus.error.purchaseFailed": "Ostoa ei voitu viedä loppuun.",
+  "errorBoundary.title": "Jokin meni pieleen",
+  "errorBoundary.body": "Tapahtui odottamaton virhe. Yritä uudelleen ja käynnistä sovellus uudelleen, jos virhe toistuu.",
+  "errorBoundary.retry": "Yritä uudelleen",
+  "project.notFoundBody": "Tämä projekti on poistettu tai se ei ole enää saatavilla.",
+  "project.notFoundAction": "Takaisin projekteihin",
 };
 
 export default FI_TRANSLATIONS;

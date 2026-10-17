@@ -559,6 +559,11 @@ export const FR_TRANSLATIONS: TranslationDict = {
   "assist.locked.body": "AI Assist fait partie de Reminders+, avec les projets illimités et Cloud Sync.",
   "plus.error.storeUnavailable": "L'App Store est inaccessible pour le moment.",
   "plus.error.purchaseFailed": "L'achat n'a pas pu être finalisé.",
+  "errorBoundary.title": "Un problème est survenu",
+  "errorBoundary.body": "Une erreur inattendue s’est produite. Réessaie, et si cela se reproduit, redémarre l’app.",
+  "errorBoundary.retry": "Réessayer",
+  "project.notFoundBody": "Ce projet a été supprimé ou n’est plus disponible.",
+  "project.notFoundAction": "Retour aux projets",
 };
 
 export default FR_TRANSLATIONS;

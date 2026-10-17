@@ -559,6 +559,11 @@ export const TR_TRANSLATIONS: TranslationDict = {
   "assist.locked.body": "AI Assist, sınırsız proje ve Cloud Sync ile birlikte Reminders+'ın bir parçasıdır.",
   "plus.error.storeUnavailable": "App Store'a şu anda ulaşılamıyor.",
   "plus.error.purchaseFailed": "Satın alma tamamlanamadı.",
+  "errorBoundary.title": "Bir şeyler ters gitti",
+  "errorBoundary.body": "Beklenmeyen bir hata oluştu. Tekrar dene, sorun sürerse uygulamayı yeniden başlat.",
+  "errorBoundary.retry": "Tekrar dene",
+  "project.notFoundBody": "Bu proje silinmiş veya artık kullanılamıyor.",
+  "project.notFoundAction": "Projelere dön",
 };
 
 export default TR_TRANSLATIONS;

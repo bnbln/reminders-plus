@@ -559,6 +559,11 @@ export const ZH_TRANSLATIONS: TranslationDict = {
   "assist.locked.body": "AI Assist 是 Reminders+ 的一部分，同时包含无限项目和 Cloud Sync。",
   "plus.error.storeUnavailable": "目前无法连接 App Store。",
   "plus.error.purchaseFailed": "无法完成购买。",
+  "errorBoundary.title": "出了点问题",
+  "errorBoundary.body": "发生了意外错误。请重试；如果问题持续出现，请重新启动应用。",
+  "errorBoundary.retry": "重试",
+  "project.notFoundBody": "此项目已被删除或不再可用。",
+  "project.notFoundAction": "返回项目",
 };
 
 export default ZH_TRANSLATIONS;

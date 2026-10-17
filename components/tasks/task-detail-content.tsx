@@ -42,6 +42,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getIntlLocale, t } from '@/i18n';
 import { deriveActiveSectionFromDueAt, hasValidDueAt } from '@/utils/task-dates';
 import { ripple } from "@/components/ui/ripple";
+import { useTextDraft } from '@/hooks/use-text-draft';
 import { m3InputProps } from '@/components/ui/m3-input';
 import { useThemedStyles } from "@/hooks/use-themed-styles";
 
@@ -184,6 +185,18 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
       setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
     },
     [id, setTasks]
+  );
+
+  // Text fields keep a local draft and write to the store once typing pauses.
+  const titleDraft = useTextDraft(task?.title ?? '', (v) => updateTask({ title: v }));
+  const subtitleDraft = useTextDraft(task?.subtitle ?? '', (v) =>
+    updateTask({ subtitle: v.trim().length ? v : undefined })
+  );
+  const locationDraft = useTextDraft(task?.location ?? '', (v) =>
+    updateTask({ location: v.trim().length ? v : undefined })
+  );
+  const notesDraft = useTextDraft(task?.notes ?? '', (v) =>
+    updateTask({ notes: v.length ? v : undefined })
   );
 
   const updateProject = React.useCallback(
@@ -527,8 +540,7 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
         <TextInput
 
           {...m3InputProps()}
-          value={task.title}
-          onChangeText={(v) => updateTask({ title: v })}
+          {...titleDraft}
           placeholder={t('taskDetail.placeholder.title')}
           placeholderTextColor={placeholder}
           multiline
@@ -543,8 +555,7 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
         />
         <TextInput
           {...m3InputProps()}
-          value={task.subtitle ?? ''}
-          onChangeText={(v) => updateTask({ subtitle: v.trim().length ? v : undefined })}
+          {...subtitleDraft}
           placeholder={t('taskDetail.placeholder.subtitle')}
           placeholderTextColor={placeholder}
           multiline
@@ -651,11 +662,10 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
               <Text style={styles.propertyTileLabel}>{t('taskDetail.property.location')}</Text>
               <TextInput
                 {...m3InputProps()}
-                value={task.location ?? ''}
-                onChangeText={(v) => updateTask({ location: v.trim().length ? v : undefined })}
+                {...locationDraft}
                 placeholder={t('taskDetail.placeholder.location')}
                 placeholderTextColor={withAlpha(Colors[theme].text, contrastAlpha(0.4))}
-                style={[styles.propertyTileInput, { color: task.location ? Colors[theme].text : withAlpha(Colors[theme].text, contrastAlpha(0.5)) }]}
+                style={[styles.propertyTileInput, { color: locationDraft.value.trim().length ? Colors[theme].text : withAlpha(Colors[theme].text, contrastAlpha(0.5)) }]}
                 numberOfLines={1}
               />
             </View>
@@ -761,8 +771,7 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
         <Text style={styles.panelTitle}>{t('taskDetail.panel.notes')}</Text>
         <TextInput
           {...m3InputProps()}
-          value={task.notes ?? ''}
-          onChangeText={(v) => updateTask({ notes: v.length ? v : undefined })}
+          {...notesDraft}
           placeholder={t('taskDetail.placeholder.notes')}
           placeholderTextColor={placeholder}
           multiline

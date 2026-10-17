@@ -559,6 +559,11 @@ export const HI_TRANSLATIONS: TranslationDict = {
   "assist.locked.body": "AI Assist, असीमित प्रोजेक्ट और Cloud Sync के साथ Reminders+ का हिस्सा है।",
   "plus.error.storeUnavailable": "अभी App Store तक नहीं पहुँचा जा सकता।",
   "plus.error.purchaseFailed": "ख़रीदारी पूरी नहीं हो सकी।",
+  "errorBoundary.title": "कुछ गलत हो गया",
+  "errorBoundary.body": "एक अनपेक्षित त्रुटि हुई। फिर से कोशिश करें, और अगर यह बार-बार हो तो ऐप को फिर से शुरू करें।",
+  "errorBoundary.retry": "फिर से कोशिश करें",
+  "project.notFoundBody": "यह प्रोजेक्ट हटा दिया गया है या अब उपलब्ध नहीं है।",
+  "project.notFoundAction": "प्रोजेक्ट्स पर वापस जाएँ",
 };
 
 export default HI_TRANSLATIONS;

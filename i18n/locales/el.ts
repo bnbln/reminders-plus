@@ -559,6 +559,11 @@ export const EL_TRANSLATIONS: TranslationDict = {
   "assist.locked.body": "Το AI Assist είναι μέρος του Reminders+, μαζί με απεριόριστα έργα και Cloud Sync.",
   "plus.error.storeUnavailable": "Το App Store δεν είναι προσβάσιμο αυτή τη στιγμή.",
   "plus.error.purchaseFailed": "Δεν ήταν δυνατή η ολοκλήρωση της αγοράς.",
+  "errorBoundary.title": "Κάτι πήγε στραβά",
+  "errorBoundary.body": "Παρουσιάστηκε ένα απρόσμενο σφάλμα. Δοκίμασε ξανά και, αν συνεχιστεί, επανεκκίνησε την εφαρμογή.",
+  "errorBoundary.retry": "Δοκίμασε ξανά",
+  "project.notFoundBody": "Αυτό το έργο διαγράφηκε ή δεν είναι πλέον διαθέσιμο.",
+  "project.notFoundAction": "Πίσω στα έργα",
 };
 
 export default EL_TRANSLATIONS;

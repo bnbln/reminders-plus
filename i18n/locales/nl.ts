@@ -559,6 +559,11 @@ export const NL_TRANSLATIONS: TranslationDict = {
   "assist.locked.body": "AI Assist hoort bij Reminders+, samen met onbeperkt projecten en Cloud Sync.",
   "plus.error.storeUnavailable": "De App Store is op dit moment niet bereikbaar.",
   "plus.error.purchaseFailed": "De aankoop kan niet worden voltooid.",
+  "errorBoundary.title": "Er ging iets mis",
+  "errorBoundary.body": "Er is een onverwachte fout opgetreden. Probeer het opnieuw en start de app opnieuw als het blijft gebeuren.",
+  "errorBoundary.retry": "Opnieuw proberen",
+  "project.notFoundBody": "Dit project is verwijderd of niet meer beschikbaar.",
+  "project.notFoundAction": "Terug naar projecten",
 };
 
 export default NL_TRANSLATIONS;

@@ -676,6 +676,11 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "a11y.task.changeEmoji": "Emoji ändern",
   "a11y.task.moreActions": "Weitere Aktionen",
   "a11y.home.pickDate": "Datum auswählen",
+  "errorBoundary.title": "Etwas ist schiefgelaufen",
+  "errorBoundary.body": "Ein unerwarteter Fehler ist aufgetreten. Versuche es erneut und starte die App neu, falls es wieder passiert.",
+  "errorBoundary.retry": "Erneut versuchen",
+  "project.notFoundBody": "Dieses Projekt wurde gelöscht oder ist nicht mehr verfügbar.",
+  "project.notFoundAction": "Zurück zu den Projekten",
 };
 
 export default DE_TRANSLATIONS;
