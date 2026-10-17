@@ -1,5 +1,6 @@
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { useHeaderHeight } from "expo-router/react-navigation";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -9,6 +10,7 @@ import { withAlpha } from "@/components/ui/glass-surface";
 import { ripple, rippleClip } from "@/components/ui/ripple";
 import { Colors, contrastAlpha } from "@/constants/theme";
 import { submitHomeDayPickerDate } from "@/context/home-day-picker-bridge";
+import { getAccentColorValue, useAppSettings } from "@/context/settings-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
 import { getStartOfLocalDayMs } from "@/utils/task-dates";
@@ -27,7 +29,9 @@ export default function DayPickerSheet() {
   const router = useRouter();
   const { date } = useLocalSearchParams<{ date?: string }>();
   const theme = useColorScheme() ?? "light";
-  const isDark = theme === "dark";
+  const { accentColor } = useAppSettings();
+  const accent = getAccentColorValue(accentColor);
+  const headerHeight = useHeaderHeight();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
 
@@ -56,20 +60,28 @@ export default function DayPickerSheet() {
   const sheetHeaderActions = useSheetHeaderActions({
     onClose: handleClose,
     onDone: handleDone,
+    native: true,
+    doneTintColor: accent,
   });
 
   const todayStart = getStartOfLocalDayMs();
 
   return (
-    <View style={[styles.container, { paddingBottom: insets.bottom + 16 }]}>
+    <View
+      style={[
+        styles.container,
+        { paddingTop: headerHeight + 8, paddingBottom: insets.bottom + 16 },
+      ]}
+    >
       <Stack.Screen
         options={{
           title: t("a11y.home.pickDate"),
           ...sheetHeaderActions,
           headerShown: true,
-          headerStyle: {
-            backgroundColor: isDark ? "#000000" : "#F2F2F7",
-          },
+          // The sheet brings its own glass backdrop; the header and content
+          // sit on it directly.
+          headerTransparent: true,
+          headerStyle: { backgroundColor: "transparent" },
           headerShadowVisible: false,
         }}
       />
@@ -105,6 +117,7 @@ export default function DayPickerSheet() {
           }}
           textColor={Colors[theme].text}
           themeVariant={theme}
+          accentColor={accent}
           style={styles.datePicker}
         />
       </View>
@@ -120,8 +133,6 @@ const createStyles = (theme: keyof typeof Colors) => {
   return StyleSheet.create({
     container: {
       paddingHorizontal: 16,
-      paddingTop: 8,
-      backgroundColor: isDark ? "#000000" : "#F2F2F7",
     },
     quickActionsRow: {
       flexDirection: "row",
@@ -144,10 +155,7 @@ const createStyles = (theme: keyof typeof Colors) => {
       color: text,
     },
     pickerContainer: {
-      backgroundColor: withAlpha(text, contrastAlpha(isDark ? 0.04 : 0.03)),
-      borderRadius: 14,
       overflow: "hidden",
-      padding: 8,
     },
     datePicker: {
       width: "100%",
