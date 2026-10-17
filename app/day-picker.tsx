@@ -6,7 +6,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useSheetHeaderActions } from "@/components/navigation/sheet-header-actions";
-import { withAlpha } from "@/components/ui/glass-surface";
+import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { ripple, rippleClip } from "@/components/ui/ripple";
 import { Colors } from "@/constants/theme";
 import { submitHomeDayPickerDate } from "@/context/home-day-picker-bridge";
@@ -87,24 +87,30 @@ export default function DayPickerSheet() {
       />
 
       <View style={styles.quickActionsRow}>
-        <Pressable
-          android_ripple={ripple()}
-          accessibilityRole="button"
-          style={[styles.quickActionButton, rippleClip(14)]}
-          onPress={() => apply(todayStart)}
-        >
-          <Text style={styles.quickActionText}>{t("common.today")}</Text>
-        </Pressable>
-        <Pressable
-          android_ripple={ripple()}
-          accessibilityRole="button"
-          style={[styles.quickActionButton, rippleClip(14)]}
-          onPress={() => apply(addDays(todayStart, 1))}
-        >
-          <Text style={styles.quickActionText}>
-            {t("taskDetail.relative.tomorrow")}
-          </Text>
-        </Pressable>
+        {[
+          { label: t("common.today"), dateStart: todayStart },
+          {
+            label: t("taskDetail.relative.tomorrow"),
+            dateStart: addDays(todayStart, 1),
+          },
+        ].map(({ label, dateStart }) => (
+          // Liquid Glass buttons on the sheet's own glass, no extra fill.
+          <GlassSurface
+            key={label}
+            isInteractive
+            fallbackBackgroundColor={styles.quickActionFallback.backgroundColor}
+            style={styles.quickActionButton}
+          >
+            <Pressable
+              android_ripple={ripple()}
+              accessibilityRole="button"
+              style={[styles.quickActionPressable, rippleClip(14)]}
+              onPress={() => apply(dateStart)}
+            >
+              <Text style={styles.quickActionText}>{label}</Text>
+            </Pressable>
+          </GlassSurface>
+        ))}
       </View>
 
       <View style={styles.pickerContainer}>
@@ -118,7 +124,6 @@ export default function DayPickerSheet() {
           textColor={Colors[theme].text}
           themeVariant={theme}
           accentColor={accent}
-          style={styles.datePicker}
         />
       </View>
     </View>
@@ -128,7 +133,6 @@ export default function DayPickerSheet() {
 const createStyles = (theme: keyof typeof Colors) => {
   const isDark = theme === "dark";
   const text = Colors[theme].text;
-  const hairline = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)";
 
   return StyleSheet.create({
     container: {
@@ -141,12 +145,15 @@ const createStyles = (theme: keyof typeof Colors) => {
     },
     quickActionButton: {
       flex: 1,
-      paddingVertical: 12,
       borderRadius: 14,
+      overflow: "hidden",
+    },
+    quickActionPressable: {
+      paddingVertical: 12,
       alignItems: "center",
       justifyContent: "center",
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: hairline,
+    },
+    quickActionFallback: {
       backgroundColor: withAlpha(text, isDark ? 0.08 : 0.05),
     },
     quickActionText: {
@@ -154,11 +161,10 @@ const createStyles = (theme: keyof typeof Colors) => {
       fontWeight: "600",
       color: text,
     },
+    // The inline calendar keeps its own intrinsic width; center it so the
+    // margins match on both sides.
     pickerContainer: {
-      overflow: "hidden",
-    },
-    datePicker: {
-      width: "100%",
+      alignItems: "center",
     },
   });
 };
