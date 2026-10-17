@@ -29,6 +29,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
 import MaskedView from "@react-native-masked-view/masked-view";
+import Reanimated, { ZoomIn, ZoomOut } from "react-native-reanimated";
 
 import {
   type TaskDragGestureUpdateParams,
@@ -108,7 +109,14 @@ const CONTENT_STACK_GAP = 10;
 const DATE_TRANSITION_DURATION = 250;
 const DATE_RAIL_TITLE_TRANSITION_DURATION = 300;
 const DATE_RAIL_TITLE_SCRUB_DURATION = 190;
-const DATE_RAIL_TITLE_TRANSITION_DISTANCE = 10;
+const DATE_RAIL_TITLE_TRANSITION_DISTANCE = 36;
+// Width of the alpha fade at each side of the title, laid into the row's
+// horizontal padding so the title at rest stays fully opaque.
+const DATE_RAIL_TITLE_FADE = 12;
+// Back to today pops in and out with a soft spring, like a glass control.
+// Off with Reduce Motion (system or in-app switch).
+const BACK_TO_TODAY_ENTERING = ZoomIn.springify().damping(16).stiffness(220);
+const BACK_TO_TODAY_EXITING = ZoomOut.duration(160);
 const DRAG_RAIL_HOVER_INTENT_MS = 80;
 const HOME_TASK_INITIAL_REVEAL_DURATION_MS = 340;
 const IOS_LIGHT_BASE_BACKGROUND = "#F2F2F7"; // systemGroupedBackground
@@ -706,7 +714,8 @@ const createStyles = (
     },
     dateRailTitleTextViewport: {
       height: 24,
-      overflow: "hidden",
+      marginHorizontal: -DATE_RAIL_TITLE_FADE,
+      paddingHorizontal: DATE_RAIL_TITLE_FADE,
       alignItems: "flex-start",
       justifyContent: "center",
       position: "relative",
@@ -4057,6 +4066,13 @@ function HomeContent() {
     ];
     const isPreparingTitleTransition =
       dateRailTitleTransitionState.phase === "preparing";
+    // The viewport spans the row minus the round buttons on the right
+    // (about 88 pt); an estimate is enough for the fade's proportions.
+    const titleMaskFade = Math.min(
+      0.2,
+      DATE_RAIL_TITLE_FADE / Math.max(120, dateRailContainerWidth - 88),
+    );
+    const titleMaskLocations = [0, titleMaskFade, 1 - titleMaskFade, 1] as const;
     const outgoingTitleOpacity = dateRailTitleMotion.interpolate({
       inputRange: [0, 0.78, 1],
       outputRange: [1, 0.24, 0],
@@ -4065,7 +4081,7 @@ function HomeContent() {
       inputRange: [0, 1],
       outputRange: [0, 1],
     });
-    const outgoingTitleTranslateY = dateRailTitleMotion.interpolate({
+    const outgoingTitleTranslateX = dateRailTitleMotion.interpolate({
       inputRange: [0, 1],
       outputRange: [
         0,
@@ -4073,7 +4089,7 @@ function HomeContent() {
           dateRailTitleTransitionState.direction,
       ],
     });
-    const incomingTitleTranslateY = dateRailTitleMotion.interpolate({
+    const incomingTitleTranslateX = dateRailTitleMotion.interpolate({
       inputRange: [0, 1],
       outputRange: [
         DATE_RAIL_TITLE_TRANSITION_DISTANCE *
@@ -4091,7 +4107,23 @@ function HomeContent() {
           <View style={styles.dateRailTitleHost}>
             <View style={styles.dateRailHeadlineRow}>
               <View style={styles.dateRailHeadlineTextHost}>
-                <View style={styles.dateRailTitleTextViewport}>
+                <MaskedView
+                  style={styles.dateRailTitleTextViewport}
+                  maskElement={
+                    <LinearGradient
+                      colors={[
+                        "rgba(0,0,0,0)",
+                        "rgba(0,0,0,1)",
+                        "rgba(0,0,0,1)",
+                        "rgba(0,0,0,0)",
+                      ]}
+                      locations={titleMaskLocations}
+                      start={{ x: 0, y: 0.5 }}
+                      end={{ x: 1, y: 0.5 }}
+                      style={StyleSheet.absoluteFill}
+                    />
+                  }
+                >
                   <View style={styles.dateRailTitleTextTransitionHost}>
                     {dateRailTitleTransitionState.previousText ? (
                       <Animated.Text
@@ -4101,12 +4133,12 @@ function HomeContent() {
                           isPreparingTitleTransition
                             ? {
                                 opacity: 1,
-                                transform: [{ translateY: 0 }],
+                                transform: [{ translateX: 0 }],
                               }
                             : {
                                 opacity: outgoingTitleOpacity,
                                 transform: [
-                                  { translateY: outgoingTitleTranslateY },
+                                  { translateX: outgoingTitleTranslateX },
                                 ],
                               },
                         ]}
@@ -4125,7 +4157,7 @@ function HomeContent() {
                                 opacity: 0,
                                 transform: [
                                   {
-                                    translateY:
+                                    translateX:
                                       DATE_RAIL_TITLE_TRANSITION_DISTANCE *
                                       dateRailTitleTransitionState.direction,
                                   },
@@ -4134,12 +4166,12 @@ function HomeContent() {
                             : {
                                 opacity: incomingTitleOpacity,
                                 transform: [
-                                  { translateY: incomingTitleTranslateY },
+                                  { translateX: incomingTitleTranslateX },
                                 ],
                               }
                           : {
                               opacity: 1,
-                              transform: [{ translateY: 0 }],
+                              transform: [{ translateX: 0 }],
                             },
                       ]}
                       numberOfLines={1}
@@ -4147,42 +4179,51 @@ function HomeContent() {
                       {dateRailTitleTransitionState.currentText}
                     </Animated.Text>
                   </View>
-                </View>
+                </MaskedView>
               </View>
               <View style={styles.calendarButtonRow}>
                 {/* Back to today only makes sense away from today. */}
                 {!isSameLocalDay(selectedDateStart, getStartOfToday()) ? (
-                  <GlassSurface
-                    tintColor={glassSurfacePalette.calendarTint}
-                    fallbackBackgroundColor={glassSurfacePalette.calendarFallback}
-                    style={styles.calendarButton}
-                    isInteractive={true}
+                  <Reanimated.View
+                    entering={
+                      reduceMotionEnabled ? undefined : BACK_TO_TODAY_ENTERING
+                    }
+                    exiting={
+                      reduceMotionEnabled ? undefined : BACK_TO_TODAY_EXITING
+                    }
                   >
-                    <Pressable
-                      android_ripple={rippleBorderless(16)}
-                      accessibilityRole="button"
-                      accessibilityLabel={t("home.jumpToToday")}
-                      hitSlop={16}
-                      style={StyleSheet.absoluteFill}
-                      onPress={() => {
-                        handleJumpToToday("press");
-                      }}
+                    <GlassSurface
+                      tintColor={glassSurfacePalette.calendarTint}
+                      fallbackBackgroundColor={glassSurfacePalette.calendarFallback}
+                      style={styles.calendarButton}
+                      isInteractive={true}
                     >
-                      <View
-                        style={{
-                          flex: 1,
-                          alignItems: "center",
-                          justifyContent: "center",
+                      <Pressable
+                        android_ripple={rippleBorderless(16)}
+                        accessibilityRole="button"
+                        accessibilityLabel={t("home.jumpToToday")}
+                        hitSlop={16}
+                        style={StyleSheet.absoluteFill}
+                        onPress={() => {
+                          handleJumpToToday("press");
                         }}
                       >
-                        <SFSymbol
-                          name="arrow.uturn.backward"
-                          size={16}
-                          color={Colors[theme].text}
-                        />
-                      </View>
-                    </Pressable>
-                  </GlassSurface>
+                        <View
+                          style={{
+                            flex: 1,
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <SFSymbol
+                            name="arrow.uturn.backward"
+                            size={16}
+                            color={Colors[theme].text}
+                          />
+                        </View>
+                      </Pressable>
+                    </GlassSurface>
+                  </Reanimated.View>
                 ) : null}
 
                 <GlassSurface
