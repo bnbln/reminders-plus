@@ -13,10 +13,9 @@ const tintColorDark = '#fff';
 export const LIGHT_ACCENT_SCREEN_BACKGROUND = '#E5E5EA';
 
 // Dark task picker sheets (due date, style, location, routine, project) sit on
-// black. Rows get a raised fill, and their outline reaches 3.5:1 against the
-// sheet so each selectable item stands apart (WCAG 1.4.11).
+// black. Rows get a raised fill, without an outline, so selectable items stand
+// apart from the sheet.
 export const PICKER_SHEET_DARK_ROW = '#1C1C1E';
-export const PICKER_SHEET_DARK_ROW_BORDER = '#636366';
 
 // Accent of each task sheet, taken from its icon in the new-task menu, so a
 // sheet keeps the color of the action that opened it.
