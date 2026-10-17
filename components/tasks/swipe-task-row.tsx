@@ -48,7 +48,7 @@ const SWIPE_SNAP_PROGRESS = SWIPE_STOP / SWIPE_TRIGGER_SNAP;
 const COMPACT_SUBTASK_ICON_SIZE = 18;
 const COMPACT_SUBTASK_TEXT_SIZE = 14;
 const DRAG_LONG_PRESS_DELAY_MS = 260;
-const DRAG_COMPACT_PREVIEW_SIZE = 65;
+const DRAG_COMPACT_PREVIEW_SIZE = 52;
 const TASK_POP_IN_DURATION_MS = 196;
 const SWIPE_COMMIT_EXIT_DURATION_MS = 118;
 const SWIPE_COMMIT_EXIT_FADE_DURATION_MS = 96;
@@ -449,6 +449,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   const [dragPressInLocalX, setDragPressInLocalX] = React.useState<
     number | null
   >(null);
+  const dragPressPageXRef = React.useRef<number | null>(null);
   const cachedRowHeight = TASK_ROW_HEIGHT_CACHE.get(task.id) ?? 0;
   const [measuredRowHeight, setMeasuredRowHeight] = React.useState(
     cachedRowHeight,
@@ -800,8 +801,15 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     }
     longPressTriggeredRef.current = true;
     onTouchInteractionChange?.(task.id, false);
+    const pressPageX = dragPressPageXRef.current;
+    measureInWindow((frame) => {
+      if (!isMountedRef.current) return;
+      setDragPressInLocalX(
+        frame && pressPageX != null ? pressPageX - frame.x : null,
+      );
+    });
     drag();
-  }, [drag, isActive, onTouchInteractionChange, task.id]);
+  }, [drag, isActive, measureInWindow, onTouchInteractionChange, task.id]);
 
   const armLongPressDrag = React.useCallback(() => {
     if (longPressTimerRef.current) {
@@ -1286,31 +1294,49 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     () => (isCompletedTask ? { opacity: 0.82 } : null),
     [isCompletedTask],
   );
+  // The drag offset is JS-driven (it follows the finger), while the reveal and
+  // swipe-commit values are native-driven. Animated turns every node in one
+  // transform native once any of them is, so on a shared view the next JS
+  // spring on the drag offset threw. They live on separate views.
+  const dragMotionStyle = React.useMemo(() => {
+    const transforms: {
+      translateX: number | Animated.Value | Animated.AnimatedAddition<number>;
+    }[] = [];
+
+    if (isActive && followHorizontalDrag && activeDragTranslateX) {
+      transforms.push({ translateX: activeDragTranslateX });
+      if (
+        shouldUseCompactDragPreview &&
+        typeof dragPressInLocalX === "number" &&
+        Number.isFinite(dragPressInLocalX)
+      ) {
+        transforms.push({
+          translateX: dragPressInLocalX - DRAG_COMPACT_PREVIEW_SIZE / 2,
+        });
+      }
+    }
+
+    return {
+      transform: transforms,
+    };
+  }, [
+    activeDragTranslateX,
+    dragPressInLocalX,
+    followHorizontalDrag,
+    isActive,
+    shouldUseCompactDragPreview,
+  ]);
   const contentMotionStyle = React.useMemo(
     () => {
       const transforms: (
         | {
             translateX:
-              | number
               | Animated.Value
               | Animated.AnimatedAddition<number>
               | Animated.AnimatedInterpolation<number>;
           }
         | { scale: Animated.Value }
       )[] = [];
-
-      if (isActive && followHorizontalDrag && activeDragTranslateX) {
-        transforms.push({ translateX: activeDragTranslateX });
-        if (
-          shouldUseCompactDragPreview &&
-          typeof dragPressInLocalX === "number" &&
-          Number.isFinite(dragPressInLocalX)
-        ) {
-          transforms.push({
-            translateX: dragPressInLocalX - DRAG_COMPACT_PREVIEW_SIZE / 2,
-          });
-        }
-      }
 
       if (revealTranslateX) {
         transforms.push({ translateX: revealTranslateX });
@@ -1326,12 +1352,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
       };
     },
     [
-      activeDragTranslateX,
-      dragPressInLocalX,
-      followHorizontalDrag,
-      isActive,
       revealTranslateX,
-      shouldUseCompactDragPreview,
       shouldApplySwipeCommitState,
       swipeCommitScale,
       swipeCommitTranslateX,
@@ -1530,7 +1551,7 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
         style={[
           styles.emojiTile,
           shouldUseCompactDragPreview
-            ? { width: 36, height: 36, borderRadius: 10 }
+            ? { width: 30, height: 30, borderRadius: 9 }
             : null,
           {
             backgroundColor: taskBgColor ?? projectBgColor ?? emojiTint,
@@ -1651,126 +1672,131 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
             renderUnderlayRight={renderUnderlayRight}
           >
             <Animated.View style={contentMotionStyle}>
-              <TouchableOpacity
-                testID={`task-row-${task.id}`}
-                accessibilityActions={[
-                  {
-                    name: "activate",
-                  },
-                  {
-                    name: "complete",
-                    label:
-                      task.section === "completed"
-                        ? t("a11y.task.reopen")
-                        : t("a11y.task.complete"),
-                  },
-                  { name: "delete", label: t("common.delete") },
-                ]}
-                onAccessibilityAction={(event) => {
-                  switch (event.nativeEvent.actionName) {
-                    case "complete":
-                      onPressComplete();
-                      break;
-                    case "delete":
-                      onPressDelete();
-                      break;
-                    case "activate":
-                      onPressTask(task.id);
-                      break;
+              <Animated.View style={dragMotionStyle}>
+                <TouchableOpacity
+                  testID={`task-row-${task.id}`}
+                  accessibilityActions={[
+                    {
+                      name: "activate",
+                    },
+                    {
+                      name: "complete",
+                      label:
+                        task.section === "completed"
+                          ? t("a11y.task.reopen")
+                          : t("a11y.task.complete"),
+                    },
+                    { name: "delete", label: t("common.delete") },
+                  ]}
+                  onAccessibilityAction={(event) => {
+                    switch (event.nativeEvent.actionName) {
+                      case "complete":
+                        onPressComplete();
+                        break;
+                      case "delete":
+                        onPressDelete();
+                        break;
+                      case "activate":
+                        onPressTask(task.id);
+                        break;
+                    }
+                  }}
+                  onLongPress={handleLongPressDrag}
+                  delayLongPress={DRAG_LONG_PRESS_DELAY_MS}
+                  activeOpacity={0.9}
+                  disabled={shouldApplySwipeCommitState}
+                  onLayout={handleRowLayout}
+                  style={
+                    shouldUseCompactDragPreview
+                      ? {
+                          width: DRAG_COMPACT_PREVIEW_SIZE,
+                          alignSelf: "flex-start",
+                        }
+                      : { width: "100%", alignSelf: "stretch" }
                   }
-                }}
-                onLongPress={handleLongPressDrag}
-                delayLongPress={DRAG_LONG_PRESS_DELAY_MS}
-                activeOpacity={0.9}
-                disabled={shouldApplySwipeCommitState}
-                onLayout={handleRowLayout}
-                style={
-                  shouldUseCompactDragPreview
-                    ? {
-                        width: DRAG_COMPACT_PREVIEW_SIZE,
-                        alignSelf: "flex-start",
-                      }
-                    : { width: "100%", alignSelf: "stretch" }
-                }
-                onPressIn={(event) => {
-                  const localX = event.nativeEvent.locationX;
-                  setDragPressInLocalX(
-                    Number.isFinite(localX) ? localX : null,
-                  );
-                  onTouchInteractionChange?.(task.id, true);
-                  armLongPressDrag();
-                }}
-                onPressOut={() => {
-                  clearLongPressDrag();
-                  onTouchInteractionChange?.(task.id, false);
-                }}
-                onPress={() => {
-                  if (longPressTriggeredRef.current) {
-                    longPressTriggeredRef.current = false;
-                    return;
-                  }
-                  onPressTask(task.id);
-                }}
-              >
-                <GlassSurface
-                  style={rowContentStyle}
-                  glassEffectStyle="regular"
-                  tintColor={rowTintColor}
-                  fallbackBackgroundColor={rowFallbackBackgroundColor}
-                  isInteractive
+                  onPressIn={(event) => {
+                    // locationX is relative to the innermost touched view (the
+                    // title text, the emoji), not the row, so keep pageX and
+                    // resolve it against the row frame when the drag starts.
+                    const pageX = event.nativeEvent.pageX;
+                    dragPressPageXRef.current = Number.isFinite(pageX)
+                      ? pageX
+                      : null;
+                    onTouchInteractionChange?.(task.id, true);
+                    armLongPressDrag();
+                  }}
+                  onPressOut={() => {
+                    clearLongPressDrag();
+                    onTouchInteractionChange?.(task.id, false);
+                  }}
+                  onPress={() => {
+                    if (longPressTriggeredRef.current) {
+                      longPressTriggeredRef.current = false;
+                      return;
+                    }
+                    onPressTask(task.id);
+                  }}
                 >
-                  <Animated.View style={surfaceContentMotionStyle}>
-                    <View
-                      style={[
-                        styles.rowInner,
-                        completedContentStyle,
-                        shouldUseCompactDragPreview
-                          ? {
-                              alignItems: "center",
-                              justifyContent: "center",
-                              gap: 0,
-                            }
-                          : !hasExtraInfo
-                            ? { alignItems: "center" }
-                            : null,
-                      ]}
-                    >
-                      {emojiTileView}
-                      {shouldUseCompactDragPreview ? null : (
-                        <View
-                          style={[
-                            styles.textStack,
-                            !hasExtraInfo ? { justifyContent: "center" } : null,
-                          ]}
-                        >
-                          <View style={styles.titleRow}>
-                            <Text
-                              style={[styles.rowTitle, completedTitleStyle]}
-                              numberOfLines={1}
-                            >
-                              {task.title}
-                            </Text>
-                            {rightMetaView}
+                  <GlassSurface
+                    style={rowContentStyle}
+                    glassEffectStyle="regular"
+                    tintColor={rowTintColor}
+                    fallbackBackgroundColor={rowFallbackBackgroundColor}
+                    isInteractive
+                  >
+                    <Animated.View style={surfaceContentMotionStyle}>
+                      <View
+                        style={[
+                          styles.rowInner,
+                          completedContentStyle,
+                          shouldUseCompactDragPreview
+                            ? {
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: 0,
+                              }
+                            : !hasExtraInfo
+                              ? { alignItems: "center" }
+                              : null,
+                        ]}
+                      >
+                        {emojiTileView}
+                        {shouldUseCompactDragPreview ? null : (
+                          <View
+                            style={[
+                              styles.textStack,
+                              !hasExtraInfo ? { justifyContent: "center" } : null,
+                            ]}
+                          >
+                            <View style={styles.titleRow}>
+                              <Text
+                                style={[styles.rowTitle, completedTitleStyle]}
+                                numberOfLines={1}
+                              >
+                                {task.title}
+                              </Text>
+                              {rightMetaView}
+                            </View>
+                            {task.subtitle ? (
+                              <Text
+                                style={[
+                                  styles.rowSubtitle,
+                                  completedTitleStyle,
+                                  completedMetaStyle,
+                                ]}
+                              >
+                                {task.subtitle}
+                              </Text>
+                            ) : null}
+                            {tagsView}
+                            {compactSubtasksView}
                           </View>
-                          {task.subtitle ? (
-                            <Text
-                              style={[
-                                styles.rowSubtitle,
-                                completedTitleStyle,
-                                completedMetaStyle,
-                              ]}
-                            >
-                              {task.subtitle}
-                            </Text>
-                          ) : null}
-                          {tagsView}
-                          {compactSubtasksView}
-                        </View>
-                      )}
-                    </View>
-                  </Animated.View>
-                </GlassSurface>
-              </TouchableOpacity>
+                        )}
+                      </View>
+                    </Animated.View>
+                  </GlassSurface>
+                </TouchableOpacity>
+              </Animated.View>
             </Animated.View>
           </SwipeableItem>
         </Animated.View>
