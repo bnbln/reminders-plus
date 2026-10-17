@@ -5,6 +5,7 @@ import { useHeaderHeight } from "expo-router/react-navigation";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import {
+  Animated,
   LayoutAnimation,
   Platform,
   Pressable,
@@ -36,7 +37,7 @@ import {
   deriveActiveSectionFromDueAt,
   hasValidDueAt,
 } from "@/utils/task-dates";
-import { configureLayoutAnimation } from "@/utils/motion";
+import { configureLayoutAnimation, motionSpring } from "@/utils/motion";
 import { useThemedStyles } from "@/hooks/use-themed-styles";
 
 const HOME_TASK_ITEM_SPACING = 8;
@@ -142,6 +143,39 @@ function InboxContent() {
     overdue: false,
     withoutDate: false,
   });
+  const [sectionToggleCount, setSectionToggleCount] = React.useState(0);
+  // 1 = expanded, 0 = collapsed; drives the header chevron rotation.
+  const [chevronProgress] = React.useState<
+    Record<InboxSectionId, Animated.Value>
+  >(() => ({
+    overdue: new Animated.Value(1),
+    withoutDate: new Animated.Value(1),
+  }));
+  const chevronRotation = React.useMemo(
+    () => ({
+      overdue: chevronProgress.overdue.interpolate({
+        inputRange: [0, 1],
+        outputRange: ["0deg", "180deg"],
+      }),
+      withoutDate: chevronProgress.withoutDate.interpolate({
+        inputRange: [0, 1],
+        outputRange: ["0deg", "180deg"],
+      }),
+    }),
+    [chevronProgress],
+  );
+
+  React.useEffect(() => {
+    for (const sectionId of INBOX_SECTION_ORDER) {
+      motionSpring(chevronProgress[sectionId], {
+        toValue: collapsedSections[sectionId] ? 0 : 1,
+        damping: 18,
+        stiffness: 220,
+        mass: 0.8,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [chevronProgress, collapsedSections]);
 
   const projectsById = React.useMemo(
     () => new Map(projects.map((p) => [p.id, p] as const)),
@@ -395,6 +429,7 @@ function InboxContent() {
         ...prev,
         [sectionId]: !prev[sectionId],
       }));
+      setSectionToggleCount((count) => count + 1);
     },
     [],
   );
@@ -459,20 +494,24 @@ function InboxContent() {
                 </Text>
               </View>
             </View>
-            <MaterialIcons
-              name="expand-more"
-              size={20}
-              color={chevronColor}
+            <Animated.View
               style={[
                 styles.sectionChevron,
-                { transform: [{ rotate: isCollapsed ? "0deg" : "180deg" }] },
+                { transform: [{ rotate: chevronRotation[id] }] },
               ]}
-            />
+            >
+              <MaterialIcons
+                name="expand-more"
+                size={20}
+                color={chevronColor}
+              />
+            </Animated.View>
           </Pressable>
         </View>
       );
     },
     [
+      chevronRotation,
       collapsedSections,
       isListDragging,
       overdueTasks.length,
@@ -523,6 +562,7 @@ function InboxContent() {
         syncDataDuringDrag={false}
         dropLayoutHandoff
         animateDataLayoutChanges={false}
+        sectionToggleAnimationKey={sectionToggleCount}
         empty={null}
         footer={
           hasAnyTask ? null : (
