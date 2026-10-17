@@ -4,9 +4,8 @@ import {
 } from "@/components/navigation/vertical-bar-safe-area";
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  type LayoutChangeEvent,
   Platform,
   ScrollView,
   StyleSheet,
@@ -16,6 +15,7 @@ import {
 
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { SFSymbol } from '@/components/ui/sfsymbol';
+import { StatHero } from '@/components/ui/stat-hero';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
@@ -51,44 +51,8 @@ const createStyles = (
       paddingBottom: 32,
       gap: 16,
     },
-    hero: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: compact ? 10 : 14,
-      paddingVertical: compact ? 10 : 14,
-      marginBottom: 8,
-    },
     heroIcon: {
       marginTop: compact ? -2 : -4,
-    },
-    heroTextWrap: {
-      alignItems: 'flex-start',
-      flexShrink: 1,
-      gap: 2,
-    },
-    // Invisible "100%" that reserves the widest value, so 0 % and 100 % sit
-    // in the same place.
-    bigNumberSizer: {
-      opacity: 0,
-    },
-    bigNumberValue: {
-      position: 'absolute',
-      left: 0,
-      top: 0,
-    },
-    bigNumber: {
-      fontSize: compact ? 54 : 64,
-      fontWeight: '900',
-      letterSpacing: -0.8,
-      lineHeight: compact ? 54 : 64,
-      color: text,
-    },
-    heroSubtitle: {
-      fontSize: compact ? 15 : 16,
-      fontWeight: '700',
-      lineHeight: compact ? 19 : 20,
-      color: subtitleColor,
     },
     quickGridWrap: {
       marginBottom: 16,
@@ -334,11 +298,6 @@ export default function StatusScreen() {
   } = useStatusStats();
 
   const [range, setRange] = useState<RangeOption>('14d');
-  const [numberSlotWidth, setNumberSlotWidth] = useState(0);
-  const handleNumberSlotLayout = useCallback((event: LayoutChangeEvent) => {
-    const next = Math.ceil(event.nativeEvent.layout.width);
-    setNumberSlotWidth((prev) => (prev === next ? prev : next));
-  }, []);
 
   const chartData = useMemo(() => getChartData(range), [range, getChartData]);
   const maxVal = 100;
@@ -394,23 +353,6 @@ export default function StatusScreen() {
           total: todayTotalCount,
         })
       : t('status.hero.empty');
-  // The hero is centred as a group. Giving the text column a fixed width
-  // (the widest number, at least a comfortable line length, at most what
-  // fits next to the icon) keeps the percentage from moving when the value
-  // or the subtitle changes; long subtitles wrap inside that width instead.
-  const heroIconSize = compact ? 36 : 42;
-  const heroAvailableWidth = Math.max(
-    0,
-    width - 32 - heroIconSize - (compact ? 10 : 14),
-  );
-  const heroTextWidth =
-    numberSlotWidth > 0
-      ? Math.min(
-          heroAvailableWidth,
-          Math.max(numberSlotWidth, compact ? 170 : 190),
-        )
-      : undefined;
-
   return (
     <ScrollView
       style={styles.container}
@@ -423,46 +365,31 @@ export default function StatusScreen() {
         ]}
       showsVerticalScrollIndicator={false}
     >
-      <View style={styles.hero}>
-        {Platform.OS === 'ios' ? (
-          <SFSymbol
-            name="chart.bar.fill"
-            size={compact ? 36 : 42}
-            color={statusColor}
-            style={styles.heroIcon}
-            weight="bold"
-          />
-        ) : (
-          <MaterialIcons
-            name="insights"
-            size={compact ? 34 : 40}
-            color={statusColor}
-            style={styles.heroIcon}
-          />
-        )}
-        <View
-          style={[
-            styles.heroTextWrap,
-            heroTextWidth != null ? { width: heroTextWidth } : null,
-          ]}
-        >
-          <View>
-            <Text
-              style={[styles.bigNumber, styles.bigNumberSizer]}
-              onLayout={handleNumberSlotLayout}
-              accessible={false}
-              importantForAccessibility="no"
-              aria-hidden
-            >
-              100%
-            </Text>
-            <Text style={[styles.bigNumber, styles.bigNumberValue]}>
-              {todayCompletionRate}%
-            </Text>
-          </View>
-          <Text style={styles.heroSubtitle}>{heroSubtitle}</Text>
-        </View>
-      </View>
+      <StatHero
+        icon={
+          Platform.OS === 'ios' ? (
+            <SFSymbol
+              name="chart.bar.fill"
+              size={compact ? 36 : 42}
+              color={statusColor}
+              style={styles.heroIcon}
+              weight="bold"
+            />
+          ) : (
+            <MaterialIcons
+              name="insights"
+              size={compact ? 34 : 40}
+              color={statusColor}
+              style={styles.heroIcon}
+            />
+          )
+        }
+        value={`${todayCompletionRate}%`}
+        subtitle={heroSubtitle}
+        compact={compact}
+        textColor={textColor}
+        subtitleColor={withAlpha(textColor, 0.62)}
+      />
 
       <View style={styles.quickGridWrap}>
         <View style={styles.quickGrid}>
