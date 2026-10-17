@@ -279,21 +279,6 @@ function mergeCompletionHistory(
   return changed ? next : completionHistory;
 }
 
-/** Get the nth occurrence of a weekday in a given month */
-function getNthWeekdayOfMonth(
-  year: number,
-  month: number,
-  weekday: number,
-  nth: number,
-): Date {
-  const first = new Date(year, month, 1);
-  const firstWeekday = first.getDay();
-  let dayOffset = weekday - firstWeekday;
-  if (dayOffset < 0) dayOffset += 7;
-  const day = 1 + dayOffset + (nth - 1) * 7;
-  return new Date(year, month, day);
-}
-
 /** Get the last day of a month */
 function getLastDayOfMonth(year: number, month: number): Date {
   return new Date(year, month + 1, 0);

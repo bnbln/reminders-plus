@@ -35,9 +35,11 @@ export function VerticalBarSafeAreaProvider({ children }: React.PropsWithChildre
 
   React.useEffect(() => {
     if (!verticalBarModule) return;
-    const subscription = new NativeEventEmitter(verticalBarModule).addListener(
+    const subscription = new NativeEventEmitter<{
+      verticalBarLayoutChanged: [{ hasVerticalBar: boolean; isRegularWidth?: boolean }];
+    }>(verticalBarModule).addListener(
       "verticalBarLayoutChanged",
-      (state: { hasVerticalBar: boolean; isRegularWidth?: boolean }) => {
+      (state) => {
         setIsVerticalBarActive(state.hasVerticalBar);
         setIsNativeRegularWidth(state.isRegularWidth === true);
         // Keep the wrapper mounted across Duo pose changes. The native Screen

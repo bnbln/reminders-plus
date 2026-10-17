@@ -2198,7 +2198,7 @@ function AssistUnlockedScreen() {
     ),
   );
 
-  const scrollViewRef = React.useRef<ScrollView>(null);
+  const scrollViewRef = React.useRef<React.ComponentRef<typeof ScrollView>>(null);
   const router = useRouter();
   const rawColorScheme = useColorScheme();
   const resolvedColorScheme: "light" | "dark" =

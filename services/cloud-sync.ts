@@ -60,7 +60,10 @@ const cloudSyncNativeModule: NativeCloudSyncModule | null =
 
 const cloudSyncEmitter =
   cloudSyncNativeModule != null
-    ? new NativeEventEmitter(NativeModules.CloudSyncBridge)
+    ? new NativeEventEmitter<{
+        cloudSyncStatusChanged: [CloudSyncStatus];
+        cloudSyncRemoteSnapshotApplied: [{ savedAt: number | null }];
+      }>(NativeModules.CloudSyncBridge)
     : null;
 
 export function isCloudSyncSupported() {

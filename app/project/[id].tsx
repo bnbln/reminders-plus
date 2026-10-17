@@ -10,6 +10,7 @@ import React from "react";
 import {
   Platform,
   Pressable,
+  type ScrollView,
   StyleSheet,
   Text,
   View,
@@ -328,7 +329,7 @@ function KanbanColumn({
   dropTargetAccentColor: string;
   columnBackgroundColor: string;
   columnBottomPadding: number;
-  boardScrollRef: React.RefObject<GHScrollView | null>;
+  boardScrollRef: React.RefObject<React.ComponentRef<typeof ScrollView> | null>;
   onPressTask: (id: string) => void;
   theme: ThemeName;
   styles: ReturnType<typeof createStyles>;
@@ -507,7 +508,7 @@ function ProjectDetailContent() {
   const { enabledTags, showTagIcons, showProjectNames, showCompactSubtasks } =
     useHomeFilters();
   const { projects, tasks, setTasks, hasHydrated } = useTasksStore();
-  const boardScrollRef = React.useRef<GHScrollView | null>(null);
+  const boardScrollRef = React.useRef<React.ComponentRef<typeof ScrollView>>(null);
   const boardOffsetXRef = React.useRef<number>(todaySnapOffset);
   const boardOffsetXShared = useSharedValue<number>(todaySnapOffset);
   const boardPageXRef = React.useRef<number>(0);

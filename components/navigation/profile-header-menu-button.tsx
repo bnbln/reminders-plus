@@ -19,7 +19,6 @@ import {
 } from "@/utils/assist-availability";
 
 type ProfileMenuActionId =
-  | "profile"
   | "status"
   | "streaks"
   | "routines"
@@ -152,11 +151,6 @@ export function ProfileHeaderMenuButton() {
   const onPressAction = React.useCallback(
     ({ nativeEvent: { event } }: any) => {
       const actionId = event as ProfileMenuActionId;
-
-      if (actionId === "profile") {
-        router.push("/profile");
-        return;
-      }
 
       if (actionId === "status") {
         router.push("/status");

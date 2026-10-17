@@ -17,20 +17,6 @@ import { useThemedStyles } from "@/hooks/use-themed-styles";
 
 const ACCENT = TASK_SHEET_ACCENTS.date;
 
-const pad2 = (n: number) => String(n).padStart(2, '0');
-
-const normalizeDateWithTimeFlag = (date: Date, hasTime: boolean, previous: Date) => {
-    const d = new Date(date);
-    if (!hasTime) {
-        d.setHours(12, 0, 0, 0);
-        return d;
-    }
-    // Respect time if hasTime is true, but date part comes from picker
-    // Usually picker sets both if mode='datetime', but we usually separate date/time or use combined.
-    // Here we trust the picker's date fully if inline.
-    return d;
-};
-
 export default function DatePickerScreen() {
     const router = useRouter();
     const { taskId } = useLocalSearchParams<{ taskId: string }>();

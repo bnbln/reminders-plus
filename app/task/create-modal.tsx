@@ -1,9 +1,8 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
-import { useIsFocused } from "expo-router";
 import * as ExpoGlassEffect from "expo-glass-effect";
 import { GlassView, isLiquidGlassAvailable } from "expo-glass-effect";
 import { LinearGradient } from "expo-linear-gradient";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import {
   Alert,
@@ -297,9 +296,9 @@ export default function CreateTaskModal() {
   const [isMenuExpanded, setMenuExpanded] = React.useState(false);
   const trimmed = title.trim();
   const hasTitle = trimmed.length > 0;
-  const menuProgress = React.useRef(new Animated.Value(0)).current;
+  const [menuProgress] = React.useState(() => new Animated.Value(0));
 
-  const inputRef = React.useRef<TextInput | null>(null);
+  const inputRef = React.useRef<React.ComponentRef<typeof TextInput>>(null);
 
   // Draft management
   const draftIdRef = React.useRef<string | null>(null);

@@ -9,7 +9,7 @@ import {
   pickerStyle as expoSwiftPickerStyleModifier,
   tag as expoSwiftTagModifier,
 } from "@expo/ui/swift-ui/modifiers";
-import { Stack, useRouter } from "expo-router";
+import { Stack } from "expo-router";
 import React from "react";
 import {
   Alert,
@@ -54,7 +54,6 @@ export default function ArchiveScreen() {
 
 function ArchiveContent() {
   const openTask = useOpenTask();
-  const router = useRouter();
   const theme = useColorScheme() ?? "light";
   const isDark = theme === "dark";
   const styles = useThemedStyles(() => createStyles(theme), [theme]);

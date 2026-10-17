@@ -403,9 +403,9 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   const completedDragGenerationRef = React.useRef(0);
   const placeholderIndexRef = React.useRef<number>(-1);
   const draggingTaskIdRef = React.useRef<string | null>(null);
-  const activeDragTranslationX = React.useRef(new Animated.Value(0)).current;
+  const [activeDragTranslationX] = React.useState(() => new Animated.Value(0));
   const activeDragTranslationXValueRef = React.useRef(0);
-  const dragCompensationX = React.useRef(new Animated.Value(0)).current;
+  const [dragCompensationX] = React.useState(() => new Animated.Value(0));
   const dragCompensationXValueRef = React.useRef(0);
   const openSwipeIdRef = React.useRef<string | null>(null);
   const closeByIdRef = React.useRef(new Map<string, () => void>());
@@ -868,7 +868,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       const stagger = Math.max(0.02, Math.min(0.1, revealStaggerStep));
       const start = Math.min(0.03 + safeIndex * stagger, 0.76);
       const end = Math.min(start + 0.3, 1);
-      const interpolation = revealProgress.interpolate({
+      const interpolation = (revealProgress as Animated.Value).interpolate({
         inputRange: [0, start, end, 1],
         outputRange:
           revealPhase === 'exit'
@@ -1441,9 +1441,9 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     data: flatListData,
     keyExtractor: (item: TaskSwipeDraggableListItem) => item.key,
     renderItem,
-    ListHeaderComponent: header ?? null,
-    ListFooterComponent: footer ?? null,
-    ListEmptyComponent: empty ?? null,
+    ListHeaderComponent: header ?? undefined,
+    ListFooterComponent: footer ?? undefined,
+    ListEmptyComponent: empty ?? undefined,
     contentContainerStyle,
     simultaneousHandlers,
     activationDistance: listActivationDistance,

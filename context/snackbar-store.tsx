@@ -50,8 +50,8 @@ const SnackbarContext = React.createContext<SnackbarContextValue | null>(null);
 
 export function SnackbarProvider({ children }: { children: React.ReactNode }) {
   const [current, setCurrent] = React.useState<SnackbarOptions | null>(null);
-  const opacity = React.useRef(new Animated.Value(0)).current;
-  const translateY = React.useRef(new Animated.Value(24)).current;
+  const [opacity] = React.useState(() => new Animated.Value(0));
+  const [translateY] = React.useState(() => new Animated.Value(24));
   const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const insets = useSafeAreaInsets();

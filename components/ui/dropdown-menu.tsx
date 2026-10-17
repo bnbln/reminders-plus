@@ -112,7 +112,7 @@ export const DropdownMenu = React.forwardRef<
   const theme = (colorScheme ?? "light") as keyof typeof Colors;
   const { accentColor } = useAppSettings();
 
-  const anchorRef = React.useRef<View>(null);
+  const anchorRef = React.useRef<React.ComponentRef<typeof View>>(null);
   const [anchor, setAnchor] = React.useState<AnchorRect | null>(null);
 
   const open = React.useCallback(() => {

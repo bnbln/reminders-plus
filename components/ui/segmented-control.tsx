@@ -1,4 +1,6 @@
-import NativeSegmentedControl from "@react-native-segmented-control/segmented-control";
+import NativeSegmentedControlBase, {
+  type SegmentedControlProps as NativeSegmentedControlProps,
+} from "@react-native-segmented-control/segmented-control";
 import React from "react";
 import {
   Platform,
@@ -14,6 +16,10 @@ import { withAlpha } from "@/components/ui/glass-surface";
 import { Colors } from "@/constants/theme";
 import { getAccentColorValue, useAppSettings } from "@/context/settings-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
+
+// The library's class typings predate React Native's strict TypeScript API.
+const NativeSegmentedControl =
+  NativeSegmentedControlBase as unknown as React.ComponentType<NativeSegmentedControlProps>;
 
 /**
  * `@react-native-segmented-control/segmented-control` is a UISegmentedControl

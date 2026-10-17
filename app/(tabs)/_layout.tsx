@@ -55,7 +55,7 @@ export default function TabLayout() {
   const routeProjectExists = routeProjectName.length > 0;
 
   React.useEffect(() => {
-    const [first, second, third] = segments;
+    const [first, second, third] = segments as string[];
     const segmentList = segments as string[];
     const isHomeStackRoute =
       first === "(tabs)" && (second === undefined || second === "home");
@@ -118,7 +118,7 @@ export default function TabLayout() {
   React.useEffect(() => {
     if (Platform.OS !== "ios" || !isIOS26Plus) return;
 
-    const [first, second, third] = segments;
+    const [first, second, third] = segments as string[];
     const segmentList = segments as string[];
     const isHomeStackRoute =
       first === "(tabs)" && (second === undefined || second === "home");
@@ -211,7 +211,7 @@ export default function TabLayout() {
             options={{
               title: t("common.today"),
               tabBarIcon: ({ color }) => (
-                <MaterialIcons name="calendar-today" size={24} color={color} />
+                <MaterialIcons name="calendar-today" size={24} color={color as string} />
               ),
             }}
           />
@@ -220,7 +220,7 @@ export default function TabLayout() {
             options={{
               title: t("common.inbox"),
               tabBarIcon: ({ color }) => (
-                <MaterialIcons name="inbox" size={24} color={color} />
+                <MaterialIcons name="inbox" size={24} color={color as string} />
               ),
             }}
           />
@@ -229,7 +229,7 @@ export default function TabLayout() {
             options={{
               title: t("tabs.search"),
               tabBarIcon: ({ color }) => (
-                <MaterialIcons name="search" size={26} color={color} />
+                <MaterialIcons name="search" size={26} color={color as string} />
               ),
             }}
           />
@@ -238,7 +238,7 @@ export default function TabLayout() {
             options={{
               title: t("tabs.projects"),
               tabBarIcon: ({ color }) => (
-                <IconSymbol size={28} name="folder.fill" color={color} />
+                <IconSymbol size={28} name="folder.fill" color={color as string} />
               ),
             }}
           />

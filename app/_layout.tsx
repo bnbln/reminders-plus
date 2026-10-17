@@ -2,8 +2,10 @@ import {
   DarkTheme,
   DefaultTheme,
   ThemeProvider,
+  Stack,
+  useSegments,
+  type ErrorBoundaryProps,
 } from "expo-router";
-import { Stack, useSegments, type ErrorBoundaryProps } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React from "react";
 import {
@@ -323,21 +325,6 @@ export default function RootLayout() {
                     name="plus"
                     options={{
                       presentation: "modal",
-                    }}
-                  />
-                  <Stack.Screen
-                    name="modal"
-                    options={{
-                      presentation: "formSheet",
-                      contentStyle: themedContentStyle,
-                      title: t("modal.newTask"),
-                    }}
-                  />
-                  <Stack.Screen
-                    name="profile"
-                    options={{
-                      ...tabLikeHeaderOptions,
-                      title: t("screen.profile"),
                     }}
                   />
                   <Stack.Screen
