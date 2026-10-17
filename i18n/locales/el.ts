@@ -503,9 +503,15 @@ export const EL_TRANSLATIONS: TranslationDict = {
   'assist.unavailable.title': 'Apple Intelligence μη διαθέσιμο',
   'assist.unavailable.body': 'Το Assist απαιτεί συσκευή iOS 26+ με ενεργοποιημένη Apple Intelligence.',
   'assist.unavailable.hint': 'Η τρέχουσα έκδοση iOS είναι κάτω από 26.',
+  'assist.unavailable.reason.deviceNotEligible': 'Αυτή η συσκευή δεν υποστηρίζει το Apple Intelligence.',
+  'assist.unavailable.reason.appleIntelligenceNotEnabled': 'Ενεργοποίησε το Apple Intelligence στις Ρυθμίσεις για να χρησιμοποιήσεις το Assist.',
+  'assist.unavailable.reason.modelNotReady': 'Το Apple Intelligence προετοιμάζεται ακόμα. Δοκίμασε ξανά σε λίγα λεπτά.',
+  'assist.error.unsupportedLanguage': 'Το Apple Intelligence δεν υποστηρίζει ακόμα αυτή τη γλώσσα.',
   'assist.empty.title': 'Καλώς ήρθατε στο Assist',
   'assist.empty.subtitle': 'Παραδείγματα: Βρείτε όλες τις ρουτίνες με τοποθεσία. Δημιουργήστε μια εργασία αύριο στις 14:00 στο έργο Εργασία. Μετακινήστε τα ψώνια στο Personal.',
   'assist.input.placeholder': 'π.χ. Δημιουργήστε μια εργασία σήμερα στις 18:00 με το σούπερ μάρκετ τοποθεσίας',
+  'assist.input.send': 'Αποστολή',
+  'assist.input.stop': 'Διακοπή απάντησης',
 
   // Added: strings previously only available in German and English
   "taskWorkspace.selectTask": "Επιλέξτε εργασία",

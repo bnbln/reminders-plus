@@ -503,9 +503,15 @@ export const JA_TRANSLATIONS: TranslationDict = {
   'assist.unavailable.title': 'Apple Intelligence は利用できません',
   'assist.unavailable.body': 'アシストには、Apple Intelligence が有効になっている iOS 26 以降のデバイスが必要です。',
   'assist.unavailable.hint': '現在の iOS バージョンは 26 未満です。',
+  'assist.unavailable.reason.deviceNotEligible': 'このデバイスは Apple Intelligence に対応していません。',
+  'assist.unavailable.reason.appleIntelligenceNotEnabled': 'Assist を使うには、設定で Apple Intelligence をオンにしてください。',
+  'assist.unavailable.reason.modelNotReady': 'Apple Intelligence を準備中です。数分後にもう一度お試しください。',
+  'assist.error.unsupportedLanguage': 'Apple Intelligence はこの言語にまだ対応していません。',
   'assist.empty.title': 'アシストへようこそ',
   'assist.empty.subtitle': '例: 場所を含むすべてのルーチンを検索します。明日の 14:00 にプロジェクト Work でタスクを作成します。ショッピングをパーソナルに移動します。',
   'assist.input.placeholder': '例：今日の18:00にロケーションスーパーでタスクを作成します',
+  'assist.input.send': '送信',
+  'assist.input.stop': '回答を停止',
 
   // Added: strings previously only available in German and English
   "taskWorkspace.selectTask": "タスクを選択",

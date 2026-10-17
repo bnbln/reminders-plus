@@ -651,11 +651,17 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "assist.unavailable.body":
     "Assist benötigt ein iOS 26+ Gerät mit aktivierter Apple Intelligence.",
   "assist.unavailable.hint": "Aktuelles iOS ist älter als 26.",
+  "assist.unavailable.reason.deviceNotEligible": "Dieses Gerät unterstützt Apple Intelligence nicht.",
+  "assist.unavailable.reason.appleIntelligenceNotEnabled": "Aktiviere Apple Intelligence in den Einstellungen, um Assist zu nutzen.",
+  "assist.unavailable.reason.modelNotReady": "Apple Intelligence wird noch vorbereitet. Versuche es in ein paar Minuten erneut.",
+  "assist.error.unsupportedLanguage": "Apple Intelligence unterstützt diese Sprache noch nicht.",
   "assist.empty.title": "Willkommen bei Assist",
   "assist.empty.subtitle":
     "Beispiele: Finde alle Routinen mit Standort. Erstelle Task morgen 14:00 im Projekt Arbeit. Verschiebe Einkauf nach Privat.",
   "assist.input.placeholder":
     "z.B. Erstelle Task heute 18:00 mit Standort Supermarkt",
+  "assist.input.send": "Senden",
+  "assist.input.stop": "Antwort stoppen",
   "screen.legal": "Rechtliches & Barrierefreiheit",
   "settings.section.legal": "Rechtliches",
   "settings.legal.open": "Rechtliches & Barrierefreiheit",

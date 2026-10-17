@@ -503,9 +503,15 @@ export const RO_TRANSLATIONS: TranslationDict = {
   'assist.unavailable.title': 'Apple Intelligence indisponibil',
   'assist.unavailable.body': 'Asistența necesită un dispozitiv iOS 26+ cu Apple Intelligence activat.',
   'assist.unavailable.hint': 'Versiunea actuală iOS este sub 26.',
+  'assist.unavailable.reason.deviceNotEligible': 'Acest dispozitiv nu acceptă Apple Intelligence.',
+  'assist.unavailable.reason.appleIntelligenceNotEnabled': 'Activează Apple Intelligence în Configurări pentru a folosi Assist.',
+  'assist.unavailable.reason.modelNotReady': 'Apple Intelligence încă se pregătește. Încearcă din nou peste câteva minute.',
+  'assist.error.unsupportedLanguage': 'Apple Intelligence nu acceptă încă această limbă.',
   'assist.empty.title': 'Bun venit la Assist',
   'assist.empty.subtitle': 'Exemple: Găsiți toate rutinele cu locație. Creați o sarcină mâine la ora 14:00 în proiectul de lucru. Mutați cumpărăturile la Personal.',
   'assist.input.placeholder': 'de ex. Creați o sarcină astăzi la 18:00 cu locația supermarket',
+  'assist.input.send': 'Trimite',
+  'assist.input.stop': 'Oprește răspunsul',
 
   // Added: strings previously only available in German and English
   "taskWorkspace.selectTask": "Selectați o sarcină",

@@ -503,9 +503,15 @@ export const VI_TRANSLATIONS: TranslationDict = {
   'assist.unavailable.title': 'Apple Intelligence không có sẵn',
   'assist.unavailable.body': 'Hỗ trợ yêu cầu thiết bị iOS 26+ đã bật Apple Intelligence.',
   'assist.unavailable.hint': 'Phiên bản iOS hiện tại dưới 26.',
+  'assist.unavailable.reason.deviceNotEligible': 'Thiết bị này không hỗ trợ Apple Intelligence.',
+  'assist.unavailable.reason.appleIntelligenceNotEnabled': 'Hãy bật Apple Intelligence trong Cài đặt để dùng Assist.',
+  'assist.unavailable.reason.modelNotReady': 'Apple Intelligence vẫn đang được chuẩn bị. Hãy thử lại sau vài phút.',
+  'assist.error.unsupportedLanguage': 'Apple Intelligence chưa hỗ trợ ngôn ngữ này.',
   'assist.empty.title': 'Chào mừng đến với Hỗ trợ',
   'assist.empty.subtitle': 'Ví dụ: Tìm tất cả các quy trình có vị trí. Tạo một nhiệm vụ vào lúc 14:00 ngày mai trong dự án Work. Di chuyển mua sắm sang Cá nhân.',
   'assist.input.placeholder': 'ví dụ: Tạo nhiệm vụ hôm nay lúc 18h00 với vị trí siêu thị',
+  'assist.input.send': 'Gửi',
+  'assist.input.stop': 'Dừng trả lời',
 
   // Added: strings previously only available in German and English
   "taskWorkspace.selectTask": "Chọn một công việc",

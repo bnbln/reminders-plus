@@ -503,9 +503,15 @@ export const PT_TRANSLATIONS: TranslationDict = {
   'assist.unavailable.title': 'Apple Intelligence indisponível',
   'assist.unavailable.body': 'O Assist requer um dispositivo iOS 26+ com Apple Intelligence ativado.',
   'assist.unavailable.hint': 'A versão atual do iOS é inferior a 26.',
+  'assist.unavailable.reason.deviceNotEligible': 'Este dispositivo não é compatível com o Apple Intelligence.',
+  'assist.unavailable.reason.appleIntelligenceNotEnabled': 'Ative o Apple Intelligence nos Ajustes para usar o Assist.',
+  'assist.unavailable.reason.modelNotReady': 'O Apple Intelligence ainda está sendo preparado. Tente novamente em alguns minutos.',
+  'assist.error.unsupportedLanguage': 'O Apple Intelligence ainda não é compatível com este idioma.',
   'assist.empty.title': 'Bem-vindo à Assist',
   'assist.empty.subtitle': 'Exemplos: Encontre todas as rotinas com localização. Crie uma tarefa amanhã às 14h no projeto Trabalho. Mova as compras para Pessoal.',
   'assist.input.placeholder': 'por exemplo Crie uma tarefa hoje às 18h com localização supermercado',
+  'assist.input.send': 'Enviar',
+  'assist.input.stop': 'Parar resposta',
 
   // Added: strings previously only available in German and English
   "taskWorkspace.selectTask": "Selecione uma tarefa",
