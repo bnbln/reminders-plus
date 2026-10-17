@@ -1407,16 +1407,14 @@ function HomeContent() {
   const [listDateStart, setListDateStart] = React.useState(() =>
     getStartOfToday(),
   );
-  const dateListTranslateX = React.useRef(new Animated.Value(0)).current;
-  const dateListTransitionProgress = React.useRef(
-    new Animated.Value(1),
-  ).current;
-  const dateListTransitionItemRevealProgress = React.useRef(
-    new Animated.Value(1),
-  ).current;
-  const homeTaskListRevealProgress = React.useRef(new Animated.Value(1)).current;
-  const dateListTransitionHeight = React.useRef(new Animated.Value(0)).current;
-  const dateRailTitleMotion = React.useRef(new Animated.Value(1)).current;
+  const [dateListTranslateX] = React.useState(() => new Animated.Value(0));
+  const [dateListTransitionProgress] = React.useState(() => new Animated.Value(1));
+  const [dateListTransitionItemRevealProgress] = React.useState(
+    () => new Animated.Value(1),
+  );
+  const [homeTaskListRevealProgress] = React.useState(() => new Animated.Value(1));
+  const [dateListTransitionHeight] = React.useState(() => new Animated.Value(0));
+  const [dateRailTitleMotion] = React.useState(() => new Animated.Value(1));
   const [, setIsDateListTransitioning] = React.useState(false);
   const [dateListTransitionState, setDateListTransitionState] =
     React.useState<DateListTransitionState | null>(null);
@@ -2507,9 +2505,9 @@ function HomeContent() {
     [dateRailItemWidth, dateRailSidePadding, dateRailSnapInterval],
   );
 
-  const dateRailScrollX = React.useRef(
-    new Animated.Value(dateRailInitialIndex * dateRailSnapInterval),
-  ).current;
+  const [dateRailScrollX] = React.useState(
+    () => new Animated.Value(dateRailInitialIndex * dateRailSnapInterval),
+  );
   const dateRailRef = React.useRef<FlatList<DateRailDay> | any>(null);
   const dateRailWrapRef = React.useRef<React.ComponentRef<typeof View>>(null);
   const dateRailListRef = React.useRef<React.ComponentRef<typeof View>>(null);
@@ -2802,12 +2800,12 @@ function HomeContent() {
     today: false,
     upcoming: true,
   });
-  const todayCollapseProgress = React.useRef(
-    new Animated.Value(collapsedSections.today ? 1 : 0),
-  ).current;
-  const upcomingCollapseProgress = React.useRef(
-    new Animated.Value(collapsedSections.upcoming ? 1 : 0),
-  ).current;
+  const [todayCollapseProgress] = React.useState(
+    () => new Animated.Value(collapsedSections.today ? 1 : 0),
+  );
+  const [upcomingCollapseProgress] = React.useState(
+    () => new Animated.Value(collapsedSections.upcoming ? 1 : 0),
+  );
   const todaySectionRevealProgress = React.useMemo(
     () =>
       todayCollapseProgress.interpolate({

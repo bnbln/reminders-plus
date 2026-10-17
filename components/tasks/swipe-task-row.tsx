@@ -512,9 +512,9 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
   const [measuredRowHeight, setMeasuredRowHeight] = React.useState(
     cachedRowHeight,
   );
-  const swipeCommitTranslateX = React.useRef(new Animated.Value(0)).current;
-  const swipeCommitOpacity = React.useRef(new Animated.Value(1)).current;
-  const swipeCommitScale = React.useRef(new Animated.Value(1)).current;
+  const [swipeCommitTranslateX] = React.useState(() => new Animated.Value(0));
+  const [swipeCommitOpacity] = React.useState(() => new Animated.Value(1));
+  const [swipeCommitScale] = React.useState(() => new Animated.Value(1));
   // Collapse/pop-in heights run on the UI thread (Reanimated). As JS-driven
   // Animated layout animations they dropped frames whenever JS was busy, so
   // the whole list visibly jumped while a swiped row closed or reappeared.

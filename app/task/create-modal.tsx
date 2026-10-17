@@ -288,7 +288,7 @@ export default function CreateTaskModal() {
   const [isMenuExpanded, setMenuExpanded] = React.useState(false);
   const trimmed = title.trim();
   const hasTitle = trimmed.length > 0;
-  const menuProgress = React.useRef(new Animated.Value(0)).current;
+  const [menuProgress] = React.useState(() => new Animated.Value(0));
 
   const inputRef = React.useRef<React.ComponentRef<typeof TextInput>>(null);
 

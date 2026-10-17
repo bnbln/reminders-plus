@@ -403,9 +403,9 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   const completedDragGenerationRef = React.useRef(0);
   const placeholderIndexRef = React.useRef<number>(-1);
   const draggingTaskIdRef = React.useRef<string | null>(null);
-  const activeDragTranslationX = React.useRef(new Animated.Value(0)).current;
+  const [activeDragTranslationX] = React.useState(() => new Animated.Value(0));
   const activeDragTranslationXValueRef = React.useRef(0);
-  const dragCompensationX = React.useRef(new Animated.Value(0)).current;
+  const [dragCompensationX] = React.useState(() => new Animated.Value(0));
   const dragCompensationXValueRef = React.useRef(0);
   const openSwipeIdRef = React.useRef<string | null>(null);
   const closeByIdRef = React.useRef(new Map<string, () => void>());
