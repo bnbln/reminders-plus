@@ -49,6 +49,14 @@ export default function RootLayout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Colors[theme] switches palette while Increase Contrast is on.
     [theme, highContrastEnabled],
   );
+  // Task picker sheets paint the grouped sheet color themselves. On iOS a
+  // formSheet's contentStyle background lands on the native Screen, which
+  // shows wherever that content does not reach: beside it under the Duo
+  // vertical bar and below its content. It has to match the sheet.
+  const pickerSheetContentStyle = React.useMemo(
+    () => ({ backgroundColor: theme === "dark" ? "#000000" : "#F2F2F7" }),
+    [theme],
+  );
   const navigationTheme = React.useMemo(() => {
     const baseTheme = theme === "dark" ? DarkTheme : DefaultTheme;
     return {
@@ -148,7 +156,7 @@ export default function RootLayout() {
                     options={
                       {
                         presentation: "formSheet",
-                        contentStyle: themedContentStyle,
+                        contentStyle: pickerSheetContentStyle,
                       } as any
                     }
                   />
@@ -156,7 +164,7 @@ export default function RootLayout() {
                     name="task/date-picker"
                     options={{
                       presentation: "formSheet",
-                      contentStyle: themedContentStyle,
+                      contentStyle: pickerSheetContentStyle,
                     }}
                   />
                   <Stack.Screen
@@ -172,21 +180,21 @@ export default function RootLayout() {
                     name="task/location-picker"
                     options={{
                       presentation: "formSheet",
-                      contentStyle: themedContentStyle,
+                      contentStyle: pickerSheetContentStyle,
                     }}
                   />
                   <Stack.Screen
                     name="task/project-picker"
                     options={{
                       presentation: "formSheet",
-                      contentStyle: themedContentStyle,
+                      contentStyle: pickerSheetContentStyle,
                     }}
                   />
                   <Stack.Screen
                     name="task/emoji-picker"
                     options={{
                       presentation: "formSheet",
-                      contentStyle: themedContentStyle,
+                      contentStyle: pickerSheetContentStyle,
                     }}
                   />
                   <Stack.Screen
