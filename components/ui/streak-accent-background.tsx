@@ -49,7 +49,7 @@ function StreakAccentBackgroundComponent({
   isDark,
   enabled = true,
 }: StreakAccentBackgroundProps) {
-  const { accentColor, reduceMotionEnabled } = useAppSettings();
+  const { accentColor, hasHydrated, reduceMotionEnabled } = useAppSettings();
   // Temporarily keep the accent background always visible when mounted.
   const isVisible = enabled;
   const baseBackgroundColor = isDark
@@ -76,6 +76,9 @@ function StreakAccentBackgroundComponent({
     null,
   );
   const colorFade = React.useRef(new Animated.Value(1)).current;
+  // Screens mounted before settings hydrate start on the default accent.
+  // Jumping straight to the stored color avoids a blue-to-accent fade on launch.
+  const hadHydratedRef = React.useRef(hasHydrated);
   const previousColorOpacity = React.useMemo(
     () =>
       colorFade.interpolate({
@@ -86,13 +89,16 @@ function StreakAccentBackgroundComponent({
   );
 
   React.useEffect(() => {
+    const isHydrationUpdate = !hadHydratedRef.current;
+    hadHydratedRef.current = hasHydrated;
+
     if (accentHex === displayColor) {
       return;
     }
 
     colorFade.stopAnimation();
 
-    if (reduceMotionEnabled || !isVisible) {
+    if (reduceMotionEnabled || !isVisible || isHydrationUpdate) {
       setDisplayColor(accentHex);
       setPreviousColor(null);
       colorFade.setValue(1);
@@ -113,7 +119,14 @@ function StreakAccentBackgroundComponent({
         setPreviousColor(null);
       }
     });
-  }, [accentHex, colorFade, displayColor, isVisible, reduceMotionEnabled]);
+  }, [
+    accentHex,
+    colorFade,
+    displayColor,
+    hasHydrated,
+    isVisible,
+    reduceMotionEnabled,
+  ]);
 
   React.useEffect(() => {
     translateY.stopAnimation();
