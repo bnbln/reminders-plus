@@ -549,6 +549,8 @@ export const DE_TRANSLATIONS: TranslationDict = {
     "Cloud Sync funktioniert nur zwischen Apple-Geräten, die mit derselben Apple-ID in iCloud angemeldet sind. AI-Assist ist nur auf Geräten verfügbar, die Apple für Apple Intelligence unterstützt.",
   "plus.legal.disclaimer.noAssist":
     "Käufe werden über den App-Store auf deinem Gerät abgewickelt.",
+  "plus.legal.autoRenew":
+    "Das Monatsabo wird über deinen Apple-Account abgerechnet und verlängert sich automatisch, wenn du es nicht mindestens 24 Stunden vor Ablauf des Zeitraums kündigst. Kündigen kannst du jederzeit in den Einstellungen deines Apple-Accounts.",
   "plus.action.restorePurchases": "Käufe wiederherstellen",
   "plus.action.reloadProducts": "Produkte neu laden",
 

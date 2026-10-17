@@ -78,7 +78,7 @@ function ArchiveContent() {
   const trashed = React.useMemo(
     () =>
       tasks
-        .filter((task) => !!task.deletedAt)
+        .filter((task) => !!task.deletedAt && !task.isDraft)
         .sort((a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0)),
     [tasks],
   );

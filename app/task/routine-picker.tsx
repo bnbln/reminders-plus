@@ -100,6 +100,7 @@ export default function RoutinePickerScreen() {
           section: "upcoming",
           orderRank: 0,
           deletedAt: Date.now(),
+          isDraft: true,
         },
         ...prev,
       ];

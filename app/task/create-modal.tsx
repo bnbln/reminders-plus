@@ -407,6 +407,7 @@ export default function CreateTaskModal() {
             section: initialDraftSection,
             orderRank: 0, // will be fixed on create
             deletedAt: Date.now(), // Hidden
+            isDraft: true,
           },
           ...prev,
         ];
@@ -1334,6 +1335,7 @@ export default function CreateTaskModal() {
                 section,
                 orderRank,
                 deletedAt: undefined, // Un-delete
+                isDraft: undefined,
               }
             : t,
         );

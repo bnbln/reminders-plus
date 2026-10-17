@@ -593,7 +593,7 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
         schemaVersion: BACKUP_SCHEMA_VERSION,
         app: "reminds",
         exportedAt: new Date().toISOString(),
-        tasks,
+        tasks: tasks.filter((task) => !task.isDraft),
         projects,
         appSettings: {
           appearanceMode,

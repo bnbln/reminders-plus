@@ -16,6 +16,7 @@ import {
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
+import { useUndoableTaskDelete } from "@/hooks/use-undoable-task-delete";
 
 const IOS_LIGHT_BASE_BACKGROUND = "#F2F2F7";
 const IOS_LIGHT_ELEVATED_SURFACE = "#FFFFFF";
@@ -119,16 +120,7 @@ export function SearchResultsScreen() {
     [setTasks],
   );
 
-  const deleteTask = React.useCallback(
-    (taskId: string) => {
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.id === taskId ? { ...t, deletedAt: Date.now() } : t,
-        ),
-      );
-    },
-    [setTasks],
-  );
+  const deleteTask = useUndoableTaskDelete();
 
   const toggleSubtask = React.useCallback(
     (taskId: string, subtaskId: string) => {
