@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useSheetHeaderActions } from '@/components/navigation/sheet-header-actions';
 import { withAlpha } from '@/components/ui/glass-surface';
-import { Colors, contrastAlpha } from '@/constants/theme';
+import { Colors, contrastAlpha, PICKER_SHEET_DARK_ROW, PICKER_SHEET_DARK_ROW_BORDER } from '@/constants/theme';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
@@ -209,9 +209,9 @@ const createStyles = (theme: keyof typeof Colors) => {
         searchShell: {
             minHeight: 46,
             borderRadius: 14,
-            borderWidth: StyleSheet.hairlineWidth,
-            borderColor: withAlpha(text, contrastAlpha(isDark ? 0.14 : 0.1)),
-            backgroundColor: withAlpha(text, contrastAlpha(isDark ? 0.05 : 0.04)),
+            borderWidth: isDark ? 1 : StyleSheet.hairlineWidth,
+            borderColor: isDark ? PICKER_SHEET_DARK_ROW_BORDER : withAlpha(text, contrastAlpha(0.1)),
+            backgroundColor: isDark ? PICKER_SHEET_DARK_ROW : withAlpha(text, contrastAlpha(0.04)),
             paddingHorizontal: 14,
             justifyContent: 'center',
             marginBottom: 14,
@@ -234,7 +234,7 @@ const createStyles = (theme: keyof typeof Colors) => {
             borderRadius: 16,
             alignItems: 'center',
             justifyContent: 'center',
-            backgroundColor: withAlpha(text, contrastAlpha(isDark ? 0.05 : 0.04)),
+            backgroundColor: isDark ? PICKER_SHEET_DARK_ROW : withAlpha(text, contrastAlpha(0.04)),
         },
         emojiText: {
             fontSize: 28,
