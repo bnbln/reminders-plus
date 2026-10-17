@@ -518,6 +518,7 @@ function InboxContent() {
         ]}
         containerStyle={{ backgroundColor: "transparent" }}
         contentInsetAdjustmentBehavior="automatic"
+        syncDataDuringDrag={false}
         animateDataLayoutChanges={false}
         empty={null}
         footer={
