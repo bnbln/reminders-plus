@@ -659,6 +659,7 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "a11y.task.reopen": "Wieder öffnen",
   "a11y.settings.dailySummaryTime": "Uhrzeit der täglichen Zusammenfassung",
   "a11y.task.changeEmoji": "Emoji ändern",
+  "a11y.task.moreActions": "Weitere Aktionen",
   "a11y.home.pickDate": "Datum auswählen",
 };
 
