@@ -119,7 +119,9 @@ const DATE_RAIL_TITLE_TRANSITION_DURATION = 300;
 const DATE_RAIL_TITLE_SCRUB_DURATION = 260;
 // Titles slide sideways with the swipe and fade while they move, so they
 // soften out before they reach the clipped edge.
-const DATE_RAIL_TITLE_TRANSITION_DISTANCE = 28;
+const DATE_RAIL_TITLE_TRANSITION_DISTANCE = 32;
+// Width of the alpha fade on each side of the day title.
+const DATE_RAIL_TITLE_FADE = 12;
 // Back to today grows in from a slightly smaller size with a well-damped
 // spring (barely any overshoot) and scales out quickly. Off with Reduce Motion.
 const BACK_TO_TODAY_ENTERING = () => {
@@ -732,10 +734,21 @@ const createStyles = (
     },
     dateRailTitleTextViewport: {
       height: 24,
-      overflow: "hidden",
-      alignItems: "flex-start",
-      justifyContent: "center",
       position: "relative",
+    },
+    // Extends into the row's left padding so the fade sits outside the
+    // title at rest; the inner padding puts the title back in place.
+    dateRailTitleTextMask: {
+      position: "absolute",
+      top: 0,
+      bottom: 0,
+      left: -DATE_RAIL_TITLE_FADE,
+      right: 0,
+    },
+    dateRailTitleTextMaskContent: {
+      flex: 1,
+      paddingLeft: DATE_RAIL_TITLE_FADE,
+      justifyContent: "center",
     },
     dateRailTitleTextTransitionHost: {
       height: 24,
@@ -2299,19 +2312,13 @@ function HomeContent() {
   );
   const applyDayChangeWithoutTransition = React.useCallback(
     (nextDateStart: number, direction: 1 | -1) => {
-      const nextTitle = getDynamicHeaderTitle(nextDateStart);
-      clearDeferredDateRailTitle();
-      lastAnimatedTitleDateRef.current = nextDateStart;
-      commitDateRailTitle(nextTitle, direction);
+      // The title effect animates from the previous day to this one (or
+      // commits it directly under Reduce Motion). Committing it here first
+      // marked the day as already shown, so the slide never ran.
       setDisplayedDateTitleDateStart(nextDateStart);
       setListDateWithoutTransition(nextDateStart, false, true);
     },
-    [
-      clearDeferredDateRailTitle,
-      commitDateRailTitle,
-      getDynamicHeaderTitle,
-      setListDateWithoutTransition,
-    ],
+    [setListDateWithoutTransition],
   );
   const runDateListTransition = React.useCallback(
     (nextDateStart: number, direction: 1 | -1) => {
@@ -4094,6 +4101,18 @@ function HomeContent() {
     ];
     const isPreparingTitleTransition =
       dateRailTitleTransitionState.phase === "preparing";
+    // The mask spans the row minus the round buttons (about 88 pt) plus the
+    // fade reaching into the left padding; an estimate is enough here.
+    const titleMaskFade = Math.min(
+      0.2,
+      DATE_RAIL_TITLE_FADE / Math.max(120, dateRailContainerWidth - 76),
+    );
+    const titleMaskLocations = [
+      0,
+      titleMaskFade,
+      1 - titleMaskFade,
+      1,
+    ] as const;
     const outgoingTitleOpacity = dateRailTitleMotion.interpolate({
       inputRange: [0, 0.6, 1],
       outputRange: [1, 0.12, 0],
@@ -4129,6 +4148,24 @@ function HomeContent() {
             <View style={styles.dateRailHeadlineRow}>
               <View style={styles.dateRailHeadlineTextHost}>
                 <View style={styles.dateRailTitleTextViewport}>
+                <MaskedView
+                  style={styles.dateRailTitleTextMask}
+                  maskElement={
+                    <LinearGradient
+                      colors={[
+                        "rgba(0,0,0,0)",
+                        "rgba(0,0,0,1)",
+                        "rgba(0,0,0,1)",
+                        "rgba(0,0,0,0)",
+                      ]}
+                      locations={titleMaskLocations}
+                      start={{ x: 0, y: 0.5 }}
+                      end={{ x: 1, y: 0.5 }}
+                      style={StyleSheet.absoluteFill}
+                    />
+                  }
+                >
+                <View style={styles.dateRailTitleTextMaskContent}>
                   <View style={styles.dateRailTitleTextTransitionHost}>
                     {dateRailTitleTransitionState.previousText ? (
                       <Animated.Text
@@ -4184,6 +4221,8 @@ function HomeContent() {
                       {dateRailTitleTransitionState.currentText}
                     </Animated.Text>
                   </View>
+                </View>
+                </MaskedView>
                 </View>
               </View>
               <View style={styles.calendarButtonRow}>
