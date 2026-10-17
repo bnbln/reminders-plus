@@ -3,7 +3,6 @@ import { type MenuAction } from '@react-native-menu/menu';
 import { Stack, useRouter } from 'expo-router';
 import React from 'react';
 import {
-  KeyboardAvoidingView,
   Platform,
   Pressable,
   StyleSheet,
@@ -16,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DropdownMenu } from '@/components/ui/dropdown-menu';
 import { usePageInsets } from '@/components/navigation/vertical-bar-safe-area';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
+import { KeyboardLiftView } from '@/components/ui/keyboard-lift-view';
 import { SFSymbol } from '@/components/ui/sfsymbol';
 import { Colors } from '@/constants/theme';
 import { getAccentColorValue, useAppSettings } from '@/context/settings-store';
@@ -332,11 +332,7 @@ export default function ProjectCreateModal() {
         onPress={onBackdropPress}
       />
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? -10 : 0}
-        style={styles.keyboard}
-      >
+      <KeyboardLiftView style={styles.keyboard}>
         <View
           style={[styles.floatingStack, { paddingBottom: Math.max(14, insets.bottom - 8) }]}
           pointerEvents="box-none"
@@ -470,7 +466,7 @@ export default function ProjectCreateModal() {
             </Pressable>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardLiftView>
     </View>
   );
 }
