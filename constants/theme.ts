@@ -18,6 +18,16 @@ export const LIGHT_ACCENT_SCREEN_BACKGROUND = '#E5E5EA';
 export const PICKER_SHEET_DARK_ROW = '#1C1C1E';
 export const PICKER_SHEET_DARK_ROW_BORDER = '#636366';
 
+// Accent of each task sheet, taken from its icon in the new-task menu, so a
+// sheet keeps the color of the action that opened it.
+export const TASK_SHEET_ACCENTS = {
+  date: '#4D7CFF',
+  style: '#B56CFF',
+  location: '#34C759',
+  routine: '#FF9F0A',
+  project: '#5AC8FA',
+} as const;
+
 const BaseColors = {
   light: {
     text: '#11181C',

@@ -15,13 +15,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useSheetHeaderActions } from '@/components/navigation/sheet-header-actions';
 import { withAlpha } from '@/components/ui/glass-surface';
-import { Colors, contrastAlpha, PICKER_SHEET_DARK_ROW, PICKER_SHEET_DARK_ROW_BORDER } from '@/constants/theme';
+import { Colors, contrastAlpha, PICKER_SHEET_DARK_ROW, PICKER_SHEET_DARK_ROW_BORDER, TASK_SHEET_ACCENTS } from '@/constants/theme';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
 import { ripple } from "@/components/ui/ripple";
 import { m3InputProps } from '@/components/ui/m3-input';
 import { useThemedStyles } from "@/hooks/use-themed-styles";
+
+const ACCENT = TASK_SHEET_ACCENTS.location;
 
 export default function LocationPickerScreen() {
   const router = useRouter();
@@ -135,7 +137,7 @@ export default function LocationPickerScreen() {
   }, [applyLocationAndClose]);
 
   const isLocationEmpty = (locationDraft ?? '').trim().length === 0;
-  const sheetHeaderActions = useSheetHeaderActions({ onClose: handleCancel, onDone: handleSave });
+  const sheetHeaderActions = useSheetHeaderActions({ onClose: handleCancel, onDone: handleSave, doneTintColor: ACCENT });
 
   return (
     <View style={styles.container}>
@@ -183,7 +185,7 @@ export default function LocationPickerScreen() {
               <Text style={styles.optionSubLabel}>{t('locationPicker.useCurrentHint')}</Text>
             </View>
             {isLocating ? (
-              <ActivityIndicator size="small" color={Colors[theme].tint} />
+              <ActivityIndicator size="small" color={ACCENT} />
             ) : (
               <MaterialIcons name="chevron-right" size={20} color={withAlpha(Colors[theme].text, contrastAlpha(0.45))} />
             )}
@@ -209,7 +211,7 @@ export default function LocationPickerScreen() {
             <View style={styles.optionBody}>
               <Text style={styles.optionLabel}>{t('locationPicker.noLocation')}</Text>
             </View>
-            {isLocationEmpty ? <MaterialIcons name="check" size={20} color={Colors[theme].tint} /> : null}
+            {isLocationEmpty ? <MaterialIcons name="check" size={20} color={ACCENT} /> : null}
           </Pressable>
 
           <View style={styles.divider} />
@@ -276,8 +278,8 @@ const createStyles = (theme: keyof typeof Colors) => {
     },
     optionRowActive: {
       borderWidth: isDark ? 1.5 : StyleSheet.hairlineWidth,
-      borderColor: isDark ? Colors[theme].tint : withAlpha(Colors[theme].tint, 0.45),
-      backgroundColor: withAlpha(Colors[theme].tint, isDark ? 0.18 : 0.12),
+      borderColor: isDark ? ACCENT : withAlpha(ACCENT, 0.45),
+      backgroundColor: withAlpha(ACCENT, isDark ? 0.18 : 0.12),
     },
     optionRowPressed: {
       opacity: 0.9,
