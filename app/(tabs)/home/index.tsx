@@ -29,7 +29,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
 import MaskedView from "@react-native-masked-view/masked-view";
-import Reanimated, { ZoomIn, ZoomOut } from "react-native-reanimated";
+import Reanimated, {
+  withSpring,
+  withTiming,
+  ZoomOut,
+} from "react-native-reanimated";
 
 import {
   type TaskDragGestureUpdateParams,
@@ -108,14 +112,24 @@ const TASK_ROW_HORIZONTAL_PADDING = 12;
 const CONTENT_STACK_GAP = 10;
 const DATE_TRANSITION_DURATION = 250;
 const DATE_RAIL_TITLE_TRANSITION_DURATION = 300;
-const DATE_RAIL_TITLE_SCRUB_DURATION = 190;
-const DATE_RAIL_TITLE_TRANSITION_DISTANCE = 36;
-// Width of the alpha fade at each side of the title, laid into the row's
-// horizontal padding so the title at rest stays fully opaque.
-const DATE_RAIL_TITLE_FADE = 12;
-// Back to today pops in and out with a soft spring, like a glass control.
-// Off with Reduce Motion (system or in-app switch).
-const BACK_TO_TODAY_ENTERING = ZoomIn.springify().damping(16).stiffness(220);
+const DATE_RAIL_TITLE_SCRUB_DURATION = 260;
+// Titles slide sideways with the swipe and fade while they move, so they
+// soften out before they reach the clipped edge.
+const DATE_RAIL_TITLE_TRANSITION_DISTANCE = 28;
+// Back to today grows in from a slightly smaller size with a well-damped
+// spring (barely any overshoot) and scales out quickly. Off with Reduce Motion.
+const BACK_TO_TODAY_ENTERING = () => {
+  "worklet";
+  return {
+    initialValues: { opacity: 0, transform: [{ scale: 0.6 }] },
+    animations: {
+      opacity: withTiming(1, { duration: 160 }),
+      transform: [
+        { scale: withSpring(1, { damping: 26, stiffness: 300, mass: 1 }) },
+      ],
+    },
+  };
+};
 const BACK_TO_TODAY_EXITING = ZoomOut.duration(160);
 const DRAG_RAIL_HOVER_INTENT_MS = 80;
 const HOME_TASK_INITIAL_REVEAL_DURATION_MS = 340;
@@ -714,8 +728,7 @@ const createStyles = (
     },
     dateRailTitleTextViewport: {
       height: 24,
-      marginHorizontal: -DATE_RAIL_TITLE_FADE,
-      paddingHorizontal: DATE_RAIL_TITLE_FADE,
+      overflow: "hidden",
       alignItems: "flex-start",
       justifyContent: "center",
       position: "relative",
@@ -4066,16 +4079,9 @@ function HomeContent() {
     ];
     const isPreparingTitleTransition =
       dateRailTitleTransitionState.phase === "preparing";
-    // The viewport spans the row minus the round buttons on the right
-    // (about 88 pt); an estimate is enough for the fade's proportions.
-    const titleMaskFade = Math.min(
-      0.2,
-      DATE_RAIL_TITLE_FADE / Math.max(120, dateRailContainerWidth - 88),
-    );
-    const titleMaskLocations = [0, titleMaskFade, 1 - titleMaskFade, 1] as const;
     const outgoingTitleOpacity = dateRailTitleMotion.interpolate({
-      inputRange: [0, 0.78, 1],
-      outputRange: [1, 0.24, 0],
+      inputRange: [0, 0.6, 1],
+      outputRange: [1, 0.12, 0],
     });
     const incomingTitleOpacity = dateRailTitleMotion.interpolate({
       inputRange: [0, 1],
@@ -4107,23 +4113,7 @@ function HomeContent() {
           <View style={styles.dateRailTitleHost}>
             <View style={styles.dateRailHeadlineRow}>
               <View style={styles.dateRailHeadlineTextHost}>
-                <MaskedView
-                  style={styles.dateRailTitleTextViewport}
-                  maskElement={
-                    <LinearGradient
-                      colors={[
-                        "rgba(0,0,0,0)",
-                        "rgba(0,0,0,1)",
-                        "rgba(0,0,0,1)",
-                        "rgba(0,0,0,0)",
-                      ]}
-                      locations={titleMaskLocations}
-                      start={{ x: 0, y: 0.5 }}
-                      end={{ x: 1, y: 0.5 }}
-                      style={StyleSheet.absoluteFill}
-                    />
-                  }
-                >
+                <View style={styles.dateRailTitleTextViewport}>
                   <View style={styles.dateRailTitleTextTransitionHost}>
                     {dateRailTitleTransitionState.previousText ? (
                       <Animated.Text
@@ -4179,7 +4169,7 @@ function HomeContent() {
                       {dateRailTitleTransitionState.currentText}
                     </Animated.Text>
                   </View>
-                </MaskedView>
+                </View>
               </View>
               <View style={styles.calendarButtonRow}>
                 {/* Back to today only makes sense away from today. */}
