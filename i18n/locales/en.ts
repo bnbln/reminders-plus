@@ -60,6 +60,8 @@ export const EN_TRANSLATIONS: TranslationDict = {
     'projectEdit.icon': 'Icon',
     'projectEdit.color': 'Color',
     'projectEdit.delete': 'Delete project',
+    'projectEdit.alert.deleteTitle': 'Delete project?',
+    'projectEdit.alert.deleteBody': 'The project and all of its tasks will be moved to trash.',
 
     'taskCreate.locationUnavailableTitle': 'Location unavailable',
     'taskCreate.locationUnavailableBody': 'Expo Location is missing.',
@@ -233,6 +235,8 @@ export const EN_TRANSLATIONS: TranslationDict = {
     'archive.empty.trashTitle': 'Trash is empty',
     'archive.empty.completedBody': 'Completed tasks appear here.',
     'archive.empty.trashBody': 'Deleted tasks appear here and can be restored.',
+    'archive.alert.deleteForeverTitle': 'Delete permanently?',
+    'archive.alert.deleteForeverBody': 'This task will be deleted for good and cannot be restored.',
 
     'modal.newTask': 'New task',
     'modal.placeholder.title': 'Title…',
@@ -399,6 +403,9 @@ export const EN_TRANSLATIONS: TranslationDict = {
     'backup.alert.exportFailedTitle': 'Export failed',
     'backup.alert.restoreDoneTitle': 'Restore completed',
     'backup.alert.restoreDoneBody': 'The backup was loaded and applied.',
+    'backup.alert.restoreConfirmTitle': 'Replace all data?',
+    'backup.alert.restoreConfirmBody': 'The backup contains {{tasks}} tasks and {{projects}} projects. Restoring replaces all current tasks, projects and settings on this device.',
+    'backup.alert.restoreConfirmAction': 'Restore',
     'backup.alert.restoreFailedTitle': 'Restore failed',
     'backup.status.premiumRequired': 'Backup and restore are unlocked with Reminders+.',
     'backup.status.ready': 'Export a JSON backup or restore an existing one.',
@@ -417,6 +424,9 @@ export const EN_TRANSLATIONS: TranslationDict = {
     'settings.remindsPlus.action.showOptions': 'Show purchase options',
     'settings.remindsPlus.action.openOffer': 'Open offer',
     'settings.appearance.mode': 'Color mode',
+    'settings.appearance.appIconFollowsAccent': 'App icon in accent color',
+    'settings.appearance.appIconFollowsAccentHint':
+      'Your home screen icon takes on your color. iOS confirms each change with a short notice.',
     'settings.appearance.option.adaptive': 'Adaptive',
     'settings.appearance.option.alwaysLight': 'Always light',
     'settings.appearance.option.alwaysDark': 'Always dark',
@@ -431,6 +441,7 @@ export const EN_TRANSLATIONS: TranslationDict = {
     'settings.notifications.dailySummary': 'Daily summary',
     'settings.interactions.haptics': 'Enable haptics',
     'settings.interactions.reduceMotion': 'Reduce motion',
+    'settings.interactions.reduceMotionSystemHint': 'Follows your device\'s Accessibility setting.',
     'settings.interactions.streakCelebration': 'Streak celebration',
     'settings.interactions.streakCelebrationHint':
       'Full-screen flame when you complete your first task of the day.',
@@ -463,6 +474,7 @@ export const EN_TRANSLATIONS: TranslationDict = {
     'plus.benefit.projects': 'More than 4 projects',
     'plus.benefit.sync': 'Cloud Sync on Apple devices',
     'plus.source.assist': 'Unlock AI Assist and all pro features.',
+    'assist.locked.body': 'AI Assist is part of Reminders+, together with unlimited projects and Cloud Sync.',
     'plus.source.projects': 'Unlock more projects, AI Assist, and sync in one step.',
     'plus.source.sync': 'Activate Cloud Sync and all pro features directly via Apple.',
     'plus.source.default': 'Activate AI Assist, more projects, and Cloud Sync directly via Apple.',
@@ -494,6 +506,8 @@ export const EN_TRANSLATIONS: TranslationDict = {
     'plus.legal.hide': 'Hide availability notes',
     'plus.legal.disclaimer': 'Cloud Sync only works between Apple devices signed in to iCloud with the same Apple ID. AI Assist is only available on devices supported by Apple for Apple Intelligence.',
     'plus.legal.disclaimer.noAssist': 'Purchases are processed by the app store on your device.',
+    'plus.error.storeUnavailable': "The App Store can't be reached right now.",
+    'plus.error.purchaseFailed': "The purchase couldn't be completed.",
     'plus.action.restorePurchases': 'Restore purchases',
     'plus.action.reloadProducts': 'Reload products',
 
@@ -576,6 +590,7 @@ export const EN_TRANSLATIONS: TranslationDict = {
     'a11y.task.reopen': 'Reopen',
     'a11y.settings.dailySummaryTime': 'Daily summary time',
     'a11y.task.changeEmoji': 'Change emoji',
+    'a11y.task.moreActions': 'More actions',
     'a11y.home.pickDate': 'Pick a date',
 };
 

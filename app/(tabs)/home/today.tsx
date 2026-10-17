@@ -13,7 +13,7 @@ import {
 import { FloatingAddButton } from '@/components/ui/floating-add-button';
 import { withAlpha } from '@/components/ui/glass-surface';
 import { StreakAccentBackground } from '@/components/ui/streak-accent-background';
-import { Colors } from '@/constants/theme';
+import { Colors, contrastAlpha } from '@/constants/theme';
 import { useHomeFilters } from '@/context/home-filters-store';
 import { useTaskCreateContext } from '@/context/task-create-context';
 import {
@@ -24,6 +24,7 @@ import {
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
 import { isIOS26OrNewer } from '@/utils/ios-version';
+import { useThemedStyles } from "@/hooks/use-themed-styles";
 
 type TaskAccessoryContextBridge = {
   setContext?: (
@@ -66,7 +67,7 @@ function TodayContent() {
       ? showCompactSubtasks
       : params.withSubtasks === '1';
   const { tasks, setTasks, projects } = useTasksStore();
-  const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const styles = useThemedStyles(() => createStyles(theme), [theme]);
   const setTodayAccessoryContext = React.useCallback((dateStart: number) => {
     if (Platform.OS !== 'ios' || !isIOS26OrNewer()) return;
     const setContext = accessoryBridge?.setContext;
@@ -245,17 +246,17 @@ const createStyles = (theme: keyof typeof Colors) => {
   const rowSurface = Colors[theme].background;
   const hairline = isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.12)';
   const rowDivider = isDark ? 'rgba(255,255,255,0.24)' : 'rgba(0,0,0,0.16)';
-  const tagBg = withAlpha(text, isDark ? 0.10 : 0.08);
-  const tagText = withAlpha(text, 0.78);
+  const tagBg = withAlpha(text, contrastAlpha(isDark ? 0.10 : 0.08));
+  const tagText = withAlpha(text, contrastAlpha(0.78));
   const dangerBg = isDark ? 'rgba(255,69,58,0.18)' : 'rgba(255,59,48,0.14)';
   const dangerBorder = isDark ? 'rgba(255,69,58,0.32)' : 'rgba(255,59,48,0.26)';
-  const rowMetaText = withAlpha(text, isDark ? 0.42 : 0.34);
+  const rowMetaText = withAlpha(text, contrastAlpha(isDark ? 0.42 : 0.34));
   const sharedRowStyles = createSharedTaskRowStyles({
     textColor: text,
     rowSurface,
     rowDividerColor: rowDivider,
     rowMetaColor: rowMetaText,
-    rowSubtitleColor: withAlpha(text, 0.62),
+    rowSubtitleColor: withAlpha(text, contrastAlpha(0.62)),
     hairlineColor: hairline,
     tagBackground: tagBg,
     tagTextColor: tagText,
@@ -290,8 +291,8 @@ const createStyles = (theme: keyof typeof Colors) => {
       paddingHorizontal: SPACING.sm,
       borderRadius: SPACING.sm,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: withAlpha(text, isDark ? 0.14 : 0.1),
-      backgroundColor: withAlpha(text, isDark ? 0.06 : 0.03),
+      borderColor: withAlpha(text, contrastAlpha(isDark ? 0.14 : 0.1)),
+      backgroundColor: withAlpha(text, contrastAlpha(isDark ? 0.06 : 0.03)),
     },
     emptyText: {
       fontSize: 13,

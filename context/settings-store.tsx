@@ -3,6 +3,8 @@ import { getMaterial3Theme, type Material3Theme } from "@pchmn/expo-material3-th
 import React from "react";
 import { AccessibilityInfo, Appearance, Platform, type ColorSchemeName } from "react-native";
 
+import { isHighContrastEnabled, useHighContrast } from "@/context/high-contrast-store";
+
 import { type AppLocale, setLocale } from "@/i18n";
 
 export type AppearanceMode = "adaptive" | "alwaysLight" | "alwaysDark";
@@ -21,6 +23,19 @@ export const ACCENT_COLORS = [
   { id: "pink", value: "#FF2D55", label: "Pink" },
   { id: "indigo", value: "#5856D6", label: "Indigo" },
 ] as const;
+
+// Apple's accessible system color variants, used while "Increase Contrast" is on.
+const HIGH_CONTRAST_ACCENT_VALUES: Record<
+  (typeof ACCENT_COLORS)[number]["id"],
+  { light: string; dark: string }
+> = {
+  blue: { light: "#0040DD", dark: "#409CFF" },
+  red: { light: "#D70015", dark: "#FF6961" },
+  green: { light: "#248A3D", dark: "#30DB5B" },
+  orange: { light: "#C93400", dark: "#FFB340" },
+  pink: { light: "#D30F45", dark: "#FF6482" },
+  indigo: { light: "#3634A3", dark: "#7D7AFF" },
+};
 
 // Android-only: derives the accent (and, via `getMaterial3Scheme`, the rest
 // of the M3 surface palette) from the system's Material You wallpaper theme
@@ -54,6 +69,7 @@ export const DEFAULT_DAILY_SUMMARY_MINUTES = 20 * 60;
 type PersistedSettings = {
   appearanceMode: AppearanceMode;
   accentColor: AccentColorId;
+  appIconFollowsAccent: boolean;
   hapticsEnabled: boolean;
   reduceMotionEnabled: boolean;
   streakCelebrationEnabled: boolean;
@@ -74,6 +90,7 @@ const STORAGE_KEY = "reminds.settings.v1";
 const DEFAULT_SETTINGS: PersistedSettings = {
   appearanceMode: "adaptive",
   accentColor: "blue",
+  appIconFollowsAccent: false,
   hapticsEnabled: true,
   reduceMotionEnabled: false,
   streakCelebrationEnabled: false,
@@ -193,6 +210,8 @@ function sanitizeStoredSettings(value: unknown): PersistedSettings | null {
   if (!value || typeof value !== "object") return null;
   const appearanceMode = (value as { appearanceMode?: unknown }).appearanceMode;
   const accentColor = (value as { accentColor?: unknown }).accentColor;
+  const appIconFollowsAccent = (value as { appIconFollowsAccent?: unknown })
+    .appIconFollowsAccent;
   const hapticsEnabled = (value as { hapticsEnabled?: unknown }).hapticsEnabled;
   const reduceMotionEnabled = (value as { reduceMotionEnabled?: unknown })
     .reduceMotionEnabled;
@@ -216,6 +235,10 @@ function sanitizeStoredSettings(value: unknown): PersistedSettings | null {
     accentColor: isAccentColorId(accentColor)
       ? accentColor
       : DEFAULT_SETTINGS.accentColor,
+    appIconFollowsAccent:
+      typeof appIconFollowsAccent === "boolean"
+        ? appIconFollowsAccent
+        : DEFAULT_SETTINGS.appIconFollowsAccent,
     hapticsEnabled:
       typeof hapticsEnabled === "boolean"
         ? hapticsEnabled
@@ -351,6 +374,7 @@ function updateSettings(next: PersistedSettings) {
   const hasChanged =
     snapshot.appearanceMode !== next.appearanceMode ||
     snapshot.accentColor !== next.accentColor ||
+    snapshot.appIconFollowsAccent !== next.appIconFollowsAccent ||
     snapshot.hapticsEnabled !== next.hapticsEnabled ||
     snapshot.reduceMotionEnabled !== next.reduceMotionEnabled ||
     snapshot.streakCelebrationEnabled !== next.streakCelebrationEnabled ||
@@ -389,6 +413,8 @@ function patchSettings(partial: Partial<PersistedSettings>) {
   updateSettings({
     appearanceMode: partial.appearanceMode ?? snapshot.appearanceMode,
     accentColor: partial.accentColor ?? snapshot.accentColor,
+    appIconFollowsAccent:
+      partial.appIconFollowsAccent ?? snapshot.appIconFollowsAccent,
     hapticsEnabled: partial.hapticsEnabled ?? snapshot.hapticsEnabled,
     reduceMotionEnabled:
       partial.reduceMotionEnabled ?? snapshot.reduceMotionEnabled,
@@ -445,10 +471,56 @@ export function getAccentColorValue(accentColorId: AccentColorId): string {
       getMaterialYouScheme(scheme)?.primary ?? MATERIAL_YOU_FALLBACK_SEED
     );
   }
+  if (isHighContrastEnabled()) {
+    const variants =
+      HIGH_CONTRAST_ACCENT_VALUES[
+        accentColorId in HIGH_CONTRAST_ACCENT_VALUES
+          ? (accentColorId as keyof typeof HIGH_CONTRAST_ACCENT_VALUES)
+          : (DEFAULT_SETTINGS.accentColor as keyof typeof HIGH_CONTRAST_ACCENT_VALUES)
+      ];
+    // Same scheme source as the Material You branch above.
+    return Appearance.getColorScheme() === "dark" ? variants.dark : variants.light;
+  }
   return (
     ACCENT_COLOR_VALUE_BY_ID[accentColorId] ??
     (ACCENT_COLOR_VALUE_BY_ID[DEFAULT_SETTINGS.accentColor] as string)
   );
+}
+
+// System Reduce Motion, held once at module level: queried at import time and
+// kept current through the change event, so every hook instance reads the
+// same value and components mounting after startup see it on first render.
+let systemReduceMotion = false;
+const systemReduceMotionListeners = new Set<() => void>();
+
+function setSystemReduceMotion(next: boolean) {
+  if (next === systemReduceMotion) return;
+  systemReduceMotion = next;
+  systemReduceMotionListeners.forEach((listener) => listener());
+}
+
+AccessibilityInfo.isReduceMotionEnabled()
+  .then(setSystemReduceMotion)
+  .catch(() => undefined);
+AccessibilityInfo.addEventListener("reduceMotionChanged", setSystemReduceMotion);
+
+function getSystemReduceMotion() {
+  return systemReduceMotion;
+}
+
+function subscribeSystemReduceMotion(listener: () => void) {
+  systemReduceMotionListeners.add(listener);
+  return () => {
+    systemReduceMotionListeners.delete(listener);
+  };
+}
+
+/**
+ * System Reduce Motion value for code that runs outside render, such as
+ * animation helpers and event callbacks.
+ */
+export function isReduceMotionActive() {
+  return systemReduceMotion;
 }
 
 export function getAppSettingsSnapshot() {
@@ -462,23 +534,12 @@ export function useAppSettings() {
     void hydrateSettings();
   }, []);
 
-  const [systemReduceMotion, setSystemReduceMotion] = React.useState(false);
-  React.useEffect(() => {
-    let mounted = true;
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then((enabled) => {
-        if (mounted) setSystemReduceMotion(enabled);
-      })
-      .catch(() => undefined);
-    const subscription = AccessibilityInfo.addEventListener(
-      "reduceMotionChanged",
-      setSystemReduceMotion,
-    );
-    return () => {
-      mounted = false;
-      subscription.remove();
-    };
-  }, []);
+  const highContrastEnabled = useHighContrast();
+  const systemReduceMotion = React.useSyncExternalStore(
+    subscribeSystemReduceMotion,
+    getSystemReduceMotion,
+    getSystemReduceMotion,
+  );
 
   const setAppearanceMode = React.useCallback((appearanceMode: AppearanceMode) => {
     patchSettings({ appearanceMode });
@@ -488,16 +549,17 @@ export function useAppSettings() {
     patchSettings({ accentColor });
   }, []);
 
+  const setAppIconFollowsAccent = React.useCallback(
+    (appIconFollowsAccent: boolean) => {
+      patchSettings({ appIconFollowsAccent });
+    },
+    [],
+  );
+
   const setHapticsEnabled = React.useCallback((hapticsEnabled: boolean) => {
     patchSettings({ hapticsEnabled });
   }, []);
 
-  const setReduceMotionEnabled = React.useCallback(
-    (reduceMotionEnabled: boolean) => {
-      patchSettings({ reduceMotionEnabled });
-    },
-    [],
-  );
 
   const setStreakCelebrationEnabled = React.useCallback(
     (streakCelebrationEnabled: boolean) => {
@@ -548,15 +610,19 @@ export function useAppSettings() {
 
   return {
     ...state,
-    // The OS-level Reduce Motion setting always wins (WCAG 2.3.3 / EN 301 549);
-    // the in-app toggle can only add to it. `reduceMotionPreference` is the raw
-    // in-app value for the settings switch.
-    reduceMotionPreference: state.reduceMotionEnabled,
-    reduceMotionEnabled: state.reduceMotionEnabled || systemReduceMotion,
+    // Reduce Motion follows the OS setting only. The former in-app switch was
+    // removed (2026-10-17): native transitions, sheets and system controls
+    // cannot follow an app-only flag. The persisted `reduceMotionEnabled`
+    // field stays for backup compatibility but is ignored.
+    reduceMotionEnabled: systemReduceMotion,
+    // OS "Increase Contrast". Subscribing here re-renders every settings
+    // consumer (and `useColorScheme()`) when it changes, so `Colors[theme]`,
+    // `getAccentColorValue` and `contrastAlpha` are read fresh.
+    highContrastEnabled,
     setAppearanceMode,
     setAccentColor,
+    setAppIconFollowsAccent,
     setHapticsEnabled,
-    setReduceMotionEnabled,
     setStreakCelebrationEnabled,
     setLocaleOverride,
     setAppBadgeMode,

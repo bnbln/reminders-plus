@@ -3,7 +3,7 @@ import { type MenuAction } from '@react-native-menu/menu';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 import {
-  KeyboardAvoidingView,
+  Alert,
   Platform,
   Pressable,
   StyleSheet,
@@ -16,8 +16,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePageInsets } from '@/components/navigation/vertical-bar-safe-area';
 import { DropdownMenu } from '@/components/ui/dropdown-menu';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
+import { KeyboardLiftView } from '@/components/ui/keyboard-lift-view';
 import { SFSymbol } from '@/components/ui/sfsymbol';
-import { Colors } from '@/constants/theme';
+import { Colors, contrastAlpha } from '@/constants/theme';
 import { usePremium } from '@/context/premium-store';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -25,6 +26,7 @@ import { t } from '@/i18n';
 import { shouldRouteToProjectLimitGate } from '@/utils/project-creation-gate';
 import { ripple } from "@/components/ui/ripple";
 import { m3InputProps } from '@/components/ui/m3-input';
+import { useThemedStyles } from "@/hooks/use-themed-styles";
 
 type ThemeName = keyof typeof Colors;
 
@@ -121,7 +123,7 @@ export default function ProjectEditScreen() {
   const router = useRouter();
   const theme = useColorScheme() ?? 'light';
   const isDark = theme === 'dark';
-  const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const styles = useThemedStyles(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   const pageInsets = usePageInsets();
   const { projects, setProjects, setTasks } = useTasksStore();
@@ -163,8 +165,12 @@ export default function ProjectEditScreen() {
     }
   }, [activeProjectCount, hasPremiumAccess, isCreate, isReady, router]);
 
+  // Fill the form once per project. A new project reference from sync or a
+  // store update must not overwrite what the user is typing.
+  const initializedProjectIdRef = React.useRef<string | null>(null);
   React.useEffect(() => {
-    if (!project) return;
+    if (!project || initializedProjectIdRef.current === project.id) return;
+    initializedProjectIdRef.current = project.id;
     setName(project.name);
     setDescription(project.description ?? '');
     setIcon(project.icon ?? DEFAULT_PROJECT_ICON);
@@ -225,7 +231,7 @@ export default function ProjectEditScreen() {
     router.back();
   }, [color, description, icon, id, name, router, selectedEmoji, setProjects]);
 
-  const onDelete = React.useCallback(() => {
+  const deleteProject = React.useCallback(() => {
     if (!id) return;
     const now = Date.now();
 
@@ -241,6 +247,15 @@ export default function ProjectEditScreen() {
       router.replace('/(tabs)/explore');
     });
   }, [id, router, setProjects, setTasks]);
+
+  const onDelete = React.useCallback(() => {
+    if (!id) return;
+    // Deleting a project also moves all of its tasks to the trash, so ask first.
+    Alert.alert(t('projectEdit.alert.deleteTitle'), t('projectEdit.alert.deleteBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('common.delete'), style: 'destructive', onPress: deleteProject },
+    ]);
+  }, [deleteProject, id]);
 
   const onBackdropPress = React.useCallback(() => {
     router.back();
@@ -366,11 +381,7 @@ export default function ProjectEditScreen() {
         onPress={onBackdropPress}
       />
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? -10 : 0}
-        style={styles.keyboard}
-      >
+      <KeyboardLiftView style={styles.keyboard}>
         <View
           style={[styles.floatingStack, { paddingBottom: Math.max(14, insets.bottom - 8) }]}
           pointerEvents="box-none"
@@ -456,7 +467,7 @@ export default function ProjectEditScreen() {
                   <MaterialIcons
                     name="expand-more"
                     size={14}
-                    color={withAlpha(Colors[theme].text, 0.62)}
+                    color={withAlpha(Colors[theme].text, contrastAlpha(0.62))}
                   />
                 </View>
               </GlassSurface>
@@ -486,7 +497,7 @@ export default function ProjectEditScreen() {
                   <MaterialIcons
                     name="expand-more"
                     size={14}
-                    color={withAlpha(Colors[theme].text, 0.62)}
+                    color={withAlpha(Colors[theme].text, contrastAlpha(0.62))}
                   />
                 </View>
               </GlassSurface>
@@ -510,7 +521,7 @@ export default function ProjectEditScreen() {
                 <MaterialIcons
                   name="check"
                   size={18}
-                  color={canSubmit ? 'white' : withAlpha(Colors[theme].text, 0.45)}
+                  color={canSubmit ? 'white' : withAlpha(Colors[theme].text, contrastAlpha(0.45))}
                 />
               </GlassSurface>
             </Pressable>
@@ -537,7 +548,7 @@ export default function ProjectEditScreen() {
             </GlassSurface>
           </Pressable>
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardLiftView>
     </View>
   );
 }

@@ -15,7 +15,6 @@ import {
   type GestureResponderEvent,
   LayoutAnimation,
   type LayoutChangeEvent,
-  Modal,
   NativeModules,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -26,17 +25,15 @@ import {
   View,
 } from "react-native";
 
-import {
-  DatePicker as ExpoSwiftUIDatePicker,
-  Host as ExpoSwiftUIHost,
-} from "@expo/ui/swift-ui";
-import { datePickerStyle as expoSwiftDatePickerStyleModifier } from "@expo/ui/swift-ui/modifiers";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import DateTimePicker, {
-  DateTimePickerAndroid,
-} from "@react-native-community/datetimepicker";
+import { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
 import MaskedView from "@react-native-masked-view/masked-view";
+import Reanimated, {
+  withSpring,
+  withTiming,
+  ZoomOut,
+} from "react-native-reanimated";
 
 import {
   type TaskDragGestureUpdateParams,
@@ -49,13 +46,14 @@ import { FloatingAddButton } from "@/components/ui/floating-add-button";
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { SFSymbol } from "@/components/ui/sfsymbol";
 import { StreakAccentBackground } from "@/components/ui/streak-accent-background";
-import { Colors } from "@/constants/theme";
+import { Colors, contrastAlpha } from "@/constants/theme";
 import {
   parseShowCompletedTasksParam,
   parseShowProjectTasksParam,
   parseShowRoutineTasksParam,
   useHomeFilters,
 } from "@/context/home-filters-store";
+import { setHomeDayPickerHandler } from "@/context/home-day-picker-bridge";
 import { getAccentColorValue, useAppSettings } from "@/context/settings-store";
 import { useTaskCreateContext } from "@/context/task-create-context";
 import {
@@ -79,6 +77,9 @@ import {
   hasValidDueAt,
   isSameLocalDay,
 } from "@/utils/task-dates";
+import { useHighContrast } from "@/context/high-contrast-store";
+import { configureLayoutAnimation, motionSpring, motionTiming } from "@/utils/motion";
+import { useThemedStyles } from "@/hooks/use-themed-styles";
 
 type ThemeName = keyof typeof Colors;
 type TaskAccessoryContextBridge = {
@@ -96,6 +97,10 @@ const SECTION_SIDE_INSET = 0;
 const DATE_RAIL_HORIZONTAL_PADDING = 6;
 const DATE_RAIL_PAST_DAYS = 119;
 const DATE_RAIL_FUTURE_DAYS = 365;
+// Cells rendered on the first frame around the selected day, so the visible
+// part of the rail is filled before the list measures its viewport.
+const DATE_RAIL_MOUNT_LEADING_DAYS = 10;
+const DATE_RAIL_MOUNT_RENDER_DAYS = 24;
 const DATE_RAIL_MIN_ITEM_WIDTH = 40;
 const DATE_RAIL_ITEM_GAP = 6;
 const DATE_RAIL_FADE_WIDTH = 64;
@@ -111,8 +116,25 @@ const TASK_ROW_HORIZONTAL_PADDING = 12;
 const CONTENT_STACK_GAP = 10;
 const DATE_TRANSITION_DURATION = 250;
 const DATE_RAIL_TITLE_TRANSITION_DURATION = 300;
-const DATE_RAIL_TITLE_SCRUB_DURATION = 190;
-const DATE_RAIL_TITLE_TRANSITION_DISTANCE = 10;
+const DATE_RAIL_TITLE_SCRUB_DURATION = 260;
+// Titles slide sideways with the swipe and fade while they move, so they
+// soften out before they reach the clipped edge.
+const DATE_RAIL_TITLE_TRANSITION_DISTANCE = 28;
+// Back to today grows in from a slightly smaller size with a well-damped
+// spring (barely any overshoot) and scales out quickly. Off with Reduce Motion.
+const BACK_TO_TODAY_ENTERING = () => {
+  "worklet";
+  return {
+    initialValues: { opacity: 0, transform: [{ scale: 0.6 }] },
+    animations: {
+      opacity: withTiming(1, { duration: 160 }),
+      transform: [
+        { scale: withSpring(1, { damping: 26, stiffness: 300, mass: 1 }) },
+      ],
+    },
+  };
+};
+const BACK_TO_TODAY_EXITING = ZoomOut.duration(160);
 const DRAG_RAIL_HOVER_INTENT_MS = 80;
 const HOME_TASK_INITIAL_REVEAL_DURATION_MS = 340;
 const IOS_LIGHT_BASE_BACKGROUND = "#F2F2F7"; // systemGroupedBackground
@@ -134,10 +156,6 @@ const SECTION_ORDER: SectionId[] = ["today", "upcoming", "completed"];
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
-
-// Month Year Picker styles
-const CALENDAR_POPOVER_WIDTH = 340;
-const CALENDAR_POPOVER_HEIGHT = 332;
 
 async function readOnboardingSeen(key: string): Promise<boolean> {
   try {
@@ -168,7 +186,7 @@ async function markOnboardingSeen(key: string): Promise<void> {
 
 const configureSmoothListLayoutTransition = (enabled: boolean = true) => {
   if (!enabled) return;
-  LayoutAnimation.configureNext({
+  configureLayoutAnimation({
     duration: 280,
     create: {
       type: LayoutAnimation.Types.easeInEaseOut,
@@ -481,17 +499,16 @@ const createStyles = (
   const WEIGHT_HEADING = "700" as const;
   const WEIGHT_BODY = "600" as const;
   const WEIGHT_SUBTLE = "500" as const;
-  const RADIUS_CARD = 12;
   const RADIUS_TILE = 10;
   const RADIUS_CHIP = 6;
   const RADIUS_PILL = 999;
   // ───────────────────────────────────────────────────
 
   const hairline = isDark
-    ? withAlpha(text, ALPHA_4)
+    ? withAlpha(text, contrastAlpha(ALPHA_4))
     : useAppleLightPalette
       ? IOS_LIGHT_SEPARATOR
-      : withAlpha(text, ALPHA_4);
+      : withAlpha(text, contrastAlpha(ALPHA_4));
   const rowCardSurface = isDark
     ? HOME_TASK_ROW_SURFACE_DARK
     : HOME_TASK_ROW_SURFACE_LIGHT;
@@ -500,11 +517,11 @@ const createStyles = (
     : useAppleLightPalette
       ? IOS_LIGHT_INSET_SURFACE
       : "rgba(0,0,0,0.04)";
-  const tagBg = withAlpha(text, isDark ? 0.1 : 0.08);
-  const tagText = withAlpha(text, ALPHA_2);
+  const tagBg = withAlpha(text, contrastAlpha(isDark ? 0.1 : 0.08));
+  const tagText = withAlpha(text, contrastAlpha(ALPHA_2));
   const dangerBg = isDark ? "rgba(255,69,58,0.18)" : "rgba(255,59,48,0.14)";
   const dangerBorder = isDark ? "rgba(255,69,58,0.32)" : "rgba(255,59,48,0.26)";
-  const rowMetaText = withAlpha(text, ALPHA_3);
+  const rowMetaText = withAlpha(text, contrastAlpha(ALPHA_3));
   const dayBubbleSize = Math.max(30, Math.min(40, dateRailItemWidth - 14));
   const heroCardBorder = isDark
     ? "rgba(255,255,255,0.09)"
@@ -598,7 +615,7 @@ const createStyles = (
       lineHeight: 16,
       fontWeight: WEIGHT_BODY,
       letterSpacing: 0.2,
-      opacity: ALPHA_3,
+      opacity: contrastAlpha(ALPHA_3),
       flexShrink: 1,
       textAlign: "right",
     },
@@ -766,60 +783,6 @@ const createStyles = (
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: heroCardBorder,
     },
-    calendarPopover: {
-      width: CALENDAR_POPOVER_WIDTH,
-      height: CALENDAR_POPOVER_HEIGHT,
-      borderRadius: RADIUS_CARD,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: heroCardBorder,
-      overflow: "hidden",
-      shadowColor: "#000000",
-      shadowOpacity: isDark ? 0.4 : 0.18,
-      shadowRadius: 28,
-      shadowOffset: { width: 0, height: 14 },
-    },
-    calendarQuickActionsRow: {
-      flexDirection: "row",
-      gap: 8,
-      paddingHorizontal: 12,
-      paddingTop: 10,
-      paddingBottom: 6,
-    },
-    calendarQuickActionButton: {
-      flex: 1,
-      borderRadius: 12,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: heroCardBorder,
-      backgroundColor: isDark
-        ? "rgba(255,255,255,0.08)"
-        : "rgba(255,255,255,0.9)",
-      paddingVertical: 9,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    calendarQuickActionButtonText: {
-      fontSize: 13,
-      lineHeight: 16,
-      fontWeight: WEIGHT_HEADING,
-      color: text,
-      opacity: ALPHA_2,
-    },
-    calendarPickerBody: {
-      flex: 1,
-      alignItems: "stretch",
-      justifyContent: "center",
-      paddingHorizontal: 12,
-      paddingBottom: 12,
-    },
-    calendarPickerNative: {
-      flex: 1,
-      minHeight: 190,
-    },
-    calendarPickerSwiftHost: {
-      flex: 1,
-      minHeight: 190,
-      justifyContent: "center",
-    },
     dateRailTitle: {
       fontSize: 18,
       lineHeight: 24,
@@ -874,7 +837,7 @@ const createStyles = (
       color: CALENDAR_ACCENT,
     },
     dateRailDayNumWeekend: {
-      color: withAlpha(text, ALPHA_3),
+      color: withAlpha(text, contrastAlpha(ALPHA_3)),
     },
     dateRailDayNumDropCandidate: {
       color: withAlpha(CALENDAR_ACCENT, 0.98),
@@ -900,7 +863,7 @@ const createStyles = (
       color: "#FFFFFF",
     },
     dateRailDowWeekend: {
-      color: withAlpha(text, ALPHA_3),
+      color: withAlpha(text, contrastAlpha(ALPHA_3)),
     },
     dateRailEventIndicator: {
       position: "absolute",
@@ -1027,10 +990,10 @@ const createStyles = (
       fontWeight: WEIGHT_HEADING,
       //letterSpacing: 0.8,
       color: text,
-      opacity: ALPHA_3,
+      opacity: contrastAlpha(ALPHA_3),
     },
     sectionChevron: {
-      opacity: ALPHA_3,
+      opacity: contrastAlpha(ALPHA_3),
     },
     sectionCountBadge: {
       minWidth: 22,
@@ -1039,15 +1002,15 @@ const createStyles = (
       paddingHorizontal: 4,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: withAlpha(text, isDark ? 0.18 : 0.1),
+      backgroundColor: withAlpha(text, contrastAlpha(isDark ? 0.18 : 0.1)),
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: withAlpha(text, isDark ? 0.34 : 0.2),
+      borderColor: withAlpha(text, contrastAlpha(isDark ? 0.34 : 0.2)),
     },
     sectionCountBadgeText: {
       fontSize: 12,
       lineHeight: 14,
       fontWeight: WEIGHT_HEADING,
-      color: withAlpha(text, isDark ? 0.84 : 0.66),
+      color: withAlpha(text, contrastAlpha(isDark ? 0.84 : 0.66)),
       textAlign: "center",
     },
     itemSpacer: {
@@ -1159,7 +1122,7 @@ const createStyles = (
       fontSize: 12,
       lineHeight: 16,
       fontWeight: WEIGHT_SUBTLE,
-      color: withAlpha(text, 0.32),
+      color: withAlpha(text, contrastAlpha(0.32)),
     },
     tagRow: {
       flexDirection: "row",
@@ -1192,7 +1155,7 @@ const createStyles = (
       fontWeight: WEIGHT_HEADING,
       letterSpacing: 0.2,
       textTransform: "uppercase" as const,
-      color: isDark ? withAlpha(text, 0.7) : withAlpha(text, 0.5),
+      color: isDark ? withAlpha(text, contrastAlpha(0.7)) : withAlpha(text, contrastAlpha(0.5)),
       maxWidth: 220,
     },
     emptyState: {
@@ -1214,7 +1177,7 @@ const createStyles = (
       fontSize: 14,
       lineHeight: 18,
       fontWeight: WEIGHT_BODY,
-      color: withAlpha(text, ALPHA_3),
+      color: withAlpha(text, contrastAlpha(ALPHA_3)),
     },
     archivePillFooter: {
       paddingTop: HOME_ARCHIVE_PILL_TOP_GAP,
@@ -1239,7 +1202,7 @@ const createStyles = (
       lineHeight: 18,
       fontWeight: WEIGHT_BODY,
       color: text,
-      opacity: ALPHA_2,
+      opacity: contrastAlpha(ALPHA_2),
     },
     minimizeProbeWrap: {
       marginTop: 0,
@@ -1247,37 +1210,6 @@ const createStyles = (
     minimizeProbeRow: {
       height: 70,
       opacity: 0,
-    },
-    calendarPickerContainer: {
-      position: "absolute",
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      alignItems: "center",
-      justifyContent: "center",
-      zIndex: 1000,
-    },
-    calendarPickerOverlay: {
-      ...StyleSheet.absoluteFill,
-      backgroundColor: "rgba(0,0,0,0.4)",
-    },
-    calendarPickerContent: {
-      width: CALENDAR_POPOVER_WIDTH,
-      height: CALENDAR_POPOVER_HEIGHT,
-      borderRadius: RADIUS_CARD,
-      overflow: "hidden",
-    },
-    calendarPickerButton: {
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: RADIUS_PILL,
-      backgroundColor: withAlpha(text, 0.1),
-    },
-    calendarPickerButtonText: {
-      fontSize: 14,
-      fontWeight: WEIGHT_BODY,
-      color: text,
     },
   });
 };
@@ -1303,11 +1235,7 @@ function HomeContent() {
   const { width: viewportWidth, height: viewportHeight } = usePageDimensions();
   const isScreenFocusedRef = React.useRef(false);
 
-  const [isCalendarPickerOpen, setIsCalendarPickerOpen] = React.useState(false);
   const [metricsAnimationCycle, setMetricsAnimationCycle] = React.useState(0);
-  const isExpoUISwiftPickerAvailable =
-    Platform.OS === "ios" &&
-    !!(NativeModules as Record<string, unknown> | undefined)?.ExpoUI;
 
   const showFloatingAddButton = Platform.OS === "ios" && !isIOS26OrNewer();
   const params = useLocalSearchParams<{
@@ -1333,11 +1261,13 @@ function HomeContent() {
     0,
     (dateRailContainerWidth - dateRailItemWidth) / 2,
   );
+  const highContrast = useHighContrast();
   const calendarActiveColor = React.useMemo(
     () => getAccentColorValue(accentColor),
-    [accentColor],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- highContrast isn't read directly; getAccentColorValue returns the accessible variant while it is on.
+    [accentColor, highContrast],
   );
-  const styles = React.useMemo(
+  const styles = useThemedStyles(
     () => createStyles(theme, dateRailItemWidth, calendarActiveColor),
     [calendarActiveColor, dateRailItemWidth, theme],
   );
@@ -1570,7 +1500,7 @@ function HomeContent() {
       }
 
       homeTaskListRevealProgress.setValue(0);
-      const animation = Animated.timing(homeTaskListRevealProgress, {
+      const animation = motionTiming(homeTaskListRevealProgress, {
         toValue: 1,
         duration,
         easing:
@@ -1653,7 +1583,6 @@ function HomeContent() {
   >(null);
   const [isDragOverCalendarHeader, setIsDragOverCalendarHeader] =
     React.useState(false);
-  const [, setDragDropDebugReason] = React.useState("idle");
   const [, setActiveDragSurface] = React.useState<DragSurfaceId | null>(null);
   const dragContextRef = React.useRef<{
     taskId: string;
@@ -2101,7 +2030,7 @@ function HomeContent() {
     }
 
     stopDateRailTitleAnimation();
-    const animation = Animated.timing(dateRailTitleMotion, {
+    const animation = motionTiming(dateRailTitleMotion, {
       toValue: 1,
       duration,
       easing: Easing.inOut(Easing.cubic),
@@ -2612,6 +2541,17 @@ function HomeContent() {
     },
     [dateRailDays, dateRailInitialIndex],
   );
+  // Mount the rail already sitting on the selected day. Without this the list
+  // first renders the oldest days at offset 0 and only jumps to today a few
+  // frames later, which made the rail pop in late on app launch.
+  const [dateRailMountIndex] = React.useState(() =>
+    getDateRailIndexForDateStart(selectedDateStart),
+  );
+  // Kept stable: the native list applies it once on mount.
+  const [dateRailMountOffset] = React.useState(() => ({
+    x: dateRailMountIndex * dateRailSnapInterval,
+    y: 0,
+  }));
   const scrollDateRailToDateStart = React.useCallback(
     (
       targetDateStart: number,
@@ -2911,7 +2851,7 @@ function HomeContent() {
         animationRef.current = null;
         return;
       }
-      const animation = Animated.spring(value, {
+      const animation = motionSpring(value, {
         toValue: toCollapsed ? 1 : 0,
         friction: 10,
         tension: 120,
@@ -2928,9 +2868,12 @@ function HomeContent() {
     [reduceMotionEnabled],
   );
   React.useEffect(() => {
-    if (!collapsedSections.today || !isCalendarPickerOpen) return;
-    setIsCalendarPickerOpen(false);
-  }, [collapsedSections.today, isCalendarPickerOpen]);
+    setHomeDayPickerHandler((dateStart) => {
+      scrollDateRailToDateStart(dateStart, true, true);
+      handleSelectDate(dateStart, "picker");
+    });
+    return () => setHomeDayPickerHandler(null);
+  }, [handleSelectDate, scrollDateRailToDateStart]);
   React.useEffect(() => {
     animateCollapseProgress(
       todayCollapseProgress,
@@ -3037,7 +2980,6 @@ function HomeContent() {
   const clearDateDragHover = React.useCallback(() => {
     clearDateRailHover();
     setIsDragOverCalendarHeader(false);
-    setDragDropDebugReason("idle");
   }, [clearDateRailHover]);
   const getTouchPointFromEvent = React.useCallback(
     (event: GestureResponderEvent) => {
@@ -3061,7 +3003,6 @@ function HomeContent() {
     ) => {
       scheduleMeasureDateRailListBounds();
       const force = options?.force === true;
-      const source = options?.source ?? "touch";
       const headerBounds = dateRailBoundsRef.current;
       const shouldTrackHeader =
         !!dragContextRef.current && (force || listDragActiveRef.current);
@@ -3076,16 +3017,13 @@ function HomeContent() {
         current === isInsideCalendarHeader ? current : isInsideCalendarHeader,
       );
       if (!dragContextRef.current) {
-        setDragDropDebugReason(`${source}-no-context`);
         return;
       }
       if (!force && !listDragActiveRef.current) {
-        setDragDropDebugReason(`${source}-not-dragging`);
         return;
       }
       const bounds = dateRailListBoundsRef.current;
       if (!bounds) {
-        setDragDropDebugReason(`${source}-no-rail-bounds`);
         return;
       }
 
@@ -3097,7 +3035,6 @@ function HomeContent() {
       if (!isInsideDayRail) {
         dragLastRailDateStartRef.current = null;
         clearDateRailHover();
-        setDragDropDebugReason(`${source}-outside-rail`);
         return;
       }
 
@@ -3111,7 +3048,6 @@ function HomeContent() {
       );
       const targetDateStart = dateRailDays[targetIndex]?.timestamp;
       if (!Number.isFinite(targetDateStart)) {
-        setDragDropDebugReason(`${source}-invalid-target`);
         return;
       }
 
@@ -3122,9 +3058,6 @@ function HomeContent() {
       dragLastRailDateStartRef.current = targetDateStart;
       setDragDetectedDateStart((current) =>
         current === targetDateStart ? current : targetDateStart,
-      );
-      setDragDropDebugReason(
-        force ? `${source}-inside-force` : `${source}-inside`,
       );
       const now = Date.now();
       const currentIntent = dragRailHoverIntentRef.current;
@@ -3174,7 +3107,6 @@ function HomeContent() {
     (event: GestureResponderEvent, options?: { force?: boolean }) => {
       const point = getTouchPointFromEvent(event);
       if (!point) {
-        setDragDropDebugReason("touch-no-touch-point");
         return;
       }
       updateDateRailDragHoverFromPoint(point, {
@@ -3188,7 +3120,6 @@ function HomeContent() {
     (params: TaskDragGestureUpdateParams) => {
       const { absoluteX, absoluteY, phase } = params;
       if (!Number.isFinite(absoluteX) || !Number.isFinite(absoluteY)) {
-        setDragDropDebugReason("gesture-invalid-point");
         return;
       }
       updateDateRailDragHoverFromPoint(
@@ -3513,7 +3444,7 @@ function HomeContent() {
         <MaterialIcons
           name="event-busy"
           size={32}
-          color={withAlpha(Colors[theme].text, 0.36)}
+          color={withAlpha(Colors[theme].text, contrastAlpha(0.36))}
           style={styles.emptyStateIcon}
         />
         <Text style={styles.emptyText}>{t("home.empty.noTasks")}</Text>
@@ -3834,7 +3765,7 @@ function HomeContent() {
       }
 
       if (!reduceMotionEnabled) {
-        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        configureLayoutAnimation(LayoutAnimation.Presets.easeInEaseOut);
       }
       setTasks((prev) => {
         const task = prev.find((t) => t.id === taskId);
@@ -3927,7 +3858,7 @@ function HomeContent() {
   const handleDeleteTask = React.useCallback(
     (taskId: string) => {
       if (!reduceMotionEnabled) {
-        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        configureLayoutAnimation(LayoutAnimation.Presets.easeInEaseOut);
       }
       setTasks((prev) => {
         const task = prev.find((t) => t.id === taskId);
@@ -4080,7 +4011,7 @@ function HomeContent() {
                   <MaterialIcons
                     name="chevron-right"
                     size={18}
-                    color={withAlpha(Colors[theme].text, 0.48)}
+                    color={withAlpha(Colors[theme].text, contrastAlpha(0.48))}
                     style={[styles.sectionChevron, { opacity: 0.48 }]}
                   />
                 </Animated.View>
@@ -4164,14 +4095,14 @@ function HomeContent() {
     const isPreparingTitleTransition =
       dateRailTitleTransitionState.phase === "preparing";
     const outgoingTitleOpacity = dateRailTitleMotion.interpolate({
-      inputRange: [0, 0.78, 1],
-      outputRange: [1, 0.24, 0],
+      inputRange: [0, 0.6, 1],
+      outputRange: [1, 0.12, 0],
     });
     const incomingTitleOpacity = dateRailTitleMotion.interpolate({
       inputRange: [0, 1],
       outputRange: [0, 1],
     });
-    const outgoingTitleTranslateY = dateRailTitleMotion.interpolate({
+    const outgoingTitleTranslateX = dateRailTitleMotion.interpolate({
       inputRange: [0, 1],
       outputRange: [
         0,
@@ -4179,7 +4110,7 @@ function HomeContent() {
           dateRailTitleTransitionState.direction,
       ],
     });
-    const incomingTitleTranslateY = dateRailTitleMotion.interpolate({
+    const incomingTitleTranslateX = dateRailTitleMotion.interpolate({
       inputRange: [0, 1],
       outputRange: [
         DATE_RAIL_TITLE_TRANSITION_DISTANCE *
@@ -4207,12 +4138,12 @@ function HomeContent() {
                           isPreparingTitleTransition
                             ? {
                                 opacity: 1,
-                                transform: [{ translateY: 0 }],
+                                transform: [{ translateX: 0 }],
                               }
                             : {
                                 opacity: outgoingTitleOpacity,
                                 transform: [
-                                  { translateY: outgoingTitleTranslateY },
+                                  { translateX: outgoingTitleTranslateX },
                                 ],
                               },
                         ]}
@@ -4231,7 +4162,7 @@ function HomeContent() {
                                 opacity: 0,
                                 transform: [
                                   {
-                                    translateY:
+                                    translateX:
                                       DATE_RAIL_TITLE_TRANSITION_DISTANCE *
                                       dateRailTitleTransitionState.direction,
                                   },
@@ -4240,12 +4171,12 @@ function HomeContent() {
                             : {
                                 opacity: incomingTitleOpacity,
                                 transform: [
-                                  { translateY: incomingTitleTranslateY },
+                                  { translateX: incomingTitleTranslateX },
                                 ],
                               }
                           : {
                               opacity: 1,
-                              transform: [{ translateY: 0 }],
+                              transform: [{ translateX: 0 }],
                             },
                       ]}
                       numberOfLines={1}
@@ -4256,37 +4187,49 @@ function HomeContent() {
                 </View>
               </View>
               <View style={styles.calendarButtonRow}>
-                <GlassSurface
-                  tintColor={glassSurfacePalette.calendarTint}
-                  fallbackBackgroundColor={glassSurfacePalette.calendarFallback}
-                  style={styles.calendarButton}
-                  isInteractive={true}
-                >
-                  <Pressable
-                    android_ripple={rippleBorderless(16)}
-                    accessibilityRole="button"
-                    accessibilityLabel={t("home.jumpToToday")}
-                    hitSlop={16}
-                    style={StyleSheet.absoluteFill}
-                    onPress={() => {
-                      handleJumpToToday("press");
-                    }}
+                {/* Back to today only makes sense away from today. */}
+                {!isSameLocalDay(selectedDateStart, getStartOfToday()) ? (
+                  <Reanimated.View
+                    entering={
+                      reduceMotionEnabled ? undefined : BACK_TO_TODAY_ENTERING
+                    }
+                    exiting={
+                      reduceMotionEnabled ? undefined : BACK_TO_TODAY_EXITING
+                    }
                   >
-                    <View
-                      style={{
-                        flex: 1,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
+                    <GlassSurface
+                      tintColor={glassSurfacePalette.calendarTint}
+                      fallbackBackgroundColor={glassSurfacePalette.calendarFallback}
+                      style={styles.calendarButton}
+                      isInteractive={true}
                     >
-                      <SFSymbol
-                        name="arrow.uturn.backward"
-                        size={16}
-                        color={Colors[theme].text}
-                      />
-                    </View>
-                  </Pressable>
-                </GlassSurface>
+                      <Pressable
+                        android_ripple={rippleBorderless(16)}
+                        accessibilityRole="button"
+                        accessibilityLabel={t("home.jumpToToday")}
+                        hitSlop={16}
+                        style={StyleSheet.absoluteFill}
+                        onPress={() => {
+                          handleJumpToToday("press");
+                        }}
+                      >
+                        <View
+                          style={{
+                            flex: 1,
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <SFSymbol
+                            name="arrow.uturn.backward"
+                            size={16}
+                            color={Colors[theme].text}
+                          />
+                        </View>
+                      </Pressable>
+                    </GlassSurface>
+                  </Reanimated.View>
+                ) : null}
 
                 <GlassSurface
                   tintColor={glassSurfacePalette.calendarTint}
@@ -4326,7 +4269,10 @@ function HomeContent() {
                         });
                         return;
                       }
-                      setIsCalendarPickerOpen((prev) => !prev);
+                      router.push({
+                        pathname: "/day-picker",
+                        params: { date: String(selectedDateStart) },
+                      });
                     }}
                   >
                     <View
@@ -4348,104 +4294,6 @@ function HomeContent() {
             </View>
           </View>
 
-          {/* Calendar picker rendered as top-level Modal to avoid clipping */}
-          <Modal
-            visible={isCalendarPickerOpen}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setIsCalendarPickerOpen(false)}
-          >
-            {/* Backdrop */}
-            <Pressable
-              style={[
-                StyleSheet.absoluteFill,
-                { backgroundColor: "transparent" },
-              ]}
-              onPress={() => setIsCalendarPickerOpen(false)}
-            />
-            {/* Popover card */}
-            <View
-              pointerEvents="box-none"
-              style={{
-                position: "absolute",
-                top: 96,
-                left: 0,
-                right: 0,
-                alignItems: "center",
-              }}
-            >
-              <GlassSurface
-                tintColor={glassSurfacePalette.popoverTint}
-                fallbackBackgroundColor={glassSurfacePalette.popoverFallback}
-                style={styles.calendarPopover}
-                isInteractive={true}
-              >
-                <View style={styles.calendarQuickActionsRow}>
-                  <Pressable
-                    android_ripple={ripple()}
-                    style={styles.calendarQuickActionButton}
-                    onPress={() => {
-                      handleJumpToToday("picker");
-                      setIsCalendarPickerOpen(false);
-                    }}
-                  >
-                    <Text style={styles.calendarQuickActionButtonText}>
-                      {t("common.today")}
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    android_ripple={ripple()}
-                    style={styles.calendarQuickActionButton}
-                    onPress={() => {
-                      const tomorrowDateStart = addDays(getStartOfToday(), 1);
-                      scrollDateRailToDateStart(tomorrowDateStart, true, true);
-                      handleSelectDate(tomorrowDateStart, "picker");
-                      setIsCalendarPickerOpen(false);
-                    }}
-                  >
-                    <Text style={styles.calendarQuickActionButtonText}>
-                      {t("taskDetail.relative.tomorrow")}
-                    </Text>
-                  </Pressable>
-                </View>
-
-                <View style={styles.calendarPickerBody}>
-                  {isExpoUISwiftPickerAvailable ? (
-                    <ExpoSwiftUIHost
-                      matchContents
-                      style={styles.calendarPickerSwiftHost}
-                    >
-                      <ExpoSwiftUIDatePicker
-                        selection={new Date(selectedDateStart)}
-                        displayedComponents={["date"]}
-                        modifiers={[expoSwiftDatePickerStyleModifier("wheel")]}
-                        onDateChange={(date: Date) => {
-                          const nextDateStart = getStartOfDay(date.getTime());
-                          scrollDateRailToDateStart(nextDateStart, true, true);
-                          handleSelectDate(nextDateStart, "picker");
-                        }}
-                      />
-                    </ExpoSwiftUIHost>
-                  ) : (
-                    <DateTimePicker
-                      value={new Date(selectedDateStart)}
-                      mode="date"
-                      display="spinner"
-                      onChange={(_: any, date?: Date) => {
-                        if (!date) return;
-                        const nextDateStart = getStartOfDay(date.getTime());
-                        scrollDateRailToDateStart(nextDateStart, true, true);
-                        handleSelectDate(nextDateStart, "picker");
-                      }}
-                      style={styles.calendarPickerNative}
-                      textColor={isDark ? "#ffffff" : "#000000"}
-                      themeVariant={isDark ? "dark" : "light"}
-                    />
-                  )}
-                </View>
-              </GlassSurface>
-            </View>
-          </Modal>
 
           <View
             ref={dateRailListRef}
@@ -4552,6 +4400,12 @@ function HomeContent() {
                 scheduleDateRailSyncToSelectedDate();
               }}
               getItemLayout={getDateRailItemLayout}
+              contentOffset={dateRailMountOffset}
+              initialScrollIndex={Math.max(
+                0,
+                dateRailMountIndex - DATE_RAIL_MOUNT_LEADING_DAYS,
+              )}
+              initialNumToRender={DATE_RAIL_MOUNT_RENDER_DAYS}
               onScrollToIndexFailed={handleDateRailScrollToIndexFailed}
               onScroll={handleDateRailScroll}
               onScrollBeginDrag={handleDateRailScrollBeginDrag}
@@ -4630,18 +4484,18 @@ function HomeContent() {
     glassSurfacePalette,
     handleJumpToToday,
     handleSelectDate,
-    isExpoUISwiftPickerAvailable,
     scrollDateRailToDateStart,
-    isCalendarPickerOpen,
-    isDark,
     measureDateRailBounds,
     measureDateRailListBounds,
     reduceMotionEnabled,
+    router,
     selectedDateStart,
     scheduleDateRailSyncToSelectedDate,
     styles,
     theme,
     dateRailContainerWidth,
+    dateRailMountIndex,
+    dateRailMountOffset,
   ]);
 
   const listHeader = React.useMemo(() => {
@@ -4781,6 +4635,7 @@ function HomeContent() {
         renderMode="auto"
         syncDataDuringDrag={false}
         animateDataLayoutChanges={false}
+        dropLayoutHandoff
         revealProgress={homeTaskListRevealProgress}
         revealPhase={homeTaskListRevealPhase}
         revealStaggerStep={0.035}

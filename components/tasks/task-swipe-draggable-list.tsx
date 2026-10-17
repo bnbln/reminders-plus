@@ -28,6 +28,8 @@ import { useAppSettings } from '@/context/settings-store';
 import { useTaskCreateContext } from '@/context/task-create-context';
 import type { Project, Task } from '@/context/tasks-store';
 import { triggerImpactHaptic } from '@/utils/haptics';
+import { configureLayoutAnimation, motionSpring } from "@/utils/motion";
+import { traceDrag } from '@/utils/drag-diagnostics';
 
 type ThemeName = keyof typeof Colors;
 // DraggableFlatList wraps the whole list (including its ListHeaderComponent,
@@ -129,7 +131,7 @@ const areListItemsEqual = (
 
 const configureDropLayoutAnimation = () => {
   // Only move surviving rows; the dropped row runs its own landing animation.
-  LayoutAnimation.configureNext({
+  configureLayoutAnimation({
     duration: 320,
     update: {
       type: LayoutAnimation.Types.spring,
@@ -139,7 +141,7 @@ const configureDropLayoutAnimation = () => {
 };
 
 const configureListDataLayoutAnimation = () => {
-  LayoutAnimation.configureNext({
+  configureLayoutAnimation({
     duration: 220,
     create: {
       type: LayoutAnimation.Types.easeInEaseOut,
@@ -154,6 +156,29 @@ const configureListDataLayoutAnimation = () => {
       type: LayoutAnimation.Types.easeInEaseOut,
       property: LayoutAnimation.Properties.opacity,
       duration: 170,
+    },
+  });
+};
+
+// Expanding/collapsing a section: rows fade while the rows below glide into
+// place, so the list opens and closes instead of jumping.
+const configureSectionToggleLayoutAnimation = () => {
+  configureLayoutAnimation({
+    duration: 340,
+    create: {
+      type: LayoutAnimation.Types.easeOut,
+      property: LayoutAnimation.Properties.opacity,
+      duration: 240,
+      delay: 60,
+    },
+    update: {
+      type: LayoutAnimation.Types.spring,
+      springDamping: 0.86,
+    },
+    delete: {
+      type: LayoutAnimation.Types.easeIn,
+      property: LayoutAnimation.Properties.opacity,
+      duration: 140,
     },
   });
 };
@@ -263,6 +288,16 @@ export type TaskSwipeDraggableListProps = {
   syncDataDuringDrag?: boolean;
   /** Disable internal list layout animations when parent drives its own transition. */
   animateDataLayoutChanges?: boolean;
+  /**
+   * Change this value together with a section expand/collapse to animate that
+   * data change, even when `animateDataLayoutChanges` is off.
+   */
+  sectionToggleAnimationKey?: number;
+  /**
+   * Let a Reanimated layout transition apply the reordered cell positions and
+   * the reset of the drag offsets in the same frame (drop flicker prototype).
+   */
+  dropLayoutHandoff?: boolean;
   /** Optional section reveal progress (0..1 expanded) for staggered task entry animation. */
   revealProgress?: Animated.Value | Animated.AnimatedInterpolation<number>;
   revealPhase?: 'enter' | 'exit';
@@ -328,6 +363,8 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     sortByOrderRank,
     syncDataDuringDrag = true,
     animateDataLayoutChanges = true,
+    sectionToggleAnimationKey = 0,
+    dropLayoutHandoff = false,
     revealProgress,
     revealPhase = 'enter',
     revealStaggerStep = 0.055,
@@ -360,7 +397,10 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   const previousTaskKeyByIdRef = React.useRef<Map<string, string> | null>(null);
   const suppressDynamicPopInUntilRef = React.useRef(0);
 
+  const diagnosticListId = React.useId();
   const isDraggingRef = React.useRef(false);
+  const dragGenerationRef = React.useRef(0);
+  const completedDragGenerationRef = React.useRef(0);
   const placeholderIndexRef = React.useRef<number>(-1);
   const draggingTaskIdRef = React.useRef<string | null>(null);
   const activeDragTranslationX = React.useRef(new Animated.Value(0)).current;
@@ -381,6 +421,35 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   );
   const ignoreNextDragEndRef = React.useRef(false);
   const deferredSyncFrameRef = React.useRef<number | null>(null);
+  const dragCompletionFrameRef = React.useRef<number | null>(null);
+  const skippedSyncDuringDragRef = React.useRef(false);
+  const finishDrag = React.useCallback(() => {
+    const generation = dragGenerationRef.current;
+    if (dragCompletionFrameRef.current !== null) {
+      cancelAnimationFrame(dragCompletionFrameRef.current);
+    }
+    dragCompletionFrameRef.current = requestAnimationFrame(() => {
+      dragCompletionFrameRef.current = null;
+      if (generation !== dragGenerationRef.current) return;
+      isDraggingRef.current = false;
+      if (skippedSyncDuringDragRef.current) {
+        // Data that arrived mid-drag was held back; apply it now, since a drop
+        // that changes nothing won't rerun the sync effect on its own.
+        skippedSyncDuringDragRef.current = false;
+        setFlatListData((current) => {
+          const next = latestResolvedDataRef.current;
+          return areListItemsEqual(current, next) ? current : next;
+        });
+      }
+      traceDrag(diagnosticListId, "settled", { generation });
+      onDragStateChange?.(false);
+    });
+  }, [diagnosticListId, onDragStateChange]);
+  React.useEffect(() => () => {
+    if (dragCompletionFrameRef.current !== null) {
+      cancelAnimationFrame(dragCompletionFrameRef.current);
+    }
+  }, []);
 
   const registerRowMeasure = React.useCallback(
     (taskId: string, measure: TaskRowMeasure) => {
@@ -436,7 +505,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       activeDragTranslationX.setValue(0);
       return;
     }
-    Animated.spring(activeDragTranslationX, {
+    motionSpring(activeDragTranslationX, {
       toValue: 0,
       ...DRAG_TRANSLATE_X_SETTLE_SPRING,
       useNativeDriver: false,
@@ -617,9 +686,22 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   const [pendingDropData, setPendingDropData] = React.useState<
     TaskSwipeDraggableListItem[] | null
   >(null);
+  React.useEffect(() => {
+    traceDrag(diagnosticListId, "mount");
+    return () => traceDrag(diagnosticListId, "unmount");
+  }, [diagnosticListId]);
+  React.useLayoutEffect(() => {
+    traceDrag(diagnosticListId, "data-commit", {
+      count: flatListData.length,
+      dragging: isDraggingRef.current,
+      pending: pendingDropData !== null,
+      generation: dragGenerationRef.current,
+    });
+  }, [diagnosticListId, flatListData, pendingDropData]);
   const latestResolvedDataRef = React.useRef(resolvedData);
   latestResolvedDataRef.current = resolvedData;
   const shouldAnimateDropLayout = landing !== null && !reduceMotionEnabled;
+  const appliedSectionToggleKeyRef = React.useRef(sectionToggleAnimationKey);
 
   React.useEffect(() => {
     return () => {
@@ -695,12 +777,21 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       return;
     }
 
-    if (isDraggingRef.current && !syncDataDuringDrag) return;
+    if (isDraggingRef.current && !syncDataDuringDrag) {
+      skippedSyncDuringDragRef.current = true;
+      return;
+    }
+
+    const isSectionToggle =
+      appliedSectionToggleKeyRef.current !== sectionToggleAnimationKey;
+    appliedSectionToggleKeyRef.current = sectionToggleAnimationKey;
 
     setFlatListData((current) => {
       if (areListItemsEqual(current, resolvedData)) return current;
       if (shouldAnimateDropLayout) {
         configureDropLayoutAnimation();
+      } else if (isSectionToggle && !reduceMotionEnabled) {
+        configureSectionToggleLayoutAnimation();
       } else if (animateDataLayoutChanges && !reduceMotionEnabled) {
         configureListDataLayoutAnimation();
       }
@@ -710,6 +801,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     animateDataLayoutChanges,
     reduceMotionEnabled,
     resolvedData,
+    sectionToggleAnimationKey,
     shouldAnimateDropLayout,
     syncDataDuringDrag,
   ]);
@@ -1149,6 +1241,10 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
 
   const handleDragBegin = React.useCallback(
     (fromIndex: number) => {
+      dragGenerationRef.current += 1;
+      traceDrag(diagnosticListId, "begin", {
+        from: fromIndex, generation: dragGenerationRef.current,
+      });
       isDraggingRef.current = true;
       externalDropRef.current = null;
       ignoreNextDragEndRef.current = false;
@@ -1179,6 +1275,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     },
     [
       closeAnyOpen,
+      diagnosticListId,
       onDragBeginTask,
       onDragStateChange,
       resetActiveDragTranslationX,
@@ -1209,6 +1306,9 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       if (phase !== "end") return;
 
       const taskId = draggingTaskIdRef.current;
+      traceDrag(diagnosticListId, "gesture-release", {
+        generation: dragGenerationRef.current,
+      });
       const origin = dragRowFrameRef.current;
       const handledExternally =
         !!taskId &&
@@ -1235,6 +1335,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       settleActiveDragTranslationX();
     },
     [
+      diagnosticListId,
       followHorizontalDrag,
       onDragDrop,
       onDragGestureUpdate,
@@ -1254,6 +1355,20 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       from: number;
       to: number;
     }) => {
+      // A release reaction and a spring completion can both report the same
+      // drag. The second callback still carries the old from/to indices.
+      // Claim this generation before invoking parents or scheduling commits.
+      if (completedDragGenerationRef.current === dragGenerationRef.current) {
+        traceDrag(diagnosticListId, "duplicate-end-ignored", {
+          from, to, generation: dragGenerationRef.current,
+        });
+        return;
+      }
+      completedDragGenerationRef.current = dragGenerationRef.current;
+      traceDrag(diagnosticListId, "end", {
+        from, to, generation: dragGenerationRef.current,
+        external: ignoreNextDragEndRef.current,
+      });
       if (ignoreNextDragEndRef.current) {
         // The parent already committed this drop; the library's indices are
         // stale by now, so don't reorder anything.
@@ -1261,10 +1376,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
         draggingTaskIdRef.current = null;
         dragRowFrameRef.current = null;
         placeholderIndexRef.current = -1;
-        requestAnimationFrame(() => {
-          isDraggingRef.current = false;
-          onDragStateChange?.(false);
-        });
+        finishDrag();
         return;
       }
       const nextData = data.filter(
@@ -1281,14 +1393,17 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
         // propagate before the useLayoutEffect re-syncs flatListData.
         draggingTaskIdRef.current = null;
         placeholderIndexRef.current = -1;
-        requestAnimationFrame(() => {
-          isDraggingRef.current = false;
-          onDragStateChange?.(false);
-        });
+        finishDrag();
       } else {
         resetActiveDragTranslationX();
         draggingTaskIdRef.current = null;
         placeholderIndexRef.current = -1;
+        // A lift released in its original slot needs no data commit, parent
+        // persistence or second render of every row.
+        if (areListItemsEqual(nextData, flatListData)) {
+          finishDrag();
+          return;
+        }
         // Don't reorder in this render: the library clears its active cell in
         // it, and every cell keeps its drag offset until Reanimated restarts
         // the cell styles in the passive effects of this commit. The reorder
@@ -1297,8 +1412,10 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       }
     },
     [
+      diagnosticListId,
+      finishDrag,
+      flatListData,
       onDragEndMeta,
-      onDragStateChange,
       resetActiveDragTranslationX,
       suppressDynamicPopIns,
       tasksById,
@@ -1317,11 +1434,8 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
         .filter((d) => d.kind === "task")
         .map((d) => d.taskId),
     );
-    requestAnimationFrame(() => {
-      isDraggingRef.current = false;
-      onDragStateChange?.(false);
-    });
-  }, [onDragStateChange, onReorder, onReorderData, pendingDropData]);
+    finishDrag();
+  }, [finishDrag, onReorder, onReorderData, pendingDropData]);
 
   const dragListProps = {
     data: flatListData,
@@ -1366,6 +1480,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       autoscrollSpeed={LIST_AUTOSCROLL_SPEED}
       animationConfig={reduceMotionEnabled ? undefined : LIST_ANIMATION_CONFIG}
       dragItemOverflow
+      dropLayoutHandoff={dropLayoutHandoff}
       onDragBegin={handleDragBegin}
       onPlaceholderIndexChange={(index) => {
         placeholderIndexRef.current = index;

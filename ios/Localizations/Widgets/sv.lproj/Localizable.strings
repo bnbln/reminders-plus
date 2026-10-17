@@ -1,0 +1,5 @@
+/* Widget gallery names and descriptions. Keys are the English literals in ExpoWidgetsTarget/*.swift. */
+"Streak" = "Svit";
+"Your streak of completed days at a glance." = "Din svit av klara dagar i en överblick.";
+"Today" = "Idag";
+"Your open tasks for today, ready to check off." = "Dagens öppna uppgifter, redo att bockas av.";

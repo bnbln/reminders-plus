@@ -10,6 +10,12 @@ RCT_EXTERN_METHOD(setContext:(NSString *)mode
 
 @end
 
+@interface RCT_EXTERN_MODULE(SplashAccentBridge, NSObject)
+
+RCT_EXTERN_METHOD(setAccentColor:(NSString *)hex)
+
+@end
+
 @interface RCT_EXTERN_MODULE(CloudSyncBridge, RCTEventEmitter)
 
 RCT_EXTERN_METHOD(getStatus:(RCTPromiseResolveBlock)resolve

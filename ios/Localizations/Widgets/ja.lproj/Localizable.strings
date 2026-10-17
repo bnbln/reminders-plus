@@ -1,0 +1,5 @@
+/* Widget gallery names and descriptions. Keys are the English literals in ExpoWidgetsTarget/*.swift. */
+"Streak" = "連続記録";
+"Your streak of completed days at a glance." = "完了した日の連続記録をひと目で確認できます。";
+"Today" = "今日";
+"Your open tasks for today, ready to check off." = "今日の未完了タスクをその場でチェックできます。";

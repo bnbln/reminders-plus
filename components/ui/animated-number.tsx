@@ -8,6 +8,7 @@ import {
   TextStyle,
   View,
 } from "react-native";
+import { motionTiming } from "@/utils/motion";
 
 type AnimatedNumberProps = {
   animateFromZeroOnMount?: boolean;
@@ -120,7 +121,7 @@ function AnimatedDigit({
     }
 
     progress.setValue(0);
-    const animation = Animated.timing(progress, {
+    const animation = motionTiming(progress, {
       toValue: 1,
       duration: 220,
       easing: Easing.out(Easing.cubic),

@@ -41,12 +41,12 @@
           "ru",
           "ar"
         ],
-        "NSCalendarsUsageDescription": "Wir importieren Termine aus Apple Kalender in deine App.",
-        "NSCalendarsFullAccessUsageDescription": "Wir importieren Termine aus Apple Kalender in deine App.",
-        "NSRemindersUsageDescription": "Wir importieren Erinnerungen aus Apple Erinnerungen in deine App.",
-        "NSRemindersFullAccessUsageDescription": "Wir importieren Erinnerungen aus Apple Erinnerungen in deine App.",
-        "NSLocationWhenInUseUsageDescription": "Wir verwenden deinen Standort, um den aktuellen Ort für den Task vorzuschlagen.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Wir verwenden deinen Standort, um den aktuellen Ort für den Task vorzuschlagen.",
+        "NSCalendarsUsageDescription": "Reminders+ imports events from Apple Calendar into your tasks.",
+        "NSCalendarsFullAccessUsageDescription": "Reminders+ imports events from Apple Calendar into your tasks.",
+        "NSRemindersUsageDescription": "Reminders+ imports reminders from Apple Reminders into your tasks.",
+        "NSRemindersFullAccessUsageDescription": "Reminders+ imports reminders from Apple Reminders into your tasks.",
+        "NSLocationWhenInUseUsageDescription": "Reminders+ uses your location to suggest your current place for a task.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Reminders+ uses your location to suggest your current place for a task.",
         "UIBackgroundModes": [
           "remote-notification"
         ],
@@ -91,8 +91,8 @@
       [
         "expo-calendar",
         {
-          "calendarPermission": "Wir importieren Termine aus Apple Kalender in deine App.",
-          "remindersPermission": "Wir importieren Erinnerungen aus Apple Erinnerungen in deine App."
+          "calendarPermission": "Reminders+ imports events from Apple Calendar into your tasks.",
+          "remindersPermission": "Reminders+ imports reminders from Apple Reminders into your tasks."
         }
       ],
       [
@@ -101,9 +101,9 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#E5E5EA",
           "dark": {
-            "backgroundColor": "#000000"
+            "backgroundColor": "#151718"
           }
         }
       ],
@@ -136,7 +136,7 @@
             {
               "name": "StreakWidget",
               "displayName": "Streak",
-              "description": "Deine Serie an erledigten Tagen auf einen Blick.",
+              "description": "Your streak of completed days at a glance.",
               "ios": {
                 "supportedFamilies": [
                   "systemSmall",
@@ -150,8 +150,8 @@
             },
             {
               "name": "TasksWidget",
-              "displayName": "Heute",
-              "description": "Deine offenen Aufgaben für heute – direkt abhakbar.",
+              "displayName": "Today",
+              "description": "Your open tasks for today, ready to check off.",
               "ios": {
                 "supportedFamilies": [
                   "systemSmall",

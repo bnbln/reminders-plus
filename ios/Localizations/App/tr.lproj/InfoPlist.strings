@@ -1,0 +1,9 @@
+/* Generated localization for Reminders+ (main app Info.plist). */
+"CFBundleDisplayName" = "Reminders+";
+"NSCalendarsUsageDescription" = "Reminders+, Takvim'deki etkinlikleri görevlerinize aktarır.";
+"NSCalendarsFullAccessUsageDescription" = "Reminders+, Takvim'deki etkinlikleri görevlerinize aktarır.";
+"NSRemindersUsageDescription" = "Reminders+, Anımsatıcılar'daki anımsatıcıları görevlerinize aktarır.";
+"NSRemindersFullAccessUsageDescription" = "Reminders+, Anımsatıcılar'daki anımsatıcıları görevlerinize aktarır.";
+"NSLocationWhenInUseUsageDescription" = "Reminders+, bir görev için bulunduğunuz yeri önermek amacıyla konumunuzu kullanır.";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "Reminders+, bir görev için bulunduğunuz yeri önermek amacıyla konumunuzu kullanır.";
+"NSLocationAlwaysUsageDescription" = "Reminders+, bir görev için bulunduğunuz yeri önermek amacıyla konumunuzu kullanır.";

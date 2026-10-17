@@ -7,7 +7,9 @@ import {
   Colors,
   LIGHT_ACCENT_SCREEN_BACKGROUND,
 } from "@/constants/theme";
+import { useHighContrast } from "@/context/high-contrast-store";
 import { getAccentColorValue, useAppSettings } from "@/context/settings-store";
+import { motionSpring, motionTiming } from "@/utils/motion";
 
 type StreakAccentBackgroundProps = {
   isDark: boolean;
@@ -49,7 +51,7 @@ function StreakAccentBackgroundComponent({
   isDark,
   enabled = true,
 }: StreakAccentBackgroundProps) {
-  const { accentColor, reduceMotionEnabled } = useAppSettings();
+  const { accentColor, hasHydrated, reduceMotionEnabled } = useAppSettings();
   // Temporarily keep the accent background always visible when mounted.
   const isVisible = enabled;
   const baseBackgroundColor = isDark
@@ -66,16 +68,20 @@ function StreakAccentBackgroundComponent({
   // the *currently active* Appearance scheme, so it needs to be re-evaluated
   // whenever the caller's resolved theme (`isDark`) flips, not just when the
   // user picks a different accent swatch.
+  const highContrast = useHighContrast();
   const accentHex = React.useMemo(
     () => getAccentColorValue(accentColor),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- isDark isn't read directly, but forces a recompute when the Material You branch's Appearance-derived scheme flips.
-    [accentColor, isDark],
+    [accentColor, isDark, highContrast],
   );
   const [displayColor, setDisplayColor] = React.useState(accentHex);
   const [previousColor, setPreviousColor] = React.useState<string | null>(
     null,
   );
   const colorFade = React.useRef(new Animated.Value(1)).current;
+  // Screens mounted before settings hydrate start on the default accent.
+  // Jumping straight to the stored color avoids a blue-to-accent fade on launch.
+  const hadHydratedRef = React.useRef(hasHydrated);
   const previousColorOpacity = React.useMemo(
     () =>
       colorFade.interpolate({
@@ -86,13 +92,16 @@ function StreakAccentBackgroundComponent({
   );
 
   React.useEffect(() => {
+    const isHydrationUpdate = !hadHydratedRef.current;
+    hadHydratedRef.current = hasHydrated;
+
     if (accentHex === displayColor) {
       return;
     }
 
     colorFade.stopAnimation();
 
-    if (reduceMotionEnabled || !isVisible) {
+    if (reduceMotionEnabled || !isVisible || isHydrationUpdate) {
       setDisplayColor(accentHex);
       setPreviousColor(null);
       colorFade.setValue(1);
@@ -103,7 +112,7 @@ function StreakAccentBackgroundComponent({
     setDisplayColor(accentHex);
     colorFade.setValue(0);
 
-    Animated.timing(colorFade, {
+    motionTiming(colorFade, {
       toValue: 1,
       duration: COLOR_TRANSITION_DURATION_MS,
       easing: Easing.out(Easing.cubic),
@@ -113,7 +122,14 @@ function StreakAccentBackgroundComponent({
         setPreviousColor(null);
       }
     });
-  }, [accentHex, colorFade, displayColor, isVisible, reduceMotionEnabled]);
+  }, [
+    accentHex,
+    colorFade,
+    displayColor,
+    hasHydrated,
+    isVisible,
+    reduceMotionEnabled,
+  ]);
 
   React.useEffect(() => {
     translateY.stopAnimation();
@@ -129,7 +145,7 @@ function StreakAccentBackgroundComponent({
     }
 
     Animated.parallel([
-      Animated.spring(translateY, {
+      motionSpring(translateY, {
         toValue: targetTranslateY,
         stiffness: isVisible ? 72 : 90,
         damping: isVisible ? 21 : 28,
@@ -137,7 +153,7 @@ function StreakAccentBackgroundComponent({
         overshootClamping: true,
         useNativeDriver: true,
       }),
-      Animated.timing(opacity, {
+      motionTiming(opacity, {
         toValue: targetOpacity,
         duration: isVisible ? 680 : 260,
         easing: isVisible

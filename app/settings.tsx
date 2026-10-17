@@ -1,5 +1,6 @@
 import {
   ACCENT_COLORS,
+  type AccentColorId,
   APP_BADGE_MODES,
   type AppBadgeMode,
   APPEARANCE_MODES,
@@ -54,6 +55,8 @@ import {
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { SettingsButton } from "@/components/ui/settings-button";
 import { SettingsSwitch } from "@/components/ui/settings-switch";
+import { supportsAlternateAppIconsAsync } from "@/modules/app-icon";
+import { syncAppIconToAccent } from "@/utils/app-icon";
 import { useStreakCelebration } from "@/context/streak-celebration-store";
 import { localizeExistingOnboardingSeedData } from "@/storage/tasks-onboarding-seed";
 import { deriveActiveSectionFromDueAt } from "@/utils/task-dates";
@@ -83,29 +86,29 @@ const DEV_LANGUAGE_OPTIONS: readonly {
   { id: "system", locale: null, label: "System" },
   { id: "de", locale: "de", label: "Deutsch" },
   { id: "en", locale: "en", label: "English" },
-  { id: "es", locale: "es", label: "Espanol" },
-  { id: "fr", locale: "fr", label: "Francais" },
-  { id: "pt", locale: "pt", label: "Portugues" },
-  { id: "hi", locale: "hi", label: "Hindi" },
-  { id: "zh", locale: "zh", label: "Chinese" },
-  { id: "ja", locale: "ja", label: "Japanese" },
-  { id: "it", locale: "it", label: "Italian" },
-  { id: "sv", locale: "sv", label: "Swedish" },
-  { id: "da", locale: "da", label: "Danish" },
-  { id: "fi", locale: "fi", label: "Finnish" },
-  { id: "pl", locale: "pl", label: "Polish" },
-  { id: "nl", locale: "nl", label: "Dutch" },
-  { id: "tr", locale: "tr", label: "Turkish" },
-  { id: "cs", locale: "cs", label: "Czech" },
-  { id: "hu", locale: "hu", label: "Hungarian" },
-  { id: "ro", locale: "ro", label: "Romanian" },
-  { id: "el", locale: "el", label: "Greek" },
-  { id: "id", locale: "id", label: "Indonesian" },
-  { id: "vi", locale: "vi", label: "Vietnamese" },
-  { id: "ko", locale: "ko", label: "Korean" },
-  { id: "uk", locale: "uk", label: "Ukrainian" },
-  { id: "ru", locale: "ru", label: "Russian" },
-  { id: "ar", locale: "ar", label: "Arabic" },
+  { id: "es", locale: "es", label: "Español" },
+  { id: "fr", locale: "fr", label: "Français" },
+  { id: "pt", locale: "pt", label: "Português" },
+  { id: "hi", locale: "hi", label: "हिन्दी" },
+  { id: "zh", locale: "zh", label: "中文" },
+  { id: "ja", locale: "ja", label: "日本語" },
+  { id: "it", locale: "it", label: "Italiano" },
+  { id: "sv", locale: "sv", label: "Svenska" },
+  { id: "da", locale: "da", label: "Dansk" },
+  { id: "fi", locale: "fi", label: "Suomi" },
+  { id: "pl", locale: "pl", label: "Polski" },
+  { id: "nl", locale: "nl", label: "Nederlands" },
+  { id: "tr", locale: "tr", label: "Türkçe" },
+  { id: "cs", locale: "cs", label: "Čeština" },
+  { id: "hu", locale: "hu", label: "Magyar" },
+  { id: "ro", locale: "ro", label: "Română" },
+  { id: "el", locale: "el", label: "Ελληνικά" },
+  { id: "id", locale: "id", label: "Bahasa Indonesia" },
+  { id: "vi", locale: "vi", label: "Tiếng Việt" },
+  { id: "ko", locale: "ko", label: "한국어" },
+  { id: "uk", locale: "uk", label: "Українська" },
+  { id: "ru", locale: "ru", label: "Русский" },
+  { id: "ar", locale: "ar", label: "العربية" },
 ] as const;
 
 function isAppBadgeMode(value: unknown): value is AppBadgeMode {
@@ -179,9 +182,9 @@ export default function SettingsScreen() {
   const { tasks, setTasks, projects, setProjects } = useTasksStore();
   const {
     accentColor,
+    appIconFollowsAccent,
     appearanceMode,
     hapticsEnabled,
-    reduceMotionPreference,
     streakCelebrationEnabled,
     localeOverride,
     appBadgeMode,
@@ -189,9 +192,9 @@ export default function SettingsScreen() {
     dailySummaryMinutes,
     fakeStatsEnabled,
     setAccentColor,
+    setAppIconFollowsAccent,
     setAppearanceMode,
     setHapticsEnabled,
-    setReduceMotionEnabled,
     setStreakCelebrationEnabled,
     setLocaleOverride,
     setAppBadgeMode,
@@ -213,6 +216,39 @@ export default function SettingsScreen() {
     // `isDark` isn't read directly, but the Material You scheme depends on
     // the resolved theme the same way `theme` below does — recompute together.
     [isDark],
+  );
+
+  const [supportsAlternateIcons, setSupportsAlternateIcons] =
+    React.useState(false);
+  React.useEffect(() => {
+    let mounted = true;
+    void supportsAlternateAppIconsAsync().then((supported) => {
+      if (mounted) setSupportsAlternateIcons(supported);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const onSelectAccentColor = React.useCallback(
+    (nextAccent: AccentColorId) => {
+      setAccentColor(nextAccent);
+      if (appIconFollowsAccent) {
+        syncAppIconToAccent(nextAccent).catch(() => undefined);
+      }
+    },
+    [appIconFollowsAccent, setAccentColor],
+  );
+
+  const onToggleAppIconFollowsAccent = React.useCallback(
+    (enabled: boolean) => {
+      setAppIconFollowsAccent(enabled);
+      syncAppIconToAccent(enabled ? accentColor : null).catch(() => {
+        // Keep the switch honest when iOS refused the change.
+        if (enabled) setAppIconFollowsAccent(false);
+      });
+    },
+    [accentColor, setAppIconFollowsAccent],
   );
 
   const dailySummaryTime = React.useMemo(() => {
@@ -722,10 +758,10 @@ export default function SettingsScreen() {
                     android_ripple={ripple()}
                     key={color.id}
                     accessibilityRole="button"
-                    accessibilityLabel={color.label}
+                    accessibilityLabel={t(`taskCreate.color.${color.id}`)}
                     accessibilityState={{ selected }}
                     hitSlop={7}
-                    onPress={() => setAccentColor(color.id)}
+                    onPress={() => onSelectAccentColor(color.id)}
                     style={[
                       styles.colorButton,
                       {
@@ -752,7 +788,7 @@ export default function SettingsScreen() {
                   accessibilityLabel={t("settings.appearance.materialYou")}
                   accessibilityState={{ selected: isMaterialYouSelected }}
                   hitSlop={7}
-                  onPress={() => setAccentColor(MATERIAL_YOU_ACCENT_ID)}
+                  onPress={() => onSelectAccentColor(MATERIAL_YOU_ACCENT_ID)}
                   style={[
                     styles.colorButton,
                     {
@@ -775,6 +811,28 @@ export default function SettingsScreen() {
               ) : null}
             </View>
           </View>
+
+          {supportsAlternateIcons ? (
+            <>
+              <View style={[styles.separator, { backgroundColor: borderColor }]} />
+
+              <View style={styles.switchRow}>
+                <View style={styles.switchLabelWrap}>
+                  <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
+                    {t("settings.appearance.appIconFollowsAccent")}
+                  </Text>
+                  <Text style={[styles.helperInlineText, { color: muted }]}>
+                    {t("settings.appearance.appIconFollowsAccentHint")}
+                  </Text>
+                </View>
+                <SettingsSwitch
+                  accessibilityLabel={t("settings.appearance.appIconFollowsAccent")}
+                  value={appIconFollowsAccent}
+                  onValueChange={onToggleAppIconFollowsAccent}
+                />
+              </View>
+            </>
+          ) : null}
 
           <View style={[styles.separator, { backgroundColor: borderColor }]} />
 
@@ -922,15 +980,18 @@ export default function SettingsScreen() {
 
           <View style={[styles.separator, { backgroundColor: borderColor }]} />
 
-          <View style={styles.switchRow}>
-            <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-              {t("settings.interactions.reduceMotion")}
-            </Text>
-            <SettingsSwitch
-              accessibilityLabel={t("settings.interactions.reduceMotion")}
-              value={reduceMotionPreference}
-              onValueChange={setReduceMotionEnabled}
-            />
+          {/* No in-app switch: native transitions, sheets and system
+              controls only follow the OS setting, so an app-only switch
+              could never cover them all. */}
+          <View style={styles.switchRow} accessible>
+            <View style={styles.switchLabelWrap}>
+              <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
+                {t("settings.interactions.reduceMotion")}
+              </Text>
+              <Text style={[styles.helperInlineText, { color: muted }]}>
+                {t("settings.interactions.reduceMotionSystemHint")}
+              </Text>
+            </View>
           </View>
 
           <View style={[styles.separator, { backgroundColor: borderColor }]} />

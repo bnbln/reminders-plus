@@ -14,19 +14,13 @@ import {
   Text,
   TextInput,
   View,
-  type StyleProp,
-  type ViewStyle,
 } from "react-native";
-import Reanimated, {
-  interpolate,
-  useAnimatedKeyboard,
-  useAnimatedStyle,
-} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
+import { KeyboardLiftView } from "@/components/ui/keyboard-lift-view";
 import { usePageInsets } from "@/components/navigation/vertical-bar-safe-area";
-import { Colors, LIGHT_ACCENT_SCREEN_BACKGROUND } from "@/constants/theme";
+import { Colors, LIGHT_ACCENT_SCREEN_BACKGROUND, TASK_SHEET_ACCENTS } from "@/constants/theme";
 import { getAccentColorValue, useAppSettings } from "@/context/settings-store";
 import { useTaskCreateContext } from "@/context/task-create-context";
 import {
@@ -52,6 +46,8 @@ import {
   stripTaskSuggestionText,
   type DetectedTaskTextSuggestion,
 } from "@/utils/task-text-suggestions";
+import { motionSpring } from "@/utils/motion";
+import { useThemedStyles } from "@/hooks/use-themed-styles";
 
 const createTaskId = () =>
   `t-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -196,7 +192,7 @@ export default function CreateTaskModal() {
     dateStart?: string | string[];
   }>();
   const theme = useColorScheme() ?? "light";
-  const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const styles = useThemedStyles(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   const pageInsets = usePageInsets();
   const isFocused = useIsFocused();
@@ -505,7 +501,7 @@ export default function CreateTaskModal() {
   }, [title, setTasks]);
 
   React.useEffect(() => {
-    Animated.spring(menuProgress, {
+    motionSpring(menuProgress, {
       toValue: isMenuExpanded ? 1 : 0,
       tension: 220,
       friction: 26,
@@ -520,31 +516,31 @@ export default function CreateTaskModal() {
         id: "date",
         title: t("taskCreate.menu.date"),
         icon: "event",
-        accentColor: "#4D7CFF",
+        accentColor: TASK_SHEET_ACCENTS.date,
       },
       {
         id: "style",
         title: t("taskCreate.menu.style"),
         icon: "palette",
-        accentColor: "#B56CFF",
+        accentColor: TASK_SHEET_ACCENTS.style,
       },
       {
         id: "location",
         title: t("taskCreate.menu.location"),
         icon: "location-on",
-        accentColor: "#34C759",
+        accentColor: TASK_SHEET_ACCENTS.location,
       },
       {
         id: "routine",
         title: t("taskCreate.menu.routine"),
         icon: "autorenew",
-        accentColor: "#FF9F0A",
+        accentColor: TASK_SHEET_ACCENTS.routine,
       },
       {
         id: "project",
         title: t("taskCreate.menu.project"),
         icon: "folder",
-        accentColor: "#5AC8FA",
+        accentColor: TASK_SHEET_ACCENTS.project,
       },
     ];
   }, []);
@@ -701,7 +697,7 @@ export default function CreateTaskModal() {
           actionId: "date",
           label: formatComposerDateLabel(draftTask.dueAt),
           icon: "event",
-          accentColor: "#4D7CFF",
+          accentColor: TASK_SHEET_ACCENTS.date,
           removable: true,
         });
 
@@ -711,7 +707,7 @@ export default function CreateTaskModal() {
             actionId: "time",
             label: formatComposerTimeLabel(draftTask.dueAt),
             icon: "schedule",
-            accentColor: "#4D7CFF",
+            accentColor: TASK_SHEET_ACCENTS.date,
             removable: true,
           });
         }
@@ -720,7 +716,7 @@ export default function CreateTaskModal() {
       if (draftTask.emoji && (draftTask.emoji !== "📝" || !!draftTask.color)) {
         const styleAccentColor = draftTask.color
           ? draftTask.color.toUpperCase()
-          : "#B56CFF";
+          : TASK_SHEET_ACCENTS.style;
         const colorLabelKey = draftTask.color
           ? STYLE_COLOR_LABEL_KEY_BY_HEX[draftTask.color.toUpperCase()]
           : undefined;
@@ -745,7 +741,7 @@ export default function CreateTaskModal() {
           actionId: "location",
           label: draftTask.location.trim(),
           icon: "location-on",
-          accentColor: "#34C759",
+          accentColor: TASK_SHEET_ACCENTS.location,
           removable: true,
         });
       }
@@ -760,7 +756,7 @@ export default function CreateTaskModal() {
           actionId: "routine",
           label: t(key),
           icon: "autorenew",
-          accentColor: "#FF9F0A",
+          accentColor: TASK_SHEET_ACCENTS.routine,
           removable: true,
         });
       }
@@ -772,7 +768,7 @@ export default function CreateTaskModal() {
         actionId: "routine",
         label: t("taskCreate.routine.chooseInterval"),
         icon: "autorenew",
-        accentColor: "#FF9F0A",
+        accentColor: TASK_SHEET_ACCENTS.routine,
         removable: false,
       });
     }
@@ -786,7 +782,7 @@ export default function CreateTaskModal() {
         actionId: "project",
         label: project?.name?.trim() || t("taskCreate.menu.project"),
         icon: "folder",
-        accentColor: project?.color ?? "#5AC8FA",
+        accentColor: project?.color ?? TASK_SHEET_ACCENTS.project,
         removable: !isProjectPinnedByRoute,
       });
     }
@@ -1401,6 +1397,13 @@ export default function CreateTaskModal() {
     router.back();
   }, [router]);
 
+  // The keyboard's checkmark only dismisses: it closes an empty composer and
+  // otherwise just collapses the keyboard (single-line inputs blur on submit).
+  // Creating stays on the send button.
+  const onReturnKey = React.useCallback(() => {
+    if (!hasTitle) close();
+  }, [close, hasTitle]);
+
   const onBackdropPress = React.useCallback(() => {
     if (isMenuExpanded) {
       setMenuExpanded(false);
@@ -1744,7 +1747,6 @@ export default function CreateTaskModal() {
           ) : null}
 
           <View style={styles.composerStack}>
-            <View pointerEvents="none" style={styles.composerShadowLayer} />
             <View style={styles.composer}>
               <Pressable
                 android_ripple={ripple()}
@@ -1829,7 +1831,7 @@ export default function CreateTaskModal() {
                       if (isMenuExpanded) setMenuExpanded(false);
                     }}
                     onFocus={() => setMenuExpanded(false)}
-                    onSubmitEditing={onCreate}
+                    onSubmitEditing={onReturnKey}
                     style={styles.input}
                   />
                 </GlassView>
@@ -1860,7 +1862,7 @@ export default function CreateTaskModal() {
                       if (isMenuExpanded) setMenuExpanded(false);
                     }}
                     onFocus={() => setMenuExpanded(false)}
-                    onSubmitEditing={onCreate}
+                    onSubmitEditing={onReturnKey}
                     style={styles.input}
                   />
                 </GlassSurface>
@@ -1921,42 +1923,6 @@ export default function CreateTaskModal() {
     </View>
   );
 }
-
-// Follows the keyboard frame by frame on the UI thread, so the composer rides
-// on the keyboard edge instead of catching up in a second animation
-// (KeyboardAvoidingView only reacted after layout and an async height lookup).
-// Also tracks interactive dismissal and the hardware keyboard bar.
-function IosKeyboardLiftView({
-  style,
-  children,
-}: React.PropsWithChildren<{ style: StyleProp<ViewStyle> }>) {
-  const keyboard = useAnimatedKeyboard();
-  const liftStyle = useAnimatedStyle(() => {
-    const height = keyboard.height.value;
-    // Keeps the former 10pt gap above an open keyboard, blended in over the
-    // first points of travel so a closed keyboard leaves no offset.
-    const gap = interpolate(height, [0, 40], [0, 10], "clamp");
-    return { transform: [{ translateY: -(height + gap) }] };
-  });
-  return (
-    <Reanimated.View style={[style, liftStyle]}>
-      {children}
-    </Reanimated.View>
-  );
-}
-
-// Android keeps its previous behaviour: the window handles the keyboard.
-const KeyboardLiftView =
-  Platform.OS === "ios"
-    ? IosKeyboardLiftView
-    : ({
-        style,
-        children,
-      }: React.PropsWithChildren<{ style: StyleProp<ViewStyle> }>) => (
-        <View style={style}>
-          {children}
-        </View>
-      );
 
 const createStyles = (theme: keyof typeof Colors) => {
   const isDark = theme === "dark";
@@ -2076,19 +2042,6 @@ const createStyles = (theme: keyof typeof Colors) => {
     composerStack: {
       width: "100%",
       position: "relative",
-    },
-    composerShadowLayer: {
-      position: "absolute",
-      left: 6,
-      right: 6,
-      top: 12,
-      bottom: -8,
-      borderRadius: 30,
-      backgroundColor: isDark ? "rgba(0,0,0,0.42)" : "rgba(0,0,0,0.18)",
-      shadowColor: "#000",
-      shadowOpacity: isDark ? 0.62 : 0.36,
-      shadowRadius: 30,
-      shadowOffset: { width: 0, height: 16 },
     },
     composer: {
       flexDirection: "row",

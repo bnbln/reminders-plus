@@ -156,6 +156,8 @@ export const DropdownMenu = React.forwardRef<
   const accent = getAccentColorValue(accentColor);
   const onSurface = Colors[theme].text;
   const surface = theme === "dark" ? "#26282B" : "#FFFFFF";
+  // Material 3 `error` role, for `attributes.destructive` rows.
+  const errorColor = theme === "dark" ? "#F2B8B5" : "#B3261E";
   const window = Dimensions.get("window");
 
   // Position from the left in both cases and clamp to the viewport: anchoring a
@@ -228,6 +230,7 @@ export const DropdownMenu = React.forwardRef<
 
                 const action = row.action;
                 const disabled = action.attributes?.disabled === true;
+                const destructive = action.attributes?.destructive === true;
                 const checkable =
                   action.state === "on" || action.state === "off";
 
@@ -258,7 +261,9 @@ export const DropdownMenu = React.forwardRef<
                         {
                           color: disabled
                             ? withAlpha(onSurface, 0.38)
-                            : onSurface,
+                            : destructive
+                              ? errorColor
+                              : onSurface,
                         },
                       ]}
                     >

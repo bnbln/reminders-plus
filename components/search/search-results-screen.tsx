@@ -7,15 +7,18 @@ import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { TaskSwipeDraggableList } from "@/components/tasks/task-swipe-draggable-list";
 import { withAlpha } from "@/components/ui/glass-surface";
 import { StreakAccentBackground } from "@/components/ui/streak-accent-background";
-import { Colors } from "@/constants/theme";
+import { Colors, contrastAlpha } from "@/constants/theme";
 import { useHomeFilters } from "@/context/home-filters-store";
 import {
   createRoutineCompletionTransition,
+  getDueAtForSection,
   type Task,
   useTasksStore,
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
+import { useThemedStyles } from "@/hooks/use-themed-styles";
+import { deriveActiveSectionFromDueAt, hasValidDueAt } from "@/utils/task-dates";
 
 const IOS_LIGHT_BASE_BACKGROUND = "#F2F2F7";
 const IOS_LIGHT_ELEVATED_SURFACE = "#FFFFFF";
@@ -33,7 +36,7 @@ export function SearchResultsScreen() {
   }>();
   const theme = useColorScheme() ?? "light";
   const isDark = theme === "dark";
-  const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const styles = useThemedStyles(() => createStyles(theme), [theme]);
 
   const { tasks, setTasks, projects } = useTasksStore();
   const { enabledTags, showTagIcons, showProjectNames, showCompactSubtasks } =
@@ -93,12 +96,35 @@ export function SearchResultsScreen() {
         const task = prev.find((candidate) => candidate.id === taskId);
         if (!task) return prev;
 
+        // Reopen a completed task the same way the archive does: back to the
+        // section its due date implies, or to today when it has no date.
+        if (task.section === "completed") {
+          const hasDueAt = hasValidDueAt(task.dueAt);
+          return prev.map((candidate) =>
+            candidate.id === taskId
+              ? {
+                  ...candidate,
+                  section: hasDueAt
+                    ? deriveActiveSectionFromDueAt(task.dueAt)
+                    : "today",
+                  completedAt: undefined,
+                  ...(hasDueAt
+                    ? {}
+                    : {
+                        dueAt: getDueAtForSection("today"),
+                        dueHasTime: true,
+                      }),
+                }
+              : candidate,
+          );
+        }
+
         const routineTransition = createRoutineCompletionTransition(
           task,
           now,
           new Set(prev.map((candidate) => candidate.id)),
         );
-        if (routineTransition && task.section !== "completed") {
+        if (routineTransition) {
           const next = prev.map((candidate) =>
             candidate.id === taskId ? routineTransition.nextTask : candidate,
           );
@@ -193,7 +219,7 @@ export function SearchResultsScreen() {
                   <MaterialIcons
                     name={isEmptyWithoutQuery ? "search" : "search-off"}
                     size={26}
-                    color={withAlpha(Colors[theme].text, isDark ? 0.8 : 0.72)}
+                    color={withAlpha(Colors[theme].text, contrastAlpha(isDark ? 0.8 : 0.72))}
                   />
                 </View>
                 <Text style={styles.emptyTitle}>
@@ -233,7 +259,7 @@ const createStyles = (theme: keyof typeof Colors) => {
     : useAppleLightPalette
       ? "rgba(60,60,67,0.18)"
       : "rgba(17,24,28,0.09)";
-  const rowMetaText = withAlpha(text, 0.48);
+  const rowMetaText = withAlpha(text, contrastAlpha(0.48));
   const dangerBg = isDark ? "rgba(255,69,58,0.18)" : "rgba(255,59,48,0.14)";
   const dangerBorder = isDark ? "rgba(255,69,58,0.32)" : "rgba(255,59,48,0.26)";
 
@@ -363,7 +389,7 @@ const createStyles = (theme: keyof typeof Colors) => {
       fontSize: 12,
       lineHeight: 16,
       fontWeight: "500",
-      color: withAlpha(text, 0.32),
+      color: withAlpha(text, contrastAlpha(0.32)),
     },
     tagRow: {
       flexDirection: "row",
@@ -396,7 +422,7 @@ const createStyles = (theme: keyof typeof Colors) => {
       fontWeight: "700",
       letterSpacing: 0.2,
       textTransform: "uppercase",
-      color: isDark ? withAlpha(text, 0.7) : withAlpha(text, 0.5),
+      color: isDark ? withAlpha(text, contrastAlpha(0.7)) : withAlpha(text, contrastAlpha(0.5)),
       maxWidth: 220,
     },
     empty: {
@@ -414,8 +440,8 @@ const createStyles = (theme: keyof typeof Colors) => {
       justifyContent: "center",
       gap: 10,
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: withAlpha(text, isDark ? 0.2 : 0.12),
-      backgroundColor: withAlpha(text, isDark ? 0.07 : 0.04),
+      borderColor: withAlpha(text, contrastAlpha(isDark ? 0.2 : 0.12)),
+      backgroundColor: withAlpha(text, contrastAlpha(isDark ? 0.07 : 0.04)),
     },
     emptyIconWrap: {
       width: 56,
@@ -423,9 +449,9 @@ const createStyles = (theme: keyof typeof Colors) => {
       borderRadius: 28,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: withAlpha(text, isDark ? 0.12 : 0.08),
+      backgroundColor: withAlpha(text, contrastAlpha(isDark ? 0.12 : 0.08)),
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: withAlpha(text, isDark ? 0.22 : 0.12),
+      borderColor: withAlpha(text, contrastAlpha(isDark ? 0.22 : 0.12)),
     },
     emptyTitle: {
       fontSize: 16,
@@ -438,7 +464,7 @@ const createStyles = (theme: keyof typeof Colors) => {
       fontSize: 14,
       lineHeight: 18,
       fontWeight: "600",
-      color: withAlpha(text, isDark ? 0.58 : 0.52),
+      color: withAlpha(text, contrastAlpha(isDark ? 0.58 : 0.52)),
       textAlign: "center",
     },
   });

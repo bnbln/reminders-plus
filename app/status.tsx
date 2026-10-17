@@ -4,9 +4,8 @@ import {
 } from "@/components/navigation/vertical-bar-safe-area";
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  type LayoutChangeEvent,
   Platform,
   ScrollView,
   StyleSheet,
@@ -16,7 +15,8 @@ import {
 
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { SFSymbol } from '@/components/ui/sfsymbol';
-import { Colors } from '@/constants/theme';
+import { StatHero } from '@/components/ui/stat-hero';
+import { Colors, contrastAlpha } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import {
   type StatusChartDataPoint,
@@ -25,6 +25,7 @@ import {
 } from '@/hooks/use-status-stats';
 import { t } from '@/i18n';
 import { useHeaderHeight } from "expo-router/react-navigation";
+import { useThemedStyles } from "@/hooks/use-themed-styles";
 
 type ThemeName = keyof typeof Colors;
 type RangeOption = StatusRangeOption;
@@ -38,7 +39,7 @@ const createStyles = (
   const text = Colors[theme].text;
   const cardBorder = isDark ? 'rgba(255,255,255,0.09)' : 'rgba(17,24,28,0.09)';
   const cardBg = isDark ? '#1C1C1E' : '#F2F2F7';
-  const subtitleColor = withAlpha(text, 0.62);
+  const subtitleColor = withAlpha(text, contrastAlpha(0.62));
 
   return StyleSheet.create({
     container: {
@@ -51,44 +52,8 @@ const createStyles = (
       paddingBottom: 32,
       gap: 16,
     },
-    hero: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: compact ? 10 : 14,
-      paddingVertical: compact ? 10 : 14,
-      marginBottom: 8,
-    },
     heroIcon: {
       marginTop: compact ? -2 : -4,
-    },
-    heroTextWrap: {
-      alignItems: 'flex-start',
-      flexShrink: 1,
-      gap: 2,
-    },
-    // Invisible "100%" that reserves the widest value, so 0 % and 100 % sit
-    // in the same place.
-    bigNumberSizer: {
-      opacity: 0,
-    },
-    bigNumberValue: {
-      position: 'absolute',
-      left: 0,
-      top: 0,
-    },
-    bigNumber: {
-      fontSize: compact ? 54 : 64,
-      fontWeight: '900',
-      letterSpacing: -0.8,
-      lineHeight: compact ? 54 : 64,
-      color: text,
-    },
-    heroSubtitle: {
-      fontSize: compact ? 15 : 16,
-      fontWeight: '700',
-      lineHeight: compact ? 19 : 20,
-      color: subtitleColor,
     },
     quickGridWrap: {
       marginBottom: 16,
@@ -207,9 +172,10 @@ function ChartBar({
   isDark: boolean;
 }) {
   const heightPercent = max > 0 ? (item.completionRate / max) * 100 : 0;
-  const isZero = item.totalCount === 0;
+  // Keep a visible stub for small non-zero rates, but show 0 % as no bar.
+  const isZero = item.totalCount === 0 || item.completionRate <= 0;
   const barHeight = !isZero ? `${Math.max(8, heightPercent)}%` : '0%';
-  const barColor = item.isToday ? '#22C55E' : withAlpha(textColor, 0.6);
+  const barColor = item.isToday ? '#22C55E' : withAlpha(textColor, contrastAlpha(0.6));
   const styles = createStyles(isDark ? 'dark' : 'light', false, false);
 
   return (
@@ -220,7 +186,7 @@ function ChartBar({
             styles.barFill,
             {
               height: barHeight as any,
-              backgroundColor: isZero ? withAlpha(textColor, 0.08) : barColor,
+              backgroundColor: isZero ? withAlpha(textColor, contrastAlpha(0.08)) : barColor,
             },
             isZero && { height: 4 },
           ]}
@@ -230,7 +196,7 @@ function ChartBar({
         style={[
           styles.barLabel,
           {
-            color: item.isToday ? '#22C55E' : withAlpha(textColor, 0.45),
+            color: item.isToday ? '#22C55E' : withAlpha(textColor, contrastAlpha(0.45)),
             fontWeight: item.isToday ? '800' : '700',
           },
         ]}
@@ -312,7 +278,7 @@ export default function StatusScreen() {
   const isDark = theme === 'dark';
   const compact = width < 390;
   const regular = useIsRegularWidth();
-  const styles = useMemo(
+  const styles = useThemedStyles(
     () => createStyles(theme, compact, regular),
     [compact, regular, theme],
   );
@@ -334,11 +300,6 @@ export default function StatusScreen() {
   } = useStatusStats();
 
   const [range, setRange] = useState<RangeOption>('14d');
-  const [numberSlotWidth, setNumberSlotWidth] = useState(0);
-  const handleNumberSlotLayout = useCallback((event: LayoutChangeEvent) => {
-    const next = Math.ceil(event.nativeEvent.layout.width);
-    setNumberSlotWidth((prev) => (prev === next ? prev : next));
-  }, []);
 
   const chartData = useMemo(() => getChartData(range), [range, getChartData]);
   const maxVal = 100;
@@ -394,23 +355,6 @@ export default function StatusScreen() {
           total: todayTotalCount,
         })
       : t('status.hero.empty');
-  // The hero is centred as a group. Giving the text column a fixed width
-  // (the widest number, at least a comfortable line length, at most what
-  // fits next to the icon) keeps the percentage from moving when the value
-  // or the subtitle changes; long subtitles wrap inside that width instead.
-  const heroIconSize = compact ? 36 : 42;
-  const heroAvailableWidth = Math.max(
-    0,
-    width - 32 - heroIconSize - (compact ? 10 : 14),
-  );
-  const heroTextWidth =
-    numberSlotWidth > 0
-      ? Math.min(
-          heroAvailableWidth,
-          Math.max(numberSlotWidth, compact ? 170 : 190),
-        )
-      : undefined;
-
   return (
     <ScrollView
       style={styles.container}
@@ -423,46 +367,31 @@ export default function StatusScreen() {
         ]}
       showsVerticalScrollIndicator={false}
     >
-      <View style={styles.hero}>
-        {Platform.OS === 'ios' ? (
-          <SFSymbol
-            name="chart.bar.fill"
-            size={compact ? 36 : 42}
-            color={statusColor}
-            style={styles.heroIcon}
-            weight="bold"
-          />
-        ) : (
-          <MaterialIcons
-            name="insights"
-            size={compact ? 34 : 40}
-            color={statusColor}
-            style={styles.heroIcon}
-          />
-        )}
-        <View
-          style={[
-            styles.heroTextWrap,
-            heroTextWidth != null ? { width: heroTextWidth } : null,
-          ]}
-        >
-          <View>
-            <Text
-              style={[styles.bigNumber, styles.bigNumberSizer]}
-              onLayout={handleNumberSlotLayout}
-              accessible={false}
-              importantForAccessibility="no"
-              aria-hidden
-            >
-              100%
-            </Text>
-            <Text style={[styles.bigNumber, styles.bigNumberValue]}>
-              {todayCompletionRate}%
-            </Text>
-          </View>
-          <Text style={styles.heroSubtitle}>{heroSubtitle}</Text>
-        </View>
-      </View>
+      <StatHero
+        icon={
+          Platform.OS === 'ios' ? (
+            <SFSymbol
+              name="chart.bar.fill"
+              size={compact ? 36 : 42}
+              color={statusColor}
+              style={styles.heroIcon}
+              weight="bold"
+            />
+          ) : (
+            <MaterialIcons
+              name="insights"
+              size={compact ? 34 : 40}
+              color={statusColor}
+              style={styles.heroIcon}
+            />
+          )
+        }
+        value={`${todayCompletionRate}%`}
+        subtitle={heroSubtitle}
+        compact={compact}
+        textColor={textColor}
+        subtitleColor={withAlpha(textColor, 0.62)}
+      />
 
       <View style={styles.quickGridWrap}>
         <View style={styles.quickGrid}>
@@ -540,7 +469,7 @@ export default function StatusScreen() {
             <View style={styles.emptyChart}>
               <Text
                 style={{
-                  color: withAlpha(textColor, 0.5),
+                  color: withAlpha(textColor, contrastAlpha(0.5)),
                   fontSize: 12,
                   fontWeight: '700',
                 }}

@@ -5,6 +5,7 @@ import { useHeaderHeight } from "expo-router/react-navigation";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import {
+  Animated,
   LayoutAnimation,
   Platform,
   Pressable,
@@ -20,7 +21,7 @@ import {
 import { FloatingAddButton } from "@/components/ui/floating-add-button";
 import { withAlpha } from "@/components/ui/glass-surface";
 import { StreakAccentBackground } from "@/components/ui/streak-accent-background";
-import { Colors } from "@/constants/theme";
+import { Colors, contrastAlpha } from "@/constants/theme";
 import { useHomeFilters } from "@/context/home-filters-store";
 import {
   createRoutineCompletionTransition,
@@ -36,6 +37,8 @@ import {
   deriveActiveSectionFromDueAt,
   hasValidDueAt,
 } from "@/utils/task-dates";
+import { configureLayoutAnimation, motionSpring } from "@/utils/motion";
+import { useThemedStyles } from "@/hooks/use-themed-styles";
 
 const HOME_TASK_ITEM_SPACING = 8;
 const IOS_LIGHT_BASE_BACKGROUND = "#F2F2F7";
@@ -132,7 +135,7 @@ function InboxContent() {
       ? showCompactSubtasks
       : params.withSubtasks === "1";
   const { tasks, setTasks, projects } = useTasksStore();
-  const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const styles = useThemedStyles(() => createStyles(theme), [theme]);
   const [isListDragging, setIsListDragging] = React.useState(false);
   const [collapsedSections, setCollapsedSections] = React.useState<
     Record<InboxSectionId, boolean>
@@ -140,6 +143,39 @@ function InboxContent() {
     overdue: false,
     withoutDate: false,
   });
+  const [sectionToggleCount, setSectionToggleCount] = React.useState(0);
+  // 1 = expanded, 0 = collapsed; drives the header chevron rotation.
+  const [chevronProgress] = React.useState<
+    Record<InboxSectionId, Animated.Value>
+  >(() => ({
+    overdue: new Animated.Value(1),
+    withoutDate: new Animated.Value(1),
+  }));
+  const chevronRotation = React.useMemo(
+    () => ({
+      overdue: chevronProgress.overdue.interpolate({
+        inputRange: [0, 1],
+        outputRange: ["0deg", "180deg"],
+      }),
+      withoutDate: chevronProgress.withoutDate.interpolate({
+        inputRange: [0, 1],
+        outputRange: ["0deg", "180deg"],
+      }),
+    }),
+    [chevronProgress],
+  );
+
+  React.useEffect(() => {
+    for (const sectionId of INBOX_SECTION_ORDER) {
+      motionSpring(chevronProgress[sectionId], {
+        toValue: collapsedSections[sectionId] ? 0 : 1,
+        damping: 18,
+        stiffness: 220,
+        mass: 0.8,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [chevronProgress, collapsedSections]);
 
   const projectsById = React.useMemo(
     () => new Map(projects.map((p) => [p.id, p] as const)),
@@ -298,7 +334,7 @@ function InboxContent() {
 
   const toggleComplete = React.useCallback(
     (taskId: string) => {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      configureLayoutAnimation(LayoutAnimation.Presets.easeInEaseOut);
       setTasks((prev) => {
         const task = prev.find((candidate) => candidate.id === taskId);
         if (!task) return prev;
@@ -352,7 +388,7 @@ function InboxContent() {
 
   const deleteTask = React.useCallback(
     (taskId: string) => {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      configureLayoutAnimation(LayoutAnimation.Presets.easeInEaseOut);
       setTasks((prev) =>
         prev.map((task) =>
           task.id === taskId ? { ...task, deletedAt: Date.now() } : task,
@@ -393,6 +429,7 @@ function InboxContent() {
         ...prev,
         [sectionId]: !prev[sectionId],
       }));
+      setSectionToggleCount((count) => count + 1);
     },
     [],
   );
@@ -416,7 +453,7 @@ function InboxContent() {
         ? isDark
           ? "#FF453A"
           : "#FF3B30"
-        : withAlpha(Colors[theme].text, 0.48);
+        : withAlpha(Colors[theme].text, contrastAlpha(0.48));
 
       return (
         <View style={styles.sectionHeader}>
@@ -457,20 +494,24 @@ function InboxContent() {
                 </Text>
               </View>
             </View>
-            <MaterialIcons
-              name="expand-more"
-              size={20}
-              color={chevronColor}
+            <Animated.View
               style={[
                 styles.sectionChevron,
-                { transform: [{ rotate: isCollapsed ? "0deg" : "180deg" }] },
+                { transform: [{ rotate: chevronRotation[id] }] },
               ]}
-            />
+            >
+              <MaterialIcons
+                name="expand-more"
+                size={20}
+                color={chevronColor}
+              />
+            </Animated.View>
           </Pressable>
         </View>
       );
     },
     [
+      chevronRotation,
       collapsedSections,
       isListDragging,
       overdueTasks.length,
@@ -518,7 +559,10 @@ function InboxContent() {
         ]}
         containerStyle={{ backgroundColor: "transparent" }}
         contentInsetAdjustmentBehavior="automatic"
+        syncDataDuringDrag={false}
+        dropLayoutHandoff
         animateDataLayoutChanges={false}
+        sectionToggleAnimationKey={sectionToggleCount}
         empty={null}
         footer={
           hasAnyTask ? null : (
@@ -566,7 +610,7 @@ const createStyles = (theme: keyof typeof Colors) => {
     : useAppleLightPalette
       ? "rgba(60,60,67,0.18)"
       : "rgba(17,24,28,0.09)";
-  const rowMetaText = withAlpha(text, ALPHA_3);
+  const rowMetaText = withAlpha(text, contrastAlpha(ALPHA_3));
   const dangerBg = isDark ? "rgba(255,69,58,0.18)" : "rgba(255,59,48,0.14)";
   const dangerBorder = isDark ? "rgba(255,69,58,0.32)" : "rgba(255,59,48,0.26)";
 
@@ -610,14 +654,14 @@ const createStyles = (theme: keyof typeof Colors) => {
       letterSpacing: 0.8,
       textTransform: "uppercase",
       color: text,
-      opacity: ALPHA_3,
+      opacity: contrastAlpha(ALPHA_3),
     },
     sectionTitleDanger: {
       color: isDark ? "#FF453A" : "#FF3B30",
       opacity: 0.92,
     },
     sectionChevron: {
-      opacity: ALPHA_3,
+      opacity: contrastAlpha(ALPHA_3),
     },
     sectionCountBadge: {
       minWidth: 22,
@@ -626,9 +670,9 @@ const createStyles = (theme: keyof typeof Colors) => {
       paddingHorizontal: 4,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: withAlpha(text, isDark ? 0.18 : 0.1),
+      backgroundColor: withAlpha(text, contrastAlpha(isDark ? 0.18 : 0.1)),
       borderWidth: StyleSheet.hairlineWidth,
-      borderColor: withAlpha(text, isDark ? 0.34 : 0.2),
+      borderColor: withAlpha(text, contrastAlpha(isDark ? 0.34 : 0.2)),
     },
     sectionCountBadgeDanger: {
       backgroundColor: dangerBg,
@@ -638,7 +682,7 @@ const createStyles = (theme: keyof typeof Colors) => {
       fontSize: 12,
       lineHeight: 14,
       fontWeight: WEIGHT_HEADING,
-      color: withAlpha(text, isDark ? 0.84 : 0.66),
+      color: withAlpha(text, contrastAlpha(isDark ? 0.84 : 0.66)),
       textAlign: "center",
     },
     sectionCountBadgeTextDanger: {
@@ -753,7 +797,7 @@ const createStyles = (theme: keyof typeof Colors) => {
       fontSize: 12,
       lineHeight: 16,
       fontWeight: WEIGHT_SUBTLE,
-      color: withAlpha(text, 0.32),
+      color: withAlpha(text, contrastAlpha(0.32)),
     },
     tagRow: {
       flexDirection: "row",
@@ -786,7 +830,7 @@ const createStyles = (theme: keyof typeof Colors) => {
       fontWeight: WEIGHT_HEADING,
       letterSpacing: 0.2,
       textTransform: "uppercase",
-      color: isDark ? withAlpha(text, 0.7) : withAlpha(text, 0.5),
+      color: isDark ? withAlpha(text, contrastAlpha(0.7)) : withAlpha(text, contrastAlpha(0.5)),
       maxWidth: 220,
     },
     empty: {
@@ -801,7 +845,7 @@ const createStyles = (theme: keyof typeof Colors) => {
       fontSize: 14,
       lineHeight: 18,
       fontWeight: WEIGHT_BODY,
-      color: withAlpha(text, ALPHA_3),
+      color: withAlpha(text, contrastAlpha(ALPHA_3)),
     },
   });
 };

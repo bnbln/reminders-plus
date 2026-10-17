@@ -1,0 +1,9 @@
+/* Generated localization for Reminders+ (main app Info.plist). */
+"CFBundleDisplayName" = "Reminders+";
+"NSCalendarsUsageDescription" = "Το Reminders+ εισάγει γεγονότα από το Ημερολόγιο στις εργασίες σας.";
+"NSCalendarsFullAccessUsageDescription" = "Το Reminders+ εισάγει γεγονότα από το Ημερολόγιο στις εργασίες σας.";
+"NSRemindersUsageDescription" = "Το Reminders+ εισάγει υπομνήσεις από τις Υπομνήσεις στις εργασίες σας.";
+"NSRemindersFullAccessUsageDescription" = "Το Reminders+ εισάγει υπομνήσεις από τις Υπομνήσεις στις εργασίες σας.";
+"NSLocationWhenInUseUsageDescription" = "Το Reminders+ χρησιμοποιεί την τοποθεσία σας για να προτείνει την τρέχουσα θέση για μια εργασία.";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "Το Reminders+ χρησιμοποιεί την τοποθεσία σας για να προτείνει την τρέχουσα θέση για μια εργασία.";
+"NSLocationAlwaysUsageDescription" = "Το Reminders+ χρησιμοποιεί την τοποθεσία σας για να προτείνει την τρέχουσα θέση για μια εργασία.";

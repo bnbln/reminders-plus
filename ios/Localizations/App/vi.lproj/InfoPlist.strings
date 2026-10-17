@@ -1,0 +1,9 @@
+/* Generated localization for Reminders+ (main app Info.plist). */
+"CFBundleDisplayName" = "Reminders+";
+"NSCalendarsUsageDescription" = "Reminders+ nhập sự kiện từ Lịch vào công việc của bạn.";
+"NSCalendarsFullAccessUsageDescription" = "Reminders+ nhập sự kiện từ Lịch vào công việc của bạn.";
+"NSRemindersUsageDescription" = "Reminders+ nhập lời nhắc từ ứng dụng Lời nhắc vào công việc của bạn.";
+"NSRemindersFullAccessUsageDescription" = "Reminders+ nhập lời nhắc từ ứng dụng Lời nhắc vào công việc của bạn.";
+"NSLocationWhenInUseUsageDescription" = "Reminders+ dùng vị trí của bạn để gợi ý địa điểm hiện tại cho công việc.";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "Reminders+ dùng vị trí của bạn để gợi ý địa điểm hiện tại cho công việc.";
+"NSLocationAlwaysUsageDescription" = "Reminders+ dùng vị trí của bạn để gợi ý địa điểm hiện tại cho công việc.";

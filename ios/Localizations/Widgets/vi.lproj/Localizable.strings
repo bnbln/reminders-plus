@@ -1,0 +1,5 @@
+/* Widget gallery names and descriptions. Keys are the English literals in ExpoWidgetsTarget/*.swift. */
+"Streak" = "Chuỗi ngày";
+"Your streak of completed days at a glance." = "Chuỗi ngày hoàn thành của bạn trong nháy mắt.";
+"Today" = "Hôm nay";
+"Your open tasks for today, ready to check off." = "Các công việc còn mở hôm nay, sẵn sàng để đánh dấu.";

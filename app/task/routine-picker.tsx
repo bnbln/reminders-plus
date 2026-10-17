@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useSheetHeaderActions } from "@/components/navigation/sheet-header-actions";
 import { withAlpha } from "@/components/ui/glass-surface";
-import { Colors } from "@/constants/theme";
+import { Colors, contrastAlpha, PICKER_SHEET_DARK_ROW, TASK_SHEET_ACCENTS } from "@/constants/theme";
 import {
   type RoutineInterval,
   RoutineType,
@@ -15,6 +15,9 @@ import {
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
 import { ripple } from '@/components/ui/ripple';
+import { useThemedStyles } from "@/hooks/use-themed-styles";
+
+const ACCENT = TASK_SHEET_ACCENTS.routine;
 
 type ThemeName = keyof typeof Colors;
 
@@ -59,7 +62,7 @@ export default function RoutinePickerScreen() {
   }>();
   const theme = useColorScheme() ?? "light";
   const isDark = theme === "dark";
-  const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const styles = useThemedStyles(() => createStyles(theme), [theme]);
 
   const insets = useSafeAreaInsets();
 
@@ -165,7 +168,7 @@ export default function RoutinePickerScreen() {
   if (!task && canRecoverDraft) {
     return (
       <View style={[styles.container, styles.centeredState]}>
-        <ActivityIndicator size="small" color={withAlpha(Colors[theme].text, 0.6)} />
+        <ActivityIndicator size="small" color={withAlpha(Colors[theme].text, contrastAlpha(0.6))} />
       </View>
     );
   }
@@ -208,6 +211,7 @@ export default function RoutinePickerScreen() {
       <View style={styles.sheet}>
         <ScrollView
           style={styles.content}
+          contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
           showsVerticalScrollIndicator={false}
         >
@@ -227,7 +231,7 @@ export default function RoutinePickerScreen() {
                     styles.optionIcon,
                     {
                       backgroundColor: withAlpha(
-                        isNone ? Colors[theme].text : "#0A84FF",
+                        isNone ? Colors[theme].text : ACCENT,
                         isDark ? 0.15 : 0.12,
                       ),
                     },
@@ -237,7 +241,7 @@ export default function RoutinePickerScreen() {
                     name={option.icon}
                     size={20}
                     color={
-                      isNone ? withAlpha(Colors[theme].text, 0.6) : "#0A84FF"
+                      isNone ? withAlpha(Colors[theme].text, contrastAlpha(0.6)) : ACCENT
                     }
                   />
                 </View>
@@ -245,7 +249,7 @@ export default function RoutinePickerScreen() {
                   <Text style={styles.optionLabel}>{t(option.labelKey)}</Text>
                 </View>
                 {isActive && (
-                  <MaterialIcons name="check" size={20} color="#0A84FF" />
+                  <MaterialIcons name="check" size={20} color={ACCENT} />
                 )}
               </Pressable>
             );
@@ -283,11 +287,11 @@ const createStyles = (theme: ThemeName) => {
     doneText: {
       fontSize: 17,
       fontWeight: "600",
-      color: "#0A84FF",
+      color: ACCENT,
     },
     cancelText: {
       fontSize: 17,
-      color: "#0A84FF",
+      color: ACCENT,
     },
     content: {
       flex: 1,
@@ -308,14 +312,14 @@ const createStyles = (theme: ThemeName) => {
       paddingHorizontal: 14,
       borderRadius: 14,
       marginBottom: 8,
-      borderWidth: StyleSheet.hairlineWidth,
+      borderWidth: isDark ? 0 : StyleSheet.hairlineWidth,
       borderColor: hairline,
-      backgroundColor: withAlpha(text, isDark ? 0.04 : 0.03),
+      backgroundColor: isDark ? PICKER_SHEET_DARK_ROW : withAlpha(text, contrastAlpha(0.03)),
     },
     optionRowActive: {
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: withAlpha("#0A84FF", 0.45),
-      backgroundColor: withAlpha("#0A84FF", isDark ? 0.18 : 0.12),
+      borderWidth: isDark ? 0 : StyleSheet.hairlineWidth,
+      borderColor: withAlpha(ACCENT, 0.45),
+      backgroundColor: withAlpha(ACCENT, isDark ? 0.26 : 0.12),
     },
     optionIcon: {
       width: 36,

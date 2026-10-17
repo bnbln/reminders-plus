@@ -8,12 +8,15 @@ import { useSheetHeaderActions } from '@/components/navigation/sheet-header-acti
 import { withAlpha } from '@/components/ui/glass-surface';
 import { SFSymbol } from '@/components/ui/sfsymbol';
 import { usePremium } from '@/context/premium-store';
-import { Colors } from '@/constants/theme';
+import { Colors, contrastAlpha, PICKER_SHEET_DARK_ROW, TASK_SHEET_ACCENTS } from '@/constants/theme';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
 import { shouldRouteToProjectLimitGate } from '@/utils/project-creation-gate';
 import { ripple, rippleClip } from "@/components/ui/ripple";
+import { useThemedStyles } from "@/hooks/use-themed-styles";
+
+const ACCENT = TASK_SHEET_ACCENTS.project;
 
 export default function ProjectPickerScreen() {
     const router = useRouter();
@@ -25,7 +28,7 @@ export default function ProjectPickerScreen() {
     }, [taskIdParam]);
     const theme = useColorScheme() ?? 'light';
     const isDark = theme === 'dark';
-    const styles = React.useMemo(() => createStyles(theme), [theme]);
+    const styles = useThemedStyles(() => createStyles(theme), [theme]);
     const insets = useSafeAreaInsets();
 
     const { tasks, setTasks, projects } = useTasksStore();
@@ -88,6 +91,7 @@ export default function ProjectPickerScreen() {
             <View style={styles.sheet}>
                 <ScrollView
                     style={styles.content}
+                    contentInsetAdjustmentBehavior="automatic"
                     contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
                     showsVerticalScrollIndicator={false}
                 >
@@ -97,8 +101,8 @@ export default function ProjectPickerScreen() {
                         onPress={handleCreateProject}
                         style={[styles.optionRow, rippleClip(14), { marginBottom: 24, justifyContent: 'center' }]}
                     >
-                        <MaterialIcons name="add" size={20} color={Colors[theme].tint} style={{ marginRight: 8 }} />
-                        <Text style={[styles.optionLabel, { color: Colors[theme].tint }]}>{t('projectPicker.newProject')}</Text>
+                        <MaterialIcons name="add" size={20} color={ACCENT} style={{ marginRight: 8 }} />
+                        <Text style={styles.optionLabel}>{t('projectPicker.newProject')}</Text>
                     </Pressable>
 
                     {/* No Project Option */}
@@ -107,13 +111,13 @@ export default function ProjectPickerScreen() {
                         onPress={() => applyProjectSelectionAndClose(null)}
                         style={[styles.optionRow, rippleClip(14), (selectedProjectId ?? null) === null && styles.optionRowActive]}
                     >
-                        <View style={[styles.optionIcon, { backgroundColor: withAlpha(Colors[theme].text, isDark ? 0.15 : 0.1) }]}>
-                            <MaterialIcons name="folder-off" size={20} color={withAlpha(Colors[theme].text, 0.6)} />
+                        <View style={[styles.optionIcon, { backgroundColor: withAlpha(Colors[theme].text, contrastAlpha(isDark ? 0.15 : 0.1)) }]}>
+                            <MaterialIcons name="folder-off" size={20} color={withAlpha(Colors[theme].text, contrastAlpha(0.6))} />
                         </View>
                         <View style={styles.optionBody}>
                             <Text style={styles.optionLabel}>{t('projectPicker.noProject')}</Text>
                         </View>
-                        {(selectedProjectId ?? null) === null && <MaterialIcons name="check" size={20} color={Colors[theme].tint} />}
+                        {(selectedProjectId ?? null) === null && <MaterialIcons name="check" size={20} color={ACCENT} />}
                     </Pressable>
 
                     <View style={styles.divider} />
@@ -139,7 +143,7 @@ export default function ProjectPickerScreen() {
                                     <Text style={styles.optionLabel}>{p.name}</Text>
                                     <Text style={styles.optionSubLabel} numberOfLines={1}>{p.description || t('common.noDescription')}</Text>
                                 </View>
-                                {isActive && <MaterialIcons name="check" size={20} color={Colors[theme].tint} />}
+                                {isActive && <MaterialIcons name="check" size={20} color={ACCENT} />}
                             </Pressable>
                         );
                     })}
@@ -176,14 +180,14 @@ const createStyles = (theme: keyof typeof Colors) => {
             paddingHorizontal: 14,
             borderRadius: 14,
             marginBottom: 8,
-            borderWidth: StyleSheet.hairlineWidth,
+            borderWidth: isDark ? 0 : StyleSheet.hairlineWidth,
             borderColor: hairline,
-            backgroundColor: withAlpha(text, isDark ? 0.04 : 0.03),
+            backgroundColor: isDark ? PICKER_SHEET_DARK_ROW : withAlpha(text, contrastAlpha(0.03)),
         },
         optionRowActive: {
-            borderWidth: StyleSheet.hairlineWidth,
-            borderColor: withAlpha(Colors[theme].tint, 0.45),
-            backgroundColor: withAlpha(Colors[theme].tint, isDark ? 0.18 : 0.12),
+            borderWidth: isDark ? 0 : StyleSheet.hairlineWidth,
+            borderColor: withAlpha(ACCENT, 0.45),
+            backgroundColor: withAlpha(ACCENT, isDark ? 0.26 : 0.12),
         },
         optionIcon: {
             width: 36,
@@ -207,7 +211,7 @@ const createStyles = (theme: keyof typeof Colors) => {
         },
         optionSubLabel: {
             fontSize: 12,
-            color: withAlpha(text, 0.5),
+            color: withAlpha(text, contrastAlpha(0.5)),
         },
         iconButton: {
             width: 32,

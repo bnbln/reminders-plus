@@ -15,11 +15,13 @@ import {
 
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { SFSymbol } from "@/components/ui/sfsymbol";
+import { StatHero } from "@/components/ui/stat-hero";
 import { StreakAccentBackground } from "@/components/ui/streak-accent-background";
-import { Colors } from "@/constants/theme";
+import { Colors, contrastAlpha } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { ChartDataPoint, useStreaks } from "@/hooks/use-streaks";
 import { countLabel, t } from "@/i18n";
+import { useThemedStyles } from "@/hooks/use-themed-styles";
 
 type ThemeName = keyof typeof Colors;
 type RangeOption = "7d" | "14d" | "1m" | "1y" | "max";
@@ -34,7 +36,7 @@ const createStyles = (
   const text = Colors[theme].text;
   const cardBorder = isDark ? "rgba(255,255,255,0.09)" : "rgba(17,24,28,0.09)";
   const cardBg = isDark ? "#1C1C1E" : "#F2F2F7";
-  const subtitleColor = withAlpha(text, 0.62);
+  const subtitleColor = withAlpha(text, contrastAlpha(0.62));
 
   return StyleSheet.create({
     container: {
@@ -51,33 +53,8 @@ const createStyles = (
       gap: 16,
     },
     // Hero section
-    hero: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: compact ? 10 : 14,
-      paddingVertical: compact ? 10 : 14,
-      marginBottom: 8,
-    },
     heroFlame: {
       marginTop: compact ? -2 : -4,
-    },
-    heroTextWrap: {
-      alignItems: "flex-start",
-      gap: 2,
-    },
-    bigNumber: {
-      fontSize: compact ? 54 : 64,
-      fontWeight: "900",
-      letterSpacing: -0.8,
-      lineHeight: compact ? 54 : 64,
-      color: text,
-    },
-    heroSubtitle: {
-      fontSize: compact ? 15 : 16,
-      fontWeight: "700",
-      lineHeight: compact ? 19 : 20,
-      color: subtitleColor,
     },
     // Stat card grid
     quickGridWrap: {
@@ -200,7 +177,7 @@ function ChartBar({
   const heightPercent = max > 0 ? (item.count / max) * 100 : 0;
   const barHeight = item.count > 0 ? `${Math.max(8, heightPercent)}%` : "0%";
   const isZero = item.count === 0;
-  const barColor = item.isToday ? "#EF4444" : withAlpha(textColor, 0.6);
+  const barColor = item.isToday ? "#EF4444" : withAlpha(textColor, contrastAlpha(0.6));
 
   const styles = createStyles(isDark ? "dark" : "light", false, false);
 
@@ -212,7 +189,7 @@ function ChartBar({
             styles.barFill,
             {
               height: barHeight as any,
-              backgroundColor: isZero ? withAlpha(textColor, 0.08) : barColor,
+              backgroundColor: isZero ? withAlpha(textColor, contrastAlpha(0.08)) : barColor,
             },
             isZero && { height: 4 },
           ]}
@@ -222,7 +199,7 @@ function ChartBar({
         style={[
           styles.barLabel,
           {
-            color: item.isToday ? "#EF4444" : withAlpha(textColor, 0.45),
+            color: item.isToday ? "#EF4444" : withAlpha(textColor, contrastAlpha(0.45)),
             fontWeight: item.isToday ? "800" : "700",
           },
         ]}
@@ -287,7 +264,7 @@ export default function StreaksScreen() {
   const isDark = theme === "dark";
   const compact = width < 390;
   const regular = useIsRegularWidth();
-  const styles = useMemo(
+  const styles = useThemedStyles(
     () => createStyles(theme, compact, regular),
     [compact, regular, theme],
   );
@@ -343,32 +320,35 @@ export default function StreaksScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Hero Streak Section */}
-        <View style={styles.hero}>
-        {Platform.OS === "ios" ? (
-          <SFSymbol
-            name="flame.fill"
-            size={compact ? 38 : 44}
-            color={fireColor}
-            style={styles.heroFlame}
-            weight="bold"
-          />
-        ) : (
-          <MaterialIcons
-            name="whatshot"
-            size={compact ? 34 : 40}
-            color={fireColor}
-            style={styles.heroFlame}
-          />
-        )}
-        <View style={styles.heroTextWrap}>
-          <Text style={styles.bigNumber}>{currentStreak}</Text>
-          <Text style={styles.heroSubtitle}>
-            {currentStreak === 1
+        <StatHero
+          icon={
+            Platform.OS === "ios" ? (
+              <SFSymbol
+                name="flame.fill"
+                size={compact ? 38 : 44}
+                color={fireColor}
+                style={styles.heroFlame}
+                weight="bold"
+              />
+            ) : (
+              <MaterialIcons
+                name="whatshot"
+                size={compact ? 34 : 40}
+                color={fireColor}
+                style={styles.heroFlame}
+              />
+            )
+          }
+          value={`${currentStreak}`}
+          subtitle={
+            currentStreak === 1
               ? t("streaks.hero.one")
-              : t("streaks.hero.other")}
-          </Text>
-        </View>
-      </View>
+              : t("streaks.hero.other")
+          }
+          compact={compact}
+          textColor={textColor}
+          subtitleColor={withAlpha(textColor, 0.62)}
+        />
 
         {/* Stats Grid - Exact QuickNavGrid style */}
         <View style={styles.quickGridWrap}>
@@ -461,7 +441,7 @@ export default function StreaksScreen() {
               <View style={styles.emptyChart}>
                 <Text
                   style={{
-                    color: withAlpha(textColor, 0.5),
+                    color: withAlpha(textColor, contrastAlpha(0.5)),
                     fontSize: 12,
                     fontWeight: "700",
                   }}

@@ -28,7 +28,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StreakFlame } from "@/components/streak-celebration/streak-flame";
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { SFSymbol } from "@/components/ui/sfsymbol";
-import { Colors } from "@/constants/theme";
+import { Colors, contrastAlpha } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
 import {
@@ -204,7 +204,7 @@ export function StreakCelebrationOverlay({
   const accent = milestone ? HOT : FIRE;
 
   const text = Colors[theme].text;
-  const secondary = withAlpha(text, 0.6);
+  const secondary = withAlpha(text, contrastAlpha(0.6));
   const hairline = isDark ? "rgba(255,255,255,0.12)" : "rgba(17,24,28,0.1)";
   // Light veil only: the blurred app should read through as frosted glass.
   const scrim = isDark ? "rgba(21,23,24,0.22)" : "rgba(242,242,247,0.16)";

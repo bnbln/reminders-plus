@@ -12,6 +12,7 @@ import {
 import { Stack, useRouter } from "expo-router";
 import React from "react";
 import {
+  Alert,
   Platform,
   Pressable,
   ScrollView,
@@ -23,7 +24,7 @@ import {
 import { TaskSwipeDraggableList } from "@/components/tasks/task-swipe-draggable-list";
 import { withAlpha } from "@/components/ui/glass-surface";
 import { StreakAccentBackground } from "@/components/ui/streak-accent-background";
-import { Colors } from "@/constants/theme";
+import { Colors, contrastAlpha } from "@/constants/theme";
 import { useHomeFilters } from "@/context/home-filters-store";
 import {
   getDueAtForSection,
@@ -37,6 +38,7 @@ import {
   deriveActiveSectionFromDueAt,
   hasValidDueAt,
 } from "@/utils/task-dates";
+import { useThemedStyles } from "@/hooks/use-themed-styles";
 
 type TabId = "completed" | "trash";
 
@@ -55,7 +57,7 @@ function ArchiveContent() {
   const router = useRouter();
   const theme = useColorScheme() ?? "light";
   const isDark = theme === "dark";
-  const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const styles = useThemedStyles(() => createStyles(theme), [theme]);
   const shouldUseNativeExpoSegmentedPicker = Platform.OS === "ios";
 
   const { enabledTags, showTagIcons, showProjectNames, showCompactSubtasks } =
@@ -166,7 +168,21 @@ function ArchiveContent() {
 
   const deleteForever = React.useCallback(
     (taskId: string) => {
-      setTasks((prev) => prev.filter((task) => task.id !== taskId));
+      // Removing a task from the trash cannot be undone, so ask first. If the
+      // user cancels, the swiped row slides back because the task still exists.
+      Alert.alert(
+        t("archive.alert.deleteForeverTitle"),
+        t("archive.alert.deleteForeverBody"),
+        [
+          { text: t("common.cancel"), style: "cancel" },
+          {
+            text: t("common.delete"),
+            style: "destructive",
+            onPress: () =>
+              setTasks((prev) => prev.filter((task) => task.id !== taskId)),
+          },
+        ],
+      );
     },
     [setTasks],
   );
@@ -339,7 +355,7 @@ const createStyles = (theme: keyof typeof Colors) => {
     : useAppleLightPalette
       ? "rgba(60,60,67,0.18)"
       : "rgba(17,24,28,0.09)";
-  const rowMetaText = withAlpha(text, 0.48);
+  const rowMetaText = withAlpha(text, contrastAlpha(0.48));
   const dangerBg = isDark ? "rgba(255,69,58,0.18)" : "rgba(255,59,48,0.14)";
   const dangerBorder = isDark ? "rgba(255,69,58,0.32)" : "rgba(255,59,48,0.26)";
 
@@ -379,13 +395,13 @@ const createStyles = (theme: keyof typeof Colors) => {
       justifyContent: "center",
     },
     segmentActive: {
-      backgroundColor: withAlpha(text, isDark ? 0.16 : 0.08),
+      backgroundColor: withAlpha(text, contrastAlpha(isDark ? 0.16 : 0.08)),
     },
     segmentText: {
       fontSize: 12,
       lineHeight: 16,
       fontWeight: "700",
-      color: withAlpha(text, 0.7),
+      color: withAlpha(text, contrastAlpha(0.7)),
     },
     segmentTextActive: {
       color: text,
@@ -500,7 +516,7 @@ const createStyles = (theme: keyof typeof Colors) => {
       fontSize: 12,
       lineHeight: 16,
       fontWeight: "500",
-      color: withAlpha(text, 0.32),
+      color: withAlpha(text, contrastAlpha(0.32)),
     },
     tagRow: {
       flexDirection: "row",
@@ -533,7 +549,7 @@ const createStyles = (theme: keyof typeof Colors) => {
       fontWeight: "700",
       letterSpacing: 0.2,
       textTransform: "uppercase",
-      color: isDark ? withAlpha(text, 0.7) : withAlpha(text, 0.5),
+      color: isDark ? withAlpha(text, contrastAlpha(0.7)) : withAlpha(text, contrastAlpha(0.5)),
       maxWidth: 220,
     },
 
@@ -554,7 +570,7 @@ const createStyles = (theme: keyof typeof Colors) => {
       fontSize: 14,
       lineHeight: 18,
       fontWeight: "600",
-      color: withAlpha(text, 0.65),
+      color: withAlpha(text, contrastAlpha(0.65)),
       textAlign: "center",
     },
   });

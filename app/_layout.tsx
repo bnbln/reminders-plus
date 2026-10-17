@@ -8,9 +8,13 @@ import { StatusBar } from "expo-status-bar";
 import React from "react";
 import { I18nManager, Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import "react-native-reanimated";
+import { ReduceMotion, ReducedMotionConfig } from "react-native-reanimated";
 
 import { VerticalBarSafeAreaProvider, verticalBarScreenLayout } from "@/components/navigation/vertical-bar-safe-area";
+import {
+  useHideSplashWhenReady,
+  useSplashAccentPersistence,
+} from "@/components/ui/launch-splash";
 import { StreakAccentBackground } from "@/components/ui/streak-accent-background";
 import { WidgetSync } from "@/components/widgets/widget-sync";
 import { Colors } from "@/constants/theme";
@@ -31,15 +35,26 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const { localeOverride } = useAppSettings();
+  const { localeOverride, reduceMotionEnabled, highContrastEnabled } = useAppSettings();
   const theme = colorScheme ?? "light";
   const router = useRouter();
   const segments = useSegments();
   const searchBarRef = React.useRef<any>(null);
+  useSplashAccentPersistence();
+  useHideSplashWhenReady();
   const showSettingsAccentBackground =
     segments[0] === "settings" || segments[0] === "cloud-sync";
   const themedContentStyle = React.useMemo(
     () => ({ backgroundColor: Colors[theme].background }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Colors[theme] switches palette while Increase Contrast is on.
+    [theme, highContrastEnabled],
+  );
+  // Task picker sheets paint the grouped sheet color themselves. On iOS a
+  // formSheet's contentStyle background lands on the native Screen, which
+  // shows wherever that content does not reach: beside it under the Duo
+  // vertical bar and below its content. It has to match the sheet.
+  const pickerSheetContentStyle = React.useMemo(
+    () => ({ backgroundColor: theme === "dark" ? "#000000" : "#F2F2F7" }),
     [theme],
   );
   const navigationTheme = React.useMemo(() => {
@@ -52,7 +67,8 @@ export default function RootLayout() {
         card: Colors[theme].background,
       },
     };
-  }, [theme]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Colors[theme] switches palette while Increase Contrast is on.
+  }, [theme, highContrastEnabled]);
   const tabLikeHeaderOptions = React.useMemo(
     () => ({
       contentStyle: themedContentStyle,
@@ -88,6 +104,12 @@ export default function RootLayout() {
     <GestureHandlerRootView
       style={{ flex: 1, backgroundColor: Colors[theme].background }}
     >
+      {/* Drives Reanimated's global reduced-motion flag from the system
+          setting as tracked live by the settings store; Reanimated's own
+          reading is only taken at startup. */}
+      <ReducedMotionConfig
+        mode={reduceMotionEnabled ? ReduceMotion.Always : ReduceMotion.Never}
+      />
       <PremiumProvider>
         <TasksProvider>
           <WidgetSync />
@@ -97,7 +119,12 @@ export default function RootLayout() {
               <SnackbarProvider>
               <ThemeProvider value={navigationTheme}>
                 <VerticalBarSafeAreaProvider>
+                {/* Remount the screens when "Increase Contrast" flips. Colors
+                    read inline during render (Colors[theme], contrastAlpha,
+                    getAccentColorValue) are memoized by the React Compiler on
+                    `theme` alone and would otherwise keep the old palette. */}
                 <View
+                  key={highContrastEnabled ? "high-contrast" : "default-contrast"}
                   style={{ flex: 1, backgroundColor: Colors[theme].background }}
                 >
                   <StreakAccentBackground
@@ -129,7 +156,7 @@ export default function RootLayout() {
                     options={
                       {
                         presentation: "formSheet",
-                        contentStyle: themedContentStyle,
+                        contentStyle: pickerSheetContentStyle,
                       } as any
                     }
                   />
@@ -137,28 +164,37 @@ export default function RootLayout() {
                     name="task/date-picker"
                     options={{
                       presentation: "formSheet",
-                      contentStyle: themedContentStyle,
+                      contentStyle: pickerSheetContentStyle,
+                    }}
+                  />
+                  <Stack.Screen
+                    name="day-picker"
+                    options={{
+                      presentation: "formSheet",
+                      sheetAllowedDetents: "fitToContents",
+                      sheetGrabberVisible: true,
+                      contentStyle: { backgroundColor: "transparent" },
                     }}
                   />
                   <Stack.Screen
                     name="task/location-picker"
                     options={{
                       presentation: "formSheet",
-                      contentStyle: themedContentStyle,
+                      contentStyle: pickerSheetContentStyle,
                     }}
                   />
                   <Stack.Screen
                     name="task/project-picker"
                     options={{
                       presentation: "formSheet",
-                      contentStyle: themedContentStyle,
+                      contentStyle: pickerSheetContentStyle,
                     }}
                   />
                   <Stack.Screen
                     name="task/emoji-picker"
                     options={{
                       presentation: "formSheet",
-                      contentStyle: themedContentStyle,
+                      contentStyle: pickerSheetContentStyle,
                     }}
                   />
                   <Stack.Screen

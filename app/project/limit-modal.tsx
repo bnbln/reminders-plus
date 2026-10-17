@@ -12,13 +12,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePageInsets } from "@/components/navigation/vertical-bar-safe-area";
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { FREE_PROJECT_LIMIT } from "@/constants/premium";
-import { Colors } from "@/constants/theme";
+import { Colors, contrastAlpha } from "@/constants/theme";
 import { usePremium } from "@/context/premium-store";
 import { useTasksStore } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
 import { assistCopyKey } from "@/utils/assist-availability";
 import { ripple } from '@/components/ui/ripple';
+import { useThemedStyles } from "@/hooks/use-themed-styles";
 
 type ThemeName = keyof typeof Colors;
 
@@ -26,7 +27,7 @@ export default function ProjectLimitModal() {
   const router = useRouter();
   const theme = (useColorScheme() ?? "light") as ThemeName;
   const isDark = theme === "dark";
-  const styles = React.useMemo(() => createStyles(theme), [theme]);
+  const styles = useThemedStyles(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   const pageInsets = usePageInsets();
   const { hasPremiumAccess, isReady } = usePremium();
@@ -197,7 +198,7 @@ const createStyles = (theme: ThemeName) => {
     lockBody: {
       fontSize: 15,
       lineHeight: 22,
-      color: withAlpha(text, 0.72),
+      color: withAlpha(text, contrastAlpha(0.72)),
     },
     lockButtonRow: {
       flexDirection: "row",
@@ -209,7 +210,7 @@ const createStyles = (theme: ThemeName) => {
       borderRadius: 15,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: withAlpha(text, isDark ? 0.08 : 0.06),
+      backgroundColor: withAlpha(text, contrastAlpha(isDark ? 0.08 : 0.06)),
     },
     secondaryActionText: {
       fontSize: 15,

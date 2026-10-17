@@ -60,6 +60,8 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "projectEdit.icon": "Icon",
   "projectEdit.color": "Farbe",
   "projectEdit.delete": "Projekt löschen",
+  "projectEdit.alert.deleteTitle": "Projekt löschen?",
+  "projectEdit.alert.deleteBody": "Das Projekt und alle zugehörigen Aufgaben werden in den Papierkorb verschoben.",
 
   "taskCreate.locationUnavailableTitle": "Standort nicht verfügbar",
   "taskCreate.locationUnavailableBody": "Expo Location fehlt.",
@@ -240,6 +242,8 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "archive.empty.completedBody": "Erledigte Aufgaben erscheinen hier.",
   "archive.empty.trashBody":
     "Gelöschte Aufgaben erscheinen hier und können wiederhergestellt werden.",
+  "archive.alert.deleteForeverTitle": "Endgültig löschen?",
+  "archive.alert.deleteForeverBody": "Die Aufgabe wird endgültig gelöscht und kann nicht wiederhergestellt werden.",
 
   "modal.newTask": "Neue Aufgabe",
   "modal.placeholder.title": "Titel…",
@@ -435,6 +439,9 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "backup.alert.restoreDoneTitle": "Wiederherstellung abgeschlossen",
   "backup.alert.restoreDoneBody":
     "Die Sicherung wurde eingelesen und angewendet.",
+  "backup.alert.restoreConfirmTitle": "Alle Daten ersetzen?",
+  "backup.alert.restoreConfirmBody": "Die Sicherung enthält {{tasks}} Aufgaben und {{projects}} Projekte. Beim Wiederherstellen werden alle aktuellen Aufgaben, Projekte und Einstellungen auf diesem Gerät ersetzt.",
+  "backup.alert.restoreConfirmAction": "Wiederherstellen",
   "backup.alert.restoreFailedTitle": "Wiederherstellung fehlgeschlagen",
   "backup.status.premiumRequired":
     "Datensicherung und Wiederherstellung werden mit Reminders+ freigeschaltet.",
@@ -457,9 +464,13 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "settings.remindsPlus.action.showOptions": "Kaufoptionen anzeigen",
   "settings.remindsPlus.action.openOffer": "Angebot öffnen",
   "settings.appearance.mode": "Farbmodus",
+  "settings.appearance.appIconFollowsAccent": "App-Icon in Akzentfarbe",
+  "settings.appearance.appIconFollowsAccentHint":
+    "Das Icon auf dem Home-Bildschirm übernimmt deine Farbe. iOS bestätigt jeden Wechsel mit einem kurzen Hinweis.",
   "settings.appearance.option.adaptive": "Adaptiv",
   "settings.appearance.option.alwaysLight": "Immer hell",
   "settings.appearance.option.alwaysDark": "Immer dunkel",
+  "settings.appearance.materialYou": "Material You (aus dem Hintergrundbild)",
   "settings.badge.title": "App-Badge",
   "settings.badge.select": "App-Badge auswählen",
   "settings.badge.mode.dueToday": "Heute fällig",
@@ -470,6 +481,7 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "settings.notifications.dailySummary": "Tägliche Zusammenfassung",
   "settings.interactions.haptics": "Haptik aktivieren",
   "settings.interactions.reduceMotion": "Bewegung reduzieren",
+  "settings.interactions.reduceMotionSystemHint": "Folgt der Systemeinstellung unter Bedienungshilfen.",
   "settings.interactions.streakCelebration": "Streak-Feier",
   "settings.interactions.streakCelebrationHint":
     "Vollbild-Flamme, sobald du die erste Aufgabe des Tages erledigst.",
@@ -506,6 +518,7 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "plus.benefit.sync": "Cloud Sync auf Apple-Geräten",
   "plus.source.assist":
     "Freischaltung für deinen AI-Assist und alle Pro-Features.",
+  "assist.locked.body": "AI-Assist ist Teil von Reminders+, zusammen mit unbegrenzten Projekten und Cloud-Sync.",
   "plus.source.projects":
     "Mehr Projekte, AI-Assist und Sync in einem Schritt freischalten.",
   "plus.source.sync":
@@ -549,6 +562,8 @@ export const DE_TRANSLATIONS: TranslationDict = {
     "Cloud Sync funktioniert nur zwischen Apple-Geräten, die mit derselben Apple-ID in iCloud angemeldet sind. AI-Assist ist nur auf Geräten verfügbar, die Apple für Apple Intelligence unterstützt.",
   "plus.legal.disclaimer.noAssist":
     "Käufe werden über den App-Store auf deinem Gerät abgewickelt.",
+  "plus.error.storeUnavailable": "Der App Store ist gerade nicht erreichbar.",
+  "plus.error.purchaseFailed": "Der Kauf konnte nicht abgeschlossen werden.",
   "plus.action.restorePurchases": "Käufe wiederherstellen",
   "plus.action.reloadProducts": "Produkte neu laden",
 
@@ -659,6 +674,7 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "a11y.task.reopen": "Wieder öffnen",
   "a11y.settings.dailySummaryTime": "Uhrzeit der täglichen Zusammenfassung",
   "a11y.task.changeEmoji": "Emoji ändern",
+  "a11y.task.moreActions": "Weitere Aktionen",
   "a11y.home.pickDate": "Datum auswählen",
 };
 
