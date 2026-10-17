@@ -393,6 +393,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   const ignoreNextDragEndRef = React.useRef(false);
   const deferredSyncFrameRef = React.useRef<number | null>(null);
   const dragCompletionFrameRef = React.useRef<number | null>(null);
+  const skippedSyncDuringDragRef = React.useRef(false);
   const finishDrag = React.useCallback(() => {
     const generation = dragGenerationRef.current;
     if (dragCompletionFrameRef.current !== null) {
@@ -402,6 +403,15 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       dragCompletionFrameRef.current = null;
       if (generation !== dragGenerationRef.current) return;
       isDraggingRef.current = false;
+      if (skippedSyncDuringDragRef.current) {
+        // Data that arrived mid-drag was held back; apply it now, since a drop
+        // that changes nothing won't rerun the sync effect on its own.
+        skippedSyncDuringDragRef.current = false;
+        setFlatListData((current) => {
+          const next = latestResolvedDataRef.current;
+          return areListItemsEqual(current, next) ? current : next;
+        });
+      }
       traceDrag(diagnosticListId, "settled", { generation });
       onDragStateChange?.(false);
     });
@@ -737,7 +747,10 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       return;
     }
 
-    if (isDraggingRef.current && !syncDataDuringDrag) return;
+    if (isDraggingRef.current && !syncDataDuringDrag) {
+      skippedSyncDuringDragRef.current = true;
+      return;
+    }
 
     setFlatListData((current) => {
       if (areListItemsEqual(current, resolvedData)) return current;
