@@ -14,17 +14,11 @@ import {
   Text,
   TextInput,
   View,
-  type StyleProp,
-  type ViewStyle,
 } from "react-native";
-import Reanimated, {
-  interpolate,
-  useAnimatedKeyboard,
-  useAnimatedStyle,
-} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
+import { KeyboardLiftView } from "@/components/ui/keyboard-lift-view";
 import { usePageInsets } from "@/components/navigation/vertical-bar-safe-area";
 import { Colors, LIGHT_ACCENT_SCREEN_BACKGROUND } from "@/constants/theme";
 import { getAccentColorValue, useAppSettings } from "@/context/settings-store";
@@ -1753,7 +1747,6 @@ export default function CreateTaskModal() {
           ) : null}
 
           <View style={styles.composerStack}>
-            <View pointerEvents="none" style={styles.composerShadowLayer} />
             <View style={styles.composer}>
               <Pressable
                 android_ripple={ripple()}
@@ -1931,44 +1924,6 @@ export default function CreateTaskModal() {
   );
 }
 
-// Follows the keyboard frame by frame on the UI thread, so the composer rides
-// on the keyboard edge instead of catching up in a second animation
-// (KeyboardAvoidingView only reacted after layout and an async height lookup).
-// Also tracks interactive dismissal and the hardware keyboard bar.
-function IosKeyboardLiftView({
-  style,
-  children,
-}: React.PropsWithChildren<{ style: StyleProp<ViewStyle> }>) {
-  const keyboard = useAnimatedKeyboard();
-  const liftStyle = useAnimatedStyle(() => {
-    const height = keyboard.height.value;
-    // Keeps the former 10pt gap above an open keyboard, blended in over the
-    // first points of travel so a closed keyboard leaves no offset.
-    const gap = interpolate(height, [0, 40], [0, 10], "clamp");
-    return { transform: [{ translateY: -(height + gap) }] };
-  });
-  return (
-    // box-none: the full-height lift view must not swallow taps meant for the
-    // dimmed backdrop behind it; only the composer itself takes touches.
-    <Reanimated.View style={[style, liftStyle]} pointerEvents="box-none">
-      {children}
-    </Reanimated.View>
-  );
-}
-
-// Android keeps its previous behaviour: the window handles the keyboard.
-const KeyboardLiftView =
-  Platform.OS === "ios"
-    ? IosKeyboardLiftView
-    : ({
-        style,
-        children,
-      }: React.PropsWithChildren<{ style: StyleProp<ViewStyle> }>) => (
-        <View style={style} pointerEvents="box-none">
-          {children}
-        </View>
-      );
-
 const createStyles = (theme: keyof typeof Colors) => {
   const isDark = theme === "dark";
   const text = Colors[theme].text;
@@ -2087,19 +2042,6 @@ const createStyles = (theme: keyof typeof Colors) => {
     composerStack: {
       width: "100%",
       position: "relative",
-    },
-    composerShadowLayer: {
-      position: "absolute",
-      left: 6,
-      right: 6,
-      top: 12,
-      bottom: -8,
-      borderRadius: 30,
-      backgroundColor: isDark ? "rgba(0,0,0,0.42)" : "rgba(0,0,0,0.18)",
-      shadowColor: "#000",
-      shadowOpacity: isDark ? 0.62 : 0.36,
-      shadowRadius: 30,
-      shadowOffset: { width: 0, height: 16 },
     },
     composer: {
       flexDirection: "row",
