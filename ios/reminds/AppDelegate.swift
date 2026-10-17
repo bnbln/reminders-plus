@@ -1052,7 +1052,9 @@ final class SplashAccentGradientView: UIView {
   static func install(on rootView: UIView) {
     guard
       let hostView = rootView as? RCTSurfaceHostingProxyRootView,
-      let loadingView = hostView.loadingView,
+      // Imported as non-optional (NS_ASSUME_NONNULL) but nil until the
+      // storyboard loading view is attached, so check it anyway.
+      let loadingView = hostView.loadingView as UIView?,
       !loadingView.subviews.contains(where: { $0 is SplashAccentGradientView })
     else { return }
 
