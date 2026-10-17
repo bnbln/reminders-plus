@@ -160,6 +160,29 @@ const configureListDataLayoutAnimation = () => {
   });
 };
 
+// Expanding/collapsing a section: rows fade while the rows below glide into
+// place, so the list opens and closes instead of jumping.
+const configureSectionToggleLayoutAnimation = () => {
+  configureLayoutAnimation({
+    duration: 340,
+    create: {
+      type: LayoutAnimation.Types.easeOut,
+      property: LayoutAnimation.Properties.opacity,
+      duration: 240,
+      delay: 60,
+    },
+    update: {
+      type: LayoutAnimation.Types.spring,
+      springDamping: 0.86,
+    },
+    delete: {
+      type: LayoutAnimation.Types.easeIn,
+      property: LayoutAnimation.Properties.opacity,
+      duration: 140,
+    },
+  });
+};
+
 export type TaskSwipeDraggableListProps = {
   theme: ThemeName;
   tasks: Task[];
@@ -266,6 +289,11 @@ export type TaskSwipeDraggableListProps = {
   /** Disable internal list layout animations when parent drives its own transition. */
   animateDataLayoutChanges?: boolean;
   /**
+   * Change this value together with a section expand/collapse to animate that
+   * data change, even when `animateDataLayoutChanges` is off.
+   */
+  sectionToggleAnimationKey?: number;
+  /**
    * Let a Reanimated layout transition apply the reordered cell positions and
    * the reset of the drag offsets in the same frame (drop flicker prototype).
    */
@@ -335,6 +363,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     sortByOrderRank,
     syncDataDuringDrag = true,
     animateDataLayoutChanges = true,
+    sectionToggleAnimationKey = 0,
     dropLayoutHandoff = false,
     revealProgress,
     revealPhase = 'enter',
@@ -662,6 +691,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   const latestResolvedDataRef = React.useRef(resolvedData);
   latestResolvedDataRef.current = resolvedData;
   const shouldAnimateDropLayout = landing !== null && !reduceMotionEnabled;
+  const appliedSectionToggleKeyRef = React.useRef(sectionToggleAnimationKey);
 
   React.useEffect(() => {
     return () => {
@@ -739,10 +769,16 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
 
     if (isDraggingRef.current && !syncDataDuringDrag) return;
 
+    const isSectionToggle =
+      appliedSectionToggleKeyRef.current !== sectionToggleAnimationKey;
+    appliedSectionToggleKeyRef.current = sectionToggleAnimationKey;
+
     setFlatListData((current) => {
       if (areListItemsEqual(current, resolvedData)) return current;
       if (shouldAnimateDropLayout) {
         configureDropLayoutAnimation();
+      } else if (isSectionToggle && !reduceMotionEnabled) {
+        configureSectionToggleLayoutAnimation();
       } else if (animateDataLayoutChanges && !reduceMotionEnabled) {
         configureListDataLayoutAnimation();
       }
@@ -752,6 +788,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     animateDataLayoutChanges,
     reduceMotionEnabled,
     resolvedData,
+    sectionToggleAnimationKey,
     shouldAnimateDropLayout,
     syncDataDuringDrag,
   ]);
