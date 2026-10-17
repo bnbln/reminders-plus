@@ -2,7 +2,7 @@
   "expo": {
     "name": "reminds",
     "slug": "reminds",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "reminds",
@@ -47,9 +47,7 @@
         "NSRemindersFullAccessUsageDescription": "Reminders+ imports reminders from Apple Reminders into your tasks.",
         "NSLocationWhenInUseUsageDescription": "Reminders+ uses your location to suggest your current place for a task.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Reminders+ uses your location to suggest your current place for a task.",
-        "UIBackgroundModes": [
-          "remote-notification"
-        ],
+        "UIBackgroundModes": ["remote-notification"],
         "UIApplicationSceneManifest": {
           "UIApplicationSupportsMultipleScenes": false,
           "UISceneConfigurations": {
