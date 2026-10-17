@@ -165,7 +165,7 @@ export default function RootLayout() {
                       presentation: "formSheet",
                       sheetAllowedDetents: "fitToContents",
                       sheetGrabberVisible: true,
-                      contentStyle: themedContentStyle,
+                      contentStyle: { backgroundColor: "transparent" },
                     }}
                   />
                   <Stack.Screen

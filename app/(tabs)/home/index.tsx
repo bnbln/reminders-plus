@@ -4163,37 +4163,40 @@ function HomeContent() {
                 </View>
               </View>
               <View style={styles.calendarButtonRow}>
-                <GlassSurface
-                  tintColor={glassSurfacePalette.calendarTint}
-                  fallbackBackgroundColor={glassSurfacePalette.calendarFallback}
-                  style={styles.calendarButton}
-                  isInteractive={true}
-                >
-                  <Pressable
-                    android_ripple={rippleBorderless(16)}
-                    accessibilityRole="button"
-                    accessibilityLabel={t("home.jumpToToday")}
-                    hitSlop={16}
-                    style={StyleSheet.absoluteFill}
-                    onPress={() => {
-                      handleJumpToToday("press");
-                    }}
+                {/* Back to today only makes sense away from today. */}
+                {!isSameLocalDay(selectedDateStart, getStartOfToday()) ? (
+                  <GlassSurface
+                    tintColor={glassSurfacePalette.calendarTint}
+                    fallbackBackgroundColor={glassSurfacePalette.calendarFallback}
+                    style={styles.calendarButton}
+                    isInteractive={true}
                   >
-                    <View
-                      style={{
-                        flex: 1,
-                        alignItems: "center",
-                        justifyContent: "center",
+                    <Pressable
+                      android_ripple={rippleBorderless(16)}
+                      accessibilityRole="button"
+                      accessibilityLabel={t("home.jumpToToday")}
+                      hitSlop={16}
+                      style={StyleSheet.absoluteFill}
+                      onPress={() => {
+                        handleJumpToToday("press");
                       }}
                     >
-                      <SFSymbol
-                        name="arrow.uturn.backward"
-                        size={16}
-                        color={Colors[theme].text}
-                      />
-                    </View>
-                  </Pressable>
-                </GlassSurface>
+                      <View
+                        style={{
+                          flex: 1,
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <SFSymbol
+                          name="arrow.uturn.backward"
+                          size={16}
+                          color={Colors[theme].text}
+                        />
+                      </View>
+                    </Pressable>
+                  </GlassSurface>
+                ) : null}
 
                 <GlassSurface
                   tintColor={glassSurfacePalette.calendarTint}
