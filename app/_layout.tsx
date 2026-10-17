@@ -156,6 +156,15 @@ export default function RootLayout() {
                     }}
                   />
                   <Stack.Screen
+                    name="day-picker"
+                    options={{
+                      presentation: "formSheet",
+                      sheetAllowedDetents: "fitToContents",
+                      sheetGrabberVisible: true,
+                      contentStyle: themedContentStyle,
+                    }}
+                  />
+                  <Stack.Screen
                     name="task/location-picker"
                     options={{
                       presentation: "formSheet",
