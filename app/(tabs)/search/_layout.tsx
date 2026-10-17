@@ -8,6 +8,7 @@ import React from 'react';
 import { Platform } from 'react-native';
 
 import { ProfileHeaderMenuButton } from '@/components/navigation/profile-header-menu-button';
+import { SearchBarDismissProvider } from '@/components/search/search-bar-dismiss';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useSearchQueryParam } from '@/hooks/use-search-query-param';
@@ -22,6 +23,7 @@ export default function SearchLayout() {
   const headerTitleAlign: 'left' | 'center' = 'left';
 
   return (
+    <SearchBarDismissProvider searchBarRef={searchBarRef}>
     <Stack
       screenLayout={verticalBarTabScreenLayout}
       screenOptions={{
@@ -65,5 +67,6 @@ export default function SearchLayout() {
         }}
       />
     </Stack>
+    </SearchBarDismissProvider>
   );
 }
