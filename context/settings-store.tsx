@@ -54,6 +54,7 @@ export const DEFAULT_DAILY_SUMMARY_MINUTES = 20 * 60;
 type PersistedSettings = {
   appearanceMode: AppearanceMode;
   accentColor: AccentColorId;
+  appIconFollowsAccent: boolean;
   hapticsEnabled: boolean;
   reduceMotionEnabled: boolean;
   streakCelebrationEnabled: boolean;
@@ -74,6 +75,7 @@ const STORAGE_KEY = "reminds.settings.v1";
 const DEFAULT_SETTINGS: PersistedSettings = {
   appearanceMode: "adaptive",
   accentColor: "blue",
+  appIconFollowsAccent: false,
   hapticsEnabled: true,
   reduceMotionEnabled: false,
   streakCelebrationEnabled: false,
@@ -193,6 +195,8 @@ function sanitizeStoredSettings(value: unknown): PersistedSettings | null {
   if (!value || typeof value !== "object") return null;
   const appearanceMode = (value as { appearanceMode?: unknown }).appearanceMode;
   const accentColor = (value as { accentColor?: unknown }).accentColor;
+  const appIconFollowsAccent = (value as { appIconFollowsAccent?: unknown })
+    .appIconFollowsAccent;
   const hapticsEnabled = (value as { hapticsEnabled?: unknown }).hapticsEnabled;
   const reduceMotionEnabled = (value as { reduceMotionEnabled?: unknown })
     .reduceMotionEnabled;
@@ -216,6 +220,10 @@ function sanitizeStoredSettings(value: unknown): PersistedSettings | null {
     accentColor: isAccentColorId(accentColor)
       ? accentColor
       : DEFAULT_SETTINGS.accentColor,
+    appIconFollowsAccent:
+      typeof appIconFollowsAccent === "boolean"
+        ? appIconFollowsAccent
+        : DEFAULT_SETTINGS.appIconFollowsAccent,
     hapticsEnabled:
       typeof hapticsEnabled === "boolean"
         ? hapticsEnabled
@@ -351,6 +359,7 @@ function updateSettings(next: PersistedSettings) {
   const hasChanged =
     snapshot.appearanceMode !== next.appearanceMode ||
     snapshot.accentColor !== next.accentColor ||
+    snapshot.appIconFollowsAccent !== next.appIconFollowsAccent ||
     snapshot.hapticsEnabled !== next.hapticsEnabled ||
     snapshot.reduceMotionEnabled !== next.reduceMotionEnabled ||
     snapshot.streakCelebrationEnabled !== next.streakCelebrationEnabled ||
@@ -389,6 +398,8 @@ function patchSettings(partial: Partial<PersistedSettings>) {
   updateSettings({
     appearanceMode: partial.appearanceMode ?? snapshot.appearanceMode,
     accentColor: partial.accentColor ?? snapshot.accentColor,
+    appIconFollowsAccent:
+      partial.appIconFollowsAccent ?? snapshot.appIconFollowsAccent,
     hapticsEnabled: partial.hapticsEnabled ?? snapshot.hapticsEnabled,
     reduceMotionEnabled:
       partial.reduceMotionEnabled ?? snapshot.reduceMotionEnabled,
@@ -488,6 +499,13 @@ export function useAppSettings() {
     patchSettings({ accentColor });
   }, []);
 
+  const setAppIconFollowsAccent = React.useCallback(
+    (appIconFollowsAccent: boolean) => {
+      patchSettings({ appIconFollowsAccent });
+    },
+    [],
+  );
+
   const setHapticsEnabled = React.useCallback((hapticsEnabled: boolean) => {
     patchSettings({ hapticsEnabled });
   }, []);
@@ -555,6 +573,7 @@ export function useAppSettings() {
     reduceMotionEnabled: state.reduceMotionEnabled || systemReduceMotion,
     setAppearanceMode,
     setAccentColor,
+    setAppIconFollowsAccent,
     setHapticsEnabled,
     setReduceMotionEnabled,
     setStreakCelebrationEnabled,
