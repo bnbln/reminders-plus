@@ -239,21 +239,6 @@ export default function RootLayout() {
                     }}
                   />
                   <Stack.Screen
-                    name="modal"
-                    options={{
-                      presentation: "formSheet",
-                      contentStyle: themedContentStyle,
-                      title: t("modal.newTask"),
-                    }}
-                  />
-                  <Stack.Screen
-                    name="profile"
-                    options={{
-                      ...tabLikeHeaderOptions,
-                      title: t("screen.profile"),
-                    }}
-                  />
-                  <Stack.Screen
                     name="status"
                     options={{
                       ...tabLikeHeaderOptions,
