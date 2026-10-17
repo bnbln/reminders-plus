@@ -544,6 +544,7 @@ export const VI_TRANSLATIONS: TranslationDict = {
   "a11y.task.reopen": "Mở lại",
   "a11y.settings.dailySummaryTime": "Giờ tóm tắt hằng ngày",
   "a11y.task.changeEmoji": "Đổi emoji",
+  "a11y.task.moreActions": "Thêm thao tác",
   "a11y.home.pickDate": "Chọn ngày",
   "projectEdit.alert.deleteTitle": "Xóa dự án?",
   "projectEdit.alert.deleteBody": "Dự án và mọi công việc trong đó sẽ được chuyển vào thùng rác.",

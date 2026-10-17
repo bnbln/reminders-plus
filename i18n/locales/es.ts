@@ -564,6 +564,7 @@ export const ES_TRANSLATIONS: TranslationDict = {
   "a11y.task.reopen": "Reabrir",
   "a11y.settings.dailySummaryTime": "Hora del resumen diario",
   "a11y.task.changeEmoji": "Cambiar emoji",
+  "a11y.task.moreActions": "Más acciones",
   "a11y.home.pickDate": "Elegir una fecha",
   "projectEdit.alert.deleteTitle": "¿Eliminar el proyecto?",
   "projectEdit.alert.deleteBody": "El proyecto y todas sus tareas se moverán a la papelera.",

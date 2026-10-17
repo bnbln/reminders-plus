@@ -544,6 +544,7 @@ export const AR_TRANSLATIONS: TranslationDict = {
   "a11y.task.reopen": "إعادة فتح",
   "a11y.settings.dailySummaryTime": "وقت الملخص اليومي",
   "a11y.task.changeEmoji": "تغيير الرمز التعبيري",
+  "a11y.task.moreActions": "مزيد من الإجراءات",
   "a11y.home.pickDate": "اختيار تاريخ",
   "projectEdit.alert.deleteTitle": "هل تريد حذف المشروع؟",
   "projectEdit.alert.deleteBody": "سيتم نقل المشروع وجميع مهامه إلى سلة المهملات.",

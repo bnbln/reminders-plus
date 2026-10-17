@@ -544,6 +544,7 @@ export const DA_TRANSLATIONS: TranslationDict = {
   "a11y.task.reopen": "Genåbn",
   "a11y.settings.dailySummaryTime": "Tidspunkt for daglig opsummering",
   "a11y.task.changeEmoji": "Skift emoji",
+  "a11y.task.moreActions": "Flere handlinger",
   "a11y.home.pickDate": "Vælg en dato",
   "projectEdit.alert.deleteTitle": "Slet projekt?",
   "projectEdit.alert.deleteBody": "Projektet og alle dets opgaver flyttes til papirkurven.",

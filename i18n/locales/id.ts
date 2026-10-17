@@ -544,6 +544,7 @@ export const ID_TRANSLATIONS: TranslationDict = {
   "a11y.task.reopen": "Buka kembali",
   "a11y.settings.dailySummaryTime": "Waktu ringkasan harian",
   "a11y.task.changeEmoji": "Ubah emoji",
+  "a11y.task.moreActions": "Tindakan lainnya",
   "a11y.home.pickDate": "Pilih tanggal",
   "projectEdit.alert.deleteTitle": "Hapus proyek?",
   "projectEdit.alert.deleteBody": "Proyek dan semua tugasnya akan dipindahkan ke sampah.",

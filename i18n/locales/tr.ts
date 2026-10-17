@@ -544,6 +544,7 @@ export const TR_TRANSLATIONS: TranslationDict = {
   "a11y.task.reopen": "Yeniden aç",
   "a11y.settings.dailySummaryTime": "Günlük özet saati",
   "a11y.task.changeEmoji": "Emojiyi değiştir",
+  "a11y.task.moreActions": "Diğer işlemler",
   "a11y.home.pickDate": "Bir tarih seçin",
   "projectEdit.alert.deleteTitle": "Proje silinsin mi?",
   "projectEdit.alert.deleteBody": "Proje ve tüm görevleri çöp kutusuna taşınacak.",

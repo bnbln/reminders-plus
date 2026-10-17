@@ -544,6 +544,7 @@ export const NL_TRANSLATIONS: TranslationDict = {
   "a11y.task.reopen": "Heropen",
   "a11y.settings.dailySummaryTime": "Tijdstip dagelijkse samenvatting",
   "a11y.task.changeEmoji": "Wijzig emoji",
+  "a11y.task.moreActions": "Meer acties",
   "a11y.home.pickDate": "Kies een datum",
   "projectEdit.alert.deleteTitle": "Project verwijderen?",
   "projectEdit.alert.deleteBody": "Het project en alle bijbehorende taken worden naar de prullenbak verplaatst.",

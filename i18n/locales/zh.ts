@@ -544,6 +544,7 @@ export const ZH_TRANSLATIONS: TranslationDict = {
   "a11y.task.reopen": "重新打开",
   "a11y.settings.dailySummaryTime": "每日摘要时间",
   "a11y.task.changeEmoji": "更改表情符号",
+  "a11y.task.moreActions": "更多操作",
   "a11y.home.pickDate": "选择日期",
   "projectEdit.alert.deleteTitle": "删除项目？",
   "projectEdit.alert.deleteBody": "该项目及其所有任务将被移到回收站。",

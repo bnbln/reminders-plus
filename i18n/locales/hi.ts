@@ -544,6 +544,7 @@ export const HI_TRANSLATIONS: TranslationDict = {
   "a11y.task.reopen": "फिर से खोलें",
   "a11y.settings.dailySummaryTime": "दैनिक सारांश का समय",
   "a11y.task.changeEmoji": "इमोजी बदलें",
+  "a11y.task.moreActions": "और कार्रवाइयाँ",
   "a11y.home.pickDate": "तारीख चुनें",
   "projectEdit.alert.deleteTitle": "प्रोजेक्ट हटाएँ?",
   "projectEdit.alert.deleteBody": "प्रोजेक्ट और उसके सभी कार्य कचरे में ले जाए जाएँगे।",

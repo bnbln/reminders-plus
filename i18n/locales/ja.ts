@@ -544,6 +544,7 @@ export const JA_TRANSLATIONS: TranslationDict = {
   "a11y.task.reopen": "未完了に戻す",
   "a11y.settings.dailySummaryTime": "毎日のまとめの時刻",
   "a11y.task.changeEmoji": "絵文字を変更",
+  "a11y.task.moreActions": "その他の操作",
   "a11y.home.pickDate": "日付を選択",
   "projectEdit.alert.deleteTitle": "プロジェクトを削除しますか？",
   "projectEdit.alert.deleteBody": "プロジェクトとそのすべてのタスクがゴミ箱に移動されます。",

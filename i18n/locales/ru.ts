@@ -544,6 +544,7 @@ export const RU_TRANSLATIONS: TranslationDict = {
   "a11y.task.reopen": "Открыть снова",
   "a11y.settings.dailySummaryTime": "Время ежедневной сводки",
   "a11y.task.changeEmoji": "Изменить эмодзи",
+  "a11y.task.moreActions": "Другие действия",
   "a11y.home.pickDate": "Выбрать дату",
   "projectEdit.alert.deleteTitle": "Удалить проект?",
   "projectEdit.alert.deleteBody": "Проект и все его задачи будут перемещены в корзину.",

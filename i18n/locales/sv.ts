@@ -544,6 +544,7 @@ export const SV_TRANSLATIONS: TranslationDict = {
   "a11y.task.reopen": "Öppna igen",
   "a11y.settings.dailySummaryTime": "Tid för daglig sammanfattning",
   "a11y.task.changeEmoji": "Byt emoji",
+  "a11y.task.moreActions": "Fler åtgärder",
   "a11y.home.pickDate": "Välj ett datum",
   "projectEdit.alert.deleteTitle": "Radera projektet?",
   "projectEdit.alert.deleteBody": "Projektet och alla dess uppgifter flyttas till papperskorgen.",

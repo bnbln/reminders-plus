@@ -544,6 +544,7 @@ export const RO_TRANSLATIONS: TranslationDict = {
   "a11y.task.reopen": "Redeschideți",
   "a11y.settings.dailySummaryTime": "Ora rezumatului zilnic",
   "a11y.task.changeEmoji": "Schimbați emoji-ul",
+  "a11y.task.moreActions": "Mai multe acțiuni",
   "a11y.home.pickDate": "Alegeți o dată",
   "projectEdit.alert.deleteTitle": "Ștergeți proiectul?",
   "projectEdit.alert.deleteBody": "Proiectul și toate sarcinile sale vor fi mutate în coșul de gunoi.",

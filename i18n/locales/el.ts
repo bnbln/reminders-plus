@@ -544,6 +544,7 @@ export const EL_TRANSLATIONS: TranslationDict = {
   "a11y.task.reopen": "Επαναφορά σε ανοιχτή",
   "a11y.settings.dailySummaryTime": "Ώρα ημερήσιας σύνοψης",
   "a11y.task.changeEmoji": "Αλλαγή emoji",
+  "a11y.task.moreActions": "Περισσότερες ενέργειες",
   "a11y.home.pickDate": "Επιλογή ημερομηνίας",
   "projectEdit.alert.deleteTitle": "Διαγραφή έργου;",
   "projectEdit.alert.deleteBody": "Το έργο και όλες οι εργασίες του θα μεταφερθούν στον κάδο.",

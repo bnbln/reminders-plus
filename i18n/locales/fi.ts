@@ -544,6 +544,7 @@ export const FI_TRANSLATIONS: TranslationDict = {
   "a11y.task.reopen": "Avaa uudelleen",
   "a11y.settings.dailySummaryTime": "Päivittäisen yhteenvedon aika",
   "a11y.task.changeEmoji": "Vaihda emoji",
+  "a11y.task.moreActions": "Lisää toimintoja",
   "a11y.home.pickDate": "Valitse päivämäärä",
   "projectEdit.alert.deleteTitle": "Poistetaanko projekti?",
   "projectEdit.alert.deleteBody": "Projekti ja kaikki sen tehtävät siirretään roskakoriin.",

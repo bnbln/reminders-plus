@@ -544,6 +544,7 @@ export const HU_TRANSLATIONS: TranslationDict = {
   "a11y.task.reopen": "Újranyitás",
   "a11y.settings.dailySummaryTime": "Napi összefoglaló időpontja",
   "a11y.task.changeEmoji": "Emoji módosítása",
+  "a11y.task.moreActions": "További műveletek",
   "a11y.home.pickDate": "Dátum kiválasztása",
   "projectEdit.alert.deleteTitle": "Törlöd a projektet?",
   "projectEdit.alert.deleteBody": "A projekt és az összes feladata a kukába kerül.",

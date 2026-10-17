@@ -544,6 +544,7 @@ export const KO_TRANSLATIONS: TranslationDict = {
   "a11y.task.reopen": "다시 열기",
   "a11y.settings.dailySummaryTime": "일일 요약 시간",
   "a11y.task.changeEmoji": "이모지 변경",
+  "a11y.task.moreActions": "추가 작업",
   "a11y.home.pickDate": "날짜 선택",
   "projectEdit.alert.deleteTitle": "프로젝트를 삭제하겠습니까?",
   "projectEdit.alert.deleteBody": "프로젝트와 모든 작업이 휴지통으로 이동합니다.",

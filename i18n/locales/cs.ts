@@ -544,6 +544,7 @@ export const CS_TRANSLATIONS: TranslationDict = {
   "a11y.task.reopen": "Znovu otevřít",
   "a11y.settings.dailySummaryTime": "Čas denního souhrnu",
   "a11y.task.changeEmoji": "Změnit emoji",
+  "a11y.task.moreActions": "Další akce",
   "a11y.home.pickDate": "Vybrat datum",
   "projectEdit.alert.deleteTitle": "Smazat projekt?",
   "projectEdit.alert.deleteBody": "Projekt a všechny jeho úkoly se přesunou do koše.",
