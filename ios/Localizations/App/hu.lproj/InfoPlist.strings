@@ -1,0 +1,9 @@
+/* Generated localization for Reminders+ (main app Info.plist). */
+"CFBundleDisplayName" = "Reminders+";
+"NSCalendarsUsageDescription" = "A Reminders+ importálja a Naptár eseményeit a feladataid közé.";
+"NSCalendarsFullAccessUsageDescription" = "A Reminders+ importálja a Naptár eseményeit a feladataid közé.";
+"NSRemindersUsageDescription" = "A Reminders+ importálja az Emlékeztetők elemeit a feladataid közé.";
+"NSRemindersFullAccessUsageDescription" = "A Reminders+ importálja az Emlékeztetők elemeit a feladataid közé.";
+"NSLocationWhenInUseUsageDescription" = "A Reminders+ a helyzeted alapján javasolja egy feladat aktuális helyét.";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "A Reminders+ a helyzeted alapján javasolja egy feladat aktuális helyét.";
+"NSLocationAlwaysUsageDescription" = "A Reminders+ a helyzeted alapján javasolja egy feladat aktuális helyét.";

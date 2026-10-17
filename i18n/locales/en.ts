@@ -502,6 +502,8 @@ export const EN_TRANSLATIONS: TranslationDict = {
     'plus.legal.hide': 'Hide availability notes',
     'plus.legal.disclaimer': 'Cloud Sync only works between Apple devices signed in to iCloud with the same Apple ID. AI Assist is only available on devices supported by Apple for Apple Intelligence.',
     'plus.legal.disclaimer.noAssist': 'Purchases are processed by the app store on your device.',
+    'plus.error.storeUnavailable': "The App Store can't be reached right now.",
+    'plus.error.purchaseFailed': "The purchase couldn't be completed.",
     'plus.action.restorePurchases': 'Restore purchases',
     'plus.action.reloadProducts': 'Reload products',
 

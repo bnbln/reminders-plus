@@ -1,0 +1,5 @@
+/* Widget gallery names and descriptions. Keys are the English literals in ExpoWidgetsTarget/*.swift. */
+"Streak" = "连续记录";
+"Your streak of completed days at a glance." = "一眼查看你连续完成任务的天数。";
+"Today" = "今天";
+"Your open tasks for today, ready to check off." = "今天的未完成任务，可直接勾选。";

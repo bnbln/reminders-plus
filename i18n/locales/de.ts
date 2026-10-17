@@ -467,6 +467,7 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "settings.appearance.option.adaptive": "Adaptiv",
   "settings.appearance.option.alwaysLight": "Immer hell",
   "settings.appearance.option.alwaysDark": "Immer dunkel",
+  "settings.appearance.materialYou": "Material You (aus dem Hintergrundbild)",
   "settings.badge.title": "App-Badge",
   "settings.badge.select": "App-Badge auswählen",
   "settings.badge.mode.dueToday": "Heute fällig",
@@ -557,6 +558,8 @@ export const DE_TRANSLATIONS: TranslationDict = {
     "Cloud Sync funktioniert nur zwischen Apple-Geräten, die mit derselben Apple-ID in iCloud angemeldet sind. AI-Assist ist nur auf Geräten verfügbar, die Apple für Apple Intelligence unterstützt.",
   "plus.legal.disclaimer.noAssist":
     "Käufe werden über den App-Store auf deinem Gerät abgewickelt.",
+  "plus.error.storeUnavailable": "Der App Store ist gerade nicht erreichbar.",
+  "plus.error.purchaseFailed": "Der Kauf konnte nicht abgeschlossen werden.",
   "plus.action.restorePurchases": "Käufe wiederherstellen",
   "plus.action.reloadProducts": "Produkte neu laden",
 

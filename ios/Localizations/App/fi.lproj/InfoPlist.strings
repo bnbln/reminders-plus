@@ -1,0 +1,9 @@
+/* Generated localization for Reminders+ (main app Info.plist). */
+"CFBundleDisplayName" = "Reminders+";
+"NSCalendarsUsageDescription" = "Reminders+ tuo tapahtumat Kalenterista tehtäviisi.";
+"NSCalendarsFullAccessUsageDescription" = "Reminders+ tuo tapahtumat Kalenterista tehtäviisi.";
+"NSRemindersUsageDescription" = "Reminders+ tuo muistutukset Muistutukset-appista tehtäviisi.";
+"NSRemindersFullAccessUsageDescription" = "Reminders+ tuo muistutukset Muistutukset-appista tehtäviisi.";
+"NSLocationWhenInUseUsageDescription" = "Reminders+ käyttää sijaintiasi ehdottaakseen nykyistä paikkaa tehtävälle.";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "Reminders+ käyttää sijaintiasi ehdottaakseen nykyistä paikkaa tehtävälle.";
+"NSLocationAlwaysUsageDescription" = "Reminders+ käyttää sijaintiasi ehdottaakseen nykyistä paikkaa tehtävälle.";

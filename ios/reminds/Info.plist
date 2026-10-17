@@ -78,21 +78,21 @@
 		<true/>
 	</dict>
 	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>Wir importieren Termine aus Apple Kalender in deine App.</string>
+	<string>Reminders+ imports events from Apple Calendar into your tasks.</string>
 	<key>NSCalendarsUsageDescription</key>
-	<string>Wir importieren Termine aus Apple Kalender in deine App.</string>
+	<string>Reminders+ imports events from Apple Calendar into your tasks.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Wir verwenden deinen Standort, um den aktuellen Ort für den Task vorzuschlagen.</string>
+	<string>Reminders+ uses your location to suggest your current place for a task.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
-	<string>Allow $(PRODUCT_NAME) to access your location</string>
+	<string>Reminders+ uses your location to suggest your current place for a task.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Wir verwenden deinen Standort, um den aktuellen Ort für den Task vorzuschlagen.</string>
+	<string>Reminders+ uses your location to suggest your current place for a task.</string>
 	<key>NSMotionUsageDescription</key>
 	<string>Allow $(PRODUCT_NAME) to detect your current motion activity</string>
 	<key>NSRemindersFullAccessUsageDescription</key>
-	<string>Wir importieren Erinnerungen aus Apple Erinnerungen in deine App.</string>
+	<string>Reminders+ imports reminders from Apple Reminders into your tasks.</string>
 	<key>NSRemindersUsageDescription</key>
-	<string>Wir importieren Erinnerungen aus Apple Erinnerungen in deine App.</string>
+	<string>Reminders+ imports reminders from Apple Reminders into your tasks.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>NSSupportsLiveActivitiesFrequentUpdates</key>

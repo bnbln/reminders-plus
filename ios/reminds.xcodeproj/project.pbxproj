@@ -241,6 +241,7 @@
 				BC025173577F4477994D0C64 /* Sources */,
 				AB0E0FA8CBE74200AB28DA3F /* Frameworks */,
 				A70D205EDCAE08E126D9CAAF /* [CP] Copy Pods Resources */,
+				C7E2A9F14B3D4E8A9F0B1C2D /* Add Widget Localizations */,
 			);
 			buildRules = (
 			);
@@ -526,6 +527,21 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-ExpoWidgetsTarget/Pods-ExpoWidgetsTarget-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
+		C7E2A9F14B3D4E8A9F0B1C2D /* Add Widget Localizations */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Add Widget Localizations";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\nSRC_ROOT=\"${SRCROOT}/Localizations/Widgets\"\nDEST_ROOT=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\nfor src in \"${SRC_ROOT}\"/*.lproj; do\n  [ -d \"$src\" ] || continue\n  dir=\"${DEST_ROOT}/$(basename \"$src\")\"\n  mkdir -p \"$dir\"\n  cp \"$src/Localizable.strings\" \"$dir/Localizable.strings\"\ndone\n";
+		};
 		B1A4C9E22F8B4D7E91C5A123 /* Add Supported Localizations */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -539,7 +555,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -e\nLANGS=\"de en es fr pt hi zh-Hans ja it sv da fi pl nl tr cs hu ro el id vi ko uk ru ar\"\nDEST_ROOT=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\nfor lang in $LANGS; do\n  dir=\"${DEST_ROOT}/${lang}.lproj\"\n  mkdir -p \"$dir\"\n  printf '\"CFBundleDisplayName\" = \"Reminders+\";\\n' > \"$dir/InfoPlist.strings\"\ndone\n";
+			shellScript = "set -e\nLANGS=\"de en es fr pt hi zh-Hans ja it sv da fi pl nl tr cs hu ro el id vi ko uk ru ar\"\nDEST_ROOT=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\nSRC_ROOT=\"${SRCROOT}/Localizations/App\"\nfor lang in $LANGS; do\n  dir=\"${DEST_ROOT}/${lang}.lproj\"\n  mkdir -p \"$dir\"\n  if [ -f \"${SRC_ROOT}/${lang}.lproj/InfoPlist.strings\" ]; then\n    cp \"${SRC_ROOT}/${lang}.lproj/InfoPlist.strings\" \"$dir/InfoPlist.strings\"\n  else\n    printf '\"CFBundleDisplayName\" = \"Reminders+\";\\n' > \"$dir/InfoPlist.strings\"\n  fi\ndone\n";
 		};
 		E0EA238F2CEBC9057D7565F6 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;

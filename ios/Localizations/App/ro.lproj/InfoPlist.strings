@@ -1,0 +1,9 @@
+/* Generated localization for Reminders+ (main app Info.plist). */
+"CFBundleDisplayName" = "Reminders+";
+"NSCalendarsUsageDescription" = "Reminders+ importă evenimentele din Calendar în sarcinile dvs.";
+"NSCalendarsFullAccessUsageDescription" = "Reminders+ importă evenimentele din Calendar în sarcinile dvs.";
+"NSRemindersUsageDescription" = "Reminders+ importă mementourile din Mementouri în sarcinile dvs.";
+"NSRemindersFullAccessUsageDescription" = "Reminders+ importă mementourile din Mementouri în sarcinile dvs.";
+"NSLocationWhenInUseUsageDescription" = "Reminders+ folosește localizarea dvs. pentru a sugera locul actual pentru o sarcină.";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "Reminders+ folosește localizarea dvs. pentru a sugera locul actual pentru o sarcină.";
+"NSLocationAlwaysUsageDescription" = "Reminders+ folosește localizarea dvs. pentru a sugera locul actual pentru o sarcină.";

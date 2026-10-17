@@ -1,0 +1,9 @@
+/* Generated localization for Reminders+ (main app Info.plist). */
+"CFBundleDisplayName" = "Reminders+";
+"NSCalendarsUsageDescription" = "Reminders+는 캘린더의 이벤트를 작업으로 가져옵니다.";
+"NSCalendarsFullAccessUsageDescription" = "Reminders+는 캘린더의 이벤트를 작업으로 가져옵니다.";
+"NSRemindersUsageDescription" = "Reminders+는 미리 알림 앱의 항목을 작업으로 가져옵니다.";
+"NSRemindersFullAccessUsageDescription" = "Reminders+는 미리 알림 앱의 항목을 작업으로 가져옵니다.";
+"NSLocationWhenInUseUsageDescription" = "Reminders+는 작업에 현재 장소를 제안하기 위해 사용자의 위치를 사용합니다.";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "Reminders+는 작업에 현재 장소를 제안하기 위해 사용자의 위치를 사용합니다.";
+"NSLocationAlwaysUsageDescription" = "Reminders+는 작업에 현재 장소를 제안하기 위해 사용자의 위치를 사용합니다.";

@@ -1,0 +1,9 @@
+/* Generated localization for Reminders+ (main app Info.plist). */
+"CFBundleDisplayName" = "Reminders+";
+"NSCalendarsUsageDescription" = "Reminders+ mengimpor acara dari Kalender ke tugas Anda.";
+"NSCalendarsFullAccessUsageDescription" = "Reminders+ mengimpor acara dari Kalender ke tugas Anda.";
+"NSRemindersUsageDescription" = "Reminders+ mengimpor pengingat dari app Pengingat ke tugas Anda.";
+"NSRemindersFullAccessUsageDescription" = "Reminders+ mengimpor pengingat dari app Pengingat ke tugas Anda.";
+"NSLocationWhenInUseUsageDescription" = "Reminders+ menggunakan lokasi Anda untuk menyarankan tempat saat ini untuk tugas.";
+"NSLocationAlwaysAndWhenInUseUsageDescription" = "Reminders+ menggunakan lokasi Anda untuk menyarankan tempat saat ini untuk tugas.";
+"NSLocationAlwaysUsageDescription" = "Reminders+ menggunakan lokasi Anda untuk menyarankan tempat saat ini untuk tugas.";
