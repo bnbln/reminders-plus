@@ -1401,6 +1401,13 @@ export default function CreateTaskModal() {
     router.back();
   }, [router]);
 
+  // The keyboard's checkmark only dismisses: it closes an empty composer and
+  // otherwise just collapses the keyboard (single-line inputs blur on submit).
+  // Creating stays on the send button.
+  const onReturnKey = React.useCallback(() => {
+    if (!hasTitle) close();
+  }, [close, hasTitle]);
+
   const onBackdropPress = React.useCallback(() => {
     if (isMenuExpanded) {
       setMenuExpanded(false);
@@ -1829,7 +1836,7 @@ export default function CreateTaskModal() {
                       if (isMenuExpanded) setMenuExpanded(false);
                     }}
                     onFocus={() => setMenuExpanded(false)}
-                    onSubmitEditing={onCreate}
+                    onSubmitEditing={onReturnKey}
                     style={styles.input}
                   />
                 </GlassView>
@@ -1860,7 +1867,7 @@ export default function CreateTaskModal() {
                       if (isMenuExpanded) setMenuExpanded(false);
                     }}
                     onFocus={() => setMenuExpanded(false)}
-                    onSubmitEditing={onCreate}
+                    onSubmitEditing={onReturnKey}
                     style={styles.input}
                   />
                 </GlassSurface>
@@ -1939,7 +1946,9 @@ function IosKeyboardLiftView({
     return { transform: [{ translateY: -(height + gap) }] };
   });
   return (
-    <Reanimated.View style={[style, liftStyle]}>
+    // box-none: the full-height lift view must not swallow taps meant for the
+    // dimmed backdrop behind it; only the composer itself takes touches.
+    <Reanimated.View style={[style, liftStyle]} pointerEvents="box-none">
       {children}
     </Reanimated.View>
   );
@@ -1953,7 +1962,7 @@ const KeyboardLiftView =
         style,
         children,
       }: React.PropsWithChildren<{ style: StyleProp<ViewStyle> }>) => (
-        <View style={style}>
+        <View style={style} pointerEvents="box-none">
           {children}
         </View>
       );
