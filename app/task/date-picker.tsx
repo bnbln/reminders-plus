@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useSheetHeaderActions } from '@/components/navigation/sheet-header-actions';
 import { withAlpha } from '@/components/ui/glass-surface';
-import { Colors, contrastAlpha, PICKER_SHEET_DARK_ROW, PICKER_SHEET_DARK_ROW_BORDER, TASK_SHEET_ACCENTS } from '@/constants/theme';
+import { Colors, contrastAlpha, PICKER_SHEET_DARK_ROW, TASK_SHEET_ACCENTS } from '@/constants/theme';
 import { useTasksStore } from '@/context/tasks-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { t } from '@/i18n';
@@ -236,14 +236,14 @@ const createStyles = (theme: keyof typeof Colors) => {
             paddingHorizontal: 14,
             borderRadius: 14,
             marginBottom: 8,
-            borderWidth: isDark ? 1 : StyleSheet.hairlineWidth,
-            borderColor: isDark ? PICKER_SHEET_DARK_ROW_BORDER : hairline,
+            borderWidth: isDark ? 0 : StyleSheet.hairlineWidth,
+            borderColor: hairline,
             backgroundColor: isDark ? PICKER_SHEET_DARK_ROW : withAlpha(text, contrastAlpha(0.03)),
         },
         optionRowActive: {
-            borderWidth: isDark ? 1.5 : StyleSheet.hairlineWidth,
-            borderColor: isDark ? ACCENT : withAlpha(ACCENT, 0.45),
-            backgroundColor: withAlpha(ACCENT, isDark ? 0.18 : 0.12),
+            borderWidth: isDark ? 0 : StyleSheet.hairlineWidth,
+            borderColor: withAlpha(ACCENT, 0.45),
+            backgroundColor: withAlpha(ACCENT, isDark ? 0.26 : 0.12),
         },
         optionIcon: {
             width: 36,
@@ -280,8 +280,6 @@ const createStyles = (theme: keyof typeof Colors) => {
         },
         pickerContainer: {
             backgroundColor: isDark ? PICKER_SHEET_DARK_ROW : withAlpha(text, contrastAlpha(0.03)),
-            borderWidth: isDark ? 1 : 0,
-            borderColor: PICKER_SHEET_DARK_ROW_BORDER,
             borderRadius: 14,
             marginBottom: 16,
             overflow: 'hidden',
