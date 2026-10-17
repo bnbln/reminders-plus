@@ -1,9 +1,13 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useRouter } from 'expo-router';
+import type { MenuAction } from '@react-native-menu/menu';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Stack, useRouter } from 'expo-router';
+import { SymbolView } from 'expo-symbols';
 import React from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
   Platform,
   Pressable,
   ScrollView,
@@ -18,7 +22,10 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useVerticalBarActive } from '@/components/navigation/vertical-bar-safe-area';
+import { DropdownMenu } from '@/components/ui/dropdown-menu';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
 import { SFSymbol } from '@/components/ui/sfsymbol';
 import { Colors, contrastAlpha } from '@/constants/theme';
@@ -83,6 +90,15 @@ const getRoutineLabel = (task: Task): string => {
 
 const COMPLETE_GREEN = '#34C759';
 
+// One spacing/radius scale for every card on the page (property tiles, the
+// subtask panel and notes) so the stack reads as one rhythm.
+const SECTION_GAP = 12;
+const CARD_RADIUS = 20;
+const CARD_PADDING_H = 14;
+const CARD_PADDING_V = 12;
+
+type DetailMenuActionId = 'toggleComplete' | 'delete';
+
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
 const formatDueLabel = (ms: number, hasTime: boolean) => {
@@ -143,7 +159,6 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
   const placeholder = withAlpha(Colors[theme].text, contrastAlpha(0.35));
 
   const completeBg = isDark ? '#30D158' : '#34C759';
-  const deleteBg = isDark ? '#FF453A' : '#FF3B30';
   const repeatBg = isDark ? '#8E8E93' : '#9ea4aa';
 
   // Animation for completion state
@@ -313,6 +328,53 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
     ]);
   }, [onClose, setTasks, showSnackbar, task]);
 
+  const insets = useSafeAreaInsets();
+  const hasVerticalBar = useVerticalBarActive();
+  const [footerHeight, setFooterHeight] = React.useState(0);
+  const [keyboardVisible, setKeyboardVisible] = React.useState(false);
+
+  // The footer is pinned to the window bottom. Android resizes the window for
+  // the keyboard, which would float the button above it; hide it while typing.
+  React.useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const show = Keyboard.addListener(showEvent, () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener(hideEvent, () => setKeyboardVisible(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+
+  const toggleCompleteLabel = isCompleted ? t('a11y.task.reopen') : t('a11y.task.complete');
+
+  const menuActions = React.useMemo<MenuAction[]>(() => {
+    const isIOS = Platform.OS === 'ios';
+    return [
+      {
+        id: 'toggleComplete',
+        title: toggleCompleteLabel,
+        image: isIOS ? (isCompleted ? 'arrow.uturn.backward.circle' : 'checkmark.circle') : undefined,
+        imageColor: isIOS ? Colors[theme].text : undefined,
+      },
+      {
+        id: 'delete',
+        title: t('taskDetail.alert.delete'),
+        image: isIOS ? 'trash' : undefined,
+        attributes: { destructive: true },
+      },
+    ];
+  }, [isCompleted, theme, toggleCompleteLabel]);
+
+  const onMenuAction = React.useCallback(
+    ({ nativeEvent: { event } }: { nativeEvent: { event: string } }) => {
+      const actionId = event as DetailMenuActionId;
+      if (actionId === 'toggleComplete') onToggleComplete();
+      if (actionId === 'delete') onDelete();
+    },
+    [onDelete, onToggleComplete]
+  );
+
   const clearDue = React.useCallback(() => {
     if (!task) return;
     updateTask({ dueAt: 0, dueHasTime: false });
@@ -422,17 +484,23 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
   const dueHasTime = task.dueHasTime ?? true;
   const hasDueDate = Number.isFinite(task.dueAt) && task.dueAt > 0;
 
-  return (
+  const scrollView = (
     <ScrollView
       ref={scrollRef}
       onLayout={(event) => setPaneWidth(event.nativeEvent.layout.width)}
       testID="task-detail"
-      style={styles.screen}
+      style={styles.scroll}
       contentContainerStyle={[
         styles.content,
         // iOS gets this from `contentInsetAdjustmentBehavior`; Android has no
         // equivalent, so the transparent header would overlap the hero emoji.
         Platform.OS === 'android' ? { paddingTop: headerHeight + 18 } : null,
+        // Keep the last card clear of the pinned footer. iOS already insets the
+        // content by the home indicator area, which the footer height includes.
+        {
+          paddingBottom:
+            Math.max(0, footerHeight - (Platform.OS === 'ios' ? insets.bottom : 0)) + SECTION_GAP,
+        },
       ]}
       showsVerticalScrollIndicator={false}
       automaticallyAdjustContentInsets
@@ -703,61 +771,127 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
         />
       </GlassSurface>
 
-      <View style={styles.actionsRow}>
-        <Pressable
-          android_ripple={ripple()} onPress={onDelete} hitSlop={10} style={styles.iconDangerWrap}>
-          <GlassSurface
-            style={styles.iconDangerButton}
-            glassEffectStyle="regular"
-            tintColor={withAlpha(deleteBg, isDark ? 0.55 : 0.45)}
-            fallbackBackgroundColor={withAlpha(deleteBg, isDark ? 0.6 : 0.5)}
-          >
-            <MaterialIcons name="delete" size={24} color={withAlpha(Colors[theme].text, contrastAlpha(0.95))} />
-          </GlassSurface>
-        </Pressable>
-
-        <Pressable
-          android_ripple={ripple()} onPress={onToggleComplete} style={styles.primaryActionWrap}>
-          <View>
-            {/* Active State (Green) */}
-            <Animated.View style={[StyleSheet.absoluteFill, activeStyle]}>
-              <GlassSurface
-                style={styles.primaryActionButton}
-                glassEffectStyle="regular"
-                tintColor={withAlpha(completeBg, isDark ? 0.55 : 0.45)}
-                fallbackBackgroundColor={withAlpha(completeBg, isDark ? 0.6 : 0.5)}
-              >
-                <MaterialIcons name="check" size={18} color={withAlpha(Colors[theme].text, contrastAlpha(0.95))} />
-                <Text style={[styles.primaryActionText, { color: withAlpha(Colors[theme].text, contrastAlpha(0.95)) }]}>
-                  {t('taskDetail.action.complete')}
-                </Text>
-              </GlassSurface>
-            </Animated.View>
-
-            {/* Completed State (Grey) */}
-            <Animated.View style={doneStyle}>
-              <GlassSurface
-                style={styles.primaryActionButton}
-                glassEffectStyle="regular"
-                tintColor={withAlpha(repeatBg, isDark ? 0.45 : 0.35)}
-                fallbackBackgroundColor={withAlpha(repeatBg, isDark ? 0.5 : 0.4)}
-              >
-                <MaterialIcons name="undo" size={18} color={withAlpha(Colors[theme].text, contrastAlpha(0.95))} />
-                <Text style={[styles.primaryActionText, { color: withAlpha(Colors[theme].text, contrastAlpha(0.95)) }]}>
-                  {t('taskDetail.action.repeat')}
-                </Text>
-              </GlassSurface>
-            </Animated.View>
-          </View>
-        </Pressable>
-      </View>
-
-
-
-
-
       <TaskKeyboardSpacer />
-    </ScrollView >
+    </ScrollView>
+  );
+
+  return (
+    <View style={styles.screen}>
+      <Stack.Screen
+        options={{
+          headerRight: hasVerticalBar
+            ? undefined
+            : () => (
+                <DropdownMenu
+                  themeVariant={Platform.OS === 'ios' ? theme : undefined}
+                  isAnchoredToRight
+                  actions={menuActions}
+                  onPressAction={onMenuAction}
+                  shouldOpenOnLongPress={false}
+                  style={styles.headerMenuButton}
+                >
+                  {Platform.OS === 'ios' ? (
+                    <SymbolView
+                      name="ellipsis"
+                      accessibilityLabel={t('a11y.task.moreActions')}
+                      tintColor={Colors[theme].text}
+                      style={{ width: 22, height: 22 }}
+                    />
+                  ) : (
+                    <MaterialIcons name="more-vert" size={24} color={Colors[theme].text} />
+                  )}
+                </DropdownMenu>
+              ),
+          // Custom header views never move into the Duo's vertical bar.
+          unstable_headerRightItems: hasVerticalBar
+            ? () => [
+                {
+                  type: 'menu',
+                  label: t('a11y.task.moreActions'),
+                  icon: { type: 'sfSymbol', name: 'ellipsis' },
+                  tintColor: Colors[theme].text,
+                  menu: {
+                    items: [
+                      {
+                        type: 'action',
+                        label: toggleCompleteLabel,
+                        icon: {
+                          type: 'sfSymbol',
+                          name: isCompleted ? 'arrow.uturn.backward.circle' : 'checkmark.circle',
+                        },
+                        onPress: onToggleComplete,
+                      },
+                      {
+                        type: 'action',
+                        label: t('taskDetail.alert.delete'),
+                        icon: { type: 'sfSymbol', name: 'trash' },
+                        destructive: true,
+                        onPress: onDelete,
+                      },
+                    ],
+                  },
+                },
+              ]
+            : undefined,
+        }}
+      />
+      {scrollView}
+
+      {/* Pinned footer: the primary action stays reachable on long tasks. */}
+      {!keyboardVisible ? (
+        <View
+          pointerEvents="box-none"
+          onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}
+          style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}
+        >
+          <LinearGradient
+            pointerEvents="none"
+            colors={[withAlpha(Colors[theme].background, 0), Colors[theme].background]}
+            locations={[0, 0.45]}
+            style={StyleSheet.absoluteFill}
+          />
+          <Pressable
+            android_ripple={ripple()}
+            onPress={onToggleComplete}
+            accessibilityRole="button"
+            accessibilityLabel={toggleCompleteLabel}
+            testID="task-detail-complete"
+          >
+            <View>
+              {/* Active State (Green) */}
+              <Animated.View style={[StyleSheet.absoluteFill, activeStyle]}>
+                <GlassSurface
+                  style={styles.primaryActionButton}
+                  glassEffectStyle="regular"
+                  tintColor={withAlpha(completeBg, isDark ? 0.55 : 0.45)}
+                  fallbackBackgroundColor={withAlpha(completeBg, isDark ? 0.6 : 0.5)}
+                >
+                  <MaterialIcons name="check" size={18} color={withAlpha(Colors[theme].text, contrastAlpha(0.95))} />
+                  <Text style={[styles.primaryActionText, { color: withAlpha(Colors[theme].text, contrastAlpha(0.95)) }]}>
+                    {t('taskDetail.action.complete')}
+                  </Text>
+                </GlassSurface>
+              </Animated.View>
+
+              {/* Completed State (Grey) */}
+              <Animated.View style={doneStyle}>
+                <GlassSurface
+                  style={styles.primaryActionButton}
+                  glassEffectStyle="regular"
+                  tintColor={withAlpha(repeatBg, isDark ? 0.45 : 0.35)}
+                  fallbackBackgroundColor={withAlpha(repeatBg, isDark ? 0.5 : 0.4)}
+                >
+                  <MaterialIcons name="undo" size={18} color={withAlpha(Colors[theme].text, contrastAlpha(0.95))} />
+                  <Text style={[styles.primaryActionText, { color: withAlpha(Colors[theme].text, contrastAlpha(0.95)) }]}>
+                    {t('taskDetail.action.repeat')}
+                  </Text>
+                </GlassSurface>
+              </Animated.View>
+            </View>
+          </Pressable>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -835,14 +969,20 @@ const createStyles = (theme: keyof typeof Colors) => {
       flex: 1,
       backgroundColor: background,
     },
+    scroll: {
+      flex: 1,
+    },
     content: {
       paddingHorizontal: 18,
       paddingTop: 18,
-      paddingBottom: 44,
-      gap: 18,
-      // Fill the viewport so `actionsRow`'s auto margin can bottom-align it on
-      // short tasks; long tasks overflow and scroll as before.
-      flexGrow: 1,
+      gap: SECTION_GAP,
+    },
+    headerMenuButton: {
+      width: Platform.OS === 'android' ? 32 : 36,
+      height: Platform.OS === 'android' ? 32 : 36,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'transparent',
     },
 
     header: {
@@ -898,20 +1038,23 @@ const createStyles = (theme: keyof typeof Colors) => {
     propertyGrid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 10,
+      gap: SECTION_GAP,
     },
     propertyTilePressable: {
-      width: '48.5%',
+      // Two per row on wide panes (narrow panes override to 100%); the grow
+      // absorbs the gap so tiles end flush with the panels below.
+      width: '45%',
+      flexGrow: 1,
     },
     propertyTile: {
-      borderRadius: 16,
+      borderRadius: CARD_RADIUS,
       borderWidth: StyleSheet.hairlineWidth,
       overflow: 'hidden',
       backgroundColor: cardBg,
     },
     propertyTileInner: {
-      paddingHorizontal: 12,
-      paddingVertical: 10,
+      paddingHorizontal: CARD_PADDING_H,
+      paddingVertical: CARD_PADDING_V,
       gap: 4,
     },
     propertyTileIconRow: {
@@ -1016,9 +1159,9 @@ const createStyles = (theme: keyof typeof Colors) => {
     },
 
     panel: {
-      borderRadius: 22,
-      paddingHorizontal: 16,
-      paddingVertical: 14,
+      borderRadius: CARD_RADIUS,
+      paddingHorizontal: CARD_PADDING_H,
+      paddingVertical: CARD_PADDING_V,
       overflow: 'hidden',
       borderWidth: StyleSheet.hairlineWidth,
     },
@@ -1130,14 +1273,13 @@ const createStyles = (theme: keyof typeof Colors) => {
       backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
     },
 
-    actionsRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      marginTop: 'auto',
-    },
-    primaryActionWrap: {
-      flex: 1,
+    footer: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      paddingHorizontal: 18,
+      paddingTop: 20,
     },
     primaryActionButton: {
       flexDirection: 'row',
@@ -1152,19 +1294,6 @@ const createStyles = (theme: keyof typeof Colors) => {
     primaryActionText: {
       fontSize: 14,
       fontWeight: '900',
-    },
-    iconDangerWrap: {
-      width: 52,
-      height: 52,
-      borderRadius: 26,
-      overflow: 'hidden',
-    },
-    iconDangerButton: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderRadius: 26,
-      overflow: 'hidden',
     },
 
     modalHeader: {

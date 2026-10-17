@@ -586,6 +586,7 @@ export const EN_TRANSLATIONS: TranslationDict = {
     'a11y.task.reopen': 'Reopen',
     'a11y.settings.dailySummaryTime': 'Daily summary time',
     'a11y.task.changeEmoji': 'Change emoji',
+    'a11y.task.moreActions': 'More actions',
     'a11y.home.pickDate': 'Pick a date',
 };
 
