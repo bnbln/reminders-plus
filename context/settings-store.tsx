@@ -505,11 +505,11 @@ function subscribeSystemReduceMotion(listener: () => void) {
 }
 
 /**
- * Combined Reduce Motion value (system setting or in-app switch) for code that
- * runs outside render, such as animation helpers and event callbacks.
+ * System Reduce Motion value for code that runs outside render, such as
+ * animation helpers and event callbacks.
  */
 export function isReduceMotionActive() {
-  return snapshot.reduceMotionEnabled || systemReduceMotion;
+  return systemReduceMotion;
 }
 
 export function getAppSettingsSnapshot() {
@@ -542,12 +542,6 @@ export function useAppSettings() {
     patchSettings({ hapticsEnabled });
   }, []);
 
-  const setReduceMotionEnabled = React.useCallback(
-    (reduceMotionEnabled: boolean) => {
-      patchSettings({ reduceMotionEnabled });
-    },
-    [],
-  );
 
   const setStreakCelebrationEnabled = React.useCallback(
     (streakCelebrationEnabled: boolean) => {
@@ -598,11 +592,11 @@ export function useAppSettings() {
 
   return {
     ...state,
-    // The OS-level Reduce Motion setting always wins (WCAG 2.3.3 / EN 301 549);
-    // the in-app toggle can only add to it. `reduceMotionPreference` is the raw
-    // in-app value for the settings switch.
-    reduceMotionPreference: state.reduceMotionEnabled,
-    reduceMotionEnabled: state.reduceMotionEnabled || systemReduceMotion,
+    // Reduce Motion follows the OS setting only. The former in-app switch was
+    // removed (2026-10-17): native transitions, sheets and system controls
+    // cannot follow an app-only flag. The persisted `reduceMotionEnabled`
+    // field stays for backup compatibility but is ignored.
+    reduceMotionEnabled: systemReduceMotion,
     // OS "Increase Contrast". Subscribing here re-renders every settings
     // consumer (and `useColorScheme()`) when it changes, so `Colors[theme]`,
     // `getAccentColorValue` and `contrastAlpha` are read fresh.
@@ -610,7 +604,6 @@ export function useAppSettings() {
     setAppearanceMode,
     setAccentColor,
     setHapticsEnabled,
-    setReduceMotionEnabled,
     setStreakCelebrationEnabled,
     setLocaleOverride,
     setAppBadgeMode,

@@ -396,6 +396,7 @@ export const HU_TRANSLATIONS: TranslationDict = {
   'settings.notifications.dailySummary': 'Napi összefoglaló',
   'settings.interactions.haptics': 'Haptika engedélyezése',
   'settings.interactions.reduceMotion': 'Csökkentse a mozgást',
+  'settings.interactions.reduceMotionSystemHint': 'Az eszköz Kisegítő lehetőségek beállítását követi.',
   'settings.import.unavailableTitle': 'Nem elérhető',
   'settings.import.unavailableBody': 'Apple A naptár/emlékeztető importálás csak a iOS webhelyen érhető el.',
   'settings.import.permissionTitle': 'Nincs engedély',

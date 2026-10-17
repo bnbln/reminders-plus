@@ -396,6 +396,7 @@ export const RO_TRANSLATIONS: TranslationDict = {
   'settings.notifications.dailySummary': 'Rezumat zilnic',
   'settings.interactions.haptics': 'Activați hapticul',
   'settings.interactions.reduceMotion': 'Reduceți mișcarea',
+  'settings.interactions.reduceMotionSystemHint': 'Urmează setarea Accesibilitate a dispozitivului.',
   'settings.import.unavailableTitle': 'Indisponibil',
   'settings.import.unavailableBody': 'Apple Importul calendarului/mementourilor este disponibil numai pe iOS.',
   'settings.import.permissionTitle': 'Nicio permisiune',

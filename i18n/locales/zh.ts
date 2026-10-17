@@ -396,6 +396,7 @@ export const ZH_TRANSLATIONS: TranslationDict = {
   'settings.notifications.dailySummary': '每日总结',
   'settings.interactions.haptics': '启用触觉',
   'settings.interactions.reduceMotion': '减少运动',
+  'settings.interactions.reduceMotionSystemHint': '跟随设备的辅助功能设置。',
   'settings.import.unavailableTitle': '不可用',
   'settings.import.unavailableBody': 'Apple 日历/提醒导入仅适用于 iOS。',
   'settings.import.permissionTitle': '没有许可',

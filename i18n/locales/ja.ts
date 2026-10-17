@@ -396,6 +396,7 @@ export const JA_TRANSLATIONS: TranslationDict = {
   'settings.notifications.dailySummary': '毎日のまとめ',
   'settings.interactions.haptics': 'ハプティクスを有効にする',
   'settings.interactions.reduceMotion': '動きを減らす',
+  'settings.interactions.reduceMotionSystemHint': 'デバイスのアクセシビリティ設定に従います。',
   'settings.import.unavailableTitle': '利用不可',
   'settings.import.unavailableBody': 'Apple カレンダー/リマインダーのインポートは iOS でのみ利用できます。',
   'settings.import.permissionTitle': '許可がありません',

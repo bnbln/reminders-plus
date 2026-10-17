@@ -396,6 +396,7 @@ export const VI_TRANSLATIONS: TranslationDict = {
   'settings.notifications.dailySummary': 'Tóm tắt hàng ngày',
   'settings.interactions.haptics': 'Bật xúc giác',
   'settings.interactions.reduceMotion': 'Giảm chuyển động',
+  'settings.interactions.reduceMotionSystemHint': 'Theo cài đặt Trợ năng của thiết bị.',
   'settings.import.unavailableTitle': 'Không có sẵn',
   'settings.import.unavailableBody': 'Apple Nhập lịch/lời nhắc chỉ khả dụng trên iOS.',
   'settings.import.permissionTitle': 'Không có sự cho phép',

@@ -396,6 +396,7 @@ export const KO_TRANSLATIONS: TranslationDict = {
   'settings.notifications.dailySummary': '일일 요약',
   'settings.interactions.haptics': '햅틱 활성화',
   'settings.interactions.reduceMotion': '움직임 줄이기',
+  'settings.interactions.reduceMotionSystemHint': '기기의 손쉬운 사용 설정을 따릅니다.',
   'settings.import.unavailableTitle': '이용 불가',
   'settings.import.unavailableBody': 'Apple 달력/알림 가져오기는 iOS에서만 사용할 수 있습니다.',
   'settings.import.permissionTitle': '허가 없음',

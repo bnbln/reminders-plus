@@ -396,6 +396,7 @@ export const IT_TRANSLATIONS: TranslationDict = {
   'settings.notifications.dailySummary': 'Riepilogo quotidiano',
   'settings.interactions.haptics': 'Abilita la sensazione tattile',
   'settings.interactions.reduceMotion': 'Ridurre il movimento',
+  'settings.interactions.reduceMotionSystemHint': 'Segue l\'impostazione Accessibilità del dispositivo.',
   'settings.import.unavailableTitle': 'Non disponibile',
   'settings.import.unavailableBody': 'Apple L\'importazione di calendari/promemoria è disponibile solo su iOS.',
   'settings.import.permissionTitle': 'Nessun permesso',

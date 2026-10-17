@@ -58,6 +58,7 @@ Weitere Regeln bei erhöhtem Kontrast: Sekundärtexte mit Deckkraft unter 0,6 an
 
 ### Bewegung reduzieren (Reduce Motion)
 
+- **Entscheidung 17. Oktober:** Die App hat keinen eigenen Schalter mehr, sie folgt nur der Systemeinstellung. Native Übergänge und Systemsteuerelemente ließen sich mit einem App-Schalter nicht abdecken.
 - **Reanimated 4** respektiert die Systemeinstellung bereits standardmäßig (`ReduceMotion.System`): `withTiming`/`withSpring` springen zum Ziel, Layout-Animationen auf den Endzustand. Die **App-eigene** Einstellung „Bewegung reduzieren“ greift dort aber nicht. Lösung: an der Wurzel `<ReducedMotionConfig mode={reduceMotionEnabled ? ReduceMotion.Always : ReduceMotion.System} />` setzen. Bewusst nötige Bewegungen (z. B. Drag-Verfolgung des Fingers, Tastaturkopplung) explizit mit `ReduceMotion.Never` markieren, damit sie nicht einfrieren.
 - **RN-`Animated`** (8 Dateien) ignoriert die Einstellung. Dort `reduceMotionEnabled` aus `useAppSettings()` auswerten: Dauer 0 oder Überblendung statt Bewegung, Endlos-`loop`s stoppen.
 - Nicht alles abschalten: Apple empfiehlt, Bewegung durch Überblendung zu ersetzen, wo sie Orientierung gibt (z. B. Tageswechsel im Slider). `AccessibilityInfo.prefersCrossFadeTransitions()` meldet zusätzlich den Wunsch nach Überblendungen.
