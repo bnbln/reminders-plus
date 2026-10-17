@@ -407,6 +407,7 @@ function KanbanColumn({
       <TaskSwipeDraggableList
         ref={listRef}
         renderMode="auto"
+        syncDataDuringDrag={false}
         animateDataLayoutChanges={false}
         theme={theme}
         isDark={theme === "dark"}
@@ -1671,12 +1672,11 @@ const createRowStyles = (theme: ThemeName): SwipeTaskRowStyles => {
       opacity: 1,
       overflow: "visible",
       zIndex: 220,
-      elevation: 72,
+      elevation: 28,
       shadowColor: "#000000",
-      shadowOpacity: isDark ? 0.34 : 0.2,
-      shadowRadius: 18,
-      shadowOffset: { width: 0, height: 10 },
-      transform: [{ scale: 1.02 }],
+      shadowOpacity: isDark ? 0.24 : 0.12,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 8 },
     },
     rowInner: {
       flexDirection: "row",
