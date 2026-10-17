@@ -89,6 +89,7 @@ export default function ProjectPickerScreen() {
             <View style={styles.sheet}>
                 <ScrollView
                     style={styles.content}
+                    contentInsetAdjustmentBehavior="automatic"
                     contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
                     showsVerticalScrollIndicator={false}
                 >

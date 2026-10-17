@@ -156,6 +156,7 @@ export default function LocationPickerScreen() {
       <View style={styles.sheet}>
         <ScrollView
           style={styles.content}
+          contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
