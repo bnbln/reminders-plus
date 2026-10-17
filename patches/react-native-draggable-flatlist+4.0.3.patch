@@ -224,7 +224,7 @@ index 2abb4a2..3a1c18a 100644
          layout: LayoutChangeEvent["nativeEvent"]["layout"];
          containerRef: React.RefObject<Animated.View>;
 diff --git a/node_modules/react-native-draggable-flatlist/src/components/CellRendererComponent.tsx b/node_modules/react-native-draggable-flatlist/src/components/CellRendererComponent.tsx
-index e4e861a..0407c8d 100644
+index e4e861a..1c3c627 100644
 --- a/node_modules/react-native-draggable-flatlist/src/components/CellRendererComponent.tsx
 +++ b/node_modules/react-native-draggable-flatlist/src/components/CellRendererComponent.tsx
 @@ -1,16 +1,24 @@
@@ -288,7 +288,7 @@ index e4e861a..0407c8d 100644
        heldTanslate.value = translate.value;
      }
      const t = activeKey ? translate.value : heldTanslate.value;
-@@ -88,18 +100,144 @@ function CellRendererComponent<T>(props: Props<T>) {
+@@ -88,18 +100,155 @@ function CellRendererComponent<T>(props: Props<T>) {
        }
      };
  
@@ -384,6 +384,12 @@ index e4e861a..0407c8d 100644
 +    () => (values) => {
 +      "worklet";
 +      const held = heldTanslate.value;
++      const horizontalCell = horizontalAnim.value;
++      // Both branches must return the same keys. Reanimated merges a new
++      // transition into a running one ({ ...previous, ...next }); a key only
++      // the previous one had would restart its already used animation object
++      // and throw inside the mount (crash when a dropped row changes again
++      // during the hold, e.g. completed -> today).
 +      if (!handoffArmed.value || held === 0) {
 +        const now = (to: number) => withTiming(to, { duration: 0 });
 +        return {
@@ -392,12 +398,18 @@ index e4e861a..0407c8d 100644
 +            originY: values.targetOriginY,
 +            width: values.targetWidth,
 +            height: values.targetHeight,
++            transform: [
++              horizontalCell ? { translateX: held } : { translateY: held },
++            ],
 +          },
 +          animations: {
 +            originX: now(values.targetOriginX),
 +            originY: now(values.targetOriginY),
 +            width: now(values.targetWidth),
 +            height: now(values.targetHeight),
++            transform: [
++              horizontalCell ? { translateX: now(held) } : { translateY: now(held) },
++            ],
 +          },
 +        };
 +      }
@@ -408,7 +420,6 @@ index e4e861a..0407c8d 100644
 +          withDelay(1, withTiming(to, { duration: 0 })),
 +          withDelay(DROP_HANDOFF_HOLD_MS, withTiming(to, { duration: 0 }))
 +        );
-+      const horizontalCell = horizontalAnim.value;
 +      return {
 +        initialValues: {
 +          originX: values.currentOriginX,
@@ -440,7 +451,7 @@ index e4e861a..0407c8d 100644
      updateCellMeasurements();
      if (onLayout && e) onLayout(e);
    });
-@@ -158,7 +296,9 @@ function CellRendererComponent<T>(props: Props<T>) {
+@@ -158,7 +307,9 @@ function CellRendererComponent<T>(props: Props<T>) {
        entering={itemEnteringAnimation}
        exiting={itemExitingAnimation}
        layout={
@@ -451,7 +462,7 @@ index e4e861a..0407c8d 100644
            ? itemLayoutAnimation
            : undefined
        }
-@@ -172,6 +312,10 @@ function CellRendererComponent<T>(props: Props<T>) {
+@@ -172,6 +323,10 @@ function CellRendererComponent<T>(props: Props<T>) {
  
  export default typedMemo(CellRendererComponent);
  

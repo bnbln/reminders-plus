@@ -173,7 +173,20 @@ const values = {currentOriginX:0,currentOriginY:60,currentWidth:300,currentHeigh
   const {fn, heldSv} = makeTransition(-60, false);
   const r = fn(values);
   assert.equal(r.initialValues.originY, 0, 'Layout changes during a drag are not held');
-  assert.equal(r.initialValues.transform, undefined);
+  assert.deepEqual(r.initialValues.transform, [{translateY:-60}], 'Immediate jump keeps the live offset');
+  assert.equal(finalOf(r.animations.transform[0].translateY), -60);
   assert.equal(heldSv.value, -60, 'A running drag keeps its offset');
 }
-console.log('PASS: drop handoff moves position and offset in one step, only once after a drag');
+{
+  // Reanimated merges a new transition into a running one ({...prev, ...next}).
+  // Every key of the held handoff must be replaced, or a used animation object
+  // is restarted inside the mount (crash: completed row dropped into today).
+  const paths = (o, p = []) => o && typeof o === 'object' && !o.kind
+    ? Object.keys(o).flatMap(k => paths(o[k], p.concat(k))) : [p.join('.')];
+  const held = makeTransition(-60, true).fn(values);
+  const again = makeTransition(0, false).fn(values);
+  assert.deepEqual(paths(again.animations).sort(), paths(held.animations).sort(),
+    'Both branches must animate the same keys');
+  assert.deepEqual(paths(again.initialValues).sort(), paths(held.initialValues).sort());
+}
+console.log('PASS: drop handoff moves position and offset in one step, only once, same keys in both branches');
