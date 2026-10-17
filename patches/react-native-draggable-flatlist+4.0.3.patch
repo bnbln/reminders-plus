@@ -1,18 +1,39 @@
 diff --git a/node_modules/react-native-draggable-flatlist/lib/module/components/CellRendererComponent.js b/node_modules/react-native-draggable-flatlist/lib/module/components/CellRendererComponent.js
-index 7e32214..75c719e 100644
+index 7e32214..3c820e0 100644
 --- a/node_modules/react-native-draggable-flatlist/lib/module/components/CellRendererComponent.js
 +++ b/node_modules/react-native-draggable-flatlist/lib/module/components/CellRendererComponent.js
-@@ -1,7 +1,7 @@
+@@ -1,8 +1,9 @@
  function _extends() { _extends = Object.assign || function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return _extends.apply(this, arguments); }
  
 -import React, { useEffect, useMemo, useRef } from "react";
 -import { findNodeHandle } from "react-native";
+-import Animated, { runOnUI, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 +import React, { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 +import { findNodeHandle, UIManager } from "react-native";
- import Animated, { runOnUI, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
++import Animated, { runOnUI, useAnimatedStyle, useSharedValue, useAnimatedRef, setNativeProps } from "react-native-reanimated";
++import { runOnUISync } from "react-native-worklets";
  import { useDraggableFlatListContext } from "../context/draggableFlatListContext";
  import { isWeb } from "../constants";
-@@ -87,15 +87,39 @@ function CellRendererComponent(props) {
+ import { useCellTranslate } from "../hooks/useCellTranslate";
+@@ -20,7 +21,7 @@ function CellRendererComponent(props) {
+     children,
+     ...rest
+   } = props;
+-  const viewRef = useRef(null);
++  const viewRef = useAnimatedRef();
+   const {
+     cellDataRef,
+     propsRef,
+@@ -51,7 +52,7 @@ function CellRendererComponent(props) {
+     // the animated style may apply before the next paint, causing a flicker.
+     // Solution is to hold over the last animated value until the next onLayout.
+     // (Not required in web)
+-    if (translate.value && !isWeb) {
++    if (activeKey && !isWeb) {
+       heldTanslate.value = translate.value;
+     }
+ 
+@@ -87,15 +88,47 @@ function CellRendererComponent(props) {
        }
      };
  
@@ -52,8 +73,16 @@ index 7e32214..75c719e 100644
 +  useLayoutEffect(() => {
 +    if (lastIndexRef.current === index) return;
 +    lastIndexRef.current = index;
-+    if (!isWeb) heldTanslate.value = 0;
-+  }, [index]);
++    if (!isWeb) {
++      runOnUISync(() => {
++        "worklet";
++        heldTanslate.value = 0;
++        setNativeProps(viewRef, {
++          transform: [horizontalAnim.value ? { translateX: 0 } : { translateY: 0 }]
++        });
++      });
++    }
++  }, [index, heldTanslate, horizontalAnim, viewRef]);
 +
    const onCellLayout = useStableCallback(e => {
      heldTanslate.value = 0;
@@ -113,8 +142,50 @@ index 3bf1f43..25f072a 100644
      scrollEnabled: false
    }, props, {
      outerScrollOffset: outerScrollOffset,
+diff --git a/node_modules/react-native-draggable-flatlist/lib/typescript/components/DraggableFlatList.d.ts b/node_modules/react-native-draggable-flatlist/lib/typescript/components/DraggableFlatList.d.ts
+index d3a4f1f..d468765 100644
+--- a/node_modules/react-native-draggable-flatlist/lib/typescript/components/DraggableFlatList.d.ts
++++ b/node_modules/react-native-draggable-flatlist/lib/typescript/components/DraggableFlatList.d.ts
+@@ -4,7 +4,7 @@ import { FlatList } from "react-native-gesture-handler";
+ import Animated from "react-native-reanimated";
+ import { DraggableFlatListProps } from "../types";
+ declare function DraggableFlatList<T>(props: DraggableFlatListProps<T>, ref?: React.ForwardedRef<FlatList<T>> | null): JSX.Element;
+-declare const _default: <T>(props: Omit<FlatListProps<T>, "keyExtractor" | "data" | "renderItem" | "debug" | "scrollEnabled" | "autoscrollThreshold" | "autoscrollSpeed" | "animationConfig" | "dragHitSlop" | "activationDistance" | "dragItemOverflow" | "containerStyle" | "onDragBegin" | "onDragEnd" | "onPlaceholderIndexChange" | "onRelease" | "onScrollOffsetChange" | "renderPlaceholder" | "simultaneousHandlers" | "outerScrollOffset" | "onAnimValInit" | "itemEnteringAnimation" | "itemExitingAnimation" | "itemLayoutAnimation" | "enableLayoutAnimationExperimental" | "onContainerLayout"> & {
++declare const _default: <T>(props: Omit<FlatListProps<T>, "keyExtractor" | "data" | "renderItem" | "debug" | "scrollEnabled" | "autoscrollThreshold" | "autoscrollSpeed" | "animationConfig" | "dragHitSlop" | "activationDistance" | "dragItemOverflow" | "containerStyle" | "onDragBegin" | "onDragEnd" | "onPlaceholderIndexChange" | "onRelease" | "onScrollOffsetChange" | "renderPlaceholder" | "simultaneousHandlers" | "outerScrollOffset" | "onAnimValInit" | "itemEnteringAnimation" | "itemExitingAnimation" | "itemLayoutAnimation" | "enableLayoutAnimationExperimental" | "dropLayoutHandoff" | "onContainerLayout"> & {
+     data: T[];
+     activationDistance?: number | undefined;
+     animationConfig?: Partial<import("react-native-reanimated").WithSpringConfig> | undefined;
+@@ -50,6 +50,7 @@ declare const _default: <T>(props: Omit<FlatListProps<T>, "keyExtractor" | "data
+     itemExitingAnimation?: import("react-native-reanimated").BaseAnimationBuilder | typeof import("react-native-reanimated").BaseAnimationBuilder | import("react-native-reanimated").EntryExitAnimationFunction | import("react-native-reanimated").Keyframe | undefined;
+     itemLayoutAnimation?: import("react-native-reanimated").BaseAnimationBuilder | typeof import("react-native-reanimated").BaseAnimationBuilder | import("react-native-reanimated").LayoutAnimationFunction | undefined;
+     enableLayoutAnimationExperimental?: boolean | undefined;
++    dropLayoutHandoff?: boolean | undefined;
+     onContainerLayout?: ((params: {
+         layout: import("react-native").LayoutRectangle;
+         containerRef: React.RefObject<Animated.View>;
+diff --git a/node_modules/react-native-draggable-flatlist/lib/typescript/components/NestableDraggableFlatList.d.ts b/node_modules/react-native-draggable-flatlist/lib/typescript/components/NestableDraggableFlatList.d.ts
+index d3c6cbb..d80b6c5 100644
+--- a/node_modules/react-native-draggable-flatlist/lib/typescript/components/NestableDraggableFlatList.d.ts
++++ b/node_modules/react-native-draggable-flatlist/lib/typescript/components/NestableDraggableFlatList.d.ts
+@@ -3,7 +3,7 @@ import Animated from "react-native-reanimated";
+ import { DraggableFlatListProps } from "../types";
+ import { FlatList } from "react-native-gesture-handler";
+ declare function NestableDraggableFlatListInner<T>(props: DraggableFlatListProps<T>, ref?: React.ForwardedRef<FlatList<T>>): JSX.Element;
+-export declare const NestableDraggableFlatList: <T>(props: Omit<import("react-native").FlatListProps<T>, "keyExtractor" | "data" | "renderItem" | "debug" | "scrollEnabled" | "autoscrollThreshold" | "autoscrollSpeed" | "animationConfig" | "dragHitSlop" | "activationDistance" | "dragItemOverflow" | "containerStyle" | "onDragBegin" | "onDragEnd" | "onPlaceholderIndexChange" | "onRelease" | "onScrollOffsetChange" | "renderPlaceholder" | "simultaneousHandlers" | "outerScrollOffset" | "onAnimValInit" | "itemEnteringAnimation" | "itemExitingAnimation" | "itemLayoutAnimation" | "enableLayoutAnimationExperimental" | "onContainerLayout"> & {
++export declare const NestableDraggableFlatList: <T>(props: Omit<import("react-native").FlatListProps<T>, "keyExtractor" | "data" | "renderItem" | "debug" | "scrollEnabled" | "autoscrollThreshold" | "autoscrollSpeed" | "animationConfig" | "dragHitSlop" | "activationDistance" | "dragItemOverflow" | "containerStyle" | "onDragBegin" | "onDragEnd" | "onPlaceholderIndexChange" | "onRelease" | "onScrollOffsetChange" | "renderPlaceholder" | "simultaneousHandlers" | "outerScrollOffset" | "onAnimValInit" | "itemEnteringAnimation" | "itemExitingAnimation" | "itemLayoutAnimation" | "enableLayoutAnimationExperimental" | "dropLayoutHandoff" | "onContainerLayout"> & {
+     data: T[];
+     activationDistance?: number | undefined;
+     animationConfig?: Partial<import("react-native-reanimated").WithSpringConfig> | undefined;
+@@ -49,6 +49,7 @@ export declare const NestableDraggableFlatList: <T>(props: Omit<import("react-na
+     itemExitingAnimation?: import("react-native-reanimated").BaseAnimationBuilder | typeof import("react-native-reanimated").BaseAnimationBuilder | import("react-native-reanimated").EntryExitAnimationFunction | import("react-native-reanimated").Keyframe | undefined;
+     itemLayoutAnimation?: import("react-native-reanimated").BaseAnimationBuilder | typeof import("react-native-reanimated").BaseAnimationBuilder | import("react-native-reanimated").LayoutAnimationFunction | undefined;
+     enableLayoutAnimationExperimental?: boolean | undefined;
++    dropLayoutHandoff?: boolean | undefined;
+     onContainerLayout?: ((params: {
+         layout: import("react-native").LayoutRectangle;
+         containerRef: React.RefObject<Animated.View>;
 diff --git a/node_modules/react-native-draggable-flatlist/lib/typescript/types.d.ts b/node_modules/react-native-draggable-flatlist/lib/typescript/types.d.ts
-index 2abb4a2..0a25b1d 100644
+index 2abb4a2..3a1c18a 100644
 --- a/node_modules/react-native-draggable-flatlist/lib/typescript/types.d.ts
 +++ b/node_modules/react-native-draggable-flatlist/lib/typescript/types.d.ts
 @@ -9,6 +9,13 @@ export declare type DragEndParams<T> = {
@@ -139,11 +210,24 @@ index 2abb4a2..0a25b1d 100644
      onScrollOffsetChange?: (scrollOffset: number) => void;
      renderItem: RenderItem<T>;
      renderPlaceholder?: RenderPlaceholder<T>;
+@@ -35,6 +43,12 @@ export declare type DraggableFlatListProps<T> = Modify<FlatListProps<T>, {
+     itemExitingAnimation?: AnimateProps<Animated.View>["exiting"];
+     itemLayoutAnimation?: AnimateProps<Animated.View>["layout"];
+     enableLayoutAnimationExperimental?: boolean;
++    /**
++     * iOS/Android: hand the drop over to a Reanimated layout transition so the
++     * reordered cell position and the reset of its drag offset reach the
++     * screen in the same frame.
++     */
++    dropLayoutHandoff?: boolean;
+     onContainerLayout?: (params: {
+         layout: LayoutChangeEvent["nativeEvent"]["layout"];
+         containerRef: React.RefObject<Animated.View>;
 diff --git a/node_modules/react-native-draggable-flatlist/src/components/CellRendererComponent.tsx b/node_modules/react-native-draggable-flatlist/src/components/CellRendererComponent.tsx
-index e4e861a..338f831 100644
+index e4e861a..1c3c627 100644
 --- a/node_modules/react-native-draggable-flatlist/src/components/CellRendererComponent.tsx
 +++ b/node_modules/react-native-draggable-flatlist/src/components/CellRendererComponent.tsx
-@@ -1,9 +1,10 @@
+@@ -1,16 +1,24 @@
 -import React, { useEffect, useMemo, useRef } from "react";
 +import React, { useEffect, useLayoutEffect, useMemo, useRef } from "react";
  import {
@@ -155,7 +239,56 @@ index e4e861a..338f831 100644
    ViewStyle,
  } from "react-native";
  import Animated, {
-@@ -88,16 +89,40 @@ function CellRendererComponent<T>(props: Props<T>) {
+   runOnUI,
+   useAnimatedStyle,
+   useSharedValue,
++  useAnimatedRef,
++  setNativeProps,
++  withDelay,
++  withSequence,
++  withTiming,
++  type LayoutAnimationFunction,
+ } from "react-native-reanimated";
++import { runOnUISync } from "react-native-worklets";
+ import { useDraggableFlatListContext } from "../context/draggableFlatListContext";
+ import { isWeb } from "../constants";
+ import { useCellTranslate } from "../hooks/useCellTranslate";
+@@ -31,7 +39,7 @@ type Props<T> = {
+ function CellRendererComponent<T>(props: Props<T>) {
+   const { item, index, onLayout, children, ...rest } = props;
+ 
+-  const viewRef = useRef<Animated.View>(null);
++  const viewRef = useAnimatedRef<Animated.View>();
+   const { cellDataRef, propsRef, containerRef } = useRefs<T>();
+ 
+   const { horizontalAnim, scrollOffset } = useAnimatedValues();
+@@ -40,12 +48,16 @@ function CellRendererComponent<T>(props: Props<T>) {
+     keyExtractor,
+     horizontal,
+     layoutAnimationDisabled,
++    dropHandoffActive,
+   } = useDraggableFlatListContext<T>();
+ 
+   const key = keyExtractor(item, index);
+   const offset = useSharedValue(-1);
+   const size = useSharedValue(-1);
+   const heldTanslate = useSharedValue(0);
++  // True between the end of a drag and the mount that moves this cell.
++  const handoffArmed = useSharedValue(false);
++  const handoffMode = dropHandoffActive && !isWeb;
+ 
+   const translate = useCellTranslate({
+     cellOffset: offset,
+@@ -60,7 +72,7 @@ function CellRendererComponent<T>(props: Props<T>) {
+     // the animated style may apply before the next paint, causing a flicker.
+     // Solution is to hold over the last animated value until the next onLayout.
+     // (Not required in web)
+-    if (translate.value && !isWeb) {
++    if (activeKey && !isWeb) {
+       heldTanslate.value = translate.value;
+     }
+     const t = activeKey ? translate.value : heldTanslate.value;
+@@ -88,18 +100,155 @@ function CellRendererComponent<T>(props: Props<T>) {
        }
      };
  
@@ -170,24 +303,25 @@ index e4e861a..338f831 100644
 +      viewRef.current?.getNode?.() ?? viewRef.current;
 +    const containerHandle = findNodeHandle(containerNode);
 +    const viewHandle = findNodeHandle(measuredViewNode);
-+
-+    if (containerHandle && viewHandle && UIManager.measureLayout) {
-+      UIManager.measureLayout(viewHandle, containerHandle, onFail, onSuccess);
-+      return;
-+    }
  
 -    if (viewNode && nodeHandle) {
 -      //@ts-ignore
 -      viewNode.measureLayout(nodeHandle, onSuccess, onFail);
++    if (containerHandle && viewHandle && UIManager.measureLayout) {
++      UIManager.measureLayout(viewHandle, containerHandle, onFail, onSuccess);
++      return;
+     }
++
 +    if (isWeb && measuredViewNode && containerNode) {
 +      // @ts-ignore - web fallback path
 +      measuredViewNode.measureLayout(containerNode, onSuccess, onFail);
 +      return;
-     }
++    }
 +
 +    onFail();
    });
  
+-  const onCellLayout = useStableCallback((e?: LayoutChangeEvent) => {
 +  // A drop commits the reordered data in its own render. Clear the held
 +  // drag offset in that same commit (layout effect -> UI thread right after
 +  // the mount) instead of waiting for the async onLayout event, otherwise the
@@ -196,14 +330,151 @@ index e4e861a..338f831 100644
 +  useLayoutEffect(() => {
 +    if (lastIndexRef.current === index) return;
 +    lastIndexRef.current = index;
-+    if (!isWeb) heldTanslate.value = 0;
-+  }, [index]);
++    // The drop-handoff transition resets the offset inside the mount itself.
++    if (handoffMode) return;
++    if (!isWeb) {
++      // Finish on the UI runtime before this layout effect returns. A queued
++      // SharedValue write can otherwise miss the Fabric layout commit's frame.
++      runOnUISync(() => {
++        "worklet";
++        heldTanslate.value = 0;
++        setNativeProps(viewRef, {
++          transform: [horizontalAnim.value ? { translateX: 0 } : { translateY: 0 }],
++        });
++      });
++    }
++  }, [index, heldTanslate, horizontalAnim, viewRef, handoffMode]);
 +
-   const onCellLayout = useStableCallback((e?: LayoutChangeEvent) => {
++  // Arm the handoff once the drag of this list ends (activeKey -> null). The
++  // shared value write reaches the UI thread before the later reorder mount.
++  const wasDraggingRef = useRef(false);
++  useLayoutEffect(() => {
++    if (!handoffMode) return;
++    if (activeKey) {
++      wasDraggingRef.current = true;
++      handoffArmed.value = false;
++    } else if (wasDraggingRef.current) {
++      wasDraggingRef.current = false;
++      handoffArmed.value = true;
++    }
++  }, [activeKey, handoffMode, handoffArmed]);
++
++  // Safety net: if no reorder mount moved this cell while the transition was
++  // attached (virtualised cell, external drop), do not keep a stale offset.
++  const hadHandoffRef = useRef(false);
++  useLayoutEffect(() => {
++    if (handoffMode) {
++      hadHandoffRef.current = true;
++      return;
++    }
++    if (!hadHandoffRef.current) return;
++    hadHandoffRef.current = false;
++    handoffArmed.value = false;
      heldTanslate.value = 0;
++  }, [handoffMode, handoffArmed, heldTanslate]);
++
++  // Runs on the UI thread inside the mount that applies the reordered layout.
++  // Frame of that mount: old position + old drag offset (= the drop position,
++  // nothing moves). Next frame: new position + offset 0, written by the same
++  // style animation, so both changes land in one mutation. The trailing hold
++  // keeps the transition alive until the cell's animated style has committed
++  // offset 0 as well; otherwise the end of the transition would restore the
++  // stale offset from the shadow tree.
++  const dropHandoffTransition = useMemo<LayoutAnimationFunction>(
++    () => (values) => {
++      "worklet";
++      const held = heldTanslate.value;
++      const horizontalCell = horizontalAnim.value;
++      // Both branches must return the same keys. Reanimated merges a new
++      // transition into a running one ({ ...previous, ...next }); a key only
++      // the previous one had would restart its already used animation object
++      // and throw inside the mount (crash when a dropped row changes again
++      // during the hold, e.g. completed -> today).
++      if (!handoffArmed.value || held === 0) {
++        const now = (to: number) => withTiming(to, { duration: 0 });
++        return {
++          initialValues: {
++            originX: values.targetOriginX,
++            originY: values.targetOriginY,
++            width: values.targetWidth,
++            height: values.targetHeight,
++            transform: [
++              horizontalCell ? { translateX: held } : { translateY: held },
++            ],
++          },
++          animations: {
++            originX: now(values.targetOriginX),
++            originY: now(values.targetOriginY),
++            width: now(values.targetWidth),
++            height: now(values.targetHeight),
++            transform: [
++              horizontalCell ? { translateX: now(held) } : { translateY: now(held) },
++            ],
++          },
++        };
++      }
++      handoffArmed.value = false;
++      heldTanslate.value = 0;
++      const jump = (to: number) =>
++        withSequence(
++          withDelay(1, withTiming(to, { duration: 0 })),
++          withDelay(DROP_HANDOFF_HOLD_MS, withTiming(to, { duration: 0 }))
++        );
++      return {
++        initialValues: {
++          originX: values.currentOriginX,
++          originY: values.currentOriginY,
++          width: values.currentWidth,
++          height: values.currentHeight,
++          transform: [
++            horizontalCell ? { translateX: held } : { translateY: held },
++          ],
++        },
++        animations: {
++          originX: jump(values.targetOriginX),
++          originY: jump(values.targetOriginY),
++          width: jump(values.targetWidth),
++          height: jump(values.targetHeight),
++          transform: [
++            horizontalCell ? { translateX: jump(0) } : { translateY: jump(0) },
++          ],
++        },
++      };
++    },
++    [handoffArmed, heldTanslate, horizontalAnim]
++  );
++
++  const onCellLayout = useStableCallback((e?: LayoutChangeEvent) => {
++    // In handoff mode the transition (or its safety net) clears the offset. A
++    // JS write here could reach the UI thread before the reorder mount.
++    if (!handoffMode) heldTanslate.value = 0;
      updateCellMeasurements();
+     if (onLayout && e) onLayout(e);
+   });
+@@ -158,7 +307,9 @@ function CellRendererComponent<T>(props: Props<T>) {
+       entering={itemEnteringAnimation}
+       exiting={itemExitingAnimation}
+       layout={
+-        propsRef.current.enableLayoutAnimationExperimental
++        handoffMode
++          ? dropHandoffTransition
++          : propsRef.current.enableLayoutAnimationExperimental
+           ? itemLayoutAnimation
+           : undefined
+       }
+@@ -172,6 +323,10 @@ function CellRendererComponent<T>(props: Props<T>) {
+ 
+ export default typedMemo(CellRendererComponent);
+ 
++// Long enough for the cell's animated style to commit offset 0 (next frame,
++// possibly deferred while a React commit is in flight).
++const DROP_HANDOFF_HOLD_MS = 150;
++
+ declare global {
+   namespace NodeJS {
+     interface Global {
 diff --git a/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx b/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx
-index 7c88afc..f111b36 100644
+index 7c88afc..8c1e970 100644
 --- a/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx
 +++ b/node_modules/react-native-draggable-flatlist/src/components/DraggableFlatList.tsx
 @@ -10,7 +10,6 @@ import {
@@ -214,26 +485,117 @@ index 7c88afc..f111b36 100644
  } from "react-native";
  import {
    FlatList,
-@@ -119,9 +118,15 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+@@ -25,7 +24,7 @@ import Animated, {
+   withSpring,
+ } from "react-native-reanimated";
+ import CellRendererComponent from "./CellRendererComponent";
+-import { DEFAULT_PROPS } from "../constants";
++import { DEFAULT_PROPS, isWeb } from "../constants";
+ import PlaceholderItem from "./PlaceholderItem";
+ import RowItem from "./RowItem";
+ import { DraggableFlatListProps } from "../types";
+@@ -84,6 +83,9 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+     disabled,
+   } = useAnimatedValues();
+ 
++  const dragEpoch = useSharedValue(0);
++  const completedDragEpochRef = useRef(0);
++
+   const reset = useStableCallback(() => {
+     activeIndexAnim.value = -1;
+     spacerIndexAnim.value = -1;
+@@ -111,18 +113,44 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+     return props.keyExtractor(item, index);
+   });
+ 
+-  const dataRef = useRef(props.data);
+-  const dataHasChanged =
+-    dataRef.current.map(keyExtractor).join("") !==
+-    props.data.map(keyExtractor).join("");
+-  dataRef.current = props.data;
++  // Cells carry the drop-handoff layout transition from drag start until the
++  // reordered data has been mounted. It is not attached at other times, so
++  // unrelated data changes keep their own (RN LayoutAnimation) behaviour.
++  // Detaching only after a delay matters: a config removal queued before the
++  // reorder mount is pulled would cancel the handoff for that mount.
++  const [dropHandoffActive, setDropHandoffActive] = useState(false);
++  const dropHandoffTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
++    null
++  );
++  const scheduleDropHandoffDetach = useStableCallback((delayMs: number) => {
++    if (dropHandoffTimerRef.current) clearTimeout(dropHandoffTimerRef.current);
++    dropHandoffTimerRef.current = setTimeout(() => {
++      dropHandoffTimerRef.current = null;
++      setDropHandoffActive(false);
++    }, delayMs);
++  });
++  useEffect(
++    () => () => {
++      if (dropHandoffTimerRef.current) clearTimeout(dropHandoffTimerRef.current);
++    },
++    []
++  );
++
++  const dataKeys = JSON.stringify(props.data.map(keyExtractor));
++  const committedDataKeysRef = useRef(dataKeys);
++  const dataHasChanged = committedDataKeysRef.current !== dataKeys;
    if (dataHasChanged) {
-     // When data changes make sure `activeKey` is nulled out in the same render pass
+-    // When data changes make sure `activeKey` is nulled out in the same render pass
++    // Render reordered cells without an active key. Reset the shared values
++    // before this commit is painted, never in a queued idle callback: a late
++    // reset from the previous drop could otherwise cancel a subsequent drag.
      activeKey = null;
 -    InteractionManager.runAfterInteractions(() => {
 -      reset();
 -    });
-+    if (typeof globalThis.requestIdleCallback === "function") {
-+      globalThis.requestIdleCallback(() => {
-+        reset();
-+      });
-+    } else {
-+      setTimeout(() => {
-+        reset();
-+      }, 0);
-+    }
    }
++  useLayoutEffect(() => {
++    if (committedDataKeysRef.current === dataKeys) return;
++    committedDataKeysRef.current = dataKeys;
++    reset();
++    if (dropHandoffActive) scheduleDropHandoffDetach(400);
++  }, [dataKeys, reset, dropHandoffActive, scheduleDropHandoffDetach]);
  
    useEffect(() => {
-@@ -237,6 +242,17 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+     if (!propsRef.current.enableLayoutAnimationExperimental) return;
+@@ -157,6 +185,14 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+     if (index !== undefined) {
+       spacerIndexAnim.value = index;
+       activeIndexAnim.value = index;
++      dragEpoch.value += 1;
++      if (propsRef.current.dropLayoutHandoff && !isWeb) {
++        if (dropHandoffTimerRef.current) {
++          clearTimeout(dropHandoffTimerRef.current);
++          dropHandoffTimerRef.current = null;
++        }
++        setDropHandoffActive(true);
++      }
+       setActiveKey(activeKey);
+       onDragBegin?.(index);
+     }
+@@ -219,7 +255,11 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+   });
+ 
+   const onDragEnd = useStableCallback(
+-    ({ from, to }: { from: number; to: number }) => {
++    ({ from, to, epoch }: { from: number; to: number; epoch: number }) => {
++      // A cancelled/queued completion from another gesture must not clear the
++      // active key or reorder data belonging to the current gesture.
++      if (epoch !== dragEpoch.value || completedDragEpochRef.current === epoch) return;
++      completedDragEpochRef.current = epoch;
+       const { onDragEnd, data } = props;
+ 
+       const newData = [...data];
+@@ -231,12 +271,26 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+       onDragEnd?.({ from, to, data: newData });
+ 
+       setActiveKey(null);
++      // Fallback for drops without a data change (same slot, external drop).
++      // A reorder replaces this with a short delay after its mount.
++      if (dropHandoffActive) scheduleDropHandoffDetach(1500);
+     }
+   );
+ 
    const onPlaceholderIndexChange = useStableCallback((index: number) => {
      props.onPlaceholderIndexChange?.(index);
    });
@@ -251,7 +613,15 @@ index 7c88afc..f111b36 100644
  
    // Handle case where user ends drag without moving their finger.
    useAnimatedReaction(
-@@ -277,6 +293,13 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+@@ -251,6 +305,7 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+           runOnJS(onDragEnd)({
+             from: activeIndexAnim.value,
+             to: spacerIndexAnim.value,
++            epoch: dragEpoch.value,
+           });
+         }
+       }
+@@ -277,6 +332,13 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
        gestureDisabled.value = disabled.value;
        if (gestureDisabled.value) return;
        panGestureState.value = evt.state;
@@ -265,7 +635,7 @@ index 7c88afc..f111b36 100644
      })
      .onUpdate((evt) => {
        if (gestureDisabled.value) return;
-@@ -285,6 +308,13 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+@@ -285,6 +347,13 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
          ? evt.translationX
          : evt.translationY;
        touchTranslate.value = translation;
@@ -279,7 +649,7 @@ index 7c88afc..f111b36 100644
      })
      .onEnd((evt) => {
        if (gestureDisabled.value) return;
-@@ -296,6 +326,13 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+@@ -296,20 +365,31 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
  
        touchTranslate.value = translation + autoScrollDistance.value;
        panGestureState.value = evt.state;
@@ -293,6 +663,37 @@ index 7c88afc..f111b36 100644
  
        // Only call onDragEnd if actually dragging a cell
        if (activeIndexAnim.value === -1 || disabled.value) return;
+       disabled.value = true;
+       runOnJS(onRelease)(activeIndexAnim.value);
+       const springTo = placeholderOffset.value - activeCellOffset.value;
++      // Capture this gesture's indices; shared indices may belong to a later
++      // gesture by the time a completion reaches the JS thread.
++      const from = activeIndexAnim.value;
++      const to = spacerIndexAnim.value;
++      const epoch = dragEpoch.value;
+       touchTranslate.value = withSpring(
+         springTo,
+         animationConfigRef.value,
+-        () => {
+-          runOnJS(onDragEnd)({
+-            from: activeIndexAnim.value,
+-            to: spacerIndexAnim.value,
+-          });
++        (finished) => {
++          // Reanimated also invokes callbacks when a spring is cancelled by
++          // a data reset/new animation. That is not another successful drop.
++          if (finished) runOnJS(onDragEnd)({ from, to, epoch });
+           disabled.value = false;
+         }
+       );
+@@ -372,6 +452,7 @@ function DraggableFlatListInner<T>(props: DraggableFlatListProps<T>) {
+       keyExtractor={keyExtractor}
+       horizontal={!!props.horizontal}
+       layoutAnimationDisabled={layoutAnimationDisabled}
++      dropHandoffActive={dropHandoffActive}
+     >
+       <GestureDetector gesture={panGesture}>
+         <Animated.View
 diff --git a/node_modules/react-native-draggable-flatlist/src/components/NestableDraggableFlatList.tsx b/node_modules/react-native-draggable-flatlist/src/components/NestableDraggableFlatList.tsx
 index 1559352..b8d0f51 100644
 --- a/node_modules/react-native-draggable-flatlist/src/components/NestableDraggableFlatList.tsx
@@ -346,8 +747,39 @@ index 1559352..b8d0f51 100644
        scrollEnabled={false}
        {...props}
        outerScrollOffset={outerScrollOffset}
+diff --git a/node_modules/react-native-draggable-flatlist/src/context/draggableFlatListContext.tsx b/node_modules/react-native-draggable-flatlist/src/context/draggableFlatListContext.tsx
+index 75f7db7..b0a12da 100644
+--- a/node_modules/react-native-draggable-flatlist/src/context/draggableFlatListContext.tsx
++++ b/node_modules/react-native-draggable-flatlist/src/context/draggableFlatListContext.tsx
+@@ -5,6 +5,7 @@ type Props<T> = {
+   keyExtractor: (item: T, index: number) => string;
+   horizontal: boolean;
+   layoutAnimationDisabled: boolean;
++  dropHandoffActive: boolean;
+   children: React.ReactNode;
+ };
+ 
+@@ -19,6 +20,7 @@ export default function DraggableFlatListProvider<T>({
+   keyExtractor,
+   horizontal,
+   layoutAnimationDisabled,
++  dropHandoffActive,
+   children,
+ }: Props<T>) {
+   const value = useMemo(
+@@ -27,8 +29,9 @@ export default function DraggableFlatListProvider<T>({
+       keyExtractor,
+       horizontal,
+       layoutAnimationDisabled,
++      dropHandoffActive,
+     }),
+-    [activeKey, keyExtractor, horizontal, layoutAnimationDisabled]
++    [activeKey, keyExtractor, horizontal, layoutAnimationDisabled, dropHandoffActive]
+   );
+ 
+   return (
 diff --git a/node_modules/react-native-draggable-flatlist/src/types.ts b/node_modules/react-native-draggable-flatlist/src/types.ts
-index d6755c8..eec5e5b 100644
+index d6755c8..b34c45a 100644
 --- a/node_modules/react-native-draggable-flatlist/src/types.ts
 +++ b/node_modules/react-native-draggable-flatlist/src/types.ts
 @@ -18,6 +18,13 @@ export type DragEndParams<T> = {
@@ -372,3 +804,16 @@ index d6755c8..eec5e5b 100644
      onScrollOffsetChange?: (scrollOffset: number) => void;
      renderItem: RenderItem<T>;
      renderPlaceholder?: RenderPlaceholder<T>;
+@@ -48,6 +56,12 @@ export type DraggableFlatListProps<T> = Modify<
+     itemExitingAnimation?: AnimateProps<Animated.View>["exiting"];
+     itemLayoutAnimation?: AnimateProps<Animated.View>["layout"];
+     enableLayoutAnimationExperimental?: boolean;
++    /**
++     * iOS/Android: hand the drop over to a Reanimated layout transition so the
++     * reordered cell position and the reset of its drag offset reach the
++     * screen in the same frame.
++     */
++    dropLayoutHandoff?: boolean;
+     onContainerLayout?: (params: {
+       layout: LayoutChangeEvent["nativeEvent"]["layout"];
+       containerRef: React.RefObject<Animated.View>;
