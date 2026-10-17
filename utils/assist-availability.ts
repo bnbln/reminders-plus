@@ -1,7 +1,7 @@
 import { Platform } from "react-native";
 
 /**
- * Assist is built on Apple Foundation Models via `@react-native-ai/apple`, which
+ * Assist is built on Apple Foundation Models via the `AssistLLM` Swift module, which
  * ships no Android implementation.
  *
  * The nearest Android API is ML Kit's GenAI Prompt API (on-device Gemini Nano),

@@ -503,9 +503,15 @@ export const RU_TRANSLATIONS: TranslationDict = {
   'assist.unavailable.title': 'Apple Intelligence недоступен',
   'assist.unavailable.body': 'Для работы Assist требуется устройство iOS 26+ с включенным Apple Intelligence.',
   'assist.unavailable.hint': 'Текущая версия iOS ниже 26.',
+  'assist.unavailable.reason.deviceNotEligible': 'Это устройство не поддерживает Apple Intelligence.',
+  'assist.unavailable.reason.appleIntelligenceNotEnabled': 'Включите Apple Intelligence в Настройках, чтобы пользоваться Assist.',
+  'assist.unavailable.reason.modelNotReady': 'Apple Intelligence ещё готовится. Повторите попытку через несколько минут.',
+  'assist.error.unsupportedLanguage': 'Apple Intelligence пока не поддерживает этот язык.',
   'assist.empty.title': 'Добро пожаловать в Ассистент',
   'assist.empty.subtitle': 'Примеры: Найдите все процедуры с указанием местоположения. Создайте задачу завтра в 14:00 в проекте Работа. Перенесите покупки в личный кабинет.',
   'assist.input.placeholder': 'например Создайте задачу сегодня в 18:00 с адресом супермаркета.',
+  'assist.input.send': 'Отправить',
+  'assist.input.stop': 'Остановить ответ',
 
   // Added: strings previously only available in German and English
   "taskWorkspace.selectTask": "Выберите задачу",

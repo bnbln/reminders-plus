@@ -503,9 +503,15 @@ export const ZH_TRANSLATIONS: TranslationDict = {
   'assist.unavailable.title': 'Apple Intelligence 不可用',
   'assist.unavailable.body': 'Assist 需要启用 Apple Intelligence 的 iOS 26+ 设备。',
   'assist.unavailable.hint': '当前 iOS 版本低于 26。',
+  'assist.unavailable.reason.deviceNotEligible': '此设备不支持 Apple 智能。',
+  'assist.unavailable.reason.appleIntelligenceNotEnabled': '请在“设置”中打开 Apple 智能以使用 Assist。',
+  'assist.unavailable.reason.modelNotReady': 'Apple 智能仍在准备中，请几分钟后再试。',
+  'assist.error.unsupportedLanguage': 'Apple 智能尚不支持此语言。',
   'assist.empty.title': '欢迎协助',
   'assist.empty.subtitle': '示例：查找所有带有位置的例程。明天 14:00 在项目“工作”中创建任务。将购物转移到个人。',
   'assist.input.placeholder': '例如今天 18:00 创建一个任务，地点为超市',
+  'assist.input.send': '发送',
+  'assist.input.stop': '停止回答',
 
   // Added: strings previously only available in German and English
   "taskWorkspace.selectTask": "选择任务",

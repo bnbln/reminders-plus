@@ -503,9 +503,15 @@ export const NL_TRANSLATIONS: TranslationDict = {
   'assist.unavailable.title': 'Apple Intelligence niet beschikbaar',
   'assist.unavailable.body': 'Assist vereist een iOS 26+ apparaat met Apple Intelligence ingeschakeld.',
   'assist.unavailable.hint': 'De huidige iOS versie is lager dan 26.',
+  'assist.unavailable.reason.deviceNotEligible': 'Dit apparaat ondersteunt Apple Intelligence niet.',
+  'assist.unavailable.reason.appleIntelligenceNotEnabled': 'Zet Apple Intelligence aan in Instellingen om Assist te gebruiken.',
+  'assist.unavailable.reason.modelNotReady': 'Apple Intelligence wordt nog voorbereid. Probeer het over een paar minuten opnieuw.',
+  'assist.error.unsupportedLanguage': 'Apple Intelligence ondersteunt deze taal nog niet.',
   'assist.empty.title': 'Welkom bij Assist',
   'assist.empty.subtitle': 'Voorbeelden: Vind alle routines met locatie. Maak morgen om 14:00 uur een taak aan in project Werk. Verplaats winkelen naar Persoonlijk.',
   'assist.input.placeholder': 'bijv. Maak vandaag om 18:00 uur een taak aan met locatie supermarkt',
+  'assist.input.send': 'Verstuur',
+  'assist.input.stop': 'Antwoord stoppen',
 
   // Added: strings previously only available in German and English
   "taskWorkspace.selectTask": "Selecteer een taak",

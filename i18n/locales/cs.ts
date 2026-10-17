@@ -503,9 +503,15 @@ export const CS_TRANSLATIONS: TranslationDict = {
   'assist.unavailable.title': 'Apple Intelligence není k dispozici',
   'assist.unavailable.body': 'Assist vyžaduje zařízení iOS 26+ s povoleným Apple Intelligence.',
   'assist.unavailable.hint': 'Aktuální verze iOS je nižší než 26.',
+  'assist.unavailable.reason.deviceNotEligible': 'Toto zařízení nepodporuje Apple Intelligence.',
+  'assist.unavailable.reason.appleIntelligenceNotEnabled': 'Chcete-li používat Assist, zapněte Apple Intelligence v Nastavení.',
+  'assist.unavailable.reason.modelNotReady': 'Apple Intelligence se stále připravuje. Zkuste to znovu za pár minut.',
+  'assist.error.unsupportedLanguage': 'Apple Intelligence tento jazyk zatím nepodporuje.',
   'assist.empty.title': 'Vítejte v Assist',
   'assist.empty.subtitle': 'Příklady: Najděte všechny rutiny s umístěním. Vytvořte úkol zítra ve 14:00 v projektu Práce. Přesunout nakupování do Osobní.',
   'assist.input.placeholder': 'např. Vytvořte úkol dnes v 18:00 s umístěním supermarketu',
+  'assist.input.send': 'Odeslat',
+  'assist.input.stop': 'Zastavit odpověď',
 
   // Added: strings previously only available in German and English
   "taskWorkspace.selectTask": "Vyberte úkol",
