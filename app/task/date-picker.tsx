@@ -53,15 +53,19 @@ export default function DatePickerScreen() {
     // without touching the picker keeps it undated instead of saving today.
     const [isCleared, setIsCleared] = React.useState(() => !(task?.dueAt && task.dueAt > 0));
 
-    // Initialize state
+    // Initialize state once the task is available. On a cold start the route
+    // can mount before tasks hydrate; a missing task must not count as "no date".
+    const initializedTaskIdRef = React.useRef<string | null>(task ? task.id : null);
     React.useEffect(() => {
-        if (task && !isCleared) {
-            if (task.dueAt && task.dueAt > 0) {
-                setDueDraft(new Date(task.dueAt));
-                setDueHasTimeDraft(task.dueHasTime ?? true);
-            }
+        if (!task || initializedTaskIdRef.current === task.id) return;
+        initializedTaskIdRef.current = task.id;
+        const hasDueDate = !!(task.dueAt && task.dueAt > 0);
+        setIsCleared(!hasDueDate);
+        if (hasDueDate) {
+            setDueDraft(new Date(task.dueAt));
+            setDueHasTimeDraft(task.dueHasTime ?? true);
         }
-    }, [task]); // Careful with loop if isCleared check missing, but we only set on load mostly
+    }, [task]);
 
     const handleSave = React.useCallback(() => {
         if (!taskId) return;
