@@ -15,7 +15,6 @@ import {
   type GestureResponderEvent,
   LayoutAnimation,
   type LayoutChangeEvent,
-  Modal,
   NativeModules,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -26,15 +25,8 @@ import {
   View,
 } from "react-native";
 
-import {
-  DatePicker as ExpoSwiftUIDatePicker,
-  Host as ExpoSwiftUIHost,
-} from "@expo/ui/swift-ui";
-import { datePickerStyle as expoSwiftDatePickerStyleModifier } from "@expo/ui/swift-ui/modifiers";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import DateTimePicker, {
-  DateTimePickerAndroid,
-} from "@react-native-community/datetimepicker";
+import { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
 import { LinearGradient } from "expo-linear-gradient";
 import MaskedView from "@react-native-masked-view/masked-view";
 
@@ -56,6 +48,7 @@ import {
   parseShowRoutineTasksParam,
   useHomeFilters,
 } from "@/context/home-filters-store";
+import { setHomeDayPickerHandler } from "@/context/home-day-picker-bridge";
 import { getAccentColorValue, useAppSettings } from "@/context/settings-store";
 import { useTaskCreateContext } from "@/context/task-create-context";
 import {
@@ -134,10 +127,6 @@ const SECTION_ORDER: SectionId[] = ["today", "upcoming", "completed"];
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
-
-// Month Year Picker styles
-const CALENDAR_POPOVER_WIDTH = 340;
-const CALENDAR_POPOVER_HEIGHT = 332;
 
 async function readOnboardingSeen(key: string): Promise<boolean> {
   try {
@@ -481,7 +470,6 @@ const createStyles = (
   const WEIGHT_HEADING = "700" as const;
   const WEIGHT_BODY = "600" as const;
   const WEIGHT_SUBTLE = "500" as const;
-  const RADIUS_CARD = 12;
   const RADIUS_TILE = 10;
   const RADIUS_CHIP = 6;
   const RADIUS_PILL = 999;
@@ -765,60 +753,6 @@ const createStyles = (
       justifyContent: "center",
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: heroCardBorder,
-    },
-    calendarPopover: {
-      width: CALENDAR_POPOVER_WIDTH,
-      height: CALENDAR_POPOVER_HEIGHT,
-      borderRadius: RADIUS_CARD,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: heroCardBorder,
-      overflow: "hidden",
-      shadowColor: "#000000",
-      shadowOpacity: isDark ? 0.4 : 0.18,
-      shadowRadius: 28,
-      shadowOffset: { width: 0, height: 14 },
-    },
-    calendarQuickActionsRow: {
-      flexDirection: "row",
-      gap: 8,
-      paddingHorizontal: 12,
-      paddingTop: 10,
-      paddingBottom: 6,
-    },
-    calendarQuickActionButton: {
-      flex: 1,
-      borderRadius: 12,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: heroCardBorder,
-      backgroundColor: isDark
-        ? "rgba(255,255,255,0.08)"
-        : "rgba(255,255,255,0.9)",
-      paddingVertical: 9,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    calendarQuickActionButtonText: {
-      fontSize: 13,
-      lineHeight: 16,
-      fontWeight: WEIGHT_HEADING,
-      color: text,
-      opacity: ALPHA_2,
-    },
-    calendarPickerBody: {
-      flex: 1,
-      alignItems: "stretch",
-      justifyContent: "center",
-      paddingHorizontal: 12,
-      paddingBottom: 12,
-    },
-    calendarPickerNative: {
-      flex: 1,
-      minHeight: 190,
-    },
-    calendarPickerSwiftHost: {
-      flex: 1,
-      minHeight: 190,
-      justifyContent: "center",
     },
     dateRailTitle: {
       fontSize: 18,
@@ -1248,37 +1182,6 @@ const createStyles = (
       height: 70,
       opacity: 0,
     },
-    calendarPickerContainer: {
-      position: "absolute",
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      alignItems: "center",
-      justifyContent: "center",
-      zIndex: 1000,
-    },
-    calendarPickerOverlay: {
-      ...StyleSheet.absoluteFill,
-      backgroundColor: "rgba(0,0,0,0.4)",
-    },
-    calendarPickerContent: {
-      width: CALENDAR_POPOVER_WIDTH,
-      height: CALENDAR_POPOVER_HEIGHT,
-      borderRadius: RADIUS_CARD,
-      overflow: "hidden",
-    },
-    calendarPickerButton: {
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: RADIUS_PILL,
-      backgroundColor: withAlpha(text, 0.1),
-    },
-    calendarPickerButtonText: {
-      fontSize: 14,
-      fontWeight: WEIGHT_BODY,
-      color: text,
-    },
   });
 };
 
@@ -1303,11 +1206,7 @@ function HomeContent() {
   const { width: viewportWidth, height: viewportHeight } = usePageDimensions();
   const isScreenFocusedRef = React.useRef(false);
 
-  const [isCalendarPickerOpen, setIsCalendarPickerOpen] = React.useState(false);
   const [metricsAnimationCycle, setMetricsAnimationCycle] = React.useState(0);
-  const isExpoUISwiftPickerAvailable =
-    Platform.OS === "ios" &&
-    !!(NativeModules as Record<string, unknown> | undefined)?.ExpoUI;
 
   const showFloatingAddButton = Platform.OS === "ios" && !isIOS26OrNewer();
   const params = useLocalSearchParams<{
@@ -2928,9 +2827,12 @@ function HomeContent() {
     [reduceMotionEnabled],
   );
   React.useEffect(() => {
-    if (!collapsedSections.today || !isCalendarPickerOpen) return;
-    setIsCalendarPickerOpen(false);
-  }, [collapsedSections.today, isCalendarPickerOpen]);
+    setHomeDayPickerHandler((dateStart) => {
+      scrollDateRailToDateStart(dateStart, true, true);
+      handleSelectDate(dateStart, "picker");
+    });
+    return () => setHomeDayPickerHandler(null);
+  }, [handleSelectDate, scrollDateRailToDateStart]);
   React.useEffect(() => {
     animateCollapseProgress(
       todayCollapseProgress,
@@ -4326,7 +4228,10 @@ function HomeContent() {
                         });
                         return;
                       }
-                      setIsCalendarPickerOpen((prev) => !prev);
+                      router.push({
+                        pathname: "/day-picker",
+                        params: { date: String(selectedDateStart) },
+                      });
                     }}
                   >
                     <View
@@ -4348,104 +4253,6 @@ function HomeContent() {
             </View>
           </View>
 
-          {/* Calendar picker rendered as top-level Modal to avoid clipping */}
-          <Modal
-            visible={isCalendarPickerOpen}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setIsCalendarPickerOpen(false)}
-          >
-            {/* Backdrop */}
-            <Pressable
-              style={[
-                StyleSheet.absoluteFill,
-                { backgroundColor: "transparent" },
-              ]}
-              onPress={() => setIsCalendarPickerOpen(false)}
-            />
-            {/* Popover card */}
-            <View
-              pointerEvents="box-none"
-              style={{
-                position: "absolute",
-                top: 96,
-                left: 0,
-                right: 0,
-                alignItems: "center",
-              }}
-            >
-              <GlassSurface
-                tintColor={glassSurfacePalette.popoverTint}
-                fallbackBackgroundColor={glassSurfacePalette.popoverFallback}
-                style={styles.calendarPopover}
-                isInteractive={true}
-              >
-                <View style={styles.calendarQuickActionsRow}>
-                  <Pressable
-                    android_ripple={ripple()}
-                    style={styles.calendarQuickActionButton}
-                    onPress={() => {
-                      handleJumpToToday("picker");
-                      setIsCalendarPickerOpen(false);
-                    }}
-                  >
-                    <Text style={styles.calendarQuickActionButtonText}>
-                      {t("common.today")}
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    android_ripple={ripple()}
-                    style={styles.calendarQuickActionButton}
-                    onPress={() => {
-                      const tomorrowDateStart = addDays(getStartOfToday(), 1);
-                      scrollDateRailToDateStart(tomorrowDateStart, true, true);
-                      handleSelectDate(tomorrowDateStart, "picker");
-                      setIsCalendarPickerOpen(false);
-                    }}
-                  >
-                    <Text style={styles.calendarQuickActionButtonText}>
-                      {t("taskDetail.relative.tomorrow")}
-                    </Text>
-                  </Pressable>
-                </View>
-
-                <View style={styles.calendarPickerBody}>
-                  {isExpoUISwiftPickerAvailable ? (
-                    <ExpoSwiftUIHost
-                      matchContents
-                      style={styles.calendarPickerSwiftHost}
-                    >
-                      <ExpoSwiftUIDatePicker
-                        selection={new Date(selectedDateStart)}
-                        displayedComponents={["date"]}
-                        modifiers={[expoSwiftDatePickerStyleModifier("wheel")]}
-                        onDateChange={(date: Date) => {
-                          const nextDateStart = getStartOfDay(date.getTime());
-                          scrollDateRailToDateStart(nextDateStart, true, true);
-                          handleSelectDate(nextDateStart, "picker");
-                        }}
-                      />
-                    </ExpoSwiftUIHost>
-                  ) : (
-                    <DateTimePicker
-                      value={new Date(selectedDateStart)}
-                      mode="date"
-                      display="spinner"
-                      onChange={(_: any, date?: Date) => {
-                        if (!date) return;
-                        const nextDateStart = getStartOfDay(date.getTime());
-                        scrollDateRailToDateStart(nextDateStart, true, true);
-                        handleSelectDate(nextDateStart, "picker");
-                      }}
-                      style={styles.calendarPickerNative}
-                      textColor={isDark ? "#ffffff" : "#000000"}
-                      themeVariant={isDark ? "dark" : "light"}
-                    />
-                  )}
-                </View>
-              </GlassSurface>
-            </View>
-          </Modal>
 
           <View
             ref={dateRailListRef}
@@ -4630,13 +4437,11 @@ function HomeContent() {
     glassSurfacePalette,
     handleJumpToToday,
     handleSelectDate,
-    isExpoUISwiftPickerAvailable,
     scrollDateRailToDateStart,
-    isCalendarPickerOpen,
-    isDark,
     measureDateRailBounds,
     measureDateRailListBounds,
     reduceMotionEnabled,
+    router,
     selectedDateStart,
     scheduleDateRailSyncToSelectedDate,
     styles,
