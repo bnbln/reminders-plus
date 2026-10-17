@@ -4,6 +4,7 @@ import type {
   NativeStackNavigationOptions,
 } from "expo-router";
 import React from "react";
+import { Platform, type ColorValue } from "react-native";
 
 import { useVerticalBarActive } from "@/components/navigation/vertical-bar-safe-area";
 import { HeaderCloseButton } from "@/components/ui/header-close-button";
@@ -16,6 +17,10 @@ type SheetHeaderActionsOptions = {
   onClose: () => void;
   onDone?: () => void;
   doneDisabled?: boolean;
+  /** Use native header items on iOS in every layout, not only in the vertical bar. */
+  native?: boolean;
+  /** Tint for the native Done item. */
+  doneTintColor?: ColorValue;
 };
 
 type SheetHeaderOptions = Pick<
@@ -39,12 +44,15 @@ export function useSheetHeaderActions({
   onClose,
   onDone,
   doneDisabled = false,
+  native = false,
+  doneTintColor,
 }: SheetHeaderActionsOptions): SheetHeaderOptions {
   const theme = useColorScheme() ?? "light";
   const hasVerticalBar = useVerticalBarActive();
+  const useNativeItems = hasVerticalBar || (native && Platform.OS === "ios");
 
   return React.useMemo(() => {
-    if (hasVerticalBar) {
+    if (useNativeItems) {
       const close: NativeStackHeaderItemButton = {
         type: "button",
         label: t("common.close"),
@@ -57,6 +65,7 @@ export function useSheetHeaderActions({
             label: t("common.done"),
             icon: sfSymbol("checkmark"),
             variant: "prominent",
+            tintColor: doneTintColor,
             disabled: doneDisabled,
             onPress: onDone,
           }
@@ -98,5 +107,5 @@ export function useSheetHeaderActions({
       unstable_headerLeftItems: undefined,
       unstable_headerRightItems: undefined,
     };
-  }, [doneDisabled, hasVerticalBar, onClose, onDone, theme]);
+  }, [doneDisabled, doneTintColor, onClose, onDone, theme, useNativeItems]);
 }
