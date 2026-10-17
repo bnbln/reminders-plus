@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useSheetHeaderActions } from "@/components/navigation/sheet-header-actions";
 import { withAlpha } from "@/components/ui/glass-surface";
-import { Colors, contrastAlpha, PICKER_SHEET_DARK_ROW, PICKER_SHEET_DARK_ROW_BORDER } from "@/constants/theme";
+import { Colors, contrastAlpha, PICKER_SHEET_DARK_ROW, PICKER_SHEET_DARK_ROW_BORDER, TASK_SHEET_ACCENTS } from "@/constants/theme";
 import {
   type RoutineInterval,
   RoutineType,
@@ -16,6 +16,8 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
 import { ripple } from '@/components/ui/ripple';
 import { useThemedStyles } from "@/hooks/use-themed-styles";
+
+const ACCENT = TASK_SHEET_ACCENTS.routine;
 
 type ThemeName = keyof typeof Colors;
 
@@ -229,7 +231,7 @@ export default function RoutinePickerScreen() {
                     styles.optionIcon,
                     {
                       backgroundColor: withAlpha(
-                        isNone ? Colors[theme].text : "#0A84FF",
+                        isNone ? Colors[theme].text : ACCENT,
                         isDark ? 0.15 : 0.12,
                       ),
                     },
@@ -239,7 +241,7 @@ export default function RoutinePickerScreen() {
                     name={option.icon}
                     size={20}
                     color={
-                      isNone ? withAlpha(Colors[theme].text, contrastAlpha(0.6)) : "#0A84FF"
+                      isNone ? withAlpha(Colors[theme].text, contrastAlpha(0.6)) : ACCENT
                     }
                   />
                 </View>
@@ -247,7 +249,7 @@ export default function RoutinePickerScreen() {
                   <Text style={styles.optionLabel}>{t(option.labelKey)}</Text>
                 </View>
                 {isActive && (
-                  <MaterialIcons name="check" size={20} color="#0A84FF" />
+                  <MaterialIcons name="check" size={20} color={ACCENT} />
                 )}
               </Pressable>
             );
@@ -285,11 +287,11 @@ const createStyles = (theme: ThemeName) => {
     doneText: {
       fontSize: 17,
       fontWeight: "600",
-      color: "#0A84FF",
+      color: ACCENT,
     },
     cancelText: {
       fontSize: 17,
-      color: "#0A84FF",
+      color: ACCENT,
     },
     content: {
       flex: 1,
@@ -316,8 +318,8 @@ const createStyles = (theme: ThemeName) => {
     },
     optionRowActive: {
       borderWidth: isDark ? 1.5 : StyleSheet.hairlineWidth,
-      borderColor: isDark ? "#0A84FF" : withAlpha("#0A84FF", 0.45),
-      backgroundColor: withAlpha("#0A84FF", isDark ? 0.18 : 0.12),
+      borderColor: isDark ? ACCENT : withAlpha(ACCENT, 0.45),
+      backgroundColor: withAlpha(ACCENT, isDark ? 0.18 : 0.12),
     },
     optionIcon: {
       width: 36,
