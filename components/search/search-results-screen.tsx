@@ -76,11 +76,6 @@ export function SearchResultsScreen() {
       `task-${task.id}:${rowLayoutSeed}:${task.subtitle?.length ?? 0}:${task.subtasks?.length ?? 0}:${task.notes?.length ?? 0}:${task.dueAt}:${task.dueHasTime ? 1 : 0}:${task.completedAt ?? 0}:${task.color ?? ""}`,
     [rowLayoutSeed],
   );
-  const listRenderKey = React.useMemo(
-    () =>
-      `search:${query || "__empty__"}:${rowLayoutSeed}:${results.map((task) => keyForTask(task)).join("|")}`,
-    [keyForTask, query, results, rowLayoutSeed],
-  );
 
   const onPressTask = React.useCallback(
     (taskId: string) => {
@@ -190,7 +185,6 @@ export function SearchResultsScreen() {
     <View style={[styles.container, { backgroundColor: "transparent" }]}>
       <StreakAccentBackground isDark={isDark} />
       <ScrollView
-        key={listRenderKey}
         style={styles.scroll}
         contentContainerStyle={[
           styles.content,

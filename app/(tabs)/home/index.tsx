@@ -350,7 +350,6 @@ type DateSelectionSource =
   | "picker"
   | "programmatic";
 
-type DragSurfaceId = "today" | "upcoming";
 type DragBounds = { x: number; y: number; width: number; height: number };
 
 const isSameLocalMonth = (left: number, right: number) => {
@@ -1214,6 +1213,58 @@ const createStyles = (
   });
 };
 
+type DateRailDayItemProps = {
+  day: DateRailDay;
+  isDragCandidate: boolean;
+  isDropHover: boolean;
+  styles: ReturnType<typeof createStyles>;
+  onPressDay: (timestamp: number) => void;
+};
+
+// Memoized so a drag hovering over the rail only re-renders the days whose
+// highlight actually changes, not every visible day.
+const DateRailDayItem = React.memo(function DateRailDayItem({
+  day,
+  isDragCandidate,
+  isDropHover,
+  styles,
+  onPressDay,
+}: DateRailDayItemProps) {
+  const dayNumStyle = [
+    styles.dateRailDayNum,
+    day.isWeekend ? styles.dateRailDayNumWeekend : null,
+    day.isToday ? styles.dateRailDayNumToday : null,
+    isDragCandidate ? styles.dateRailDayNumDropCandidate : null,
+    isDropHover ? styles.dateRailDayNumDropReady : null,
+  ];
+
+  const dayDowStyle = [
+    styles.dateRailDow,
+    day.isWeekend ? styles.dateRailDowWeekend : null,
+    isDragCandidate ? styles.dateRailDowDropCandidate : null,
+    isDropHover ? styles.dateRailDowDropReady : null,
+  ];
+
+  return (
+    <Pressable
+      android_ripple={ripple()}
+      accessibilityRole="button"
+      accessibilityLabel={`${day.weekday} ${day.dayOfMonth}`}
+      onPress={() => onPressDay(day.timestamp)}
+      style={({ pressed }) => [
+        styles.dateRailDay,
+        isDragCandidate ? styles.dateRailDayDropCandidate : null,
+        isDropHover ? styles.dateRailDayDropReady : null,
+        { opacity: pressed ? 0.8 : 1 },
+      ]}
+    >
+      <Text style={dayDowStyle}>{day.weekday}</Text>
+      <Text style={dayNumStyle}>{day.dayOfMonth}</Text>
+      {day.eventCount > 0 && <View style={styles.dateRailEventIndicator} />}
+    </Pressable>
+  );
+});
+
 export default function HomeScreen() {
   return <TaskWorkspace title={t("common.today")} homeFilters><HomeContent /></TaskWorkspace>;
 }
@@ -1412,7 +1463,6 @@ function HomeContent() {
   const homeTaskListRevealProgress = React.useRef(new Animated.Value(1)).current;
   const dateListTransitionHeight = React.useRef(new Animated.Value(0)).current;
   const dateRailTitleMotion = React.useRef(new Animated.Value(1)).current;
-  const [, setIsDateListTransitioning] = React.useState(false);
   const [dateListTransitionState, setDateListTransitionState] =
     React.useState<DateListTransitionState | null>(null);
   const [dateListHostWidth, setDateListHostWidth] =
@@ -1583,7 +1633,6 @@ function HomeContent() {
   >(null);
   const [isDragOverCalendarHeader, setIsDragOverCalendarHeader] =
     React.useState(false);
-  const [, setActiveDragSurface] = React.useState<DragSurfaceId | null>(null);
   const dragContextRef = React.useRef<{
     taskId: string;
   } | null>(null);
@@ -1600,7 +1649,6 @@ function HomeContent() {
     dateStart: null,
     enteredAt: 0,
   });
-  const dragSurfaceResetFrameRef = React.useRef<number | null>(null);
   const dropCommitFrameRef = React.useRef<number | null>(null);
   const railBoundsMeasureFrameRef = React.useRef<number | null>(null);
   const upcomingSurfaceRef = React.useRef<View | null>(null);
@@ -2272,7 +2320,6 @@ function HomeContent() {
       cancelDateListTransitionStart();
       queuedDateStartRef.current = null;
       listTransitionRunningRef.current = false;
-      setIsDateListTransitioning(false);
       setDateListTransitionState(null);
       stopHomeTaskListRevealAnimation();
       homeTaskListRevealProgress.setValue(1);
@@ -2908,11 +2955,6 @@ function HomeContent() {
     active: boolean;
     startedOnRow: boolean;
   }>({ x: 0, y: 0, at: 0, active: false, startedOnRow: false });
-  const cancelDragSurfaceResetFrame = React.useCallback(() => {
-    if (dragSurfaceResetFrameRef.current == null) return;
-    cancelAnimationFrame(dragSurfaceResetFrameRef.current);
-    dragSurfaceResetFrameRef.current = null;
-  }, []);
   const cancelDropCommitFrame = React.useCallback(() => {
     if (dropCommitFrameRef.current == null) return;
     cancelAnimationFrame(dropCommitFrameRef.current);
@@ -2966,10 +3008,9 @@ function HomeContent() {
   }, []);
   React.useEffect(
     () => () => {
-      cancelDragSurfaceResetFrame();
       cancelDropCommitFrame();
     },
-    [cancelDragSurfaceResetFrame, cancelDropCommitFrame],
+    [cancelDropCommitFrame],
   );
   const clearDateRailHover = React.useCallback(() => {
     dragRailHoverIntentRef.current = { dateStart: null, enteredAt: 0 };
@@ -3195,22 +3236,15 @@ function HomeContent() {
     (isDragging: boolean) => {
       listDragActiveRef.current = isDragging;
       if (isDragging) {
-        cancelDragSurfaceResetFrame();
         measureDateRailBounds();
         measureDateRailListBounds();
         return;
       }
-      cancelDragSurfaceResetFrame();
-      dragSurfaceResetFrameRef.current = requestAnimationFrame(() => {
-        dragSurfaceResetFrameRef.current = null;
-        setActiveDragSurface(null);
-      });
       if (!dragContextRef.current) {
         clearDateDragHover();
       }
     },
     [
-      cancelDragSurfaceResetFrame,
       clearDateDragHover,
       measureDateRailBounds,
       measureDateRailListBounds,
@@ -3624,14 +3658,11 @@ function HomeContent() {
       };
       dragStartPointRef.current = null;
       dragRailHoverIntentRef.current = { dateStart: null, enteredAt: 0 };
-      cancelDragSurfaceResetFrame();
-      setActiveDragSurface("today");
       clearDateDragHover();
       measureDateRailBounds();
       measureDateRailListBounds();
     },
     [
-      cancelDragSurfaceResetFrame,
       clearDateDragHover,
       measureDateRailBounds,
       measureDateRailListBounds,
@@ -3749,9 +3780,15 @@ function HomeContent() {
     [],
   );
 
+  // Read the latest tasks through a ref so the toggle handler (and every row
+  // it is passed to) stays stable while the task list changes.
+  const latestTasksRef = React.useRef(tasks);
+  latestTasksRef.current = tasks;
   const handleToggleComplete = React.useCallback(
     (taskId: string) => {
-      const currentTask = tasks.find((task) => task.id === taskId);
+      const currentTask = latestTasksRef.current.find(
+        (task) => task.id === taskId,
+      );
       if (!currentTask) return;
 
       const now = Date.now();
@@ -3851,7 +3888,6 @@ function HomeContent() {
       reseedSection,
       setTasks,
       showCompletedTasksEnabled,
-      tasks,
     ],
   );
 
@@ -4037,6 +4073,37 @@ function HomeContent() {
 
   // The highlighted copy of every rail day is static between day changes;
   // rebuilding it on each selection made dragging across days expensive.
+  const dateRailDayPressRef = React.useRef<(timestamp: number) => void>(
+    () => {},
+  );
+  dateRailDayPressRef.current = (timestamp: number) => {
+    dateRailDraggedRef.current = false;
+    closeAnyOpen();
+    scrollDateRailToDateStart(timestamp, !reduceMotionEnabled, true);
+    handleSelectDate(timestamp, "press");
+  };
+  const handleDateRailDayPress = React.useCallback((timestamp: number) => {
+    dateRailDayPressRef.current(timestamp);
+  }, []);
+  const renderDateRailDay = React.useCallback(
+    ({ item: day }: { item: DateRailDay }) => (
+      <DateRailDayItem
+        day={day}
+        isDragCandidate={
+          dragDetectedDateStart != null &&
+          isSameLocalDay(day.timestamp, dragDetectedDateStart)
+        }
+        isDropHover={
+          dragHoveredDateStart != null &&
+          isSameLocalDay(day.timestamp, dragHoveredDateStart)
+        }
+        styles={styles}
+        onPressDay={handleDateRailDayPress}
+      />
+    ),
+    [dragDetectedDateStart, dragHoveredDateStart, handleDateRailDayPress, styles],
+  );
+
   const dateRailCenterIndicatorDays = React.useMemo(
     () =>
       dateRailDays.map((day) => {
@@ -4336,60 +4403,7 @@ function HomeContent() {
               ref={dateRailRef}
               data={dateRailDays}
               keyExtractor={(day: DateRailDay) => day.key}
-              renderItem={({ item: day }: { item: DateRailDay }) => {
-                const isToday = day.isToday;
-                const isDragCandidate =
-                  dragDetectedDateStart != null &&
-                  isSameLocalDay(day.timestamp, dragDetectedDateStart);
-                const isDropHover =
-                  dragHoveredDateStart != null &&
-                  isSameLocalDay(day.timestamp, dragHoveredDateStart);
-
-                const dayNumStyle = [
-                  styles.dateRailDayNum,
-                  day.isWeekend ? styles.dateRailDayNumWeekend : null,
-                  isToday ? styles.dateRailDayNumToday : null,
-                  isDragCandidate ? styles.dateRailDayNumDropCandidate : null,
-                  isDropHover ? styles.dateRailDayNumDropReady : null,
-                ];
-
-                const dayDowStyle = [
-                  styles.dateRailDow,
-                  day.isWeekend ? styles.dateRailDowWeekend : null,
-                  isDragCandidate ? styles.dateRailDowDropCandidate : null,
-                  isDropHover ? styles.dateRailDowDropReady : null,
-                ];
-
-                return (
-                  <Pressable
-                    android_ripple={ripple()}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${day.weekday} ${day.dayOfMonth}`}
-                    onPress={() => {
-                      dateRailDraggedRef.current = false;
-                      closeAnyOpen();
-                      scrollDateRailToDateStart(
-                        day.timestamp,
-                        !reduceMotionEnabled,
-                        true,
-                      );
-                      handleSelectDate(day.timestamp, "press");
-                    }}
-                    style={({ pressed }) => [
-                      styles.dateRailDay,
-                      isDragCandidate ? styles.dateRailDayDropCandidate : null,
-                      isDropHover ? styles.dateRailDayDropReady : null,
-                      { opacity: pressed ? 0.8 : 1 },
-                    ]}
-                  >
-                    <Text style={dayDowStyle}>{day.weekday}</Text>
-                    <Text style={dayNumStyle}>{day.dayOfMonth}</Text>
-                    {day.eventCount > 0 && (
-                      <View style={styles.dateRailEventIndicator} />
-                    )}
-                  </Pressable>
-                );
-              }}
+              renderItem={renderDateRailDay}
               horizontal
               style={styles.dateRailList}
               contentContainerStyle={[
@@ -4468,8 +4482,6 @@ function HomeContent() {
     dateRailScrollX,
     dateRailTitleMotion,
     dateRailTitleTransitionState,
-    dragDetectedDateStart,
-    dragHoveredDateStart,
     firstVisibleSection,
     getDateRailItemLayout,
     handleDateRailMomentumEnd,
@@ -4488,6 +4500,7 @@ function HomeContent() {
     measureDateRailBounds,
     measureDateRailListBounds,
     reduceMotionEnabled,
+    renderDateRailDay,
     router,
     selectedDateStart,
     scheduleDateRailSyncToSelectedDate,

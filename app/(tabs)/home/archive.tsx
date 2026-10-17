@@ -201,13 +201,6 @@ function ArchiveContent() {
       `task-${task.id}:${tab}:${rowLayoutSeed}:${task.subtitle?.length ?? 0}:${task.subtasks?.length ?? 0}:${task.notes?.length ?? 0}:${task.dueAt}:${task.dueHasTime ? 1 : 0}:${task.completedAt ?? 0}:${task.deletedAt ?? 0}:${task.color ?? ""}`,
     [rowLayoutSeed, tab],
   );
-  const listRenderKey = React.useMemo(
-    () =>
-      `archive:${tab}:${rowLayoutSeed}:${listTasks
-        .map((task) => keyForTask(task))
-        .join("|")}`,
-    [keyForTask, listTasks, rowLayoutSeed, tab],
-  );
 
   const listHeader = React.useMemo(() => {
     if (shouldUseNativeExpoSegmentedPicker) {
@@ -294,8 +287,9 @@ function ArchiveContent() {
         }
       />
 
+      {/* Rows are keyed individually, so only a tab switch starts a fresh list. */}
       <ScrollView
-        key={listRenderKey}
+        key={tab}
         style={styles.scroll}
         contentContainerStyle={styles.content}
         contentInsetAdjustmentBehavior="automatic"
