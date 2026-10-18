@@ -11,7 +11,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.reminds",
       "appleTeamId": "C4VHG63LL9",
-      "buildNumber": "2",
+      "buildNumber": "4",
       "infoPlist": {
         "CFBundleDisplayName": "Reminders+",
         "CFBundleLocalizations": [
