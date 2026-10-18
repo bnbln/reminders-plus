@@ -42,11 +42,35 @@ export function motionSpring(
   return isReduceMotionActive() ? instant(value, config) : Animated.spring(value, config);
 }
 
+// Lists with the drop layout handoff attach Reanimated layout transitions to
+// their cells while a drag runs and shortly after the drop. React Native's
+// LayoutAnimation must not run in the same commits: both rewrite Fabric's
+// mount mutations, and the mix let a removed row be recycled while still
+// mounted ("Attempt to recycle a mounted view"), which aborts the app.
+const layoutAnimationHolds = new Map<object, number>();
+
+/** Blocks LayoutAnimation for `owner` until `durationMs` from now. */
+export function holdLayoutAnimations(owner: object, durationMs: number) {
+  layoutAnimationHolds.set(owner, Date.now() + Math.max(0, durationMs));
+}
+
+export function releaseLayoutAnimations(owner: object) {
+  layoutAnimationHolds.delete(owner);
+}
+
+export function areLayoutAnimationsHeld(now: number = Date.now()) {
+  for (const [owner, until] of layoutAnimationHolds) {
+    if (until > now) return true;
+    layoutAnimationHolds.delete(owner);
+  }
+  return false;
+}
+
 export function configureLayoutAnimation(
   config: LayoutAnimationConfig,
   onAnimationDidEnd?: () => void,
 ) {
-  if (isReduceMotionActive()) {
+  if (isReduceMotionActive() || areLayoutAnimationsHeld()) {
     onAnimationDidEnd?.();
     return;
   }

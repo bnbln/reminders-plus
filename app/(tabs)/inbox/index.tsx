@@ -254,6 +254,17 @@ function InboxContent() {
   const applyOrderFromSwipeListData = React.useCallback(
     (data: TaskSwipeDraggableListItem[]) => {
       setTasks((prev) => {
+        // A throw inside this updater would crash the app; a drop that
+        // cannot be applied keeps the previous order instead.
+        try {
+          return applyDropOrder(prev);
+        } catch (error) {
+          console.warn("[inbox] drop reorder failed", error);
+          return prev;
+        }
+      });
+
+      function applyDropOrder(prev: Task[]): Task[] {
         const nowReference = Date.now();
         const tasksById = new Map(prev.map((task) => [task.id, task] as const));
         const draggableTaskIdSet = new Set(
@@ -322,7 +333,7 @@ function InboxContent() {
         }
 
         return prev.map((task) => nextById.get(task.id) ?? task);
-      });
+      }
     },
     [setTasks],
   );

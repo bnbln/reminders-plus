@@ -105,6 +105,26 @@ const sortIdsByOrderRank = (tasks: Task[]) =>
  */
 function moveTaskAcrossSections(
   prev: Task[],
+  params: Parameters<typeof moveTaskAcrossSectionsUnsafe>[1],
+): Task[] {
+  // Runs inside a state updater: a throw there would take the whole app down,
+  // so a move that cannot be applied leaves the tasks as they were.
+  if (
+    !SECTIONS.includes(params.sourceSection) ||
+    !SECTIONS.includes(params.dropSection)
+  ) {
+    return prev;
+  }
+  try {
+    return moveTaskAcrossSectionsUnsafe(prev, params);
+  } catch (error) {
+    console.warn("[project] task move failed", error);
+    return prev;
+  }
+}
+
+function moveTaskAcrossSectionsUnsafe(
+  prev: Task[],
   {
     projectId,
     taskId,
@@ -553,6 +573,13 @@ function ProjectDetailContent() {
     [],
   );
   const landingTokenRef = React.useRef(0);
+  const isMountedRef = React.useRef(true);
+  React.useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
   const [landing, setLanding] = React.useState<BoardLanding | null>(null);
 
   const projectsById = React.useMemo(
@@ -977,10 +1004,12 @@ function ProjectDetailContent() {
         return false;
       }
       const dropSection = dragDropSectionRef.current ?? sourceSection;
-      if (dropSection === sourceSection) return false;
+      if (dropSection === sourceSection || !SECTIONS.includes(dropSection)) {
+        return false;
+      }
 
       const taskId = params.taskId;
-      const targetIds = tasksBySectionRef.current[dropSection]
+      const targetIds = (tasksBySectionRef.current[dropSection] ?? [])
         .map((task) => task.id)
         .filter((candidateId) => candidateId !== taskId);
       const hasRowFrame =
@@ -989,7 +1018,12 @@ function ProjectDetailContent() {
         Number.isFinite(params.rowHeight) &&
         params.rowHeight > 0;
 
+      let committed = false;
       const commit = (insertIndex: number) => {
+        // The row measurement resolves asynchronously; commit each drop once
+        // and never after the board has gone away.
+        if (committed || !isMountedRef.current) return;
+        committed = true;
         if (hasRowFrame) {
           landingTokenRef.current += 1;
           setLanding({
@@ -1006,10 +1040,17 @@ function ProjectDetailContent() {
             taskId,
             sourceSection,
             dropSection,
-            insertIndex,
+            insertIndex: Number.isFinite(insertIndex) ? insertIndex : 0,
           }),
         );
-        finishBoardDrag();
+        // A new drag may have started while the rows were measured; leave
+        // its state alone.
+        if (
+          dragContextRef.current === null ||
+          dragContextRef.current === dragContext
+        ) {
+          finishBoardDrag();
+        }
       };
 
       const targetList = listRefs.current[dropSection];
@@ -1020,11 +1061,11 @@ function ProjectDetailContent() {
 
       // Insert where the row was released rather than always at the top.
       const dropCenterY = params.rowY + params.rowHeight / 2;
-      void targetList
-        .measureTaskRows()
+      void Promise.resolve()
+        .then(() => targetList.measureTaskRows())
         .catch(() => new Map())
         .then((frames) => {
-          if (frames.size === 0) {
+          if (!frames || frames.size === 0) {
             commit(0);
             return;
           }
@@ -1038,7 +1079,8 @@ function ProjectDetailContent() {
             }
           }
           commit(insertIndex);
-        });
+        })
+        .catch(() => commit(0));
       return true;
     },
     [finishBoardDrag, id, setTasks],
