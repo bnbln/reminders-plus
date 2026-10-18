@@ -42,6 +42,9 @@ const GRID_GAP = 16;
 // Even column counts keep a vertical fold (iPhone Duo) between tiles.
 const COMPACT_GRID_COLUMNS = 2;
 const REGULAR_GRID_COLUMNS = 4;
+// Below this tile width four columns feel cramped (unfolded Duo), so regular
+// width falls back to two wide columns until the screen fits four.
+const MIN_REGULAR_TILE_WIDTH = 260;
 const PROJECT_TILE_HEIGHT = 124;
 const DRAG_SCALE_ACTIVE = 1.03;
 const IOS_LIGHT_ELEVATED_SURFACE = "#FFFFFF";
@@ -163,7 +166,7 @@ const createStyles = (
       flexDirection: "row",
       alignItems: "center",
       gap: 10,
-      minHeight: 50,
+      minHeight: 30,
     },
     tileEmoji: {
       fontSize: 16,
@@ -234,7 +237,13 @@ function ProjectTileCard({
               <SFSymbol name={project.icon} size={16} color={iconColor} />
             </View>
           )}
-          <Text numberOfLines={1} style={styles.tileHeaderLabel}>
+          {/* The count must never be cut off: wrap, then shrink slightly. */}
+          <Text
+            numberOfLines={2}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
+            style={styles.tileHeaderLabel}
+          >
             {tasksLabel}
           </Text>
         </View>
@@ -325,9 +334,18 @@ export default function ExploreScreen() {
   const router = useRouter();
   const theme = useColorScheme() ?? "light";
   const { width: viewportWidth } = usePageDimensions();
-  const gridColumns = useIsRegularWidth()
-    ? REGULAR_GRID_COLUMNS
-    : COMPACT_GRID_COLUMNS;
+  const isRegularWidth = useIsRegularWidth();
+  const gridColumns = React.useMemo(() => {
+    if (!isRegularWidth) return COMPACT_GRID_COLUMNS;
+    const fourColumnTileWidth =
+      (viewportWidth -
+        GRID_HORIZONTAL_PADDING * 2 -
+        GRID_GAP * (REGULAR_GRID_COLUMNS - 1)) /
+      REGULAR_GRID_COLUMNS;
+    return fourColumnTileWidth >= MIN_REGULAR_TILE_WIDTH
+      ? REGULAR_GRID_COLUMNS
+      : COMPACT_GRID_COLUMNS;
+  }, [isRegularWidth, viewportWidth]);
   const showFloatingAddButton = Platform.OS === "ios" && !isIOS26OrNewer();
   const palette = useThemedStyles(() => createExploreTheme(theme), [theme]);
   const tileWidth = React.useMemo(
