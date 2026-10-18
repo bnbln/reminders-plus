@@ -1072,6 +1072,29 @@ final class SplashAccentGradientView: UIView {
     }
     // Behind the icon and title, above the storyboard's background color.
     loadingView.insertSubview(gradientView, at: 0)
+    applyAlternateIcon(to: loadingView)
+  }
+
+  // The storyboard shows the primary icon. When the user picked an alternate
+  // icon, show its light export instead (SplashScreenAppIcon-<Color>, made by
+  // scripts/generate_splash_icons.py); the dark export is the same for all
+  // icons, so it keeps the storyboard's dark image.
+  private static func applyAlternateIcon(to loadingView: UIView) {
+    guard
+      let iconName = UIApplication.shared.alternateIconName,
+      let light = UIImage(named: "SplashScreen\(iconName)"),
+      let iconView = loadingView.subviews.compactMap({ $0 as? UIImageView }).first,
+      let dark = UIImage(
+        named: "SplashScreenAppIcon",
+        in: nil,
+        compatibleWith: UITraitCollection(userInterfaceStyle: .dark)
+      )
+    else { return }
+
+    let asset = UIImageAsset()
+    asset.register(light, with: UITraitCollection(userInterfaceStyle: .light))
+    asset.register(dark, with: UITraitCollection(userInterfaceStyle: .dark))
+    iconView.image = asset.image(with: loadingView.traitCollection)
   }
 
   private static func color(fromHex hex: String) -> UIColor? {
