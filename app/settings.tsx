@@ -23,6 +23,7 @@ import * as Calendar from "expo-calendar/legacy";
 import { useHeaderHeight } from "expo-router/react-navigation";
 import { useRouter } from "expo-router";
 import React from "react";
+import { useReducedMotion } from "react-native-reanimated";
 import {
   Alert,
   Platform,
@@ -31,17 +32,22 @@ import {
   StyleSheet,
   Text,
   View,
-  type ViewStyle,
 } from "react-native";
 
+import { PlusHeroCard } from "@/components/settings/plus-hero-card";
+import {
+  SettingsRow,
+  SettingsSection,
+  SettingsSeparator,
+  SettingsValuePill,
+  useSettingsPalette,
+} from "@/components/settings/settings-rows";
 import {
   PremiumBackupBlock,
   PremiumCloudSyncBlock,
   type ThemeName,
   usePremiumSyncBackupController,
 } from "@/components/settings/premium-sync-backup";
-import { getPremiumPlanLabel } from "@/constants/premium";
-import { Colors } from "@/constants/theme";
 import {
   type Project,
   type SectionId,
@@ -49,10 +55,7 @@ import {
 } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { type AppLocale, t } from "@/i18n";
-import {
-  assistCopyKey,
-  IS_CLOUD_SYNC_SUPPORTED,
-} from "@/utils/assist-availability";
+import { IS_CLOUD_SYNC_SUPPORTED } from "@/utils/assist-availability";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { SettingsButton } from "@/components/ui/settings-button";
 import { SettingsSwitch } from "@/components/ui/settings-switch";
@@ -154,25 +157,6 @@ function formatTime(value: Date) {
   });
 }
 
-function Section({
-  title,
-  children,
-  cardStyle,
-}: {
-  title: string;
-  children: React.ReactNode;
-  cardStyle?: ViewStyle;
-}) {
-  return (
-    <View style={{ gap: 8 }}>
-      <Text accessibilityRole="header" style={styles.sectionTitle}>
-        {title}
-      </Text>
-      <View style={[styles.sectionCard, cardStyle]}>{children}</View>
-    </View>
-  );
-}
-
 export default function SettingsScreen() {
   const pageColumnPadding = usePageColumnPadding();
   const headerHeight = useHeaderHeight();
@@ -268,13 +252,8 @@ export default function SettingsScreen() {
     React.useState(false);
   const [isImportingAppleData, setIsImportingAppleData] = React.useState(false);
 
-  const borderColor = isDark ? "rgba(255,255,255,0.11)" : "rgba(17,24,28,0.09)";
-  const cardBackground = isDark ? "#1C1C1E" : "#F2F2F7";
-  const muted = isDark ? "rgba(236,237,238,0.67)" : "rgba(17,24,28,0.66)";
-  const sectionCardStyle = React.useMemo(
-    () => ({ borderColor, backgroundColor: cardBackground }),
-    [borderColor, cardBackground],
-  );
+  const palette = useSettingsPalette();
+  const systemReduceMotion = useReducedMotion();
 
   const appBadgeActions = React.useMemo<MenuAction[]>(() => {
     return APP_BADGE_MODES.map((option) => ({
@@ -667,6 +646,14 @@ export default function SettingsScreen() {
     tasks,
   ]);
 
+  const openPlus = React.useCallback(() => {
+    if (premiumController.hasPremiumAccess) {
+      router.push("/plus");
+      return;
+    }
+    router.push({ pathname: "/plus", params: { source: "sync" } });
+  }, [premiumController.hasPremiumAccess, router]);
+
   return (
     <View style={{ flex: 1, backgroundColor: "transparent" }}>
       <ScrollView
@@ -682,78 +669,65 @@ export default function SettingsScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Section title={t("settings.section.remindsPlus")} cardStyle={sectionCardStyle}>
-          <View style={styles.rowBlock}>
-            <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-              {t("profile.field.plan")}
-            </Text>
-            <Text style={[styles.rowValue, { color: Colors[theme].text }]}>
-              {!premiumController.isPremiumReady
-                ? t("common.planChecking")
-                : getPremiumPlanLabel(premiumController.plan)}
-            </Text>
-          </View>
+        <PlusHeroCard
+          isReady={premiumController.isPremiumReady}
+          hasPremiumAccess={premiumController.hasPremiumAccess}
+          plan={premiumController.plan}
+          onPress={openPlus}
+        />
 
-          <View style={[styles.separator, { backgroundColor: borderColor }]} />
-
-          <Text style={[styles.helperText, { color: muted }]}>
-            {t(assistCopyKey("settings.remindsPlus.helper"))}
-          </Text>
-
+        <SettingsSection title={t("settings.section.syncBackup")}>
           {/* Cloud Sync is CloudKit-only; hidden rather than shown disabled. */}
           {IS_CLOUD_SYNC_SUPPORTED ? (
             <>
-              <View
-                style={[styles.separator, { backgroundColor: borderColor }]}
-              />
-
               <PremiumCloudSyncBlock
                 controller={premiumController}
                 theme={theme}
-                borderColor={borderColor}
-                muted={muted}
+                muted={palette.muted}
                 disabled={remindersPlusDisabled}
               />
+              <SettingsSeparator />
             </>
           ) : null}
-
-          <View style={[styles.separator, { backgroundColor: borderColor }]} />
 
           <PremiumBackupBlock
             controller={premiumController}
             theme={theme}
-            muted={muted}
+            muted={palette.muted}
             title={t("cloudSync.section.backup")}
             disabled={remindersPlusDisabled}
           />
+        </SettingsSection>
 
-          <View style={[styles.separator, { backgroundColor: borderColor }]} />
-
-          <View style={styles.buttonRow}>
-            <SettingsButton
-              variant="filled"
-              title={
-                premiumController.hasPremiumAccess
-                  ? t("settings.remindsPlus.action.showOptions")
-                  : t("settings.remindsPlus.action.openOffer")
+        <SettingsSection
+          title={t("settings.section.appearance")}
+          footer={
+            supportsAlternateIcons
+              ? t("settings.appearance.appIconFollowsAccentHint")
+              : undefined
+          }
+        >
+          <SettingsRow
+            icon="circle.lefthalf.filled"
+            iconColor="#5856D6"
+            label={t("settings.appearance.mode")}
+          >
+            <SegmentedControl
+              values={appearanceLabels}
+              selectedIndex={APPEARANCE_MODES.indexOf(appearanceMode)}
+              onChange={(event) =>
+                onChangeAppearance(event.nativeEvent.selectedSegmentIndex)
               }
-              onPress={() => {
-                if (premiumController.hasPremiumAccess) {
-                  router.push("/plus");
-                  return;
-                }
-
-                router.push({ pathname: "/plus", params: { source: "sync" } });
-              }}
             />
-          </View>
-        </Section>
+          </SettingsRow>
 
-        <Section title={t("settings.section.appearance")} cardStyle={sectionCardStyle}>
-          <View style={styles.rowBlock}>
-            <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-              {t("projectEdit.color")}
-            </Text>
+          <SettingsSeparator />
+
+          <SettingsRow
+            icon="paintpalette.fill"
+            iconColor={getAccentColorValue(accentColor)}
+            label={t("projectEdit.color")}
+          >
             <View style={styles.colorRow}>
               {ACCENT_COLORS.map((color) => {
                 const selected = accentColor === color.id;
@@ -764,24 +738,22 @@ export default function SettingsScreen() {
                     accessibilityRole="button"
                     accessibilityLabel={t(`taskCreate.color.${color.id}`)}
                     accessibilityState={{ selected }}
-                    hitSlop={7}
+                    hitSlop={6}
                     onPress={() => onSelectAccentColor(color.id)}
                     style={[
                       styles.colorButton,
-                      {
-                        backgroundColor: color.value,
-                        borderColor: selected
-                          ? Colors[theme].text
-                          : isDark
-                            ? "rgba(255,255,255,0.24)"
-                            : "rgba(17,24,28,0.18)",
-                        borderWidth: selected ? 2 : 1,
-                      },
+                      selected
+                        ? { borderColor: color.value }
+                        : styles.colorButtonIdle,
                     ]}
                   >
-                    {selected ? (
-                      <MaterialIcons name="check" size={14} color="#fff" />
-                    ) : null}
+                    <View
+                      style={[styles.colorDot, { backgroundColor: color.value }]}
+                    >
+                      {selected ? (
+                        <MaterialIcons name="check" size={16} color="#fff" />
+                      ) : null}
+                    </View>
                   </Pressable>
                 );
               })}
@@ -791,71 +763,55 @@ export default function SettingsScreen() {
                   accessibilityRole="button"
                   accessibilityLabel={t("settings.appearance.materialYou")}
                   accessibilityState={{ selected: isMaterialYouSelected }}
-                  hitSlop={7}
+                  hitSlop={6}
                   onPress={() => onSelectAccentColor(MATERIAL_YOU_ACCENT_ID)}
                   style={[
                     styles.colorButton,
-                    {
-                      backgroundColor: materialYouAccentValue,
-                      borderColor: isMaterialYouSelected
-                        ? Colors[theme].text
-                        : isDark
-                          ? "rgba(255,255,255,0.24)"
-                          : "rgba(17,24,28,0.18)",
-                      borderWidth: isMaterialYouSelected ? 2 : 1,
-                    },
+                    isMaterialYouSelected && materialYouAccentValue
+                      ? { borderColor: materialYouAccentValue }
+                      : styles.colorButtonIdle,
                   ]}
                 >
-                  <MaterialIcons
-                    name={isMaterialYouSelected ? "check" : "auto-awesome"}
-                    size={14}
-                    color="#fff"
-                  />
+                  <View
+                    style={[
+                      styles.colorDot,
+                      { backgroundColor: materialYouAccentValue },
+                    ]}
+                  >
+                    <MaterialIcons
+                      name={isMaterialYouSelected ? "check" : "auto-awesome"}
+                      size={16}
+                      color="#fff"
+                    />
+                  </View>
                 </Pressable>
               ) : null}
             </View>
-          </View>
+          </SettingsRow>
 
           {supportsAlternateIcons ? (
             <>
-              <View style={[styles.separator, { backgroundColor: borderColor }]} />
-
-              <View style={styles.switchRow}>
-                <View style={styles.switchLabelWrap}>
-                  <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-                    {t("settings.appearance.appIconFollowsAccent")}
-                  </Text>
-                  <Text style={[styles.helperInlineText, { color: muted }]}>
-                    {t("settings.appearance.appIconFollowsAccentHint")}
-                  </Text>
-                </View>
-                <SettingsSwitch
-                  accessibilityLabel={t("settings.appearance.appIconFollowsAccent")}
-                  value={appIconFollowsAccent}
-                  onValueChange={onToggleAppIconFollowsAccent}
-                />
-              </View>
+              <SettingsSeparator />
+              <SettingsRow
+                icon="square.grid.2x2.fill"
+                iconColor="#007AFF"
+                label={t("settings.appearance.appIconFollowsAccent")}
+                trailing={
+                  <SettingsSwitch
+                    accessibilityLabel={t(
+                      "settings.appearance.appIconFollowsAccent",
+                    )}
+                    value={appIconFollowsAccent}
+                    onValueChange={onToggleAppIconFollowsAccent}
+                  />
+                }
+              />
             </>
           ) : null}
-
-          <View style={[styles.separator, { backgroundColor: borderColor }]} />
-
-          <View style={styles.rowBlock}>
-            <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-              {t("settings.appearance.mode")}
-            </Text>
-            <SegmentedControl
-              values={appearanceLabels}
-              selectedIndex={APPEARANCE_MODES.indexOf(appearanceMode)}
-              onChange={(event) =>
-                onChangeAppearance(event.nativeEvent.selectedSegmentIndex)
-              }
-            />
-          </View>
-        </Section>
+        </SettingsSection>
 
         {SHOW_APPLE_IMPORT_SECTION ? (
-          <Section title={t("settings.section.import")} cardStyle={sectionCardStyle}>
+          <SettingsSection title={t("settings.section.import")}>
             <View style={styles.buttonRow}>
               <SettingsButton
                 title={
@@ -867,249 +823,198 @@ export default function SettingsScreen() {
                 disabled={isImportingAppleData}
               />
             </View>
-          </Section>
+          </SettingsSection>
         ) : null}
 
-        <Section title={t("settings.section.notifications")} cardStyle={sectionCardStyle}>
-          <View style={styles.rowBlock}>
-            <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-              {t("settings.badge.title")}
-            </Text>
-
-            <DropdownMenu
-              ref={menuRef}
-              actions={appBadgeActions}
-              onPressAction={onPressBadgeAction}
-              shouldOpenOnLongPress={false}
-              themeVariant={Platform.OS === "ios" ? theme : undefined}
-              isAnchoredToRight={Platform.OS === "android" ? true : undefined}
-              style={styles.badgeMenuAnchor}
-            >
-              <View style={styles.badgeMenuTrigger}>
-                <Text style={[styles.badgeValue, { color: Colors[theme].text }]}>
-                  {t(APP_BADGE_LABEL_KEYS[appBadgeMode])}
-                </Text>
-                <MaterialIcons
-                  name="keyboard-arrow-down"
-                  size={18}
-                  color={muted}
-                />
-              </View>
-            </DropdownMenu>
-          </View>
-
-          <View style={[styles.separator, { backgroundColor: borderColor }]} />
-
-          <View style={styles.switchRow}>
-            <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-              {t("settings.notifications.dailySummary")}
-            </Text>
-            <SettingsSwitch
-              accessibilityLabel={t("settings.notifications.dailySummary")}
-              value={dailySummaryEnabled}
-              onValueChange={(enabled) => {
-                setDailySummaryEnabled(enabled);
-                if (!enabled) setShowDailySummaryPicker(false);
-              }}
-            />
-          </View>
-
-          <View style={[styles.separator, { backgroundColor: borderColor }]} />
-
-          <View style={styles.rowBlock}>
-            <Text
-              style={[
-                styles.rowLabel,
-                { color: dailySummaryEnabled ? Colors[theme].text : muted },
-              ]}
-            >
-              {t("common.time")}
-            </Text>
-            <Pressable
-              android_ripple={ripple()}
-              disabled={!dailySummaryEnabled}
-              accessibilityRole="button"
-              accessibilityLabel={`${t("a11y.settings.dailySummaryTime")}: ${formatTime(dailySummaryTime)}`}
-              accessibilityState={{
-                disabled: !dailySummaryEnabled,
-                expanded: showDailySummaryPicker,
-              }}
-              hitSlop={8}
-              onPress={() => setShowDailySummaryPicker((current) => !current)}
-              style={styles.timeButton}
-            >
-              <Text
-                style={[
-                  styles.timeButtonText,
-                  { color: dailySummaryEnabled ? Colors[theme].text : muted },
-                ]}
-              >
-                {formatTime(dailySummaryTime)}
-              </Text>
-              <MaterialIcons
-                name={
-                  showDailySummaryPicker
-                    ? "keyboard-arrow-up"
-                    : "keyboard-arrow-down"
-                }
-                size={18}
-                color={dailySummaryEnabled ? muted : `${muted}80`}
-              />
-            </Pressable>
-          </View>
-
-          {showDailySummaryPicker && dailySummaryEnabled ? (
-            <View style={styles.timePickerWrap}>
-              <DateTimePicker
-                mode="time"
-                value={dailySummaryTime}
-                display={Platform.OS === "ios" ? "spinner" : "default"}
-                onChange={onChangeSummaryTime}
-              />
-            </View>
-          ) : null}
-        </Section>
-
-        <Section title={t("settings.section.interactions")} cardStyle={sectionCardStyle}>
-          <View style={styles.switchRow}>
-            <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-              {t("settings.interactions.haptics")}
-            </Text>
-            <SettingsSwitch
-              accessibilityLabel={t("settings.interactions.haptics")}
-              value={hapticsEnabled}
-              onValueChange={setHapticsEnabled}
-            />
-          </View>
-
-          <View style={[styles.separator, { backgroundColor: borderColor }]} />
-
-          {/* No in-app switch: native transitions, sheets and system
-              controls only follow the OS setting, so an app-only switch
-              could never cover them all. */}
-          <View style={styles.switchRow} accessible>
-            <View style={styles.switchLabelWrap}>
-              <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-                {t("settings.interactions.reduceMotion")}
-              </Text>
-              <Text style={[styles.helperInlineText, { color: muted }]}>
-                {t("settings.interactions.reduceMotionSystemHint")}
-              </Text>
-            </View>
-          </View>
-
-          <View style={[styles.separator, { backgroundColor: borderColor }]} />
-
-          <View style={styles.switchRow}>
-            <View style={styles.switchLabelWrap}>
-              <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-                {t("settings.interactions.streakCelebration")}
-              </Text>
-              <Text style={[styles.helperInlineText, { color: muted }]}>
-                {t("settings.interactions.streakCelebrationHint")}
-              </Text>
-            </View>
-            <SettingsSwitch
-              accessibilityLabel={t("settings.interactions.streakCelebration")}
-              value={streakCelebrationEnabled}
-              onValueChange={setStreakCelebrationEnabled}
-            />
-          </View>
-
-          <View style={[styles.separator, { backgroundColor: borderColor }]} />
-
-          <Pressable
-            android_ripple={ripple()}
-            accessibilityRole="button"
-            accessibilityLabel={t("settings.interactions.streakCelebrationPreview")}
-            onPress={playStreakCelebrationPreview}
-            style={styles.linkRow}
-          >
-            <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-              {t("settings.interactions.streakCelebrationPreview")}
-            </Text>
-            <MaterialIcons name="local-fire-department" size={22} color="#FF7A1F" />
-          </Pressable>
-        </Section>
-
-        <Section title={t("settings.section.legal")} cardStyle={sectionCardStyle}>
-          <Pressable
-            android_ripple={ripple()}
-            accessibilityRole="button"
-            accessibilityLabel={t("settings.legal.open")}
-            onPress={() => router.push("/legal" as never)}
-            style={styles.linkRow}
-          >
-            <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-              {t("settings.legal.open")}
-            </Text>
-            <MaterialIcons name="chevron-right" size={22} color={muted} />
-          </Pressable>
-        </Section>
-
-        {__DEV__ ? (
-          <Section title="Developer" cardStyle={sectionCardStyle}>
-            <View style={styles.rowBlock}>
-              <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-                App Language
-              </Text>
-
+        <SettingsSection title={t("settings.section.notifications")}>
+          <SettingsRow
+            icon="app.badge.fill"
+            iconColor="#FF3B30"
+            label={t("settings.badge.title")}
+            trailing={
               <DropdownMenu
-                ref={devLanguageMenuRef}
-                actions={devLanguageActions}
-                onPressAction={onPressDevLanguageAction}
+                ref={menuRef}
+                actions={appBadgeActions}
+                onPressAction={onPressBadgeAction}
                 shouldOpenOnLongPress={false}
                 themeVariant={Platform.OS === "ios" ? theme : undefined}
-                isAnchoredToRight={Platform.OS === "android" ? true : undefined}
-                style={styles.badgeMenuAnchor}
+                isAnchoredToRight
               >
-                <View style={styles.badgeMenuTrigger}>
-                  <Text
-                    style={[styles.badgeValue, { color: Colors[theme].text }]}
-                  >
-                    {selectedDevLanguageLabel}
-                  </Text>
-                  <MaterialIcons
-                    name="keyboard-arrow-down"
-                    size={18}
-                    color={muted}
+                <SettingsValuePill
+                  value={t(APP_BADGE_LABEL_KEYS[appBadgeMode])}
+                />
+              </DropdownMenu>
+            }
+          />
+
+          <SettingsSeparator />
+
+          <SettingsRow
+            icon="sun.max.fill"
+            iconColor="#FF9500"
+            label={t("settings.notifications.dailySummary")}
+            trailing={
+              <SettingsSwitch
+                accessibilityLabel={t("settings.notifications.dailySummary")}
+                value={dailySummaryEnabled}
+                onValueChange={(enabled) => {
+                  setDailySummaryEnabled(enabled);
+                  if (!enabled) setShowDailySummaryPicker(false);
+                }}
+              />
+            }
+          />
+
+          {dailySummaryEnabled ? (
+            <>
+              <SettingsSeparator />
+              <SettingsRow
+                icon="clock.fill"
+                iconColor="#5856D6"
+                label={t("common.time")}
+                accessibilityLabel={`${t("a11y.settings.dailySummaryTime")}: ${formatTime(dailySummaryTime)}`}
+                accessibilityState={{ expanded: showDailySummaryPicker }}
+                onPress={() => setShowDailySummaryPicker((current) => !current)}
+                trailing={
+                  <SettingsValuePill
+                    value={formatTime(dailySummaryTime)}
+                    active={showDailySummaryPicker}
+                    activeColor={getAccentColorValue(accentColor)}
+                  />
+                }
+              />
+              {showDailySummaryPicker ? (
+                <View style={styles.timePickerWrap}>
+                  <DateTimePicker
+                    mode="time"
+                    value={dailySummaryTime}
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    onChange={onChangeSummaryTime}
                   />
                 </View>
-              </DropdownMenu>
-            </View>
+              ) : null}
+            </>
+          ) : null}
+        </SettingsSection>
 
-            <View style={[styles.separator, { backgroundColor: borderColor }]} />
-
-            <View style={styles.switchRow}>
-              <View style={styles.switchLabelWrap}>
-                <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
-                  Fake Stats (Screenshots)
-                </Text>
-                <Text style={[styles.helperInlineText, { color: muted }]}>
-                  Uses simulated streak and status history for App Store screenshots.
-                </Text>
-              </View>
+        <SettingsSection
+          title={t("settings.section.interactions")}
+          // No in-app switch for reduced motion: native transitions, sheets and
+          // system controls only follow the OS setting, so an app-only switch
+          // could never cover them all.
+          footer={t("settings.interactions.reduceMotionSystemHint")}
+        >
+          <SettingsRow
+            icon="iphone.radiowaves.left.and.right"
+            iconColor="#FF2D55"
+            label={t("settings.interactions.haptics")}
+            trailing={
               <SettingsSwitch
-                value={fakeStatsEnabled}
-                onValueChange={setFakeStatsEnabled}
+                accessibilityLabel={t("settings.interactions.haptics")}
+                value={hapticsEnabled}
+                onValueChange={setHapticsEnabled}
               />
-            </View>
-          </Section>
-        ) : null}
+            }
+          />
 
-        {/* <View
-        style={[
-          styles.footerNote,
-          {
-            borderColor,
-            backgroundColor: cardBackground,
-          },
-        ]}
-      >
-        <Text style={[styles.footerText, { color: muted }]}>
-          Datensicherung ist aktiv. Cloud-Sync und Apple-Import sind aktuell ausgeblendet.
-        </Text>
-        </View> */}
+          <SettingsSeparator />
+
+          <SettingsRow
+            icon="flame.fill"
+            iconColor="#FF7A1F"
+            label={t("settings.interactions.streakCelebration")}
+            hint={t("settings.interactions.streakCelebrationHint")}
+            trailing={
+              <SettingsSwitch
+                accessibilityLabel={t("settings.interactions.streakCelebration")}
+                value={streakCelebrationEnabled}
+                onValueChange={setStreakCelebrationEnabled}
+              />
+            }
+          />
+
+          <SettingsSeparator />
+
+          <SettingsRow
+            icon="figure.walk.motion"
+            iconColor="#30B0C7"
+            label={t("settings.interactions.reduceMotion")}
+            trailing={
+              <Text style={[styles.trailingValue, { color: palette.muted }]}>
+                {systemReduceMotion ? t("common.active") : t("common.off")}
+              </Text>
+            }
+          />
+        </SettingsSection>
+
+        <SettingsSection title={t("settings.section.legal")}>
+          <SettingsRow
+            icon="doc.text.fill"
+            iconColor="#8E8E93"
+            label={t("settings.legal.open")}
+            onPress={() => router.push("/legal" as never)}
+            trailing={
+              <MaterialIcons
+                name="chevron-right"
+                size={22}
+                color={palette.muted}
+              />
+            }
+          />
+        </SettingsSection>
+
+        {__DEV__ ? (
+          <SettingsSection title="Developer">
+            <SettingsRow
+              icon="wrench.and.screwdriver.fill"
+              iconColor="#8E8E93"
+              label="App Language"
+              trailing={
+                <DropdownMenu
+                  ref={devLanguageMenuRef}
+                  actions={devLanguageActions}
+                  onPressAction={onPressDevLanguageAction}
+                  shouldOpenOnLongPress={false}
+                  themeVariant={Platform.OS === "ios" ? theme : undefined}
+                  isAnchoredToRight
+                >
+                  <SettingsValuePill value={selectedDevLanguageLabel} />
+                </DropdownMenu>
+              }
+            />
+
+            <SettingsSeparator />
+
+            <SettingsRow
+              icon="chart.bar.fill"
+              iconColor="#8E8E93"
+              label="Fake Stats (Screenshots)"
+              hint="Uses simulated streak and status history for App Store screenshots."
+              trailing={
+                <SettingsSwitch
+                  value={fakeStatsEnabled}
+                  onValueChange={setFakeStatsEnabled}
+                />
+              }
+            />
+
+            <SettingsSeparator />
+
+            <SettingsRow
+              icon="flame.fill"
+              iconColor="#8E8E93"
+              label={t("settings.interactions.streakCelebrationPreview")}
+              onPress={playStreakCelebrationPreview}
+              trailing={
+                <MaterialIcons
+                  name="play-arrow"
+                  size={22}
+                  color={palette.muted}
+                />
+              }
+            />
+          </SettingsSection>
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -1122,127 +1027,43 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 16,
     paddingTop: 12,
-    paddingBottom: 34,
-    gap: 14,
-  },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    letterSpacing: 0.2,
-    color: "#5B6270",
-    paddingHorizontal: 2,
-  },
-  sectionCard: {
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    overflow: "hidden",
-  },
-  rowBlock: {
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  switchRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  linkRow: {
-    minHeight: 48,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  switchLabelWrap: {
-    flexShrink: 1,
-    gap: 2,
-    paddingRight: 12,
-  },
-  rowLabel: {
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  helperInlineText: {
-    fontSize: 12,
-    lineHeight: 16,
-  },
-  rowValue: {
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  helperText: {
-    fontSize: 13,
-    lineHeight: 19,
-    paddingHorizontal: 14,
+    paddingBottom: 40,
+    gap: 28,
   },
   buttonRow: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  buttonStack: {
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  separator: {
-    height: StyleSheet.hairlineWidth,
-    marginHorizontal: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   colorRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
-    gap: 10,
+    gap: 8,
   },
+  // A ring around the dot marks the selected colour, like the system pickers.
   colorButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  colorButtonIdle: {
+    borderColor: "transparent",
+  },
+  colorDot: {
     width: 30,
     height: 30,
     borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
   },
-  badgeMenuAnchor: {
-    alignSelf: "flex-start",
-  },
-  badgeMenuTrigger: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(122,122,122,0.45)",
-  },
-  badgeValue: {
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  timeButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    alignSelf: "flex-start",
-  },
-  timeButtonText: {
+  trailingValue: {
     fontSize: 15,
-    fontWeight: "500",
   },
   timePickerWrap: {
     paddingHorizontal: 8,
     paddingBottom: 8,
-  },
-  footerNote: {
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  footerText: {
-    fontSize: 12,
-    lineHeight: 17,
   },
 });

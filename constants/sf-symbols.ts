@@ -169,6 +169,15 @@ const SF_TO_MATERIAL = {
   'envelope.fill': 'email',
   envelope: 'email',
   link: 'link',
+
+  // Settings rows
+  'circle.lefthalf.filled': 'contrast',
+  'app.badge.fill': 'circle-notifications',
+  'iphone.radiowaves.left.and.right': 'vibration',
+  'figure.walk.motion': 'animation',
+  'square.grid.2x2.fill': 'apps',
+  'externaldrive.fill': 'backup',
+  'wrench.and.screwdriver.fill': 'build',
 } as const satisfies Record<string, MaterialIconName>;
 
 export type SFSymbolName = keyof typeof SF_TO_MATERIAL;

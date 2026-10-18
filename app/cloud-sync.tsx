@@ -80,7 +80,6 @@ function CloudSyncScreenContent() {
           <PremiumCloudSyncBlock
             controller={controller}
             theme={theme}
-            borderColor={borderColor}
             muted={muted}
             disabled={premiumLocked}
           />
