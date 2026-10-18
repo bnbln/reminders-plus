@@ -2,7 +2,7 @@
   "expo": {
     "name": "reminds",
     "slug": "reminds",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "reminds",
@@ -11,7 +11,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.reminds",
       "appleTeamId": "C4VHG63LL9",
-      "buildNumber": "2",
+      "buildNumber": "4",
       "infoPlist": {
         "CFBundleDisplayName": "Reminders+",
         "CFBundleLocalizations": [
@@ -47,9 +47,7 @@
         "NSRemindersFullAccessUsageDescription": "Reminders+ imports reminders from Apple Reminders into your tasks.",
         "NSLocationWhenInUseUsageDescription": "Reminders+ uses your location to suggest your current place for a task.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Reminders+ uses your location to suggest your current place for a task.",
-        "UIBackgroundModes": [
-          "remote-notification"
-        ],
+        "UIBackgroundModes": ["remote-notification"],
         "UIApplicationSceneManifest": {
           "UIApplicationSupportsMultipleScenes": false,
           "UISceneConfigurations": {
