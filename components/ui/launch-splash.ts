@@ -5,11 +5,11 @@ import { NativeModules, Platform } from "react-native";
 import { getAccentColorValue, useAppSettings } from "@/context/settings-store";
 
 // The launch storyboard (ios/reminds/SplashScreen.storyboard) is static, so it
-// only holds the neutral screen background plus icon and title. While JS
+// only holds the neutral screen background, a gray icon and the title. While JS
 // loads, AppDelegate adds the accent gradient to the splash view from the hex
 // stored by useSplashAccentPersistence(), matching the gradient the Home and
 // Inbox screens draw, and swaps the icon for the light export of the active
-// alternate app icon. The native splash is the only splash: it stays up until
+// app icon. The native splash is the only splash: it stays up until
 // settings are hydrated and then fades straight onto the app.
 
 // Keep the native splash up until the stored accent color is known; otherwise

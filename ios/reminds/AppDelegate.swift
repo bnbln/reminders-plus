@@ -1072,17 +1072,28 @@ final class SplashAccentGradientView: UIView {
     }
     // Behind the icon and title, above the storyboard's background color.
     loadingView.insertSubview(gradientView, at: 0)
-    applyAlternateIcon(to: loadingView)
+    applyActiveIcon(to: loadingView)
   }
 
-  // The storyboard shows the primary icon. When the user picked an alternate
-  // icon, show its light export instead (SplashScreenAppIcon-<Color>, made by
-  // scripts/generate_splash_icons.py); the dark export is the same for all
-  // icons, so it keeps the storyboard's dark image.
-  private static func applyAlternateIcon(to loadingView: UIView) {
+  // iOS shows the storyboard before we know the home screen icon, so it has a
+  // neutral gray glyph (SplashScreenLaunchIcon). Now that we know, show the
+  // light export of the active icon: SplashScreenAppIcon for the primary one,
+  // SplashScreenAppIcon-<Color> for alternates (made by
+  // scripts/generate_splash_icons.py). The dark export is the same for all
+  // icons.
+  private static func applyActiveIcon(to loadingView: UIView) {
+    let lightName = UIApplication.shared.alternateIconName.map { "SplashScreen\($0)" }
+      ?? "SplashScreenAppIcon"
     guard
-      let iconName = UIApplication.shared.alternateIconName,
-      let light = UIImage(named: "SplashScreen\(iconName)"),
+      let light = UIImage(
+        named: lightName,
+        in: nil,
+        compatibleWith: UITraitCollection(userInterfaceStyle: .light)
+      ) ?? UIImage(
+        named: "SplashScreenAppIcon",
+        in: nil,
+        compatibleWith: UITraitCollection(userInterfaceStyle: .light)
+      ),
       let iconView = loadingView.subviews.compactMap({ $0 as? UIImageView }).first,
       let dark = UIImage(
         named: "SplashScreenAppIcon",

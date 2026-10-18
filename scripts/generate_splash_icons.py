@@ -10,7 +10,10 @@ lightness moves by the same offset, weighted by how colored a pixel is. Gray
 background, white checkmark and the dark export stay untouched.
 
 Writes SplashScreenAppIcon-<Name>.imageset (light only) next to the original;
-AppDelegate.swift pairs it with the original dark image at runtime.
+AppDelegate.swift pairs it with the original dark image at runtime. Also writes
+SplashScreenLaunchIcon.imageset for the launch storyboard: a gray glyph in
+light mode, because iOS shows the storyboard before the app knows which icon
+is active.
 
 Run after changing ACCENT_COLORS, the icon's glyph color or the splash export:
     python3 scripts/generate_splash_icons.py
@@ -32,6 +35,10 @@ SETTINGS_STORE = ROOT / "context/settings-store.tsx"
 ASSETS_DIR = ROOT / "ios/reminds/Images.xcassets"
 SOURCE_SET = ASSETS_DIR / "SplashScreenAppIcon.imageset"
 SCALES = {"1x": "icon-light.png", "2x": "icon-light@2x.png", "3x": "icon-light@3x.png"}
+DARK_SCALES = {"1x": "icon-dark.png", "2x": "icon-dark@2x.png", "3x": "icon-dark@3x.png"}
+LAUNCH_SET = ASSETS_DIR / "SplashScreenLaunchIcon.imageset"
+# Neutral glyph for the storyboard (iOS systemGray).
+LAUNCH_GLYPH_GRAY = "#8E8E93"
 
 # Must match plugins/accent-app-icons.js.
 PRIMARY_ACCENT_ID = "blue"
@@ -148,10 +155,41 @@ def recolor(image: Image.Image, source: np.ndarray, target: np.ndarray) -> Image
     return Image.fromarray(pixels, "RGBA")
 
 
+def write_launch_icon(primary_glyph: np.ndarray) -> None:
+    gray = hex_to_oklab(LAUNCH_GLYPH_GRAY)
+    gray[1:] = 0
+    shutil.rmtree(LAUNCH_SET, ignore_errors=True)
+    LAUNCH_SET.mkdir()
+    images = []
+    for scale, filename in SCALES.items():
+        source = Image.open(SOURCE_SET / filename)
+        recolor(source, primary_glyph, gray).save(
+            LAUNCH_SET / filename,
+            icc_profile=source.info.get("icc_profile"),
+            optimize=True,
+        )
+        images.append({"idiom": "universal", "filename": filename, "scale": scale})
+    # Dark mode already has a neutral white glyph.
+    for scale, filename in DARK_SCALES.items():
+        shutil.copyfile(SOURCE_SET / filename, LAUNCH_SET / filename)
+        images.append(
+            {
+                "idiom": "universal",
+                "appearances": [{"appearance": "luminosity", "value": "dark"}],
+                "filename": filename,
+                "scale": scale,
+            }
+        )
+    contents = {"images": images, "info": {"version": 1, "author": "xcode"}}
+    (LAUNCH_SET / "Contents.json").write_text(json.dumps(contents, indent=2) + "\n")
+    print(f"{LAUNCH_SET.stem}  {LAUNCH_GLYPH_GRAY}")
+
+
 def main() -> None:
     colors = read_accent_colors()
     primary_glyph = primary_glyph_oklab()
     primary_accent = hex_to_oklab(colors[PRIMARY_ACCENT_ID])
+    write_launch_icon(primary_glyph)
 
     written = set()
     for accent_id, value in colors.items():
