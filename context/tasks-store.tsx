@@ -779,6 +779,7 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     appBadgeMode,
     dailySummaryEnabled,
     dailySummaryMinutes,
+    streakCelebrationEnabled,
     cloudSyncEnabled,
   } = useAppSettings();
   const { hasPremiumAccess } = usePremium();
@@ -1129,6 +1130,8 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
       });
       void syncStreakMotivationNotification({
         tasks,
+        completionHistory,
+        enabled: streakCelebrationEnabled,
       });
     }, 750);
 
@@ -1137,9 +1140,11 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     };
   }, [
     appBadgeMode,
+    completionHistory,
     dailySummaryEnabled,
     dailySummaryMinutes,
     hasSettingsHydrated,
+    streakCelebrationEnabled,
     tasks,
   ]);
 
@@ -1158,6 +1163,8 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
       });
       void syncStreakMotivationNotification({
         tasks,
+        completionHistory,
+        enabled: streakCelebrationEnabled,
       });
     };
 
@@ -1171,9 +1178,11 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     };
   }, [
     appBadgeMode,
+    completionHistory,
     dailySummaryEnabled,
     dailySummaryMinutes,
     hasSettingsHydrated,
+    streakCelebrationEnabled,
     tasks,
   ]);
 
