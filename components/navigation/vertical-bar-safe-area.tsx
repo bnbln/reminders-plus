@@ -13,6 +13,9 @@ const supportsVerticalBar = verticalBarModule?.supportsVerticalBar === true;
 const VerticalBarContext = React.createContext(false);
 const VerticalBarActiveContext = React.createContext(false);
 const RegularWidthContext = React.createContext(false);
+/** Active iPhone Duo fold in window coordinates, including its margins. */
+export type FoldRegion = { x: number; y: number; width: number; height: number };
+const FoldContext = React.createContext<FoldRegion | undefined>(undefined);
 // Android has no size classes; 600dp is Material's compact/medium breakpoint.
 const ANDROID_REGULAR_WIDTH_MIN = 600;
 type PageLayout = { width: number; height?: number; leftInset: number; rightInset: number };
@@ -28,6 +31,7 @@ export function VerticalBarSafeAreaProvider({ children }: React.PropsWithChildre
   const [isNativeRegularWidth, setIsNativeRegularWidth] = React.useState(
     verticalBarModule?.isRegularWidth === true,
   );
+  const [fold, setFold] = React.useState<FoldRegion | undefined>(verticalBarModule?.fold);
   const { width } = useWindowDimensions();
   const isRegularWidth = verticalBarModule
     ? isNativeRegularWidth
@@ -36,12 +40,20 @@ export function VerticalBarSafeAreaProvider({ children }: React.PropsWithChildre
   React.useEffect(() => {
     if (!verticalBarModule) return;
     const subscription = new NativeEventEmitter<{
-      verticalBarLayoutChanged: [{ hasVerticalBar: boolean; isRegularWidth?: boolean }];
+      verticalBarLayoutChanged: [{ hasVerticalBar: boolean; isRegularWidth?: boolean; fold?: FoldRegion }];
     }>(verticalBarModule).addListener(
       "verticalBarLayoutChanged",
       (state) => {
         setIsVerticalBarActive(state.hasVerticalBar);
         setIsNativeRegularWidth(state.isRegularWidth === true);
+        setFold((previous) =>
+          previous?.x === state.fold?.x &&
+          previous?.y === state.fold?.y &&
+          previous?.width === state.fold?.width &&
+          previous?.height === state.fold?.height
+            ? previous
+            : state.fold,
+        );
         // Keep the wrapper mounted across Duo pose changes. The native Screen
         // updates its insets to zero when bars return to the top/bottom,
         // without remounting forms or losing their local state.
@@ -55,7 +67,7 @@ export function VerticalBarSafeAreaProvider({ children }: React.PropsWithChildre
     <VerticalBarContext.Provider value={hasSeenVerticalBar}>
       <VerticalBarActiveContext.Provider value={isVerticalBarActive}>
         <RegularWidthContext.Provider value={isRegularWidth}>
-          {children}
+          <FoldContext.Provider value={fold}>{children}</FoldContext.Provider>
         </RegularWidthContext.Provider>
       </VerticalBarActiveContext.Provider>
     </VerticalBarContext.Provider>
@@ -199,4 +211,13 @@ export function useVerticalBarActive() {
  */
 export function useIsRegularWidth() {
   return React.useContext(RegularWidthContext);
+}
+
+/**
+ * The iPhone Duo fold while it divides the screen, i.e. only in book mode
+ * (device bent). Undefined when fully opened flat, on the outer display and on
+ * devices without a fold.
+ */
+export function useFoldRegion() {
+  return React.useContext(FoldContext);
 }
