@@ -1,3 +1,4 @@
+import { usePageColumnPadding } from "@/components/navigation/page-column";
 import {
   useIsRegularWidth,
   usePageDimensions,
@@ -259,6 +260,7 @@ function StatTile({
 }
 
 export default function StreaksScreen() {
+  const pageColumnPadding = usePageColumnPadding();
   const { width } = usePageDimensions();
   const theme = useColorScheme() ?? "light";
   const isDark = theme === "dark";
@@ -316,7 +318,7 @@ export default function StreaksScreen() {
         style={styles.scroll}
         contentInsetAdjustmentBehavior="automatic"
         alwaysBounceVertical
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, pageColumnPadding]}
         showsVerticalScrollIndicator={false}
       >
         {/* Hero Streak Section */}

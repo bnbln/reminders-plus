@@ -1,3 +1,4 @@
+import { usePageColumnPadding } from "@/components/navigation/page-column";
 import { TaskWorkspace } from "@/components/tasks/task-workspace";
 import { useOpenTask } from "@/context/task-workspace-context";
 import {
@@ -53,6 +54,7 @@ export default function ArchiveScreen() {
 }
 
 function ArchiveContent() {
+  const pageColumnPadding = usePageColumnPadding();
   const openTask = useOpenTask();
   const theme = useColorScheme() ?? "light";
   const isDark = theme === "dark";
@@ -290,7 +292,7 @@ function ArchiveContent() {
       <ScrollView
         key={tab}
         style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, pageColumnPadding]}
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
       >

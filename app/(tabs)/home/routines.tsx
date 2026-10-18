@@ -1,3 +1,4 @@
+import { usePageColumnPadding } from "@/components/navigation/page-column";
 import { usePageDimensions } from "@/components/navigation/vertical-bar-safe-area";
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -30,8 +31,6 @@ type TaskAccessoryContextBridge = {
 const DAILY_ROUTINE_TYPES = new Set(['hourly', 'daily']);
 const WEEKLY_ROUTINE_TYPES = new Set(['weekdays', 'weekends', 'weekly', 'biweekly']);
 const MONTHLY_PLUS_ROUTINE_TYPES = new Set(['monthly', 'quarterly', 'biannually', 'yearly']);
-const TASK_LIST_WIDE_LAYOUT_BREAKPOINT = 900;
-const TASK_LIST_MAX_CONTENT_WIDTH = 760;
 
 const getRoutineLabel = (task: Task): string => {
   const type = task.routineType || task.routineInterval;
@@ -349,14 +348,7 @@ export default function RoutinesScreen() {
     .TaskAccessoryContextBridge as TaskAccessoryContextBridge | undefined;
   const showFloatingAddButton = Platform.OS === 'ios' && !isIOS26OrNewer();
   const styles = useThemedStyles(() => createStyles(theme, compact), [compact, theme]);
-  const constrainedTaskContentStyle = React.useMemo(() => {
-    if (width < TASK_LIST_WIDE_LAYOUT_BREAKPOINT) return null;
-    return {
-      width: '100%' as const,
-      maxWidth: Math.min(TASK_LIST_MAX_CONTENT_WIDTH, width - 32),
-      alignSelf: 'center' as const,
-    };
-  }, [width]);
+  const pageColumnPadding = usePageColumnPadding();
   const { setMode } = useTaskCreateContext();
   const { tasks } = useTasksStore();
 
@@ -427,7 +419,11 @@ export default function RoutinesScreen() {
         style={styles.container}
         contentInsetAdjustmentBehavior="automatic"
         alwaysBounceVertical
-        contentContainerStyle={[styles.content, showFloatingAddButton ? styles.contentWithFab : null]}
+        contentContainerStyle={[
+          styles.content,
+          pageColumnPadding,
+          showFloatingAddButton ? styles.contentWithFab : null,
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* Hero Section */}
@@ -489,7 +485,7 @@ export default function RoutinesScreen() {
         </View>
 
         {/* Routines List */}
-        <View style={constrainedTaskContentStyle}>
+        <View>
           <Text style={styles.sectionTitle}>{t('routines.section.all')}</Text>
           {routineTasks.length === 0 ? (
             <View style={styles.emptyState}>

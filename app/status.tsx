@@ -1,3 +1,4 @@
+import { usePageColumnPadding } from "@/components/navigation/page-column";
 import {
   useIsRegularWidth,
   usePageDimensions,
@@ -272,6 +273,7 @@ function formatRatioValue({
 }
 
 export default function StatusScreen() {
+  const pageColumnPadding = usePageColumnPadding();
   const headerHeight = useHeaderHeight();
   const { width } = usePageDimensions();
   const theme = useColorScheme() ?? 'light';
@@ -362,6 +364,7 @@ export default function StatusScreen() {
       alwaysBounceVertical
       contentContainerStyle={[
           styles.content,
+          pageColumnPadding,
           // Header is transparent; iOS insets automatically, Android does not.
           Platform.OS === "android" ? { paddingTop: headerHeight } : null,
         ]}

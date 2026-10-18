@@ -15,6 +15,7 @@ import {
   View,
 } from "react-native";
 
+import { usePageColumnPadding } from "@/components/navigation/page-column";
 import { useVerticalBarActive } from "@/components/navigation/vertical-bar-safe-area";
 import { ThemedView } from "@/components/themed-view";
 import { withAlpha } from "@/components/ui/glass-surface";
@@ -2176,6 +2177,7 @@ function AssistEntityActionButton({
 }
 
 function AssistUnlockedScreen() {
+  const pageColumnPadding = usePageColumnPadding();
   const [messages, setMessages] = React.useState<Message[]>([]);
   const [input, setInput] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(false);
@@ -3040,7 +3042,7 @@ function AssistUnlockedScreen() {
           <ScrollView
             ref={scrollViewRef}
             style={styles.messagesContainer}
-            contentContainerStyle={styles.messagesContent}
+            contentContainerStyle={[styles.messagesContent, pageColumnPadding]}
             contentInsetAdjustmentBehavior="automatic"
             automaticallyAdjustsScrollIndicatorInsets
             keyboardShouldPersistTaps="handled"
@@ -3130,6 +3132,7 @@ function AssistUnlockedScreen() {
           <View
             style={[
               styles.inputContainer,
+              pageColumnPadding,
               {
                 backgroundColor: colors.background,
                 borderTopColor: inputTopBorderColor,

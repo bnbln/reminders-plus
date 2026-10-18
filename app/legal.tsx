@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 
+import { usePageColumnPadding } from "@/components/navigation/page-column";
 import { ripple } from "@/components/ui/ripple";
 import { Colors } from "@/constants/theme";
 import {
@@ -26,6 +27,7 @@ import { t } from "@/i18n";
 type LinkRow = { key: string; label: string; url: string };
 
 export default function LegalScreen() {
+  const pageColumnPadding = usePageColumnPadding();
   const headerHeight = useHeaderHeight();
   const isDark = (useColorScheme() ?? "light") === "dark";
   const theme = isDark ? "dark" : "light";
@@ -77,6 +79,7 @@ export default function LegalScreen() {
       style={styles.scroll}
       contentContainerStyle={[
         styles.content,
+        pageColumnPadding,
         Platform.OS === "android" ? { paddingTop: headerHeight } : null,
       ]}
       contentInsetAdjustmentBehavior="automatic"

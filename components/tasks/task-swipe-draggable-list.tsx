@@ -1,4 +1,5 @@
-import { usePageDimensions } from "@/components/navigation/vertical-bar-safe-area";
+import { usePageColumn } from "@/components/navigation/page-column";
+import { useIsRegularWidth } from "@/components/navigation/vertical-bar-safe-area";
 import * as Haptics from 'expo-haptics';
 import { useIsFocused } from "expo-router";
 import React from 'react';
@@ -40,8 +41,6 @@ type ThemeName = keyof typeof Colors;
 // container gesture to vertical drags and letting horizontal children scroll.
 const LIST_ACTIVATION_DISTANCE_DEFAULT = Platform.OS === "android" ? 12 : 0;
 const LIST_AUTOSCROLL_SPEED = 58;
-const TASK_LIST_WIDE_LAYOUT_BREAKPOINT = 900;
-const TASK_LIST_MAX_CONTENT_WIDTH = 760;
 const LIST_ANIMATION_CONFIG = {
   damping: 26,
   stiffness: 300,
@@ -375,7 +374,6 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
 ) {
   const { reduceMotionEnabled } = useAppSettings();
   const isFocused = useIsFocused();
-  const { width: viewportWidth } = usePageDimensions();
   const { popInTaskIds, consumeTaskPopIn } = useTaskCreateContext();
   const emojiTint = React.useMemo(() => withAlpha(Colors[theme].background, isDark ? 0.12 : 0.22), [isDark, theme]);
   const emojiFallback = React.useMemo(
@@ -918,10 +916,11 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
         : { flex: 1, overflow: "visible" },
     [shrinkToContentWhenShort]
   );
-  const constrainedRowMaxWidth = React.useMemo(() => {
-    if (viewportWidth < TASK_LIST_WIDE_LAYOUT_BREAKPOINT) return 0;
-    return Math.min(TASK_LIST_MAX_CONTENT_WIDTH, viewportWidth - 32);
-  }, [viewportWidth]);
+  // On regular width rows, section headers, the list header and footer share
+  // the readable page column instead of spanning the whole window.
+  const isRegularWidth = useIsRegularWidth();
+  const { contentWidth: pageColumnWidth } = usePageColumn("readable");
+  const constrainedRowMaxWidth = isRegularWidth ? pageColumnWidth : 0;
   const autoTaskRowStyleOverrides = React.useMemo<TaskRowStyleOverrides | null>(
     () => {
       if (constrainedRowMaxWidth <= 0) return null;
@@ -1223,10 +1222,21 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     ]
   );
 
+  const constrainSlot = React.useCallback(
+    (slot: React.ReactElement | null | undefined) => {
+      if (!slot) return undefined;
+      if (!constrainedHeaderContainerStyle) return slot;
+      return <View style={constrainedHeaderContainerStyle}>{slot}</View>;
+    },
+    [constrainedHeaderContainerStyle]
+  );
+  const constrainedHeader = React.useMemo(() => constrainSlot(header), [constrainSlot, header]);
+  const constrainedFooter = React.useMemo(() => constrainSlot(footer), [constrainSlot, footer]);
+
   const renderListContent = React.useCallback(() => {
     return (
       <>
-        {header ?? null}
+        {constrainedHeader ?? null}
 
         {flatListData.length === 0 ? (
           empty ?? null
@@ -1234,10 +1244,10 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
           flatListData.map((item, index) => <React.Fragment key={item.key}>{renderCompatItem(item, index)}</React.Fragment>)
         )}
 
-        {footer ?? null}
+        {constrainedFooter ?? null}
       </>
     );
-  }, [empty, flatListData, footer, header, renderCompatItem]);
+  }, [constrainedFooter, constrainedHeader, empty, flatListData, renderCompatItem]);
 
   const handleDragBegin = React.useCallback(
     (fromIndex: number) => {
@@ -1441,8 +1451,8 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     data: flatListData,
     keyExtractor: (item: TaskSwipeDraggableListItem) => item.key,
     renderItem,
-    ListHeaderComponent: header ?? undefined,
-    ListFooterComponent: footer ?? undefined,
+    ListHeaderComponent: constrainedHeader,
+    ListFooterComponent: constrainedFooter,
     ListEmptyComponent: empty ?? undefined,
     contentContainerStyle,
     simultaneousHandlers,

@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { OVERLAY_CARD_MAX_WIDTH, usePageMaxWidthStyle } from '@/components/navigation/page-column';
 import { usePageInsets } from '@/components/navigation/vertical-bar-safe-area';
 import { DropdownMenu } from '@/components/ui/dropdown-menu';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
@@ -126,6 +127,8 @@ export default function ProjectEditScreen() {
   const styles = useThemedStyles(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   const pageInsets = usePageInsets();
+  // Same width as the task composer on large screens.
+  const overlayWidthStyle = usePageMaxWidthStyle(OVERLAY_CARD_MAX_WIDTH);
   const { projects, setProjects, setTasks } = useTasksStore();
   const { hasPremiumAccess, isReady } = usePremium();
 
@@ -383,7 +386,7 @@ export default function ProjectEditScreen() {
 
       <KeyboardLiftView style={styles.keyboard}>
         <View
-          style={[styles.floatingStack, { paddingBottom: Math.max(14, insets.bottom - 8) }]}
+          style={[styles.floatingStack, overlayWidthStyle, { paddingBottom: Math.max(14, insets.bottom - 8) }]}
           pointerEvents="box-none"
         >
           <GlassSurface

@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
+import { usePageColumnPadding } from "@/components/navigation/page-column";
 import { useDismissSearchBar } from "@/components/search/search-bar-dismiss";
 import { TaskSwipeDraggableList } from "@/components/tasks/task-swipe-draggable-list";
 import { withAlpha } from "@/components/ui/glass-surface";
@@ -30,6 +31,7 @@ const SEARCH_RESULT_LIMIT = 120;
 const SEARCH_TASK_ITEM_SPACING = 8;
 
 export function SearchResultsScreen() {
+  const pageColumnPadding = usePageColumnPadding();
   const headerHeight = useHeaderHeight();
   const router = useRouter();
   const { q, withSubtasks } = useLocalSearchParams<{
@@ -185,6 +187,7 @@ export function SearchResultsScreen() {
         style={styles.scroll}
         contentContainerStyle={[
           styles.content,
+          pageColumnPadding,
           styles.contentFill,
           // Header is transparent; iOS insets automatically, Android does not.
           Platform.OS === "android" ? { paddingTop: headerHeight } : null,
