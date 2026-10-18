@@ -5,6 +5,8 @@
 @interface RemindsVerticalBar : RCTEventEmitter
 @property (nonatomic, weak) UIWindow *observedWindow;
 @property (nonatomic, strong) id traitRegistration;
+@property (nonatomic, strong) id hingeInteraction;
+@property (nonatomic, copy) NSDictionary *reportedFold;
 @property (nonatomic) BOOL listening;
 @end
 
@@ -35,7 +37,35 @@ RCT_EXPORT_MODULE()
   }
   // iPhone Duo: compact on the outer display, regular on the inner one.
   BOOL isRegularWidth = traits.horizontalSizeClass == UIUserInterfaceSizeClassRegular;
-  return @{@"hasVerticalBar": @(hasVerticalBar), @"isRegularWidth": @(isRegularWidth)};
+  NSMutableDictionary *state = [@{@"hasVerticalBar": @(hasVerticalBar), @"isRegularWidth": @(isRegularWidth)} mutableCopy];
+  // iPhone Duo fold: a division region that is active only while the device is
+  // bent (book mode). Fully opened flat it is inactive and not returned here.
+  if (@available(iOS 27.1, *)) {
+    UIWindow *window = self.activeWindow;
+    UIViewReservedRegion *fold = [window reservedRegionsOfKind:UIViewReservedRegionKind.divisionRegionKind].firstObject;
+    if (fold) {
+      CGRect frame = fold.frame;
+      state[@"fold"] = @{@"x": @(frame.origin.x), @"y": @(frame.origin.y),
+                         @"width": @(frame.size.width), @"height": @(frame.size.height)};
+    }
+  }
+  return state;
+}
+
+- (void)sendLayoutState
+{
+  if (!self.listening) return;
+  NSDictionary *state = self.layoutState;
+  self.reportedFold = state[@"fold"];
+  [self sendEventWithName:@"verticalBarLayoutChanged" body:state];
+}
+
+// The hinge reports every angle step while bending; JS only needs the fold.
+- (void)sendLayoutStateIfFoldChanged
+{
+  NSDictionary *fold = self.layoutState[@"fold"];
+  if (fold == self.reportedFold || [fold isEqualToDictionary:self.reportedFold]) return;
+  [self sendLayoutState];
 }
 
 - (NSDictionary *)constantsToExport
@@ -53,6 +83,7 @@ RCT_EXPORT_MODULE()
     UIWindow *window = self.activeWindow;
     if (self.observedWindow != window || !self.traitRegistration) {
       if (self.traitRegistration) [self.observedWindow unregisterForTraitChanges:self.traitRegistration];
+      [self removeHingeInteraction];
       self.observedWindow = window;
       __weak RemindsVerticalBar *weakSelf = self;
       NSArray<UITrait> *traits = @[UITraitHorizontalSizeClass.class];
@@ -61,12 +92,30 @@ RCT_EXPORT_MODULE()
       }
       self.traitRegistration = [window registerForTraitChanges:traits
         withHandler:^(__kindof id<UITraitEnvironment> environment, UITraitCollection *previousTraits) {
-          RemindsVerticalBar *module = weakSelf;
-          if (module.listening) [module sendEventWithName:@"verticalBarLayoutChanged" body:module.layoutState];
+          [weakSelf sendLayoutState];
         }];
+      if (@available(iOS 27.1, *)) {
+        // Bending or flattening the Duo changes no trait, only the hinge. The
+        // fold region follows it, so report again on the next run loop pass.
+        UIHingeInteraction *interaction = [[UIHingeInteraction alloc]
+          initWithUpdateHandler:^(UIHingeInteraction *hinge, UIHingeInteractionUpdate *update) {
+            [weakSelf sendLayoutStateIfFoldChanged];
+            dispatch_async(dispatch_get_main_queue(), ^{ [weakSelf sendLayoutStateIfFoldChanged]; });
+          }];
+        [window addInteraction:interaction];
+        self.hingeInteraction = interaction;
+      }
     }
   }
-  if (self.listening) [self sendEventWithName:@"verticalBarLayoutChanged" body:self.layoutState];
+  [self sendLayoutState];
+}
+
+- (void)removeHingeInteraction
+{
+  if (@available(iOS 27.1, *)) {
+    if (self.hingeInteraction) [self.observedWindow removeInteraction:self.hingeInteraction];
+  }
+  self.hingeInteraction = nil;
 }
 
 - (void)startObserving
@@ -84,6 +133,7 @@ RCT_EXPORT_MODULE()
   if (@available(iOS 17.0, *)) {
     if (self.traitRegistration) [self.observedWindow unregisterForTraitChanges:self.traitRegistration];
     self.traitRegistration = nil;
+    [self removeHingeInteraction];
     self.observedWindow = nil;
   }
 }

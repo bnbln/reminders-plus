@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { KeyboardLiftView } from "@/components/ui/keyboard-lift-view";
 import {
+  useFoldRegion,
   useIsRegularWidth,
   usePageDimensions,
   usePageInsets,
@@ -53,8 +54,6 @@ import { motionSpring } from "@/utils/motion";
 import { useThemedStyles } from "@/hooks/use-themed-styles";
 
 const REGULAR_COMPOSER_MAX_WIDTH = 640;
-// Space kept clear of the fold on each side in landscape.
-const COMPOSER_FOLD_GAP = 12;
 
 const createTaskId = () =>
   `t-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -1474,17 +1473,22 @@ export default function CreateTaskModal() {
       ? insets.bottom + 16
       : Math.max(14, insets.bottom - 16);
   const menuBottom = 66;
-  // On a regular-width page (inner iPhone Duo display, iPad) a full-width
-  // composer stretches the field across the whole screen. Portrait keeps it
-  // centered at a readable width. In landscape the Duo fold runs down the
-  // middle, so the composer stays on the leading half next to the + button.
+  // On a regular-width page (inner iPhone Duo display, iPad) the composer
+  // adapts to the pose. In book mode the Duo reports its fold as a division
+  // region: a vertical fold keeps the composer on the leading half next to the
+  // + button. Opened flat there is no active fold, so landscape uses the full
+  // width and portrait stays centered at a readable width.
   const isRegularWidth = useIsRegularWidth();
+  const fold = useFoldRegion();
   const { width: pageWidth, height: pageHeight } = usePageDimensions();
+  const isVerticalFold = fold !== undefined && fold.height > fold.width;
   const composerSizeStyle = !isRegularWidth
     ? null
-    : pageWidth > pageHeight
-      ? { width: pageWidth / 2 - COMPOSER_FOLD_GAP }
-      : { width: "100%" as const, maxWidth: REGULAR_COMPOSER_MAX_WIDTH, alignSelf: "center" as const };
+    : isVerticalFold
+      ? { width: Math.max(0, fold.x - pageInsets.leftInset) }
+      : pageWidth > pageHeight
+        ? null
+        : { width: "100%" as const, maxWidth: REGULAR_COMPOSER_MAX_WIDTH, alignSelf: "center" as const };
   const lightBackdropGradient = React.useMemo(
     () =>
       [
