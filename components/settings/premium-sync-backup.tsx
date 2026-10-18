@@ -33,7 +33,12 @@ import {
   type AppearanceMode,
   useAppSettings,
 } from "@/context/settings-store";
-import { type Project, type Task, useTasksStore } from "@/context/tasks-store";
+import {
+  type CompletionHistory,
+  type Project,
+  type Task,
+  useTasksStore,
+} from "@/context/tasks-store";
 import {
   type CloudSyncAccountStatus,
   type CloudSyncStatus,
@@ -54,6 +59,8 @@ type AppBackupPayload = {
   exportedAt: string;
   tasks: Task[];
   projects: Project[];
+  /** Completions per day, exported for completeness; restore does not read it. */
+  completionHistory?: CompletionHistory;
   appSettings: {
     appearanceMode: AppearanceMode;
     accentColor: AccentColorId;
@@ -69,6 +76,10 @@ type AppBackupPayload = {
     showTagIcons: boolean;
     showProjectNames: boolean;
     showCompactSubtasks: boolean;
+    // Optional: backups written before these filters existed lack them.
+    showCompletedTasks?: boolean;
+    showProjectTasks?: boolean;
+    showRoutineTasks?: boolean;
   };
   persistedValues: Record<string, string>;
 };
@@ -127,6 +138,10 @@ function confirmBackupRestore(taskCount: number, projectCount: number) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function optionalBoolean(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
 }
 
 function isAppearanceMode(value: unknown): value is AppearanceMode {
@@ -396,6 +411,9 @@ function parseBackupPayload(rawJson: string): AppBackupPayload {
         typeof homeFilters.showCompactSubtasks === "boolean"
           ? homeFilters.showCompactSubtasks
           : false,
+      showCompletedTasks: optionalBoolean(homeFilters.showCompletedTasks),
+      showProjectTasks: optionalBoolean(homeFilters.showProjectTasks),
+      showRoutineTasks: optionalBoolean(homeFilters.showRoutineTasks),
     },
     persistedValues: Object.entries(persistedValues).reduce<
       Record<string, string>
@@ -414,6 +432,8 @@ export type PremiumSyncBackupController = {
   effectiveCloudSyncEnabled: boolean;
   isCloudSyncBusy: boolean;
   cloudSyncStatusText: string;
+  /** False until tasks are loaded from disk; exporting earlier would be empty. */
+  isBackupDataReady: boolean;
   isExportingBackup: boolean;
   isRestoringBackup: boolean;
   backupStatusText: string;
@@ -425,7 +445,14 @@ export type PremiumSyncBackupController = {
 
 export function usePremiumSyncBackupController(): PremiumSyncBackupController {
   const router = useRouter();
-  const { tasks, setTasks, projects, setProjects } = useTasksStore();
+  const {
+    tasks,
+    setTasks,
+    projects,
+    setProjects,
+    completionHistory,
+    hasHydrated: isBackupDataReady,
+  } = useTasksStore();
   const {
     enabledTags,
     setEnabledTags,
@@ -435,6 +462,12 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
     setShowProjectNames,
     showCompactSubtasks,
     setShowCompactSubtasks,
+    showCompletedTasks,
+    setShowCompletedTasks,
+    showProjectTasks,
+    setShowProjectTasks,
+    showRoutineTasks,
+    setShowRoutineTasks,
   } = useHomeFilters();
   const {
     appearanceMode,
@@ -617,7 +650,7 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
   // Export is free for everyone: users must always be able to take their own
   // data out of the app. Only restoring a backup (and Cloud Sync) needs Plus.
   const onExportBackup = React.useCallback(async () => {
-    if (isExportingBackup || isRestoringBackup) return;
+    if (isExportingBackup || isRestoringBackup || !isBackupDataReady) return;
 
     setIsExportingBackup(true);
     try {
@@ -628,6 +661,7 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
         exportedAt: new Date().toISOString(),
         tasks: tasks.filter((task) => !task.isDraft),
         projects,
+        completionHistory,
         appSettings: {
           appearanceMode,
           accentColor,
@@ -645,6 +679,9 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
           showTagIcons,
           showProjectNames,
           showCompactSubtasks,
+          showCompletedTasks,
+          showProjectTasks,
+          showRoutineTasks,
         },
         persistedValues,
       };
@@ -661,15 +698,20 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
     appBadgeMode,
     appearanceMode,
     cloudSyncEnabled,
+    completionHistory,
     dailySummaryEnabled,
     dailySummaryMinutes,
     enabledTags,
     hapticsEnabled,
+    isBackupDataReady,
     isExportingBackup,
     isRestoringBackup,
     projects,
     showCompactSubtasks,
+    showCompletedTasks,
     showProjectNames,
+    showProjectTasks,
+    showRoutineTasks,
     showTagIcons,
     tasks,
   ]);
@@ -715,6 +757,11 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
       setShowTagIcons(backup.homeFilters.showTagIcons);
       setShowProjectNames(backup.homeFilters.showProjectNames);
       setShowCompactSubtasks(backup.homeFilters.showCompactSubtasks);
+      const { showCompletedTasks, showProjectTasks, showRoutineTasks } =
+        backup.homeFilters;
+      if (showCompletedTasks !== undefined) setShowCompletedTasks(showCompletedTasks);
+      if (showProjectTasks !== undefined) setShowProjectTasks(showProjectTasks);
+      if (showRoutineTasks !== undefined) setShowRoutineTasks(showRoutineTasks);
 
       Alert.alert(
         t("backup.alert.restoreDoneTitle"),
@@ -740,7 +787,10 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
     setHapticsEnabled,
     setProjects,
     setShowCompactSubtasks,
+    setShowCompletedTasks,
     setShowProjectNames,
+    setShowProjectTasks,
+    setShowRoutineTasks,
     setShowTagIcons,
     setTasks,
   ]);
@@ -766,6 +816,7 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
     isExportingBackup,
     isRestoringBackup,
     backupStatusText,
+    isBackupDataReady,
     onToggleCloudSync,
     onCloudSyncNow,
     onExportBackup,

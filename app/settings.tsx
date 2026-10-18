@@ -977,6 +977,7 @@ export default function SettingsScreen() {
             }
             onPress={premiumController.onExportBackup}
             disabled={
+              !premiumController.isBackupDataReady ||
               premiumController.isExportingBackup ||
               premiumController.isRestoringBackup
             }
