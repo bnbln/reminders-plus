@@ -266,20 +266,13 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "tags.project": "Projekt",
   "tags.keywords": "Schlagwörter",
 
-  "notification.due": "Fällig",
+  "notification.due.now": "Jetzt fällig",
+  "notification.due.today": "Heute fällig",
   "notification.dailySummary.title": "Tageszusammenfassung",
-  "notification.dailySummary.body":
-    "{{dueToday}} heute fällig · {{overdue}} überfällig · {{open}} offen · {{completedToday}} erledigt",
-  "notification.streakNudge.primary.title": "Streak heute sichern",
-  "notification.streakNudge.primary.body":
-    "Du hast heute noch nichts erledigt. Starte mit einer kleinen Aufgabe.",
-  "notification.streakNudge.primary.bodyWithRoutines":
-    "Du hast heute noch nichts erledigt. Auch {{routineCount}} Routinen warten auf dich.",
-  "notification.streakNudge.followUp.title": "Erinnerung für heute Abend",
-  "notification.streakNudge.followUp.body":
-    "Dein Streak ist noch offen. Erledige heute noch eine Aufgabe.",
-  "notification.streakNudge.followUp.bodyWithRoutines":
-    "Dein Streak ist noch offen. Erledige heute noch eine Aufgabe oder Routine.",
+  "notification.dailySummary.body": "Heute fällig: {{dueToday}} · Überfällig: {{overdue}} · Offen: {{open}} · Heute erledigt: {{completedToday}}",
+  "notification.streakNudge.title": "Streak heute sichern",
+  "notification.streakNudge.body": "Du hast heute noch nichts erledigt. Eine kleine Aufgabe reicht, um deinen Streak zu halten.",
+  "notification.streakNudge.bodyWithRoutines": "Du hast heute noch nichts erledigt. Auch deine Routinen für heute warten noch.",
 
   "seed.project.work": "Arbeit",
   "seed.project.home": "Zuhause",
