@@ -425,6 +425,10 @@ export const EN_TRANSLATIONS: TranslationDict = {
     "settings.remindsPlus.action.discover": "Discover Plus",
     "settings.remindsPlus.hero.activeTitle": "Everything unlocked.",
     "settings.remindsPlus.hero.activeBody": "Thanks for your support. All Plus features are yours.",
+    "settings.section.data": "Your data",
+    "settings.data.export": "Export all data",
+    "settings.data.exporting": "Exporting data...",
+    "settings.data.exportFooter": "Exports all tasks, projects and settings as a JSON file. Free, no Reminders+ needed.",
     'settings.appearance.mode': 'Color mode',
     'settings.appearance.appIconFollowsAccent': 'App icon in accent color',
     'settings.appearance.appIconFollowsAccentHint':

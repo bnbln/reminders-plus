@@ -614,16 +614,10 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
     return accountMessage;
   }, [cloudSyncEnabled, cloudSyncStatus, hasPremiumAccess]);
 
+  // Export is free for everyone: users must always be able to take their own
+  // data out of the app. Only restoring a backup (and Cloud Sync) needs Plus.
   const onExportBackup = React.useCallback(async () => {
     if (isExportingBackup || isRestoringBackup) return;
-    if (!hasPremiumAccess) {
-      Alert.alert(
-        t("backup.alert.premiumRequiredTitle"),
-        t("backup.alert.premiumRequiredBody"),
-      );
-      openPremiumOffer();
-      return;
-    }
 
     setIsExportingBackup(true);
     try {
@@ -670,11 +664,9 @@ export function usePremiumSyncBackupController(): PremiumSyncBackupController {
     dailySummaryEnabled,
     dailySummaryMinutes,
     enabledTags,
-    hasPremiumAccess,
     hapticsEnabled,
     isExportingBackup,
     isRestoringBackup,
-    openPremiumOffer,
     projects,
     showCompactSubtasks,
     showProjectNames,
