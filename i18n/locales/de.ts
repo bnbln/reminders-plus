@@ -460,6 +460,10 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "settings.remindsPlus.action.discover": "Plus entdecken",
   "settings.remindsPlus.hero.activeTitle": "Alles freigeschaltet.",
   "settings.remindsPlus.hero.activeBody": "Danke für deine Unterstützung. Alle Plus-Funktionen stehen dir zur Verfügung.",
+  "settings.section.data": "Deine Daten",
+  "settings.data.export": "Alle Daten exportieren",
+  "settings.data.exporting": "Exportiere Daten...",
+  "settings.data.exportFooter": "Exportiert alle Aufgaben, Projekte und Einstellungen als JSON-Datei. Kostenlos, auch ohne Reminders+.",
   "settings.appearance.mode": "Farbmodus",
   "settings.appearance.appIconFollowsAccent": "App-Icon in Akzentfarbe",
   "settings.appearance.appIconFollowsAccentHint":
