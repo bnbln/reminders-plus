@@ -2947,11 +2947,11 @@ function HomeContent() {
       for (const task of tasksBySection[sectionId]) {
         data.push({
           type: "task",
-          // No section in the key: a row dragged into another section must
-          // keep its cell, otherwise it remounts (and flashes) on drop.
-          key: `task-${task.id}:${task.completedAt ?? 0}:${
-            task.deletedAt ?? 0
-          }`,
+          // No section or completion in the key: a row dragged into another
+          // section (also completed -> today) must keep its cell. A remount
+          // flashes, and it drops a cell that still carries the drop-handoff
+          // layout transition.
+          key: `task-${task.id}:${task.deletedAt ?? 0}`,
           taskId: task.id,
         });
       }
@@ -3013,13 +3013,27 @@ function HomeContent() {
 
       for (const item of data) {
         if (item.type === "header") {
-          currentSection = item.sectionId;
+          // An unknown header must not end up as a bucket lookup below.
+          if (SECTION_ORDER.includes(item.sectionId)) {
+            currentSection = item.sectionId;
+          }
           continue;
         }
         bySection[currentSection].push(item.taskId);
       }
 
       setTasks((prev) => {
+        // A throw inside this updater would crash the app; a drop that
+        // cannot be applied keeps the previous order instead.
+        try {
+          return applyDropOrder(prev);
+        } catch (error) {
+          console.warn("[home] drop reorder failed", error);
+          return prev;
+        }
+      });
+
+      function applyDropOrder(prev: Task[]): Task[] {
         const visibleIdSet = new Set(visibleTasks.map((t) => t.id));
 
         const nextById = new Map<string, Task>();
@@ -3059,7 +3073,7 @@ function HomeContent() {
         }
 
         return prev.map((t) => nextById.get(t.id) ?? t);
-      });
+      }
     },
     [
       firstVisibleSection,

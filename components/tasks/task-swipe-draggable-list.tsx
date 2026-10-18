@@ -29,7 +29,12 @@ import { useAppSettings } from '@/context/settings-store';
 import { useTaskCreateContext } from '@/context/task-create-context';
 import type { Project, Task } from '@/context/tasks-store';
 import { triggerImpactHaptic } from '@/utils/haptics';
-import { configureLayoutAnimation, motionSpring } from "@/utils/motion";
+import {
+  configureLayoutAnimation,
+  holdLayoutAnimations,
+  motionSpring,
+  releaseLayoutAnimations,
+} from "@/utils/motion";
 import { traceDrag } from '@/utils/drag-diagnostics';
 
 type ThemeName = keyof typeof Colors;
@@ -127,6 +132,14 @@ const areListItemsEqual = (
 
   return true;
 };
+
+// While a drag runs, the drop-handoff cells carry Reanimated layout
+// transitions, so LayoutAnimation stays off (see holdLayoutAnimations). The
+// cap only matters if a drag never reports its end.
+const DRAG_LAYOUT_ANIMATION_HOLD_MAX_MS = 30_000;
+// The library detaches the transitions 400 ms after the reorder mount, or
+// 1500 ms after a drop without a data change. Stay clear of both.
+const DROP_LAYOUT_ANIMATION_HOLD_MS = 1_800;
 
 const configureDropLayoutAnimation = () => {
   // Only move surviving rows; the dropped row runs its own landing animation.
@@ -420,6 +433,7 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
   const ignoreNextDragEndRef = React.useRef(false);
   const deferredSyncFrameRef = React.useRef<number | null>(null);
   const dragCompletionFrameRef = React.useRef<number | null>(null);
+  const [layoutAnimationHoldOwner] = React.useState(() => ({}));
   const skippedSyncDuringDragRef = React.useRef(false);
   const finishDrag = React.useCallback(() => {
     const generation = dragGenerationRef.current;
@@ -430,6 +444,12 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       dragCompletionFrameRef.current = null;
       if (generation !== dragGenerationRef.current) return;
       isDraggingRef.current = false;
+      if (dropLayoutHandoff) {
+        holdLayoutAnimations(
+          layoutAnimationHoldOwner,
+          DROP_LAYOUT_ANIMATION_HOLD_MS,
+        );
+      }
       if (skippedSyncDuringDragRef.current) {
         // Data that arrived mid-drag was held back; apply it now, since a drop
         // that changes nothing won't rerun the sync effect on its own.
@@ -442,12 +462,18 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
       traceDrag(diagnosticListId, "settled", { generation });
       onDragStateChange?.(false);
     });
-  }, [diagnosticListId, onDragStateChange]);
+  }, [
+    diagnosticListId,
+    dropLayoutHandoff,
+    layoutAnimationHoldOwner,
+    onDragStateChange,
+  ]);
   React.useEffect(() => () => {
     if (dragCompletionFrameRef.current !== null) {
       cancelAnimationFrame(dragCompletionFrameRef.current);
     }
-  }, []);
+    releaseLayoutAnimations(layoutAnimationHoldOwner);
+  }, [layoutAnimationHoldOwner]);
 
   const registerRowMeasure = React.useCallback(
     (taskId: string, measure: TaskRowMeasure) => {
@@ -1256,6 +1282,12 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
         from: fromIndex, generation: dragGenerationRef.current,
       });
       isDraggingRef.current = true;
+      if (dropLayoutHandoff) {
+        holdLayoutAnimations(
+          layoutAnimationHoldOwner,
+          DRAG_LAYOUT_ANIMATION_HOLD_MAX_MS,
+        );
+      }
       externalDropRef.current = null;
       ignoreNextDragEndRef.current = false;
       dragRowFrameRef.current = null;
@@ -1286,6 +1318,8 @@ export const TaskSwipeDraggableList = React.forwardRef<TaskSwipeDraggableListHan
     [
       closeAnyOpen,
       diagnosticListId,
+      dropLayoutHandoff,
+      layoutAnimationHoldOwner,
       onDragBeginTask,
       onDragStateChange,
       resetActiveDragTranslationX,
