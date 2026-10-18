@@ -1,3 +1,4 @@
+import { usePageColumnPadding } from "@/components/navigation/page-column";
 import {
   ACCENT_COLORS,
   type AccentColorId,
@@ -173,6 +174,7 @@ function Section({
 }
 
 export default function SettingsScreen() {
+  const pageColumnPadding = usePageColumnPadding();
   const headerHeight = useHeaderHeight();
   const router = useRouter();
   const theme = (useColorScheme() ?? "light") as ThemeName;
@@ -671,6 +673,7 @@ export default function SettingsScreen() {
         style={styles.scroll}
         contentContainerStyle={[
           styles.content,
+          pageColumnPadding,
           // Header is transparent; iOS insets automatically, Android does not.
           Platform.OS === "android" ? { paddingTop: headerHeight } : null,
         ]}

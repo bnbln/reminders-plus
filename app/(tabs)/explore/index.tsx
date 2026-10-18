@@ -1,7 +1,8 @@
 import {
-  useIsRegularWidth,
-  usePageDimensions,
-} from "@/components/navigation/vertical-bar-safe-area";
+  usePageColumn,
+  usePageColumnPadding,
+} from "@/components/navigation/page-column";
+import { useIsRegularWidth } from "@/components/navigation/vertical-bar-safe-area";
 import { useHeaderHeight } from "expo-router/react-navigation";
 import { useRouter } from "expo-router";
 import React from "react";
@@ -333,31 +334,28 @@ export default function ExploreScreen() {
   const headerHeight = useHeaderHeight();
   const router = useRouter();
   const theme = useColorScheme() ?? "light";
-  const { width: viewportWidth } = usePageDimensions();
   const isRegularWidth = useIsRegularWidth();
+  // Tiles fill the wide page column, not the whole window.
+  const { contentWidth: gridWidth } = usePageColumn("wide");
+  const gridPadding = usePageColumnPadding("wide");
   const gridColumns = React.useMemo(() => {
     if (!isRegularWidth) return COMPACT_GRID_COLUMNS;
     const fourColumnTileWidth =
-      (viewportWidth -
-        GRID_HORIZONTAL_PADDING * 2 -
-        GRID_GAP * (REGULAR_GRID_COLUMNS - 1)) /
+      (gridWidth - GRID_GAP * (REGULAR_GRID_COLUMNS - 1)) /
       REGULAR_GRID_COLUMNS;
     return fourColumnTileWidth >= MIN_REGULAR_TILE_WIDTH
       ? REGULAR_GRID_COLUMNS
       : COMPACT_GRID_COLUMNS;
-  }, [isRegularWidth, viewportWidth]);
+  }, [gridWidth, isRegularWidth]);
   const showFloatingAddButton = Platform.OS === "ios" && !isIOS26OrNewer();
   const palette = useThemedStyles(() => createExploreTheme(theme), [theme]);
   const tileWidth = React.useMemo(
     () =>
       Math.max(
         0,
-        (viewportWidth -
-          GRID_HORIZONTAL_PADDING * 2 -
-          GRID_GAP * (gridColumns - 1)) /
-          gridColumns,
+        (gridWidth - GRID_GAP * (gridColumns - 1)) / gridColumns,
       ),
-    [gridColumns, viewportWidth],
+    [gridColumns, gridWidth],
   );
   const tileStrideX = tileWidth + GRID_GAP;
   const tileStrideY = PROJECT_TILE_HEIGHT + GRID_GAP;
@@ -718,6 +716,7 @@ export default function ExploreScreen() {
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={[
           styles.content,
+          gridPadding,
           // Header is transparent; iOS insets automatically, Android does not.
           Platform.OS === "android" ? { paddingTop: headerHeight } : null,
         ]}

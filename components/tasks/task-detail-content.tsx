@@ -24,6 +24,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { usePageColumnPadding } from "@/components/navigation/page-column";
 import { useVerticalBarActive } from '@/components/navigation/vertical-bar-safe-area';
 import { DropdownMenu } from '@/components/ui/dropdown-menu';
 import { GlassSurface, withAlpha } from '@/components/ui/glass-surface';
@@ -101,6 +102,7 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
   onClose: () => void;
   headerHeight?: number;
 }) {
+  const pageColumnPadding = usePageColumnPadding();
   const router = useRouter();
   const { tasks, setTasks, projects } = useTasksStore();
   const theme = useColorScheme() ?? 'light';
@@ -437,6 +439,7 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
       style={styles.scroll}
       contentContainerStyle={[
         styles.content,
+        pageColumnPadding,
         // iOS gets this from `contentInsetAdjustmentBehavior`; Android has no
         // equivalent, so the transparent header would overlap the hero emoji.
         Platform.OS === 'android' ? { paddingTop: headerHeight + 18 } : null,
@@ -783,7 +786,7 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
         <View
           pointerEvents="box-none"
           onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}
-          style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}
+          style={[styles.footer, pageColumnPadding, { paddingBottom: Math.max(insets.bottom, 12) }]}
         >
           <LinearGradient
             pointerEvents="none"

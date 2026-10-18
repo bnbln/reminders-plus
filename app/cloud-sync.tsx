@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { Redirect, useRouter } from "expo-router";
 
+import { usePageColumnPadding } from "@/components/navigation/page-column";
 import {
   PremiumBackupBlock,
   PremiumCloudSyncBlock,
@@ -45,6 +46,7 @@ export default function CloudSyncScreen() {
 }
 
 function CloudSyncScreenContent() {
+  const pageColumnPadding = usePageColumnPadding();
   const router = useRouter();
   const theme = (useColorScheme() ?? "light") as ThemeName;
   const isDark = theme === "dark";
@@ -69,7 +71,7 @@ function CloudSyncScreenContent() {
     <View style={{ flex: 1, backgroundColor: "transparent" }}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, pageColumnPadding]}
         contentInsetAdjustmentBehavior="automatic"
         alwaysBounceVertical
         showsVerticalScrollIndicator={false}

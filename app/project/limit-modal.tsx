@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { OVERLAY_CARD_MAX_WIDTH, usePageMaxWidthStyle } from "@/components/navigation/page-column";
 import { usePageInsets } from "@/components/navigation/vertical-bar-safe-area";
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { FREE_PROJECT_LIMIT } from "@/constants/premium";
@@ -30,6 +31,8 @@ export default function ProjectLimitModal() {
   const styles = useThemedStyles(() => createStyles(theme), [theme]);
   const insets = useSafeAreaInsets();
   const pageInsets = usePageInsets();
+  // Same width as the task composer on large screens.
+  const overlayWidthStyle = usePageMaxWidthStyle(OVERLAY_CARD_MAX_WIDTH);
   const { hasPremiumAccess, isReady } = usePremium();
   const { projects } = useTasksStore();
 
@@ -85,7 +88,7 @@ export default function ProjectLimitModal() {
         pointerEvents="box-none"
       >
         <GlassSurface
-          style={styles.lockCard}
+          style={[styles.lockCard, overlayWidthStyle]}
           glassEffectStyle="regular"
           tintColor={withAlpha(Colors[theme].background, isDark ? 0.18 : 0.34)}
           fallbackBackgroundColor={withAlpha(
