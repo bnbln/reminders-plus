@@ -963,6 +963,33 @@ export default function SettingsScreen() {
           />
         </SettingsSection>
 
+        <SettingsSection
+          title={t("settings.section.data")}
+          footer={t("settings.data.exportFooter")}
+        >
+          <SettingsRow
+            icon="square.and.arrow.up"
+            iconColor="#34C759"
+            label={
+              premiumController.isExportingBackup
+                ? t("settings.data.exporting")
+                : t("settings.data.export")
+            }
+            onPress={premiumController.onExportBackup}
+            disabled={
+              premiumController.isExportingBackup ||
+              premiumController.isRestoringBackup
+            }
+            trailing={
+              <MaterialIcons
+                name="chevron-right"
+                size={22}
+                color={palette.muted}
+              />
+            }
+          />
+        </SettingsSection>
+
         {__DEV__ ? (
           <SettingsSection title="Developer">
             <SettingsRow
