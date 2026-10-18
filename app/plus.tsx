@@ -24,6 +24,7 @@ import {
   REMINDS_PLUS_LIFETIME_PRODUCT_ID,
   REMINDS_PLUS_MONTHLY_PRODUCT_ID,
 } from "@/constants/premium";
+import { VISIBLE_PREMIUM_BENEFITS } from "@/constants/premium-benefits";
 import { LEGAL_PRIVACY_URL, LEGAL_TERMS_URL } from "@/constants/legal";
 import { Colors } from "@/constants/theme";
 import { usePremium } from "@/context/premium-store";
@@ -31,11 +32,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
 import { ripple } from "@/components/ui/ripple";
 import { useVerticalBarActive } from "@/components/navigation/vertical-bar-safe-area";
-import {
-  assistCopyKey,
-  IS_ASSIST_SUPPORTED,
-  IS_CLOUD_SYNC_SUPPORTED,
-} from "@/utils/assist-availability";
+import { assistCopyKey } from "@/utils/assist-availability";
 
 type ThemeName = keyof typeof Colors;
 type PurchaseOption = "monthly" | "lifetime";
@@ -51,27 +48,6 @@ const IOS_LIGHT_ELEVATED_SURFACE = "#FFFFFF";
 const IOS_LIGHT_BORDER = "rgba(60, 60, 67, 0.18)";
 const IOS_DARK_ELEVATED_SURFACE = "#1C1C1E";
 const IOS_DARK_BORDER = "rgba(255,255,255,0.12)";
-
-const BENEFITS = [
-  {
-    id: "assist",
-    icon: "auto-awesome",
-    tint: "#34C759",
-    titleKey: "plus.benefit.assist",
-  },
-  {
-    id: "projects",
-    icon: "folder-open",
-    tint: "#3B82F6",
-    titleKey: "plus.benefit.projects",
-  },
-  {
-    id: "sync",
-    icon: "cloud-done",
-    tint: "#F59E0B",
-    titleKey: "plus.benefit.sync",
-  },
-] as const;
 
 function resolveSourceCopy(source: string) {
   switch (source) {
@@ -284,17 +260,7 @@ export default function PlusScreen({
   const checkoutTextColor = isDark ? "#0F1115" : "#FFFFFF";
   const disabledCheckoutBackground = isDark ? "#4B5563" : "#A1A1AA";
   const sourceCopy = resolveSourceCopy(source);
-  // Assist and Cloud Sync are Apple-only, so don't advertise them on platforms
-  // that cannot run them.
-  const visibleBenefits = React.useMemo(
-    () =>
-      BENEFITS.filter((benefit) => {
-        if (benefit.id === "assist") return IS_ASSIST_SUPPORTED;
-        if (benefit.id === "sync") return IS_CLOUD_SYNC_SUPPORTED;
-        return true;
-      }),
-    [],
-  );
+  const visibleBenefits = VISIBLE_PREMIUM_BENEFITS;
   const monthlyTitle = resolveStoreProductTitle(
     monthlyProduct,
     t("plus.offer.monthly.title"),

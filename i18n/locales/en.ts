@@ -421,6 +421,10 @@ export const EN_TRANSLATIONS: TranslationDict = {
     'settings.remindsPlus.helper.noAssist': 'Reminders+ unlocks more than 4 projects.',
     'settings.remindsPlus.action.showOptions': 'Show purchase options',
     'settings.remindsPlus.action.openOffer': 'Open offer',
+    "settings.section.syncBackup": "Sync & Backup",
+    "settings.remindsPlus.action.discover": "Discover Plus",
+    "settings.remindsPlus.hero.activeTitle": "Everything unlocked.",
+    "settings.remindsPlus.hero.activeBody": "Thanks for your support. All Plus features are yours.",
     'settings.appearance.mode': 'Color mode',
     'settings.appearance.appIconFollowsAccent': 'App icon in accent color',
     'settings.appearance.appIconFollowsAccentHint':

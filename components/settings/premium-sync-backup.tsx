@@ -13,6 +13,7 @@ import {
 } from "react-native";
 
 import { type PremiumPlan } from "@/constants/premium";
+import { SettingsIcon } from "@/components/settings/settings-rows";
 import { SettingsButton } from "@/components/ui/settings-button";
 import { SettingsSwitch } from "@/components/ui/settings-switch";
 import { Colors } from "@/constants/theme";
@@ -793,7 +794,6 @@ function DisabledWrap({
 type PremiumBlockProps = {
   controller: PremiumSyncBackupController;
   theme: ThemeName;
-  borderColor: string;
   muted: string;
   disabled?: boolean;
 };
@@ -801,7 +801,6 @@ type PremiumBlockProps = {
 export function PremiumCloudSyncBlock({
   controller,
   theme,
-  borderColor,
   muted,
   disabled = false,
 }: PremiumBlockProps) {
@@ -810,6 +809,7 @@ export function PremiumCloudSyncBlock({
   return (
     <DisabledWrap disabled={blockDisabled}>
       <View style={styles.switchRow}>
+        <SettingsIcon name="icloud.fill" color="#0A84FF" />
         <View style={styles.switchLabelWrap}>
           <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
             {t("cloudSync.toggle.label")}
@@ -824,8 +824,6 @@ export function PremiumCloudSyncBlock({
           disabled={blockDisabled || controller.isCloudSyncBusy}
         />
       </View>
-
-      <View style={[styles.separator, { backgroundColor: borderColor }]} />
 
       <Text style={[styles.helperText, { color: muted }]}>
         {controller.cloudSyncStatusText}
@@ -856,24 +854,31 @@ export function PremiumBackupBlock({
   muted,
   title,
   disabled = false,
-}: Omit<PremiumBlockProps, "borderColor"> & { title?: string }) {
+}: PremiumBlockProps & { title?: string }) {
   const blockDisabled = disabled;
 
   return (
     <DisabledWrap disabled={blockDisabled}>
       {title ? (
-        <View style={styles.rowBlock}>
+        <View style={styles.titleRow}>
+          <SettingsIcon name="externaldrive.fill" color="#34C759" />
           <Text style={[styles.rowLabel, { color: Colors[theme].text }]}>
             {title}
           </Text>
         </View>
       ) : null}
 
-      <Text style={[styles.helperText, { color: muted }]}>
+      <Text
+        style={[
+          styles.helperText,
+          title ? null : styles.helperTextFlush,
+          { color: muted },
+        ]}
+      >
         {controller.backupStatusText}
       </Text>
 
-      <View style={styles.buttonStack}>
+      <View style={[styles.buttonStack, title ? null : styles.buttonsFlush]}>
         <SettingsButton
           title={
             controller.isExportingBackup
@@ -905,49 +910,70 @@ export function PremiumBackupBlock({
   );
 }
 
+// Lines up helper text and buttons with the row label next to the icon.
+const CONTENT_INSET = 16 + 30 + 14;
+
 const styles = StyleSheet.create({
-  rowBlock: {
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    minHeight: 58,
+    paddingHorizontal: 16,
+    paddingTop: 13,
+    paddingBottom: 6,
   },
   switchRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    gap: 14,
+    minHeight: 58,
+    paddingHorizontal: 16,
+    paddingTop: 13,
+    paddingBottom: 6,
   },
   switchLabelWrap: {
-    flexShrink: 1,
-    gap: 2,
+    flex: 1,
+    gap: 3,
     paddingRight: 12,
   },
   rowLabel: {
     fontSize: 16,
+    lineHeight: 21,
     fontWeight: "500",
   },
   helperInlineText: {
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 13,
+    lineHeight: 17,
   },
   helperText: {
     fontSize: 13,
     lineHeight: 19,
-    paddingHorizontal: 14,
+    paddingLeft: CONTENT_INSET,
+    paddingRight: 16,
   },
   buttonRow: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    alignItems: "flex-start",
+    paddingLeft: CONTENT_INSET - (Platform.OS === "ios" ? 8 : 0),
+    paddingRight: 16,
+    paddingTop: 6,
+    paddingBottom: 12,
   },
   buttonStack: {
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    alignItems: "flex-start",
+    gap: Platform.OS === "ios" ? 0 : 10,
+    paddingLeft: CONTENT_INSET - (Platform.OS === "ios" ? 8 : 0),
+    paddingRight: 16,
+    paddingTop: 6,
+    paddingBottom: 12,
   },
-  separator: {
-    height: StyleSheet.hairlineWidth,
-    marginHorizontal: 14,
+  // Without a title row there's no icon to line up with.
+  helperTextFlush: {
+    paddingLeft: 16,
+    paddingTop: 14,
+  },
+  buttonsFlush: {
+    paddingLeft: Platform.OS === "ios" ? 8 : 16,
   },
   disabledBlock: {
     opacity: 0.48,

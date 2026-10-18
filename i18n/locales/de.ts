@@ -456,6 +456,10 @@ export const DE_TRANSLATIONS: TranslationDict = {
     "Mit Reminders+ bekommst du mehr als 4 Projekte.",
   "settings.remindsPlus.action.showOptions": "Kaufoptionen anzeigen",
   "settings.remindsPlus.action.openOffer": "Angebot öffnen",
+  "settings.section.syncBackup": "Sync & Backup",
+  "settings.remindsPlus.action.discover": "Plus entdecken",
+  "settings.remindsPlus.hero.activeTitle": "Alles freigeschaltet.",
+  "settings.remindsPlus.hero.activeBody": "Danke für deine Unterstützung. Alle Plus-Funktionen stehen dir zur Verfügung.",
   "settings.appearance.mode": "Farbmodus",
   "settings.appearance.appIconFollowsAccent": "App-Icon in Akzentfarbe",
   "settings.appearance.appIconFollowsAccentHint":
