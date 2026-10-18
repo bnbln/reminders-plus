@@ -48,10 +48,13 @@ export function PlusHeroCard({
       end={{ x: 1, y: 1 }}
       style={styles.card}
     >
-      {/* Soft glow in the user's accent so the card belongs to their app. */}
-      <View
+      {/* Soft wash of the user's accent so the card belongs to their app. */}
+      <LinearGradient
         pointerEvents="none"
-        style={[styles.glow, { backgroundColor: withAlpha(accent, 0.42) }]}
+        colors={[withAlpha(accent, 0.5), withAlpha(accent, 0)]}
+        start={{ x: 1, y: 0 }}
+        end={{ x: 0.25, y: 0.75 }}
+        style={StyleSheet.absoluteFill}
       />
 
       <View style={styles.topRow}>
@@ -137,15 +140,6 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 20,
     gap: 20,
-  },
-  glow: {
-    position: "absolute",
-    top: -120,
-    right: -90,
-    width: 260,
-    height: 260,
-    borderRadius: 130,
-    opacity: 0.7,
   },
   topRow: {
     flexDirection: "row",
