@@ -576,6 +576,17 @@ export const SV_TRANSLATIONS: TranslationDict = {
   "errorBoundary.retry": "Försök igen",
   "project.notFoundBody": "Det här projektet har raderats eller är inte längre tillgängligt.",
   "project.notFoundAction": "Tillbaka till projekt",
+  "mac.menu.settings": "Inställningar…",
+  "mac.menu.newTask": "Ny uppgift",
+  "mac.menu.exportBackup": "Exportera säkerhetskopia…",
+  "mac.menu.toggleComplete": "Slutför uppgift",
+  "mac.menu.deleteTask": "Radera uppgift",
+  "mac.menu.toggleSidebar": "Visa/dölj sidofält",
+  "mac.menu.go": "Gå",
+  "mac.menu.support": "Kontakta support",
+  "mac.menu.openTask": "Öppna",
+  "mac.sidebar.projects": "Mina projekt",
+  "settings.notifications.macHint": "På Macen skickas bara påminnelser för uppgifter med tid. Den dagliga sammanfattningen och påminnelsen om sviten stannar på iPhone.",
 };
 
 export default SV_TRANSLATIONS;

@@ -576,6 +576,17 @@ export const RO_TRANSLATIONS: TranslationDict = {
   "errorBoundary.retry": "Încearcă din nou",
   "project.notFoundBody": "Acest proiect a fost șters sau nu mai este disponibil.",
   "project.notFoundAction": "Înapoi la proiecte",
+  "mac.menu.settings": "Configurări…",
+  "mac.menu.newTask": "Sarcină nouă",
+  "mac.menu.exportBackup": "Exportă backupul…",
+  "mac.menu.toggleComplete": "Finalizează sarcina",
+  "mac.menu.deleteTask": "Șterge sarcina",
+  "mac.menu.toggleSidebar": "Afișează/ascunde bara laterală",
+  "mac.menu.go": "Mergi la",
+  "mac.menu.support": "Contactează asistența",
+  "mac.menu.openTask": "Deschide",
+  "mac.sidebar.projects": "Proiectele mele",
+  "settings.notifications.macHint": "Pe Mac se trimit doar mementourile pentru sarcini cu oră. Rezumatul zilnic și mementoul pentru serie rămân pe iPhone.",
 };
 
 export default RO_TRANSLATIONS;

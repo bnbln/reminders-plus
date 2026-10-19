@@ -576,6 +576,17 @@ export const EL_TRANSLATIONS: TranslationDict = {
   "errorBoundary.retry": "Δοκίμασε ξανά",
   "project.notFoundBody": "Αυτό το έργο διαγράφηκε ή δεν είναι πλέον διαθέσιμο.",
   "project.notFoundAction": "Πίσω στα έργα",
+  "mac.menu.settings": "Ρυθμίσεις…",
+  "mac.menu.newTask": "Νέα εργασία",
+  "mac.menu.exportBackup": "Εξαγωγή αντιγράφου ασφαλείας…",
+  "mac.menu.toggleComplete": "Ολοκλήρωση εργασίας",
+  "mac.menu.deleteTask": "Διαγραφή εργασίας",
+  "mac.menu.toggleSidebar": "Εμφάνιση/απόκρυψη πλαϊνής στήλης",
+  "mac.menu.go": "Μετάβαση",
+  "mac.menu.support": "Επικοινωνία με την υποστήριξη",
+  "mac.menu.openTask": "Άνοιγμα",
+  "mac.sidebar.projects": "Τα έργα μου",
+  "settings.notifications.macHint": "Στο Mac στέλνονται μόνο υπενθυμίσεις για εργασίες με ώρα. Η ημερήσια σύνοψη και η υπενθύμιση σερί μένουν στο iPhone.",
 };
 
 export default EL_TRANSLATIONS;

@@ -576,6 +576,17 @@ export const PT_TRANSLATIONS: TranslationDict = {
   "errorBoundary.retry": "Tentar novamente",
   "project.notFoundBody": "Este projeto foi excluído ou não está mais disponível.",
   "project.notFoundAction": "Voltar aos projetos",
+  "mac.menu.settings": "Ajustes…",
+  "mac.menu.newTask": "Nova tarefa",
+  "mac.menu.exportBackup": "Exportar backup…",
+  "mac.menu.toggleComplete": "Concluir tarefa",
+  "mac.menu.deleteTask": "Apagar tarefa",
+  "mac.menu.toggleSidebar": "Mostrar/ocultar barra lateral",
+  "mac.menu.go": "Ir",
+  "mac.menu.support": "Contactar suporte",
+  "mac.menu.openTask": "Abrir",
+  "mac.sidebar.projects": "Meus projetos",
+  "settings.notifications.macHint": "No Mac, só são enviados lembretes de tarefas com horário. O resumo diário e o lembrete de sequência ficam no iPhone.",
 };
 
 export default PT_TRANSLATIONS;

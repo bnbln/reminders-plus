@@ -576,6 +576,17 @@ export const ID_TRANSLATIONS: TranslationDict = {
   "errorBoundary.retry": "Coba lagi",
   "project.notFoundBody": "Proyek ini telah dihapus atau tidak tersedia lagi.",
   "project.notFoundAction": "Kembali ke proyek",
+  "mac.menu.settings": "Pengaturan…",
+  "mac.menu.newTask": "Tugas Baru",
+  "mac.menu.exportBackup": "Ekspor Cadangan…",
+  "mac.menu.toggleComplete": "Selesaikan Tugas",
+  "mac.menu.deleteTask": "Hapus Tugas",
+  "mac.menu.toggleSidebar": "Tampilkan/Sembunyikan Bar Samping",
+  "mac.menu.go": "Buka",
+  "mac.menu.support": "Hubungi Dukungan",
+  "mac.menu.openTask": "Buka",
+  "mac.sidebar.projects": "Proyek Saya",
+  "settings.notifications.macHint": "Di Mac, hanya pengingat untuk tugas dengan waktu yang dikirim. Ringkasan harian dan pengingat runtunan tetap di iPhone.",
 };
 
 export default ID_TRANSLATIONS;

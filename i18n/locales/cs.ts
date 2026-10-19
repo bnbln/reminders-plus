@@ -576,6 +576,17 @@ export const CS_TRANSLATIONS: TranslationDict = {
   "errorBoundary.retry": "Zkusit znovu",
   "project.notFoundBody": "Tento projekt byl smazán nebo už není dostupný.",
   "project.notFoundAction": "Zpět na projekty",
+  "mac.menu.settings": "Nastavení…",
+  "mac.menu.newTask": "Nový úkol",
+  "mac.menu.exportBackup": "Exportovat zálohu…",
+  "mac.menu.toggleComplete": "Dokončit úkol",
+  "mac.menu.deleteTask": "Smazat úkol",
+  "mac.menu.toggleSidebar": "Zobrazit/skrýt boční panel",
+  "mac.menu.go": "Přejít",
+  "mac.menu.support": "Kontaktovat podporu",
+  "mac.menu.openTask": "Otevřít",
+  "mac.sidebar.projects": "Moje projekty",
+  "settings.notifications.macHint": "Na Macu chodí jen připomínky úkolů s časem. Denní přehled a připomínka série zůstávají na iPhonu.",
 };
 
 export default CS_TRANSLATIONS;

@@ -11,6 +11,7 @@ import type {
   Task,
 } from "@/context/tasks-store";
 import { getLocale, t } from "@/i18n";
+import { IS_MAC } from "@/utils/mac";
 import {
   getStartOfLocalDayMs,
   hasValidDueAt,
@@ -415,6 +416,9 @@ function shouldHaveDueNotification(task: Task): boolean {
   if (task.deletedAt) return false;
   if (task.section === "completed") return false;
   if (!Number.isFinite(task.dueAt) || task.dueAt <= 0) return false;
+  // The Mac plans its own notifications next to the iPhone. Only tasks timed to
+  // the minute alert there, so date-only tasks do not arrive twice.
+  if (IS_MAC && !task.dueHasTime) return false;
   return true;
 }
 
@@ -629,7 +633,8 @@ async function syncDailySummaryNotificationNow(args: {
   if (Platform.OS !== "ios") return;
 
   const existingState = await readDailySummaryState();
-  if (!args.enabled) {
+  // The morning overview stays on the iPhone; see shouldHaveDueNotification.
+  if (!args.enabled || IS_MAC) {
     if (existingState?.notificationId) {
       await Notifications.cancelScheduledNotificationAsync(
         existingState.notificationId,
@@ -713,8 +718,9 @@ async function syncStreakMotivationNotificationNow(args: {
 
   const existingState = await readStreakMotivationState();
 
-  // Only nudge people who use streaks and have one running into today.
-  if (!args.enabled || !hasStreakIntoToday(args.completionHistory)) {
+  // Only nudge people who use streaks and have one running into today. The
+  // nudge stays on the iPhone, like the daily summary.
+  if (!args.enabled || IS_MAC || !hasStreakIntoToday(args.completionHistory)) {
     await clearStreakMotivationState(existingState);
     return;
   }

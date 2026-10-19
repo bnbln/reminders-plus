@@ -24,11 +24,10 @@ import {
 } from "@/context/home-filters-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
-import { usePremium } from "@/context/premium-store";
 import {
-  IS_ASSIST_SUPPORTED,
-  IS_CLOUD_SYNC_SUPPORTED,
-} from "@/utils/assist-availability";
+  getProfileMenuSections,
+  useProfileMenuNavigate,
+} from "@/components/navigation/profile-menu";
 
 type FilterMenuOptions = {
   showFilter?: boolean;
@@ -305,56 +304,23 @@ function useNativeFilterHeaderItem({
 }
 
 function useNativeProfileHeaderItem(): NativeStackHeaderItemMenu {
-  const router = useRouter();
   const theme = useColorScheme() ?? "light";
-  const { hasPremiumAccess, isReady } = usePremium();
-
-  const navigate = React.useCallback((id: string) => {
-    switch (id) {
-      case "status": router.push("/status"); break;
-      case "streaks": router.push("/(tabs)/home/streaks"); break;
-      case "routines": router.push("/home/routines"); break;
-      case "archive": router.push("/home/archive"); break;
-      case "assist":
-        if (!IS_ASSIST_SUPPORTED) return;
-        router.push(!isReady || hasPremiumAccess ? "/assist" : { pathname: "/plus", params: { source: "assist" } });
-        break;
-      case "cloudSync":
-        if (!IS_CLOUD_SYNC_SUPPORTED) return;
-        router.push(!isReady || hasPremiumAccess ? "/cloud-sync" : { pathname: "/plus", params: { source: "sync" } });
-        break;
-      case "settings": router.push("/settings"); break;
-    }
-  }, [hasPremiumAccess, isReady, router]);
+  const navigate = useProfileMenuNavigate();
 
   return React.useMemo(() => {
-    const action = (id: string, label: string, icon: string): NativeStackHeaderItemMenuAction => ({
-      type: "action",
-      label,
-      icon: sfSymbol(icon),
-      onPress: () => navigate(id),
-    });
-    const section = (items: NativeStackHeaderItemMenuAction[]): NativeStackHeaderItemMenuSubmenu => ({
-      type: "submenu",
-      label: "",
-      inline: true,
-      items,
-    });
-    const items: NativeStackHeaderItemMenu["menu"]["items"] = [
-      section([
-        action("status", t("screen.status"), "arrow.up.right"),
-        action("streaks", t("home.quick.streaks"), "flame.fill"),
-        action("routines", t("home.quick.routines"), "repeat"),
-        action("archive", t("common.archive"), "archivebox.fill"),
-      ]),
-      ...(IS_ASSIST_SUPPORTED || IS_CLOUD_SYNC_SUPPORTED
-        ? [section([
-            ...(IS_ASSIST_SUPPORTED ? [action("assist", t("screen.assist"), "message.badge.waveform.fill")] : []),
-            ...(IS_CLOUD_SYNC_SUPPORTED ? [action("cloudSync", t("screen.cloudSync"), "icloud.fill")] : []),
-          ])]
-        : []),
-      section([action("settings", t("screen.settings"), "gearshape")]),
-    ];
+    const items: NativeStackHeaderItemMenu["menu"]["items"] = getProfileMenuSections().map(
+      (section): NativeStackHeaderItemMenuSubmenu => ({
+        type: "submenu",
+        label: "",
+        inline: true,
+        items: section.map((item): NativeStackHeaderItemMenuAction => ({
+          type: "action",
+          label: item.title,
+          icon: sfSymbol(item.symbol),
+          onPress: () => navigate(item.id),
+        })),
+      }),
+    );
     return {
       type: "menu",
       label: t("screen.profile"),

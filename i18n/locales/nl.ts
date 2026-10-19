@@ -576,6 +576,17 @@ export const NL_TRANSLATIONS: TranslationDict = {
   "errorBoundary.retry": "Opnieuw proberen",
   "project.notFoundBody": "Dit project is verwijderd of niet meer beschikbaar.",
   "project.notFoundAction": "Terug naar projecten",
+  "mac.menu.settings": "Instellingen…",
+  "mac.menu.newTask": "Nieuwe taak",
+  "mac.menu.exportBackup": "Exporteer reservekopie…",
+  "mac.menu.toggleComplete": "Taak voltooien",
+  "mac.menu.deleteTask": "Taak verwijderen",
+  "mac.menu.toggleSidebar": "Toon/verberg navigatiekolom",
+  "mac.menu.go": "Ga",
+  "mac.menu.support": "Neem contact op met support",
+  "mac.menu.openTask": "Open",
+  "mac.sidebar.projects": "Mijn projecten",
+  "settings.notifications.macHint": "Op de Mac komen alleen herinneringen voor taken met een tijd. Het dagoverzicht en de reeksherinnering blijven op de iPhone.",
 };
 
 export default NL_TRANSLATIONS;

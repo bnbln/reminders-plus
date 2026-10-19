@@ -576,6 +576,17 @@ export const IT_TRANSLATIONS: TranslationDict = {
   "errorBoundary.retry": "Riprova",
   "project.notFoundBody": "Questo progetto è stato eliminato o non è più disponibile.",
   "project.notFoundAction": "Torna ai progetti",
+  "mac.menu.settings": "Impostazioni…",
+  "mac.menu.newTask": "Nuova attività",
+  "mac.menu.exportBackup": "Esporta backup…",
+  "mac.menu.toggleComplete": "Completa attività",
+  "mac.menu.deleteTask": "Elimina attività",
+  "mac.menu.toggleSidebar": "Mostra/nascondi barra laterale",
+  "mac.menu.go": "Vai",
+  "mac.menu.support": "Contatta il supporto",
+  "mac.menu.openTask": "Apri",
+  "mac.sidebar.projects": "I miei progetti",
+  "settings.notifications.macHint": "Sul Mac arrivano solo i promemoria delle attività con un orario. Il riepilogo giornaliero e il promemoria della serie restano sull’iPhone.",
 };
 
 export default IT_TRANSLATIONS;

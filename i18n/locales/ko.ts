@@ -576,6 +576,17 @@ export const KO_TRANSLATIONS: TranslationDict = {
   "errorBoundary.retry": "다시 시도",
   "project.notFoundBody": "이 프로젝트는 삭제되었거나 더 이상 사용할 수 없습니다.",
   "project.notFoundAction": "프로젝트로 돌아가기",
+  "mac.menu.settings": "설정…",
+  "mac.menu.newTask": "새로운 할 일",
+  "mac.menu.exportBackup": "백업 내보내기…",
+  "mac.menu.toggleComplete": "할 일 완료",
+  "mac.menu.deleteTask": "할 일 삭제",
+  "mac.menu.toggleSidebar": "사이드바 보기/가리기",
+  "mac.menu.go": "이동",
+  "mac.menu.support": "지원 문의",
+  "mac.menu.openTask": "열기",
+  "mac.sidebar.projects": "내 프로젝트",
+  "settings.notifications.macHint": "Mac에서는 시간이 지정된 할 일의 알림만 보냅니다. 일일 요약과 연속 기록 알림은 iPhone에서 받습니다.",
 };
 
 export default KO_TRANSLATIONS;

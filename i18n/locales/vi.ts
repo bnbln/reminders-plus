@@ -576,6 +576,17 @@ export const VI_TRANSLATIONS: TranslationDict = {
   "errorBoundary.retry": "Thử lại",
   "project.notFoundBody": "Dự án này đã bị xóa hoặc không còn khả dụng.",
   "project.notFoundAction": "Quay lại dự án",
+  "mac.menu.settings": "Cài đặt…",
+  "mac.menu.newTask": "Công việc mới",
+  "mac.menu.exportBackup": "Xuất bản sao lưu…",
+  "mac.menu.toggleComplete": "Hoàn thành công việc",
+  "mac.menu.deleteTask": "Xóa công việc",
+  "mac.menu.toggleSidebar": "Hiện/ẩn thanh bên",
+  "mac.menu.go": "Đi",
+  "mac.menu.support": "Liên hệ hỗ trợ",
+  "mac.menu.openTask": "Mở",
+  "mac.sidebar.projects": "Dự án của tôi",
+  "settings.notifications.macHint": "Trên Mac chỉ gửi lời nhắc cho công việc có giờ. Tóm tắt hằng ngày và lời nhắc chuỗi vẫn ở trên iPhone.",
 };
 
 export default VI_TRANSLATIONS;

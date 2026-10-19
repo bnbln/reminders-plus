@@ -596,6 +596,17 @@ export const ES_TRANSLATIONS: TranslationDict = {
   "errorBoundary.retry": "Reintentar",
   "project.notFoundBody": "Este proyecto se eliminó o ya no está disponible.",
   "project.notFoundAction": "Volver a proyectos",
+  "mac.menu.settings": "Ajustes…",
+  "mac.menu.newTask": "Nueva tarea",
+  "mac.menu.exportBackup": "Exportar copia de seguridad…",
+  "mac.menu.toggleComplete": "Completar tarea",
+  "mac.menu.deleteTask": "Eliminar tarea",
+  "mac.menu.toggleSidebar": "Mostrar/ocultar barra lateral",
+  "mac.menu.go": "Ir",
+  "mac.menu.support": "Contactar con soporte",
+  "mac.menu.openTask": "Abrir",
+  "mac.sidebar.projects": "Mis proyectos",
+  "settings.notifications.macHint": "En el Mac solo se envían recordatorios de tareas con hora. El resumen diario y el recordatorio de racha se quedan en el iPhone.",
 };
 
 export default ES_TRANSLATIONS;

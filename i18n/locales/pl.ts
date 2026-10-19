@@ -576,6 +576,17 @@ export const PL_TRANSLATIONS: TranslationDict = {
   "errorBoundary.retry": "Spróbuj ponownie",
   "project.notFoundBody": "Ten projekt został usunięty lub nie jest już dostępny.",
   "project.notFoundAction": "Wróć do projektów",
+  "mac.menu.settings": "Ustawienia…",
+  "mac.menu.newTask": "Nowe zadanie",
+  "mac.menu.exportBackup": "Eksportuj kopię zapasową…",
+  "mac.menu.toggleComplete": "Ukończ zadanie",
+  "mac.menu.deleteTask": "Usuń zadanie",
+  "mac.menu.toggleSidebar": "Pokaż/ukryj pasek boczny",
+  "mac.menu.go": "Idź",
+  "mac.menu.support": "Kontakt z pomocą",
+  "mac.menu.openTask": "Otwórz",
+  "mac.sidebar.projects": "Moje projekty",
+  "settings.notifications.macHint": "Na Macu wysyłane są tylko przypomnienia o zadaniach z godziną. Podsumowanie dnia i przypomnienie o serii zostają na iPhonie.",
 };
 
 export default PL_TRANSLATIONS;

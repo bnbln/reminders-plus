@@ -56,6 +56,7 @@ import {
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { type AppLocale, t } from "@/i18n";
 import { IS_CLOUD_SYNC_SUPPORTED } from "@/utils/assist-availability";
+import { IS_MAC } from "@/utils/mac";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { SettingsButton } from "@/components/ui/settings-button";
 import { SettingsSwitch } from "@/components/ui/settings-switch";
@@ -826,7 +827,10 @@ export default function SettingsScreen() {
           </SettingsSection>
         ) : null}
 
-        <SettingsSection title={t("settings.section.notifications")}>
+        <SettingsSection
+          title={t("settings.section.notifications")}
+          footer={IS_MAC ? t("settings.notifications.macHint") : undefined}
+        >
           <SettingsRow
             icon="app.badge.fill"
             iconColor="#FF3B30"
@@ -847,54 +851,59 @@ export default function SettingsScreen() {
             }
           />
 
-          <SettingsSeparator />
-
-          <SettingsRow
-            icon="sun.max.fill"
-            iconColor="#FF9500"
-            label={t("settings.notifications.dailySummary")}
-            trailing={
-              <SettingsSwitch
-                accessibilityLabel={t("settings.notifications.dailySummary")}
-                value={dailySummaryEnabled}
-                onValueChange={(enabled) => {
-                  setDailySummaryEnabled(enabled);
-                  if (!enabled) setShowDailySummaryPicker(false);
-                }}
-              />
-            }
-          />
-
-          {dailySummaryEnabled ? (
+          {/* The Mac sends only reminders with a time; the overview stays on the iPhone. */}
+          {IS_MAC ? null : (
             <>
               <SettingsSeparator />
+
               <SettingsRow
-                icon="clock.fill"
-                iconColor="#5856D6"
-                label={t("common.time")}
-                accessibilityLabel={`${t("a11y.settings.dailySummaryTime")}: ${formatTime(dailySummaryTime)}`}
-                accessibilityState={{ expanded: showDailySummaryPicker }}
-                onPress={() => setShowDailySummaryPicker((current) => !current)}
+                icon="sun.max.fill"
+                iconColor="#FF9500"
+                label={t("settings.notifications.dailySummary")}
                 trailing={
-                  <SettingsValuePill
-                    value={formatTime(dailySummaryTime)}
-                    active={showDailySummaryPicker}
-                    activeColor={getAccentColorValue(accentColor)}
+                  <SettingsSwitch
+                    accessibilityLabel={t("settings.notifications.dailySummary")}
+                    value={dailySummaryEnabled}
+                    onValueChange={(enabled) => {
+                      setDailySummaryEnabled(enabled);
+                      if (!enabled) setShowDailySummaryPicker(false);
+                    }}
                   />
                 }
               />
-              {showDailySummaryPicker ? (
-                <View style={styles.timePickerWrap}>
-                  <DateTimePicker
-                    mode="time"
-                    value={dailySummaryTime}
-                    display={Platform.OS === "ios" ? "spinner" : "default"}
-                    onChange={onChangeSummaryTime}
+
+              {dailySummaryEnabled ? (
+                <>
+                  <SettingsSeparator />
+                  <SettingsRow
+                    icon="clock.fill"
+                    iconColor="#5856D6"
+                    label={t("common.time")}
+                    accessibilityLabel={`${t("a11y.settings.dailySummaryTime")}: ${formatTime(dailySummaryTime)}`}
+                    accessibilityState={{ expanded: showDailySummaryPicker }}
+                    onPress={() => setShowDailySummaryPicker((current) => !current)}
+                    trailing={
+                      <SettingsValuePill
+                        value={formatTime(dailySummaryTime)}
+                        active={showDailySummaryPicker}
+                        activeColor={getAccentColorValue(accentColor)}
+                      />
+                    }
                   />
-                </View>
+                  {showDailySummaryPicker ? (
+                    <View style={styles.timePickerWrap}>
+                      <DateTimePicker
+                        mode="time"
+                        value={dailySummaryTime}
+                        display={Platform.OS === "ios" ? "spinner" : "default"}
+                        onChange={onChangeSummaryTime}
+                      />
+                    </View>
+                  ) : null}
+                </>
               ) : null}
             </>
-          ) : null}
+          )}
         </SettingsSection>
 
         <SettingsSection
@@ -904,20 +913,25 @@ export default function SettingsScreen() {
           // could never cover them all.
           footer={t("settings.interactions.reduceMotionSystemHint")}
         >
-          <SettingsRow
-            icon="iphone.radiowaves.left.and.right"
-            iconColor="#FF2D55"
-            label={t("settings.interactions.haptics")}
-            trailing={
-              <SettingsSwitch
-                accessibilityLabel={t("settings.interactions.haptics")}
-                value={hapticsEnabled}
-                onValueChange={setHapticsEnabled}
+          {/* A Mac has no haptics. */}
+          {IS_MAC ? null : (
+            <>
+              <SettingsRow
+                icon="iphone.radiowaves.left.and.right"
+                iconColor="#FF2D55"
+                label={t("settings.interactions.haptics")}
+                trailing={
+                  <SettingsSwitch
+                    accessibilityLabel={t("settings.interactions.haptics")}
+                    value={hapticsEnabled}
+                    onValueChange={setHapticsEnabled}
+                  />
+                }
               />
-            }
-          />
 
-          <SettingsSeparator />
+              <SettingsSeparator />
+            </>
+          )}
 
           <SettingsRow
             icon="flame.fill"

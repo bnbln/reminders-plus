@@ -576,6 +576,17 @@ export const RU_TRANSLATIONS: TranslationDict = {
   "errorBoundary.retry": "Повторить",
   "project.notFoundBody": "Этот проект удалён или больше недоступен.",
   "project.notFoundAction": "Назад к проектам",
+  "mac.menu.settings": "Настройки…",
+  "mac.menu.newTask": "Новая задача",
+  "mac.menu.exportBackup": "Экспортировать резервную копию…",
+  "mac.menu.toggleComplete": "Выполнить задачу",
+  "mac.menu.deleteTask": "Удалить задачу",
+  "mac.menu.toggleSidebar": "Показать/скрыть боковое меню",
+  "mac.menu.go": "Переход",
+  "mac.menu.support": "Связаться с поддержкой",
+  "mac.menu.openTask": "Открыть",
+  "mac.sidebar.projects": "Мои проекты",
+  "settings.notifications.macHint": "На Mac приходят только напоминания о задачах со временем. Ежедневная сводка и напоминание о серии остаются на iPhone.",
 };
 
 export default RU_TRANSLATIONS;

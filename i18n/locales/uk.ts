@@ -576,6 +576,17 @@ export const UK_TRANSLATIONS: TranslationDict = {
   "errorBoundary.retry": "Спробувати ще раз",
   "project.notFoundBody": "Цей проєкт видалено або він більше не доступний.",
   "project.notFoundAction": "Назад до проєктів",
+  "mac.menu.settings": "Параметри…",
+  "mac.menu.newTask": "Нове завдання",
+  "mac.menu.exportBackup": "Експортувати резервну копію…",
+  "mac.menu.toggleComplete": "Виконати завдання",
+  "mac.menu.deleteTask": "Видалити завдання",
+  "mac.menu.toggleSidebar": "Показати/сховати бічну панель",
+  "mac.menu.go": "Перейти",
+  "mac.menu.support": "Звернутися до підтримки",
+  "mac.menu.openTask": "Відкрити",
+  "mac.sidebar.projects": "Мої проєкти",
+  "settings.notifications.macHint": "На Mac надходять лише нагадування про завдання з часом. Щоденний підсумок і нагадування про серію залишаються на iPhone.",
 };
 
 export default UK_TRANSLATIONS;

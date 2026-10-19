@@ -690,6 +690,17 @@ export const DE_TRANSLATIONS: TranslationDict = {
   "errorBoundary.retry": "Erneut versuchen",
   "project.notFoundBody": "Dieses Projekt wurde gelöscht oder ist nicht mehr verfügbar.",
   "project.notFoundAction": "Zurück zu den Projekten",
+  "mac.menu.settings": "Einstellungen …",
+  "mac.menu.newTask": "Neue Aufgabe",
+  "mac.menu.exportBackup": "Backup exportieren …",
+  "mac.menu.toggleComplete": "Aufgabe erledigen",
+  "mac.menu.deleteTask": "Aufgabe löschen",
+  "mac.menu.toggleSidebar": "Seitenleiste ein-/ausblenden",
+  "mac.menu.go": "Gehe zu",
+  "mac.menu.support": "Support kontaktieren",
+  "mac.menu.openTask": "Öffnen",
+  "mac.sidebar.projects": "Meine Projekte",
+  "settings.notifications.macHint": "Auf dem Mac kommen nur Erinnerungen für Aufgaben mit Uhrzeit. Tagesübersicht und Streak-Erinnerung bleiben auf dem iPhone.",
 };
 
 export default DE_TRANSLATIONS;

@@ -12,6 +12,7 @@
 		335C3CBDE108721FE0842F3B /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = F45E905FFA679E56B278FA31 /* PrivacyInfo.xcprivacy */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
 		4B9FEF48EADB4761BA3FDB0D /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64F967FA4DF049A6924F294C /* SceneDelegate.swift */; };
+		5C1A7E2B9D3F4A6B8C0E1F27 /* MacSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D2B8F3CAE4051B7C9D1E038 /* MacSupport.swift */; };
 		5D5980C8AC114FEFA57A238C /* StreakWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6ACF918642A49B69B01C1C4 /* StreakWidget.swift */; };
 		5E1BBC1D0D8245C2A467CF5A /* TasksWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79F3E4A838034F3785CF1E9D /* TasksWidget.swift */; };
 		5F14A910888310B0C33DD664 /* libPods-reminds.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 001AC81043E76A82EC47AE51 /* libPods-reminds.a */; };
@@ -64,6 +65,7 @@
 		4FB1D35A320B4126CFF83087 /* Pods-reminds.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-reminds.debug.xcconfig"; path = "Target Support Files/Pods-reminds/Pods-reminds.debug.xcconfig"; sourceTree = "<group>"; };
 		514EF91EDB368FB746D9885F /* Pods-ExpoWidgetsTarget.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ExpoWidgetsTarget.release.xcconfig"; path = "Target Support Files/Pods-ExpoWidgetsTarget/Pods-ExpoWidgetsTarget.release.xcconfig"; sourceTree = "<group>"; };
 		64F967FA4DF049A6924F294C /* SceneDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = SceneDelegate.swift; path = reminds/SceneDelegate.swift; sourceTree = "<group>"; };
+		6D2B8F3CAE4051B7C9D1E038 /* MacSupport.swift */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = MacSupport.swift; path = reminds/MacSupport.swift; sourceTree = "<group>"; };
 		6E0186E65C2F4A8691099A7E /* Info.plist */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		744BC80286F442E395B64A4D /* Reminder+.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = "Reminder+.icon"; sourceTree = "<group>"; };
 		78E4151E927615194994A1C2 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-reminds/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
@@ -124,6 +126,7 @@
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
 				F45E905FFA679E56B278FA31 /* PrivacyInfo.xcprivacy */,
 				64F967FA4DF049A6924F294C /* SceneDelegate.swift */,
+				6D2B8F3CAE4051B7C9D1E038 /* MacSupport.swift */,
 				911952C4CC97469999DAB725 /* RemindsVerticalBar.m */,
 			);
 			name = reminds;
@@ -632,6 +635,7 @@
 				A1C7F2D53D9A4B1E8C7F2301 /* TaskAccessoryContextBridge.m in Sources */,
 				29DD3926389155C935C17088 /* ExpoModulesProvider.swift in Sources */,
 				4B9FEF48EADB4761BA3FDB0D /* SceneDelegate.swift in Sources */,
+				5C1A7E2B9D3F4A6B8C0E1F27 /* MacSupport.swift in Sources */,
 				A42D55B02C304A46B507B1CD /* RemindsVerticalBar.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

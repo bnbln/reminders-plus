@@ -576,6 +576,17 @@ export const FI_TRANSLATIONS: TranslationDict = {
   "errorBoundary.retry": "Yritä uudelleen",
   "project.notFoundBody": "Tämä projekti on poistettu tai se ei ole enää saatavilla.",
   "project.notFoundAction": "Takaisin projekteihin",
+  "mac.menu.settings": "Asetukset…",
+  "mac.menu.newTask": "Uusi tehtävä",
+  "mac.menu.exportBackup": "Vie varmuuskopio…",
+  "mac.menu.toggleComplete": "Merkitse tehtävä valmiiksi",
+  "mac.menu.deleteTask": "Poista tehtävä",
+  "mac.menu.toggleSidebar": "Näytä/piilota sivupalkki",
+  "mac.menu.go": "Siirry",
+  "mac.menu.support": "Ota yhteyttä tukeen",
+  "mac.menu.openTask": "Avaa",
+  "mac.sidebar.projects": "Omat projektit",
+  "settings.notifications.macHint": "Macilla lähetetään vain kellonajallisten tehtävien muistutukset. Päivän yhteenveto ja putkimuistutus pysyvät iPhonessa.",
 };
 
 export default FI_TRANSLATIONS;

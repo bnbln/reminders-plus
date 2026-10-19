@@ -576,6 +576,17 @@ export const HU_TRANSLATIONS: TranslationDict = {
   "errorBoundary.retry": "Újrapróbálás",
   "project.notFoundBody": "Ez a projekt törölve lett, vagy már nem érhető el.",
   "project.notFoundAction": "Vissza a projektekhez",
+  "mac.menu.settings": "Beállítások…",
+  "mac.menu.newTask": "Új feladat",
+  "mac.menu.exportBackup": "Biztonsági mentés exportálása…",
+  "mac.menu.toggleComplete": "Feladat teljesítése",
+  "mac.menu.deleteTask": "Feladat törlése",
+  "mac.menu.toggleSidebar": "Oldalsáv megjelenítése/elrejtése",
+  "mac.menu.go": "Ugrás",
+  "mac.menu.support": "Kapcsolat a támogatással",
+  "mac.menu.openTask": "Megnyitás",
+  "mac.sidebar.projects": "Saját projektek",
+  "settings.notifications.macHint": "Macen csak az időponttal rendelkező feladatok emlékeztetői érkeznek. A napi összefoglaló és a sorozat-emlékeztető az iPhone-on marad.",
 };
 
 export default HU_TRANSLATIONS;
