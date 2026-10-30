@@ -20,9 +20,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -45,13 +45,17 @@ jobs:
     name: Expo Doctor (nur Hinweis)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # Haengt von der Expo-API ab und meldet auch Geschmacksfragen, darum nicht blockierend.
-    continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx expo-doctor@latest
+      # Haengt von der Expo-API ab und meldet z. B. auch neuere Patch-Versionen,
+      # darum nur als Warnung im Summary statt als rotes Kreuz am PR.
+      - name: expo-doctor
+        run: |
+          if ! npx expo-doctor@latest; then
+            echo "::warning title=Expo Doctor::Expo Doctor hat Hinweise gefunden, siehe Log dieses Jobs."
+          fi
