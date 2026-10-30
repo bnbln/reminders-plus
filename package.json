@@ -13,6 +13,7 @@
     "bene": "expo run:ios --device \"iPhone von Benedikt\"",
     "web": "expo start --web",
     "lint": "expo lint",
+    "typecheck": "tsc --noEmit",
     "postinstall": "patch-package"
   },
   "dependencies": {
@@ -67,6 +68,13 @@
     "eslint-config-expo": "~58.0.4",
     "patch-package": "^8.0.1",
     "typescript": "~6.0.3"
+  },
+  "expo": {
+    "doctor": {
+      "appConfigFieldsNotSyncedCheck": {
+        "enabled": false
+      }
+    }
   },
   "private": true
 }
