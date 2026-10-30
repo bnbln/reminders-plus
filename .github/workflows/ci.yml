@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master, develop]
+  workflow_dispatch:
+
+# Neuer Push auf denselben Branch bricht den laufenden Lauf ab.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Typecheck, Lint, iOS-Bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Fuehrt auch patch-package aus; ein nicht mehr passender Patch laesst den Lauf scheitern.
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      # Baut das JS-Bundle wie fuer den Release, ohne Xcode. Findet kaputte Imports und fehlende Assets.
+      - name: iOS JS bundle
+        run: npx expo export --platform ios --output-dir dist
+
+  doctor:
+    name: Expo Doctor (nur Hinweis)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Haengt von der Expo-API ab und meldet auch Geschmacksfragen, darum nicht blockierend.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx expo-doctor@latest
