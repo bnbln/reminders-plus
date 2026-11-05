@@ -29,3 +29,11 @@ RCT_EXTERN_METHOD(syncNow:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
 @end
+
+@interface RCT_EXTERN_MODULE(MacSupportBridge, RCTEventEmitter)
+
+RCT_EXTERN_METHOD(setMenuContent:(NSDictionary *)content)
+
+RCT_EXTERN_METHOD(setSidebarContent:(NSDictionary *)content)
+
+@end

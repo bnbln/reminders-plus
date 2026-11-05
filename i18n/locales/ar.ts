@@ -576,6 +576,17 @@ export const AR_TRANSLATIONS: TranslationDict = {
   "errorBoundary.retry": "حاول مرة أخرى",
   "project.notFoundBody": "تم حذف هذا المشروع أو لم يعد متاحًا.",
   "project.notFoundAction": "العودة إلى المشاريع",
+  "mac.menu.settings": "الإعدادات…",
+  "mac.menu.newTask": "مهمة جديدة",
+  "mac.menu.exportBackup": "تصدير النسخة الاحتياطية…",
+  "mac.menu.toggleComplete": "إكمال المهمة",
+  "mac.menu.deleteTask": "حذف المهمة",
+  "mac.menu.toggleSidebar": "إظهار/إخفاء الشريط الجانبي",
+  "mac.menu.go": "انتقال",
+  "mac.menu.support": "التواصل مع الدعم",
+  "mac.menu.openTask": "فتح",
+  "mac.sidebar.projects": "مشاريعي",
+  "settings.notifications.macHint": "على Mac تصل فقط تذكيرات المهام المحددة بوقت. يبقى الملخص اليومي وتذكير السلسلة على iPhone.",
 };
 
 export default AR_TRANSLATIONS;

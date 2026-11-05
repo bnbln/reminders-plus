@@ -16,6 +16,7 @@ import { useTasksStore } from "@/context/tasks-store";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { t } from "@/i18n";
 import { isIOS26OrNewer } from "@/utils/ios-version";
+import { IS_MAC } from "@/utils/mac";
 
 type TaskAccessoryContextBridge = {
   setContext?: (
@@ -255,9 +256,13 @@ export default function TabLayout() {
 
   return (
     <View style={{ flex: 1, backgroundColor: tabSceneBackground }}>
-      <TabBarMinimizeProvider behavior="onScrollDown">
+      <TabBarMinimizeProvider behavior={IS_MAC ? "never" : "onScrollDown"}>
         <NativeTabs
-          minimizeBehavior="onScrollDown"
+          // The Mac shows the tabs as a native sidebar, with the projects and
+          // the profile menu in it (ios/reminds/MacSupport.swift). The iPad
+          // keeps the tab bar for now.
+          sidebarAdaptable={IS_MAC ? true : undefined}
+          minimizeBehavior={IS_MAC ? "never" : "onScrollDown"}
           // Keep scroll-edge behavior native on iOS 26+ so tab minimization can react to content scrolling.
           disableTransparentOnScrollEdge={!isIOS26Plus}
           backgroundColor={tabSceneBackground}

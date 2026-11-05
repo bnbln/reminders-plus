@@ -611,6 +611,17 @@ export const EN_TRANSLATIONS: TranslationDict = {
     "errorBoundary.retry": "Try again",
     "project.notFoundBody": "This project was deleted or is no longer available.",
     "project.notFoundAction": "Back to projects",
+    "mac.menu.settings": "Settings…",
+    "mac.menu.newTask": "New Task",
+    "mac.menu.exportBackup": "Export Backup…",
+    "mac.menu.toggleComplete": "Complete Task",
+    "mac.menu.deleteTask": "Delete Task",
+    "mac.menu.toggleSidebar": "Show/Hide Sidebar",
+    "mac.menu.go": "Go",
+    "mac.menu.support": "Contact Support",
+    "mac.menu.openTask": "Open",
+    "mac.sidebar.projects": "My Projects",
+    "settings.notifications.macHint": "On the Mac, only reminders for tasks with a time are sent. The daily summary and streak reminder stay on your iPhone.",
 };
 
 export default EN_TRANSLATIONS;

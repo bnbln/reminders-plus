@@ -45,6 +45,7 @@ import { ripple } from "@/components/ui/ripple";
 import { useTextDraft } from '@/hooks/use-text-draft';
 import { m3InputProps } from '@/components/ui/m3-input';
 import { useThemedStyles } from "@/hooks/use-themed-styles";
+import { registerMacCommandHandler } from "@/utils/mac";
 
 
 
@@ -300,6 +301,23 @@ export function TaskDetailContent({ taskId: id, onClose, headerHeight = 0 }: {
       },
     ]);
   }, [onClose, setTasks, showSnackbar, task]);
+
+  // ⌘↩ and ⌘⌫ from the menu bar act on the open task.
+  React.useEffect(() => {
+    if (!task) return;
+    const unregisterComplete = registerMacCommandHandler('toggleComplete', () => {
+      onToggleComplete();
+      return true;
+    });
+    const unregisterDelete = registerMacCommandHandler('deleteTask', () => {
+      onDelete();
+      return true;
+    });
+    return () => {
+      unregisterComplete();
+      unregisterDelete();
+    };
+  }, [onDelete, onToggleComplete, task]);
 
   const insets = useSafeAreaInsets();
   const hasVerticalBar = useVerticalBarActive();

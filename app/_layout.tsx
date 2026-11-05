@@ -19,6 +19,7 @@ import {
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ReduceMotion, ReducedMotionConfig } from "react-native-reanimated";
 
+import { MacIntegration } from "@/components/navigation/mac-integration";
 import { VerticalBarSafeAreaProvider, verticalBarScreenLayout } from "@/components/navigation/vertical-bar-safe-area";
 import { SearchBarDismissProvider } from "@/components/search/search-bar-dismiss";
 import {
@@ -219,6 +220,7 @@ export default function RootLayout() {
                   style={{ flex: 1, backgroundColor: Colors[theme].background }}
                 >
                   <SettingsAccentBackground isDark={theme === "dark"} />
+                  <MacIntegration />
                   <SearchBarDismissProvider searchBarRef={searchBarRef}>
                   <Stack
                     screenLayout={verticalBarScreenLayout}

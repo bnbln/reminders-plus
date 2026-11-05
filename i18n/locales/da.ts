@@ -576,6 +576,17 @@ export const DA_TRANSLATIONS: TranslationDict = {
   "errorBoundary.retry": "Prøv igen",
   "project.notFoundBody": "Dette projekt er slettet eller ikke længere tilgængeligt.",
   "project.notFoundAction": "Tilbage til projekter",
+  "mac.menu.settings": "Indstillinger…",
+  "mac.menu.newTask": "Ny opgave",
+  "mac.menu.exportBackup": "Eksporter sikkerhedskopi…",
+  "mac.menu.toggleComplete": "Fuldfør opgave",
+  "mac.menu.deleteTask": "Slet opgave",
+  "mac.menu.toggleSidebar": "Vis/skjul indholdsoversigt",
+  "mac.menu.go": "Gå",
+  "mac.menu.support": "Kontakt support",
+  "mac.menu.openTask": "Åbn",
+  "mac.sidebar.projects": "Mine projekter",
+  "settings.notifications.macHint": "På Mac sendes kun påmindelser for opgaver med et tidspunkt. Den daglige oversigt og påmindelsen om stime bliver på iPhone.",
 };
 
 export default DA_TRANSLATIONS;

@@ -576,6 +576,17 @@ export const HI_TRANSLATIONS: TranslationDict = {
   "errorBoundary.retry": "फिर से कोशिश करें",
   "project.notFoundBody": "यह प्रोजेक्ट हटा दिया गया है या अब उपलब्ध नहीं है।",
   "project.notFoundAction": "प्रोजेक्ट्स पर वापस जाएँ",
+  "mac.menu.settings": "सेटिंग्स…",
+  "mac.menu.newTask": "नया कार्य",
+  "mac.menu.exportBackup": "बैकअप निर्यात करें…",
+  "mac.menu.toggleComplete": "कार्य पूरा करें",
+  "mac.menu.deleteTask": "कार्य हटाएँ",
+  "mac.menu.toggleSidebar": "साइडबार दिखाएँ/छिपाएँ",
+  "mac.menu.go": "जाएँ",
+  "mac.menu.support": "सहायता से संपर्क करें",
+  "mac.menu.openTask": "खोलें",
+  "mac.sidebar.projects": "मेरे प्रोजेक्ट",
+  "settings.notifications.macHint": "Mac पर केवल समय वाले कार्यों के रिमाइंडर भेजे जाते हैं। दैनिक सारांश और स्ट्रीक रिमाइंडर iPhone पर ही रहते हैं।",
 };
 
 export default HI_TRANSLATIONS;

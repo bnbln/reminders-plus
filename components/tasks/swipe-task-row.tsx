@@ -32,6 +32,7 @@ import Reanimated, {
   withTiming,
 } from "react-native-reanimated";
 
+import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { GlassSurface, withAlpha } from "@/components/ui/glass-surface";
 import { rippleBorderless } from "@/components/ui/ripple";
 import {
@@ -43,6 +44,7 @@ import {
   triggerImpactHaptic,
   triggerNotificationHaptic,
 } from "@/utils/haptics";
+import { IS_MAC } from "@/utils/mac";
 import { motionSpring, motionTiming } from "@/utils/motion";
 
 const AnimatedGlassSurface = Reanimated.createAnimatedComponent(GlassSurface);
@@ -57,8 +59,27 @@ const SWIPE_OVER_SWIPE = 480;
 const SWIPE_SNAP_PROGRESS = SWIPE_STOP / SWIPE_TRIGGER_SNAP;
 const COMPACT_SUBTASK_ICON_SIZE = 18;
 const COMPACT_SUBTASK_TEXT_SIZE = 14;
-const DRAG_LONG_PRESS_DELAY_MS = 260;
+// A mouse press has no jitter to tell apart from a drag, so the Mac starts sooner.
+const DRAG_LONG_PRESS_DELAY_MS = IS_MAC ? 150 : 260;
 const DRAG_COMPACT_PREVIEW_SIZE = 52;
+
+/** On the Mac the row gets a right-click menu; elsewhere long press belongs to dragging. */
+function MacRowContextMenu({
+  actions,
+  onPressAction,
+  children,
+}: {
+  actions: React.ComponentProps<typeof DropdownMenu>["actions"];
+  onPressAction: React.ComponentProps<typeof DropdownMenu>["onPressAction"];
+  children: React.ReactNode;
+}) {
+  if (!IS_MAC) return <>{children}</>;
+  return (
+    <DropdownMenu actions={actions} onPressAction={onPressAction} shouldOpenOnLongPress>
+      {children}
+    </DropdownMenu>
+  );
+}
 const TASK_POP_IN_DURATION_MS = 196;
 const SWIPE_COMMIT_EXIT_DURATION_MS = 118;
 const SWIPE_COMMIT_EXIT_FADE_DURATION_MS = 96;
@@ -1030,6 +1051,40 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
     );
   }, [animateSwipeCommit, fireRightConfirmationHaptic, performRightAction]);
 
+  // Mac: pointer hover and a right-click menu stand in for swiping.
+  const [isHovered, setIsHovered] = React.useState(false);
+  const macContextActions = React.useMemo(
+    () =>
+      IS_MAC
+        ? [
+            { id: "open", title: t("mac.menu.openTask"), image: "arrow.up.forward.app" },
+            {
+              id: "complete",
+              title:
+                task.section === "completed"
+                  ? t("a11y.task.reopen")
+                  : t("a11y.task.complete"),
+              image: task.section === "completed" ? "arrow.uturn.backward.circle" : "checkmark.circle",
+            },
+            {
+              id: "delete",
+              title: t("common.delete"),
+              image: "trash",
+              attributes: { destructive: true },
+            },
+          ]
+        : [],
+    [task.section],
+  );
+  const onMacContextAction = React.useCallback(
+    ({ nativeEvent: { event } }: { nativeEvent: { event: string } }) => {
+      if (event === "open") onPressTask(task.id);
+      if (event === "complete") onPressComplete();
+      if (event === "delete") onPressDelete();
+    },
+    [onPressComplete, onPressDelete, onPressTask, task.id],
+  );
+
   const handleSwipeChange = React.useCallback(
     ({
       openDirection,
@@ -1698,7 +1753,15 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
             renderUnderlayRight={renderUnderlayRight}
           >
             <Animated.View style={contentMotionStyle}>
-              <Animated.View style={dragMotionStyle}>
+              <Animated.View
+                style={dragMotionStyle}
+                onPointerEnter={IS_MAC ? () => setIsHovered(true) : undefined}
+                onPointerLeave={IS_MAC ? () => setIsHovered(false) : undefined}
+              >
+                <MacRowContextMenu
+                  actions={macContextActions}
+                  onPressAction={onMacContextAction}
+                >
                 <TouchableOpacity
                   testID={`task-row-${task.id}`}
                   accessibilityActions={[
@@ -1820,8 +1883,21 @@ export const SwipeTaskRow = React.memo(function SwipeTaskRow({
                         )}
                       </View>
                     </Animated.View>
+                    {isHovered && !isActive ? (
+                      <View
+                        pointerEvents="none"
+                        style={[
+                          StyleSheet.absoluteFill,
+                          {
+                            borderRadius: StyleSheet.flatten(rowContentStyle).borderRadius,
+                            backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
+                          },
+                        ]}
+                      />
+                    ) : null}
                   </AnimatedGlassSurface>
                 </TouchableOpacity>
+                </MacRowContextMenu>
               </Animated.View>
             </Animated.View>
           </SwipeableItem>

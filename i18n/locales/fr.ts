@@ -576,6 +576,17 @@ export const FR_TRANSLATIONS: TranslationDict = {
   "errorBoundary.retry": "Réessayer",
   "project.notFoundBody": "Ce projet a été supprimé ou n’est plus disponible.",
   "project.notFoundAction": "Retour aux projets",
+  "mac.menu.settings": "Réglages…",
+  "mac.menu.newTask": "Nouvelle tâche",
+  "mac.menu.exportBackup": "Exporter la sauvegarde…",
+  "mac.menu.toggleComplete": "Terminer la tâche",
+  "mac.menu.deleteTask": "Supprimer la tâche",
+  "mac.menu.toggleSidebar": "Afficher/masquer la barre latérale",
+  "mac.menu.go": "Aller",
+  "mac.menu.support": "Contacter l’assistance",
+  "mac.menu.openTask": "Ouvrir",
+  "mac.sidebar.projects": "Mes projets",
+  "settings.notifications.macHint": "Sur le Mac, seuls les rappels des tâches avec une heure sont envoyés. Le résumé quotidien et le rappel de série restent sur l’iPhone.",
 };
 
 export default FR_TRANSLATIONS;

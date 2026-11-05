@@ -576,6 +576,17 @@ export const ZH_TRANSLATIONS: TranslationDict = {
   "errorBoundary.retry": "重试",
   "project.notFoundBody": "此项目已被删除或不再可用。",
   "project.notFoundAction": "返回项目",
+  "mac.menu.settings": "设置…",
+  "mac.menu.newTask": "新建任务",
+  "mac.menu.exportBackup": "导出备份…",
+  "mac.menu.toggleComplete": "完成任务",
+  "mac.menu.deleteTask": "删除任务",
+  "mac.menu.toggleSidebar": "显示/隐藏边栏",
+  "mac.menu.go": "前往",
+  "mac.menu.support": "联系支持",
+  "mac.menu.openTask": "打开",
+  "mac.sidebar.projects": "我的项目",
+  "settings.notifications.macHint": "在 Mac 上只发送带时间的任务提醒。每日摘要和连续记录提醒保留在 iPhone 上。",
 };
 
 export default ZH_TRANSLATIONS;

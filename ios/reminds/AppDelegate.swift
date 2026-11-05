@@ -50,6 +50,7 @@ class AppDelegate: ExpoAppDelegate, ExpoReactNativeFactoryProvider {
     window.backgroundColor = UIColor.remindsAppBackground
     window.rootViewController?.view.backgroundColor = UIColor.remindsAppBackground
     applyReactRootViewBackground()
+    MacWindowConfigurator.configure(window)
 
     if #available(iOS 26.0, *) {
       let coordinator = TabBarAccessoryCoordinator(windowProvider: { [weak window] in
@@ -78,6 +79,27 @@ class AppDelegate: ExpoAppDelegate, ExpoReactNativeFactoryProvider {
       didReceiveRemoteNotification: userInfo,
       fetchCompletionHandler: completionHandler
     )
+  }
+
+  override func buildMenu(with builder: UIMenuBuilder) {
+    super.buildMenu(with: builder)
+    MacMenuBuilder.build(with: builder)
+  }
+
+  /// Target of every menu bar command and keyboard shortcut from `MacMenuBuilder`.
+  /// The app delegate ends the responder chain, so the commands work on any screen.
+  @objc func handleMacMenuCommand(_ sender: UICommand) {
+    guard let propertyList = sender.propertyList as? [String: String],
+          let id = propertyList["id"] else {
+      return
+    }
+    if id == "toggleSidebar" {
+      if #available(iOS 26.0, *) {
+        MacSidebarController.shared.toggleSidebar()
+      }
+      return
+    }
+    MacSupportStore.shared.send(id, value: propertyList["value"])
   }
 
   private func applyReactRootViewBackground() {
@@ -180,6 +202,12 @@ private final class TabBarAccessoryCoordinator: NSObject {
       name: .taskAccessoryContextDidChange,
       object: nil
     )
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(handleMacSidebarContentDidChange),
+      name: .macSidebarContentDidChange,
+      object: nil
+    )
 
     scheduleInstallAttempts()
   }
@@ -194,6 +222,10 @@ private final class TabBarAccessoryCoordinator: NSObject {
 
   @objc private func handleWindowDidBecomeVisible() {
     scheduleInstallAttempts(maxAttempts: 120)
+  }
+
+  @objc private func handleMacSidebarContentDidChange() {
+    scheduleInstallAttempts(maxAttempts: 4)
   }
 
   private func scheduleInstallAttempts(maxAttempts: Int = 80) {
@@ -227,6 +259,14 @@ private final class TabBarAccessoryCoordinator: NSObject {
     }
 
     Self.applyContainerBackgroundColor(in: tabBarController)
+
+    // On the Mac the tabs are a sidebar: no minimizing and no bottom accessory.
+    // The add button sits in the page header there, next to ⌘N.
+    if MacEnvironment.isiOSAppOnMac {
+      MacSidebarController.shared.apply(to: tabBarController)
+      attachedTabBarController = tabBarController
+      return true
+    }
 
     tabBarController.tabBarMinimizeBehavior = .onScrollDown
     bindObservedScrollViewIfNeeded(for: tabBarController)

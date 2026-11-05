@@ -576,6 +576,17 @@ export const TR_TRANSLATIONS: TranslationDict = {
   "errorBoundary.retry": "Tekrar dene",
   "project.notFoundBody": "Bu proje silinmiş veya artık kullanılamıyor.",
   "project.notFoundAction": "Projelere dön",
+  "mac.menu.settings": "Ayarlar…",
+  "mac.menu.newTask": "Yeni Görev",
+  "mac.menu.exportBackup": "Yedeği Dışa Aktar…",
+  "mac.menu.toggleComplete": "Görevi Tamamla",
+  "mac.menu.deleteTask": "Görevi Sil",
+  "mac.menu.toggleSidebar": "Kenar Çubuğunu Göster/Gizle",
+  "mac.menu.go": "Git",
+  "mac.menu.support": "Destekle İletişime Geç",
+  "mac.menu.openTask": "Aç",
+  "mac.sidebar.projects": "Projelerim",
+  "settings.notifications.macHint": "Mac’te yalnızca saati olan görevlerin hatırlatmaları gönderilir. Günlük özet ve seri hatırlatması iPhone’da kalır.",
 };
 
 export default TR_TRANSLATIONS;

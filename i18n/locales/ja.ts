@@ -576,6 +576,17 @@ export const JA_TRANSLATIONS: TranslationDict = {
   "errorBoundary.retry": "再試行",
   "project.notFoundBody": "このプロジェクトは削除されたか、利用できなくなりました。",
   "project.notFoundAction": "プロジェクトに戻る",
+  "mac.menu.settings": "設定…",
+  "mac.menu.newTask": "新規タスク",
+  "mac.menu.exportBackup": "バックアップを書き出す…",
+  "mac.menu.toggleComplete": "タスクを完了",
+  "mac.menu.deleteTask": "タスクを削除",
+  "mac.menu.toggleSidebar": "サイドバーを表示/非表示",
+  "mac.menu.go": "移動",
+  "mac.menu.support": "サポートに問い合わせる",
+  "mac.menu.openTask": "開く",
+  "mac.sidebar.projects": "マイプロジェクト",
+  "settings.notifications.macHint": "Macでは時刻が設定されたタスクの通知だけが届きます。デイリーサマリーと連続記録のリマインダーはiPhoneに届きます。",
 };
 
 export default JA_TRANSLATIONS;
